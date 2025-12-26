@@ -36,3 +36,6 @@ temp/
 
 # FrontAgent specific
 .frontagent/
+
+# claude code
+./claude/
