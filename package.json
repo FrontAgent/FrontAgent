@@ -11,7 +11,8 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "clean": "turbo clean && rm -rf node_modules",
-    "agent": "pnpm --filter @frontagent/cli run start"
+    "agent": "node apps/cli/dist/index.js",
+    "frontagent": "node apps/cli/dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

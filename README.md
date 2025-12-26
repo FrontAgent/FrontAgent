@@ -61,7 +61,8 @@ pnpm build
 ### 初始化项目 SDD
 
 ```bash
-# 在你的项目目录中
+# 在项目根目录中
+cd /path/to/FrontAgent
 pnpm frontagent init
 
 # 这会创建 sdd.yaml 配置文件
@@ -70,12 +71,15 @@ pnpm frontagent init
 ### 验证 SDD 配置
 
 ```bash
-pnpm frontagent validate sdd.yaml
+pnpm frontagent validate examples/sdd-example.yaml
 ```
 
 ### 运行 Agent 任务
 
 ```bash
+# 查看帮助
+pnpm frontagent --help
+
 # 查询任务
 pnpm frontagent run "查找所有使用了 useState 的组件"
 
@@ -88,6 +92,12 @@ pnpm frontagent run "添加 loading 状态到 Button 组件" \
 pnpm frontagent run "创建一个 Modal 组件" \
   --type create \
   --files src/components/Modal.tsx
+
+# 使用自定义模型
+pnpm frontagent run "重构认证模块" \
+  --provider anthropic \
+  --model claude-sonnet-4-5-20250929 \
+  --type refactor
 ```
 
 ## 核心模块
