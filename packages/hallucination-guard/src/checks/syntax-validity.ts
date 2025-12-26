@@ -176,15 +176,16 @@ function checkCommonPatterns(code: string): SyntaxError[] {
   const errors: SyntaxError[] = [];
   const lines = code.split('\n');
 
-  const errorPatterns = [
-    { pattern: /[^=!<>]==[^=]/, message: 'Possible loose equality, consider using ===' },
-    { pattern: /\)\s*{[^}]+}\s*else/, message: 'Possible missing newline before else' },
-    { pattern: /return\s*\n\s*[^;{]/, message: 'Possible unintended return due to automatic semicolon insertion' }
-  ];
+  // 未来可扩展的错误模式
+  // const errorPatterns = [
+  //   { pattern: /[^=!<>]==[^=]/, message: 'Possible loose equality, consider using ===' },
+  //   { pattern: /\)\s*{[^}]+}\s*else/, message: 'Possible missing newline before else' },
+  //   { pattern: /return\s*\n\s*[^;{]/, message: 'Possible unintended return due to automatic semicolon insertion' }
+  // ];
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
-    
+
     // 检查未闭合的字符串（简化）
     const singleQuotes = (line.match(/(?<!\\)'/g) || []).length;
     const doubleQuotes = (line.match(/(?<!\\)"/g) || []).length;
@@ -203,6 +204,14 @@ function checkCommonPatterns(code: string): SyntaxError[] {
         line: lineIdx + 1,
         column: 1,
         message: 'Possible unclosed double-quoted string'
+      });
+    }
+
+    if (templateLiterals % 2 !== 0) {
+      errors.push({
+        line: lineIdx + 1,
+        column: 1,
+        message: 'Possible unclosed template literal'
       });
     }
   }

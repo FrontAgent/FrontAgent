@@ -6,6 +6,13 @@ export { FrontAgent, createAgent } from './agent.js';
 export { Planner, createPlanner, type PlannerConfig } from './planner.js';
 export { Executor, createExecutor, type ExecutorConfig, type MCPClient } from './executor.js';
 export { ContextManager, createContextManager } from './context.js';
+export {
+  LLMService,
+  createLLMService,
+  type GeneratedPlan,
+  type GeneratedCode,
+  type GeneratedPatch
+} from './llm.js';
 
 export type {
   AgentConfig,

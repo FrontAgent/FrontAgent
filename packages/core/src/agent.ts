@@ -3,7 +3,7 @@
  * 负责整体编排
  */
 
-import type { AgentTask, ExecutionPlan, SDDConfig } from '@frontagent/shared';
+import type { AgentTask, ExecutionPlan, SDDConfig, ValidationResult } from '@frontagent/shared';
 import { generateId } from '@frontagent/shared';
 import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
@@ -12,7 +12,6 @@ import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
 import type {
   AgentConfig,
-  AgentContext,
   AgentExecutionResult,
   AgentEvent,
   AgentEventListener
@@ -229,9 +228,9 @@ export class FrontAgent {
       this.emit({ type: 'planning_completed', plan: planResult.plan });
 
       // 执行阶段
-      const validations: Array<{ pass: boolean; results: unknown[]; blockedBy?: string[] }> = [];
-      
-      const executionResults = await this.executor.executeSteps(
+      const validations: ValidationResult[] = [];
+
+      await this.executor.executeSteps(
         planResult.plan.steps,
         (step, output) => {
           if (output.stepResult.success) {

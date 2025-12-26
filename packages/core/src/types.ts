@@ -39,6 +39,8 @@ export interface LLMConfig {
   model: string;
   /** API Key (可选，默认从环境变量读取) */
   apiKey?: string;
+  /** 自定义 API 基础 URL (用于代理或兼容 API) */
+  baseURL?: string;
   /** 最大 token 数 */
   maxTokens?: number;
   /** 温度 */

@@ -5,7 +5,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import Ajv from 'ajv';
+import AjvModule from 'ajv';
 import { SDDSchema, defaultSDDConfig } from './schema.js';
 import { deepMerge, type SDDConfig } from '@frontagent/shared';
 
@@ -15,12 +15,26 @@ export interface ParseResult {
   errors?: string[];
 }
 
+// Ajv 的类型定义
+type AjvInstance = {
+  compile: (schema: Record<string, unknown>) => ValidateFn;
+};
+
+type ValidateFn = {
+  (data: unknown): boolean;
+  errors?: Array<{ instancePath?: string; message?: string }>;
+};
+
+// 兼容 ESM 和 CJS 的 Ajv 构造函数
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const Ajv = (AjvModule as any).default ?? AjvModule;
+
 /**
  * SDD 解析器类
  */
 export class SDDParser {
-  private ajv: Ajv;
-  private validateFn: ReturnType<Ajv['compile']>;
+  private ajv: AjvInstance;
+  private validateFn: ValidateFn;
 
   constructor() {
     this.ajv = new Ajv({ allErrors: true, strict: false });
@@ -74,7 +88,10 @@ export class SDDParser {
     const normalizedConfig = this.normalizeConfig(rawConfig as Record<string, unknown>);
 
     // 与默认配置合并
-    const mergedConfig = deepMerge(defaultSDDConfig, normalizedConfig);
+    const mergedConfig = deepMerge(
+      defaultSDDConfig as unknown as Record<string, unknown>,
+      normalizedConfig
+    ) as unknown as SDDConfig;
 
     // 验证配置
     const isValid = this.validateFn(mergedConfig);
@@ -82,7 +99,7 @@ export class SDDParser {
       const errors = this.validateFn.errors?.map(err => {
         return `${err.instancePath || 'root'}: ${err.message}`;
       }) ?? ['Unknown validation error'];
-      
+
       return {
         success: false,
         errors
@@ -91,7 +108,7 @@ export class SDDParser {
 
     return {
       success: true,
-      config: mergedConfig as SDDConfig
+      config: mergedConfig
     };
   }
 

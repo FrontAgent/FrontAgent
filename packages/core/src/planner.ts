@@ -12,7 +12,9 @@ import type {
   ValidationRule
 } from '@frontagent/shared';
 import { generateId } from '@frontagent/shared';
+import { SDDPromptGenerator } from '@frontagent/sdd';
 import type { PlannerOutput, ContextRequest, LLMConfig, Message } from './types.js';
+import { LLMService, type GeneratedPlan } from './llm.js';
 
 /**
  * Planner 配置
@@ -21,6 +23,8 @@ export interface PlannerConfig {
   llm: LLMConfig;
   sddConfig?: SDDConfig;
   maxSteps?: number;
+  /** 是否使用 LLM 生成计划（默认 true） */
+  useLLM?: boolean;
 }
 
 /**
@@ -28,12 +32,20 @@ export interface PlannerConfig {
  */
 export class Planner {
   private config: PlannerConfig;
+  private llmService: LLMService;
+  private promptGenerator?: SDDPromptGenerator;
 
   constructor(config: PlannerConfig) {
     this.config = {
       ...config,
-      maxSteps: config.maxSteps ?? 20
+      maxSteps: config.maxSteps ?? 20,
+      useLLM: config.useLLM ?? true
     };
+    this.llmService = new LLMService(config.llm);
+
+    if (config.sddConfig) {
+      this.promptGenerator = new SDDPromptGenerator(config.sddConfig);
+    }
   }
 
   /**
@@ -111,8 +123,22 @@ export class Planner {
     context: { files: Map<string, string>; pageStructure?: unknown },
     _messages: Message[]
   ): Promise<ExecutionPlan | null> {
-    // 根据任务类型生成基础计划
-    const steps = this.generateStepsForTask(task, context);
+    let steps: ExecutionStep[];
+
+    // 使用 LLM 生成计划
+    if (this.config.useLLM) {
+      try {
+        const llmPlan = await this.generatePlanWithLLM(task, context);
+        steps = this.convertLLMPlanToSteps(llmPlan);
+      } catch (error) {
+        console.warn('LLM plan generation failed, falling back to rule-based:', error);
+        // 回退到规则生成
+        steps = this.generateStepsForTask(task, context);
+      }
+    } else {
+      // 使用规则生成
+      steps = this.generateStepsForTask(task, context);
+    }
 
     if (steps.length === 0) {
       return null;
@@ -130,6 +156,129 @@ export class Planner {
     };
 
     return plan;
+  }
+
+  /**
+   * 使用 LLM 生成计划
+   */
+  private async generatePlanWithLLM(
+    task: AgentTask,
+    context: { files: Map<string, string>; pageStructure?: unknown }
+  ): Promise<GeneratedPlan> {
+    // 构建上下文字符串
+    const contextParts: string[] = [];
+
+    // 添加任务类型
+    contextParts.push(`任务类型: ${task.type}`);
+
+    // 添加工作目录
+    if (task.context?.workingDirectory) {
+      contextParts.push(`工作目录: ${task.context.workingDirectory}`);
+    }
+
+    // 添加相关文件内容
+    if (context.files.size > 0) {
+      contextParts.push('\n已读取的文件:');
+      for (const [path, content] of context.files) {
+        const truncatedContent = content.length > 2000
+          ? content.substring(0, 2000) + '\n... (内容已截断)'
+          : content;
+        contextParts.push(`\n--- ${path} ---\n${truncatedContent}`);
+      }
+    }
+
+    // 添加相关文件列表
+    if (task.context?.relevantFiles?.length) {
+      contextParts.push(`\n目标文件: ${task.context.relevantFiles.join(', ')}`);
+    }
+
+    // 添加页面结构
+    if (context.pageStructure) {
+      contextParts.push(`\n页面结构: ${JSON.stringify(context.pageStructure, null, 2)}`);
+    }
+
+    // 添加浏览器 URL
+    if (task.context?.browserUrl) {
+      contextParts.push(`\n浏览器 URL: ${task.context.browserUrl}`);
+    }
+
+    // 获取 SDD 约束
+    const sddConstraints = this.promptGenerator?.generate();
+
+    return this.llmService.generatePlan({
+      task: task.description,
+      context: contextParts.join('\n'),
+      sddConstraints,
+    });
+  }
+
+  /**
+   * 将 LLM 生成的计划转换为执行步骤
+   */
+  private convertLLMPlanToSteps(llmPlan: GeneratedPlan): ExecutionStep[] {
+    const steps: ExecutionStep[] = [];
+
+    for (let i = 0; i < llmPlan.steps.length; i++) {
+      const llmStep = llmPlan.steps[i];
+
+      // 映射 action 到标准类型
+      const action = this.mapLLMAction(llmStep.action);
+
+      const step: ExecutionStep = {
+        stepId: generateId('step'),
+        description: llmStep.description,
+        action,
+        tool: llmStep.tool,
+        params: llmStep.params as Record<string, unknown>,
+        dependencies: i > 0 ? [steps[i - 1].stepId] : [],
+        validation: this.getDefaultValidation(action),
+        status: 'pending'
+      };
+
+      steps.push(step);
+    }
+
+    return steps;
+  }
+
+  /**
+   * 映射 LLM action 到标准类型
+   */
+  private mapLLMAction(action: string): ExecutionStep['action'] {
+    const actionMap: Record<string, ExecutionStep['action']> = {
+      'read_file': 'read_file',
+      'create_file': 'create_file',
+      'apply_patch': 'apply_patch',
+      'search_code': 'search_code',
+      'get_ast': 'get_ast',
+      'browser_navigate': 'browser_navigate',
+      'get_page_structure': 'get_page_structure',
+      'browser_click': 'browser_click',
+      'browser_type': 'browser_type',
+      'browser_screenshot': 'browser_screenshot',
+    };
+
+    return actionMap[action] ?? 'read_file';
+  }
+
+  /**
+   * 获取默认验证规则
+   */
+  private getDefaultValidation(action: string): ValidationRule[] {
+    switch (action) {
+      case 'create_file':
+      case 'apply_patch':
+        return [
+          { type: 'syntax_valid', required: true },
+          { type: 'sdd_compliant', required: true }
+        ];
+      case 'read_file':
+        return [
+          { type: 'file_exists', required: true }
+        ];
+      default:
+        return [];
+    }
   }
 
   /**
@@ -408,6 +557,21 @@ export class Planner {
    */
   updateSDDConfig(sddConfig: SDDConfig): void {
     this.config.sddConfig = sddConfig;
+    this.promptGenerator = new SDDPromptGenerator(sddConfig);
+  }
+
+  /**
+   * 更新 LLM 配置
+   */
+  updateLLMConfig(config: Partial<LLMConfig>): void {
+    this.llmService.updateConfig(config);
+  }
+
+  /**
+   * 获取 LLM 服务
+   */
+  getLLMService(): LLMService {
+    return this.llmService;
   }
 }
 

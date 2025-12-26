@@ -4,8 +4,8 @@
  */
 
 import type { ExecutionStep, StepResult, ValidationResult } from '@frontagent/shared';
-import { HallucinationGuard, type AgentOutput } from '@frontagent/hallucination-guard';
-import type { ExecutorOutput, ToolCall, ToolResult } from './types.js';
+import { HallucinationGuard } from '@frontagent/hallucination-guard';
+import type { ExecutorOutput } from './types.js';
 
 /**
  * MCP 客户端接口

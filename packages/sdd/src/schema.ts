@@ -3,14 +3,13 @@
  * 定义 SDD 配置文件的 JSON Schema，用于验证 SDD 文件格式
  */
 
-import type { JSONSchemaType } from 'ajv';
 import type { SDDConfig } from '@frontagent/shared';
 
 /**
  * SDD 配置文件的 JSON Schema
  * 用于 Ajv 验证
  */
-export const SDDSchema: JSONSchemaType<SDDConfig> = {
+export const SDDSchema: Record<string, unknown> = {
   type: 'object',
   properties: {
     version: { type: 'string' },

@@ -10,7 +10,7 @@ import ora from 'ora';
 import { createAgent, type AgentConfig } from '@frontagent/core';
 import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
 import { existsSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve } from 'node:path';
 
 const program = new Command();
 
@@ -203,6 +203,10 @@ program
   .option('-u, --url <url>', '浏览器 URL (用于 Web 相关任务)')
   .option('--provider <provider>', 'LLM 提供商 (openai/anthropic)', 'anthropic')
   .option('--model <model>', 'LLM 模型', 'claude-3-5-sonnet-20241022')
+  .option('--base-url <url>', 'LLM API 基础 URL (用于代理或兼容 API)')
+  .option('--api-key <key>', 'LLM API Key (默认从环境变量读取)')
+  .option('--max-tokens <tokens>', '最大 token 数', '4096')
+  .option('--temperature <temp>', '温度参数', '0.7')
   .option('--debug', '启用调试模式', false)
   .action(async (task, options) => {
     const projectRoot = process.cwd();
@@ -222,7 +226,11 @@ program
       sddPath: existsSync(sddPath) ? sddPath : undefined,
       llm: {
         provider: options.provider as 'openai' | 'anthropic',
-        model: options.model
+        model: options.model,
+        baseURL: options.baseUrl,
+        apiKey: options.apiKey,
+        maxTokens: parseInt(options.maxTokens, 10),
+        temperature: parseFloat(options.temperature),
       },
       debug: options.debug
     };

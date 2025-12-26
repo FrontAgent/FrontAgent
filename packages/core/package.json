@@ -22,9 +22,10 @@
     "@frontagent/sdd": "workspace:*",
     "@frontagent/hallucination-guard": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "ai": "^3.0.0",
-    "@ai-sdk/openai": "^0.0.30",
-    "@ai-sdk/anthropic": "^0.0.30"
+    "ai": "^4.0.0",
+    "@ai-sdk/openai": "^1.0.0",
+    "@ai-sdk/anthropic": "^1.0.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

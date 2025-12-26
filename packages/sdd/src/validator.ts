@@ -7,7 +7,6 @@ import { minimatch } from 'minimatch';
 import {
   type SDDConfig,
   type ConstraintViolation,
-  type ViolationSeverity,
   type ActionType,
   normalizePath,
 } from '@frontagent/shared';

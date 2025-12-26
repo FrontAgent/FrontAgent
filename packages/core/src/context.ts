@@ -8,8 +8,7 @@ import type {
   ExecutionStep,
   SDDConfig
 } from '@frontagent/shared';
-import type { AgentContext, ContextInfo, Message } from './types.js';
-import { generateId } from '@frontagent/shared';
+import type { AgentContext, Message } from './types.js';
 
 /**
  * 上下文管理器
