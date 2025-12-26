@@ -38,4 +38,6 @@ temp/
 .frontagent/
 
 # claude code
-./claude/
+.claude/
+
+.turbo/
