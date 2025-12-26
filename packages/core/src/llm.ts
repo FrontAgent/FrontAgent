@@ -27,21 +27,27 @@ export class LLMService {
   private createModel(): LanguageModel {
     const { provider, model, apiKey, baseURL } = this.config;
 
-    if (provider === 'openai') {
-      const openai = createOpenAI({
-        apiKey: apiKey ?? process.env.OPENAI_API_KEY,
-        baseURL: baseURL ?? process.env.OPENAI_BASE_URL,
-      });
-      return openai(model);
-    } else if (provider === 'anthropic') {
-      const anthropic = createAnthropic({
-        apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
-        baseURL: baseURL ?? process.env.ANTHROPIC_BASE_URL,
-      });
-      return anthropic(model);
-    }
+    // 获取 API Key - 优先使用配置，否则从环境变量读取
+    const key = apiKey ?? process.env[`${provider.toUpperCase()}_API_KEY`] ?? process.env.API_KEY;
 
-    throw new Error(`Unsupported provider: ${provider}`);
+    // 获取 baseURL - 优先使用配置，否则从环境变量读取
+    const endpoint = baseURL ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
+
+    // 根据 provider 选择对应的创建函数
+    const providerConfig = { apiKey: key, baseURL: endpoint };
+
+    switch (provider) {
+      case 'openai': {
+        const openai = createOpenAI(providerConfig);
+        return openai(model);
+      }
+      case 'anthropic': {
+        const anthropic = createAnthropic(providerConfig);
+        return anthropic(model);
+      }
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
+    }
   }
 
   /**
