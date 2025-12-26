@@ -11,6 +11,7 @@ import { createAgent, type AgentConfig } from '@frontagent/core';
 import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { FileMCPClient, WebMCPClient } from './mcp-client.js';
 
 const program = new Command();
 
@@ -129,11 +130,13 @@ modification_rules:
 program
   .command('validate')
   .description('验证 SDD 配置文件')
-  .argument('[sdd-path]', 'SDD 配置文件路径', 'sdd.yaml')
+  .argument('[sdd-path]', 'SDD 配置文件路径（默认：当前目录的 sdd.yaml）')
   .action(async (sddPath) => {
     const spinner = ora('正在验证 SDD 配置...').start();
 
-    const fullPath = resolve(process.cwd(), sddPath);
+    // 默认检查当前目录的 sdd.yaml
+    const targetPath = sddPath || 'sdd.yaml';
+    const fullPath = resolve(process.cwd(), targetPath);
     
     if (!existsSync(fullPath)) {
       spinner.fail(`文件不存在: ${fullPath}`);
@@ -237,9 +240,14 @@ program
 
     const agent = createAgent(config);
 
-    // 注册工具
+    // 创建并注册 MCP 客户端
+    const fileClient = new FileMCPClient(projectRoot);
+    agent.registerMCPClient('file', fileClient);
     agent.registerFileTools();
+
     if (options.url) {
+      const webClient = new WebMCPClient();
+      agent.registerMCPClient('web', webClient);
       agent.registerWebTools();
     }
 

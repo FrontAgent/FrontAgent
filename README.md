@@ -58,46 +58,67 @@ pnpm install
 pnpm build
 ```
 
-### 初始化项目 SDD
+### ⚠️ 工作模式说明
+
+**FrontAgent 是以 SDD 为核心的 Agent 系统，必须在有 `sdd.yaml` 配置文件的目标项目目录下运行。**
+
+工作流程：
+1. **在 FrontAgent 仓库中** - 构建 CLI 工具
+2. **在目标项目中** - 初始化 SDD 配置
+3. **在目标项目中** - 运行 Agent 任务
+
+### 完整使用示例
 
 ```bash
-# 在项目根目录中
-cd /path/to/FrontAgent
-pnpm frontagent init
+# 步骤 1: 在 FrontAgent 仓库中构建 CLI
+cd /path/to/frontagent
+pnpm install
+pnpm build
 
-# 这会创建 sdd.yaml 配置文件
-```
+# 步骤 2: 进入目标项目目录
+cd /path/to/your-project
 
-### 验证 SDD 配置
+# 步骤 3: 初始化 SDD 配置
+node /path/to/frontagent/apps/cli/dist/index.js init
+# 这会在当前目录创建 sdd.yaml 配置文件
 
-```bash
-pnpm frontagent validate examples/sdd-example.yaml
-```
+# 步骤 4: 根据项目实际情况编辑 sdd.yaml
+vim sdd.yaml
 
-### 运行 Agent 任务
+# 步骤 5: 验证 SDD 配置（默认检测当前目录的 sdd.yaml）
+node /path/to/frontagent/apps/cli/dist/index.js validate
 
-```bash
-# 查看帮助
-pnpm frontagent --help
-
+# 步骤 6: 运行 Agent 任务
 # 查询任务
-pnpm frontagent run "查找所有使用了 useState 的组件"
+node /path/to/frontagent/apps/cli/dist/index.js run "查找所有使用了 useState 的组件"
 
 # 修改任务
-pnpm frontagent run "添加 loading 状态到 Button 组件" \
+node /path/to/frontagent/apps/cli/dist/index.js run "添加 loading 状态到 Button 组件" \
   --type modify \
   --files src/components/Button.tsx
 
 # 创建任务
-pnpm frontagent run "创建一个 Modal 组件" \
+node /path/to/frontagent/apps/cli/dist/index.js run "创建一个 Modal 组件" \
   --type create \
   --files src/components/Modal.tsx
 
-# 使用自定义模型
-pnpm frontagent run "重构认证模块" \
+# 使用自定义模型（需要配置 API Key）
+node /path/to/frontagent/apps/cli/dist/index.js run "重构认证模块" \
   --provider anthropic \
   --model claude-sonnet-4-5-20250929 \
+  --api-key your-api-key \
   --type refactor
+```
+
+**提示**: 为方便使用，可以为 CLI 创建别名：
+
+```bash
+# 在 ~/.bashrc 或 ~/.zshrc 中添加
+alias frontagent="node /path/to/frontagent/apps/cli/dist/index.js"
+
+# 之后就可以直接使用
+frontagent validate
+frontagent run "你的任务"
 ```
 
 ## 核心模块
