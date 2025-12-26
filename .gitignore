@@ -1,3 +1,6 @@
+# LLM 等工具配置
+CONFIG*
+
 # Dependencies
 node_modules/
 .pnpm-store/

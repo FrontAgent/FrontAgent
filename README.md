@@ -238,15 +238,64 @@ pnpm clean
 
 ## 配置 LLM
 
-设置环境变量：
+FrontAgent 支持 OpenAI 和 Anthropic（Claude）两种 LLM 提供商。
+
+### 方式 1: 环境变量（推荐）
 
 ```bash
-# OpenAI
-export OPENAI_API_KEY=sk-xxx
-
-# Anthropic
+# 配置 Anthropic Claude Sonnet 4.5
 export ANTHROPIC_API_KEY=sk-ant-xxx
+export MODEL=claude-sonnet-4-5-20250929
+
+# 配置 OpenAI GPT-4
+export OPENAI_API_KEY=sk-xxx
+export MODEL=gpt-4-turbo
+
+# 使用自定义代理
+export ANTHROPIC_BASE_URL=https://your-proxy.com
+# 或使用通用配置
+export BASE_URL=https://your-proxy.com
+export API_KEY=your-key
 ```
+
+### 方式 2: CLI 参数
+
+```bash
+# 使用 Claude Sonnet 4.5
+frontagent run "创建按钮组件" \
+  --provider anthropic \
+  --model claude-sonnet-4-5-20250929 \
+  --api-key sk-ant-xxx
+
+# 使用 GPT-4 通过代理
+frontagent run "修复 bug" \
+  --provider openai \
+  --model gpt-4-turbo \
+  --base-url https://api.openai-proxy.com/v1 \
+  --max-tokens 8192 \
+  --temperature 0.7
+```
+
+### 支持的模型
+
+**Anthropic Claude:**
+- `claude-opus-4-5-20251101` - Opus 4.5（最强）
+- `claude-sonnet-4-5-20250929` - Sonnet 4.5（推荐）
+- `claude-sonnet-4-20250514` - Sonnet 4
+- `claude-3-5-sonnet-20241022` - Sonnet 3.5（默认）
+- `claude-3-5-haiku-20241022` - Haiku 3.5（快速）
+
+**OpenAI:**
+- `gpt-4-turbo` - GPT-4 Turbo
+- `gpt-4` - GPT-4
+- `gpt-3.5-turbo` - GPT-3.5 Turbo
+
+### 配置优先级
+
+1. CLI 参数
+2. 厂商专用环境变量（`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`）
+3. 通用环境变量（`API_KEY`、`BASE_URL`、`MODEL`）
+4. 默认值
 
 ## 路线图
 

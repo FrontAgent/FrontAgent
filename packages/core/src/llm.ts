@@ -33,17 +33,20 @@ export class LLMService {
     // 获取 baseURL - 优先使用配置，否则从环境变量读取
     const endpoint = baseURL ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
 
+    // 获取 model - 支持从环境变量覆盖
+    const modelName = process.env.MODEL ?? model;
+
     // 根据 provider 选择对应的创建函数
     const providerConfig = { apiKey: key, baseURL: endpoint };
 
     switch (provider) {
       case 'openai': {
         const openai = createOpenAI(providerConfig);
-        return openai(model);
+        return openai(modelName);
       }
       case 'anthropic': {
         const anthropic = createAnthropic(providerConfig);
-        return anthropic(model);
+        return anthropic(modelName);
       }
       default:
         throw new Error(`Unsupported provider: ${provider}`);
