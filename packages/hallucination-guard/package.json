@@ -1,0 +1,29 @@
+{
+  "name": "@frontagent/hallucination-guard",
+  "version": "0.1.0",
+  "description": "幻觉防控模块 - Agent 输出校验与事实核查",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@frontagent/shared": "workspace:*",
+    "@frontagent/sdd": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}
+

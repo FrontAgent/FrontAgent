@@ -1,0 +1,137 @@
+# FrontAgent SDD 配置示例
+# 软件设计文档 - Agent 行为约束
+
+version: "1.0"
+
+project:
+  name: "e-commerce-frontend"
+  type: "react-spa"
+  description: "电商前端应用"
+
+# 技术栈约束
+tech_stack:
+  framework: "react"
+  version: "^18.0.0"
+  language: "typescript"
+  styling: "tailwindcss"
+  state_management: "zustand"
+  forbidden_packages:
+    - "jquery"           # 不使用 jQuery
+    - "moment"          # 使用 date-fns 替代
+    - "lodash"          # 使用 es-toolkit 替代
+    - "axios"           # 使用 fetch 或 ky 替代
+
+# 目录结构约束
+directory_structure:
+  src/components:
+    pattern: "PascalCase"
+    max_lines: 300
+    required_exports:
+      - "default"
+  src/components/ui:
+    pattern: "PascalCase"
+    max_lines: 150
+    forbidden:
+      - "fetch"  # UI 组件不应直接请求数据
+  src/hooks:
+    pattern: "use*.ts"
+    must_be_pure: false
+  src/utils:
+    pattern: "camelCase"
+    must_be_pure: true
+    max_lines: 100
+  src/api:
+    pattern: "camelCase"
+    max_lines: 200
+  src/stores:
+    pattern: "use*Store.ts"
+    max_lines: 200
+
+# 模块边界约束
+module_boundaries:
+  - from: "src/components/ui/*"
+    can_import:
+      - "src/utils/*"
+      - "src/types/*"
+    cannot_import:
+      - "src/api/*"
+      - "src/stores/*"
+      - "src/hooks/*"
+      - "src/components/features/*"
+  - from: "src/components/features/*"
+    can_import:
+      - "src/components/ui/*"
+      - "src/hooks/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+    cannot_import:
+      - "src/api/*"
+      - "src/pages/*"
+  - from: "src/hooks/*"
+    can_import:
+      - "src/api/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+    cannot_import:
+      - "src/components/*"
+      - "src/pages/*"
+  - from: "src/pages/*"
+    can_import:
+      - "src/components/*"
+      - "src/hooks/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+    cannot_import:
+      - "src/api/*"
+
+# 命名规范
+naming_conventions:
+  components: "PascalCase"
+  hooks: "camelCase with 'use' prefix"
+  utils: "camelCase"
+  constants: "SCREAMING_SNAKE_CASE"
+  types: "PascalCase with 'I' prefix for interfaces, 'T' prefix for type aliases"
+
+# 代码质量约束
+code_quality:
+  max_function_lines: 50
+  max_file_lines: 300
+  max_parameters: 4
+  require_jsdoc: true
+  forbidden_patterns:
+    - "any"                    # 禁止使用 any
+    - "// @ts-ignore"          # 禁止忽略 TypeScript 错误
+    - "// @ts-nocheck"         # 禁止关闭类型检查
+    - "console.log"            # 生产代码禁止 console.log
+    - "debugger"               # 禁止 debugger 语句
+    - "eval("                  # 禁止使用 eval
+    - "innerHTML"              # 禁止直接操作 innerHTML (XSS 风险)
+
+# 修改安全边界
+modification_rules:
+  protected_files:
+    - "package.json"
+    - "package-lock.json"
+    - "pnpm-lock.yaml"
+    - "tsconfig.json"
+    - "vite.config.ts"
+    - ".env"
+    - ".env.*"
+  protected_directories:
+    - "node_modules"
+    - ".git"
+    - "dist"
+    - "build"
+  require_approval:
+    - pattern: "*.config.*"
+      reason: "配置文件修改需要人工审批"
+    - pattern: "src/api/*"
+      reason: "API 层修改需要人工审批以确保安全性"
+    - pattern: "src/stores/*"
+      reason: "状态管理修改需要人工审批"
+    - pattern: "src/utils/auth*"
+      reason: "认证相关代码修改需要人工审批"
+
