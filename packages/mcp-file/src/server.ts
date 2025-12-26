@@ -88,7 +88,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'read_file': {
-        const result = readFile(args as Parameters<typeof readFile>[0], projectRoot);
+        const result = readFile(args as unknown as Parameters<typeof readFile>[0], projectRoot);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
@@ -96,7 +96,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'apply_patch': {
         const result = applyPatch(
-          args as Parameters<typeof applyPatch>[0],
+          args as unknown as Parameters<typeof applyPatch>[0],
           projectRoot,
           snapshotManager
         );
@@ -107,7 +107,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'create_file': {
         const result = createFile(
-          args as Parameters<typeof createFile>[0],
+          args as unknown as Parameters<typeof createFile>[0],
           projectRoot,
           snapshotManager
         );
@@ -118,7 +118,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'search_code': {
         const result = await searchCode(
-          args as Parameters<typeof searchCode>[0],
+          args as unknown as Parameters<typeof searchCode>[0],
           projectRoot
         );
         return {
@@ -128,7 +128,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'list_directory': {
         const result = listDirectory(
-          args as Parameters<typeof listDirectory>[0],
+          args as unknown as Parameters<typeof listDirectory>[0],
           projectRoot
         );
         return {
@@ -137,7 +137,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_ast': {
-        const result = getAST(args as Parameters<typeof getAST>[0], projectRoot);
+        const result = getAST(args as unknown as Parameters<typeof getAST>[0], projectRoot);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };

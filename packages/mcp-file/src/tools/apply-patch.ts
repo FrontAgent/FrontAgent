@@ -109,7 +109,7 @@ export function applyPatch(
 /**
  * 基础语法验证
  */
-function validateSyntax(content: string, filePath: string): {
+function validateSyntax(content: string, _filePath: string): {
   syntaxValid: boolean;
   lintErrors: Array<{ line: number; column: number; message: string; rule: string; severity: 'error' | 'warning' }>;
   typeErrors: Array<{ line: number; column: number; message: string; code: number }>;

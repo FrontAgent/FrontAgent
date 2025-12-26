@@ -4,7 +4,7 @@
  */
 
 import { chromium, Browser, Page, BrowserContext } from 'playwright';
-import type { DOMNode, AXNode, InteractiveElement, BoundingBox } from '@frontagent/shared';
+import type { DOMNode, AXNode, InteractiveElement } from '@frontagent/shared';
 
 export interface BrowserConfig {
   headless?: boolean;
@@ -158,7 +158,7 @@ export class BrowserManager {
   async getAccessibilityTree(): Promise<AXNode[]> {
     await this.ensurePage();
 
-    const snapshot = await this.page!.accessibility.snapshot();
+    const snapshot = await (this.page as any).accessibility?.snapshot();
     if (!snapshot) {
       return [];
     }
@@ -197,7 +197,7 @@ export class BrowserManager {
       const elements = document.querySelectorAll(sel);
       const result: any[] = [];
 
-      elements.forEach((el, index) => {
+      elements.forEach((el: Element, index: number) => {
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) return;
 
