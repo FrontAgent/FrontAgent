@@ -277,39 +277,6 @@ pnpm build
 pnpm clean
 ```
 
-## LLM 配置
-
-### 环境变量配置（推荐）
-
-```bash
-# 使用通用配置
-export BASE_URL="https://api.anthropic.com"
-export MODEL="claude-sonnet-4-20250514"
-export API_KEY="your-api-key"
-
-# 或使用厂商专用配置
-export ANTHROPIC_BASE_URL="https://api.anthropic.com"
-export ANTHROPIC_API_KEY="sk-ant-xxx"
-```
-
-### 常用模型
-
-| 提供商 | 模型 ID | 说明 |
-|-------|---------|------|
-| Anthropic | `claude-sonnet-4-20250514` | Sonnet 4（推荐） |
-| Anthropic | `claude-opus-4-5-20251101` | Opus 4.5（最强） |
-| Anthropic | `claude-3-5-sonnet-20241022` | Sonnet 3.5 |
-| OpenAI | `gpt-4-turbo` | GPT-4 Turbo |
-| OpenAI | `gpt-4` | GPT-4 |
-
-### CLI 参数覆盖（可选）
-
-```bash
-frontagent run "任务" --provider anthropic --model claude-sonnet-4-20250514 --api-key your-key
-```
-
-**配置优先级**: CLI 参数 > 厂商专用环境变量 > 通用环境变量 > 默认值
-
 ## 路线图
 
 - [ ] RAG 经验库集成
