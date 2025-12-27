@@ -1,6 +1,0 @@
-我来为您创建用户认证状态管理store。首先让我检查一下现有文件结构。
-[TOOL_CALL]
-{tool => "read_file", args => {
-  --path "src/stores"
-}}
-[/TOOL_CALL]
