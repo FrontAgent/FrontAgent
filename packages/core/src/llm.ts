@@ -297,8 +297,18 @@ ${options.sddConstraints ?? '无特殊约束'}
 6. **项目初始化顺序**：
    - 创建前端项目时，必须先创建 package.json 和相关配置文件
    - 然后使用 run_command 安装依赖（如 npm install 或 pnpm install）
-   - 最后再创建源代码文件
+   - 然后创建源代码文件
    - 例如：React 项目需要 package.json、tsconfig.json、vite.config.ts 等配置文件
+7. **🔥 项目验证与反馈循环（非常重要）**：
+   - 在生成完所有源代码文件后，必须验证项目是否能正常运行
+   - 验证流程包括：
+     a. 使用 run_command 安装依赖（如 npm install）
+     b. 使用 run_command 启动开发服务器（如 npm run dev 或 pnpm dev）
+     c. 使用 browser_navigate 访问开发服务器（通常是 http://localhost:5173 或 http://localhost:3000）
+     d. 使用 browser_screenshot 截取页面截图，验证页面是否正确渲染
+     e. 使用 get_page_structure 获取页面结构，检查是否有错误信息
+   - 如果发现问题，应该添加修复步骤
+   - 这个验证步骤对于新项目创建任务是**必需的**，不可省略
 
 # ✅ 正确示例
 
@@ -326,6 +336,77 @@ ${options.sddConstraints ?? '无特殊约束'}
   },
   "reasoning": "配置路径别名可以简化导入语句",
   "needsCodeGeneration": true
+}
+
+**🔥 完整的项目创建与验证流程示例（必须遵循）：**
+
+创建一个 React 项目的完整步骤应该包括验证环节：
+
+步骤 1-5: 创建配置文件和源代码文件
+{
+  "description": "创建 package.json 配置文件",
+  "action": "create_file",
+  "tool": "create_file",
+  "params": {
+    "path": "package.json",
+    "codeDescription": "创建 React + TypeScript + Vite 项目的 package.json，包含必要的依赖"
+  },
+  "reasoning": "项目的依赖配置文件",
+  "needsCodeGeneration": true
+}
+// ... 其他配置文件和源代码文件
+
+步骤 6: 安装依赖
+{
+  "description": "安装项目依赖",
+  "action": "run_command",
+  "tool": "run_command",
+  "params": {
+    "command": "npm install"
+  },
+  "reasoning": "安装 package.json 中定义的所有依赖"
+}
+
+步骤 7: 启动开发服务器
+{
+  "description": "启动开发服务器",
+  "action": "run_command",
+  "tool": "run_command",
+  "params": {
+    "command": "npm run dev"
+  },
+  "reasoning": "启动开发服务器以验证项目能否正常运行"
+}
+
+步骤 8: 访问页面
+{
+  "description": "访问开发服务器首页",
+  "action": "browser_navigate",
+  "tool": "browser_navigate",
+  "params": {
+    "url": "http://localhost:5173"
+  },
+  "reasoning": "访问页面验证项目是否正确启动"
+}
+
+步骤 9: 截图验证
+{
+  "description": "截取页面截图",
+  "action": "browser_screenshot",
+  "tool": "browser_screenshot",
+  "params": {
+    "path": "verification-screenshot.png"
+  },
+  "reasoning": "截图验证页面是否正确渲染，没有空白或错误"
+}
+
+步骤 10: 检查页面结构
+{
+  "description": "获取页面结构检查错误",
+  "action": "get_page_structure",
+  "tool": "get_page_structure",
+  "params": {},
+  "reasoning": "检查页面 DOM 结构，查找是否有错误信息或警告"
 }
 
 # ❌ 错误示例（严禁这样做）
