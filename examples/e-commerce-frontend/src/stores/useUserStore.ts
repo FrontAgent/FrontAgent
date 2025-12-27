@@ -1,178 +1,121 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export interface IUser {
+/**
+ * 用户信息接口
+ */
+export interface IUserInfo {
   id: string;
+  username: string;
   email: string;
-  name: string;
   avatar?: string;
   phone?: string;
-  address?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface ILoginCredentials {
-  email: string;
-  password: string;
-}
-
-export interface IRegisterData extends ILoginCredentials {
-  name: string;
-  phone?: string;
-}
-
-export interface IUserStore {
-  // State
-  user: IUser | null;
+/**
+ * 用户状态接口
+ */
+export interface IUserState {
+  // 状态
   isAuthenticated: boolean;
+  userInfo: IUserInfo | null;
   isLoading: boolean;
   error: string | null;
 
-  // Actions
-  login: (credentials: ILoginCredentials) => Promise<void>;
-  register: (data: IRegisterData) => Promise<void>;
+  // 操作方法
+  login: (userInfo: IUserInfo) => void;
   logout: () => void;
-  updateProfile: (data: Partial<IUser>) => Promise<void>;
-  clearError: () => void;
+  updateUserInfo: (userInfo: Partial<IUserInfo>) => void;
   setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  clearError: () => void;
 }
 
 /**
- * 用户状态管理Store
- * 使用Zustand进行状态管理，支持持久化存储
+ * 用户状态管理 Store
+ * 使用 Zustand 进行状态管理，支持持久化存储
  */
-export const useUserStore = create<IUserStore>()(
+export const useUserStore = create<IUserState>()(
   persist(
     (set, get) => ({
-      // Initial state
-      user: null,
+      // 初始状态
       isAuthenticated: false,
+      userInfo: null,
       isLoading: false,
       error: null,
 
-      // Actions
-      login: async (credentials: ILoginCredentials) => {
-        try {
-          set({ isLoading: true, error: null });
-
-          // 模拟API调用
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          // 模拟登录成功
-          const mockUser: IUser = {
-            id: '1',
-            email: credentials.email,
-            name: 'Demo User',
-            avatar: undefined,
-            phone: undefined,
-            address: undefined,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          set({
-            user: mockUser,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: error instanceof Error ? error.message : '登录失败',
-          });
-          throw error;
-        }
-      },
-
-      register: async (data: IRegisterData) => {
-        try {
-          set({ isLoading: true, error: null });
-
-          // 模拟API调用
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          // 模拟注册成功
-          const newUser: IUser = {
-            id: Date.now().toString(),
-            email: data.email,
-            name: data.name,
-            phone: data.phone,
-            avatar: undefined,
-            address: undefined,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          set({
-            user: newUser,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: error instanceof Error ? error.message : '注册失败',
-          });
-          throw error;
-        }
-      },
-
-      logout: () => {
+      /**
+       * 用户登录
+       * @param userInfo 用户信息
+       */
+      login: (userInfo: IUserInfo) => {
         set({
-          user: null,
-          isAuthenticated: false,
+          isAuthenticated: true,
+          userInfo,
           error: null,
         });
       },
 
-      updateProfile: async (data: Partial<IUser>) => {
-        try {
-          set({ isLoading: true, error: null });
+      /**
+       * 用户登出
+       */
+      logout: () => {
+        set({
+          isAuthenticated: false,
+          userInfo: null,
+          error: null,
+        });
+      },
 
-          const currentUser = get().user;
-          if (!currentUser) {
-            throw new Error('用户未登录');
-          }
-
-          // 模拟API调用
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          const updatedUser: IUser = {
-            ...currentUser,
-            ...data,
-            updatedAt: new Date().toISOString(),
-          };
-
-          set({
-            user: updatedUser,
-            isLoading: false,
-            error: null,
-          });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: error instanceof Error ? error.message : '更新失败',
-          });
-          throw error;
+      /**
+       * 更新用户信息
+       * @param userInfo 用户信息更新数据
+       */
+      updateUserInfo: (userInfo: Partial<IUserInfo>) => {
+        const currentUserInfo = get().userInfo;
+        if (!currentUserInfo) {
+          return;
         }
+
+        set({
+          userInfo: {
+            ...currentUserInfo,
+            ...userInfo,
+            updatedAt: new Date().toISOString(),
+          },
+        });
       },
 
-      clearError: () => {
-        set({ error: null });
-      },
-
+      /**
+       * 设置加载状态
+       * @param loading 加载状态
+       */
       setLoading: (loading: boolean) => {
         set({ isLoading: loading });
       },
+
+      /**
+       * 设置错误信息
+       * @param error 错误信息
+       */
+      setError: (error: string | null) => {
+        set({ error });
+      },
+
+      /**
+       * 清除错误信息
+       */
+      clearError: () => {
+        set({ error: null });
+      },
     }),
     {
-      name: 'user-store',
+      name: 'user-storage',
       partialize: (state) => ({
-        user: state.user,
         isAuthenticated: state.isAuthenticated,
+        userInfo: state.userInfo,
       }),
     }
   )

@@ -1,396 +1,477 @@
-export interface IUser {
-  /** 用户唯一标识符 */
-  id: string;
-  /** 用户名 */
-  username: string;
-  /** 邮箱地址 */
-  email: string;
-  /** 真实姓名 */
-  fullName: string;
-  /** 手机号码 */
-  phone?: string;
-  /** 用户角色 */
-  role: TUserRole;
-  /** 用户头像URL */
-  avatar?: string;
-  /** 是否激活 */
-  isActive: boolean;
-  /** 创建时间 */
-  createdAt: Date;
-  /** 更新时间 */
-  updatedAt: Date;
-}
-
 export interface IProduct {
-  /** 商品唯一标识符 */
   id: string;
-  /** 商品名称 */
   name: string;
-  /** 商品描述 */
   description: string;
-  /** 商品价格 */
   price: number;
-  /** 商品原价 */
   originalPrice?: number;
-  /** 商品图片URLs */
   images: string[];
-  /** 库存数量 */
-  stock: number;
-  /** 分类ID */
   categoryId: string;
-  /** 分类信息 */
-  category?: ICategory;
-  /** 商品标签 */
-  tags: string[];
-  /** 商品规格 */
-  specifications?: Record<string, string>;
-  /** 是否上架 */
-  isActive: boolean;
-  /** 是否推荐 */
-  isRecommended: boolean;
-  /** 销量 */
-  salesCount: number;
-  /** 评分 */
+  category: ICategory;
+  brand: string;
+  sku: string;
+  stock: number;
   rating: number;
-  /** 评价数量 */
   reviewCount: number;
-  /** 创建时间 */
+  tags: string[];
+  attributes: IProductAttribute[];
+  status: ProductStatus;
   createdAt: Date;
-  /** 更新时间 */
   updatedAt: Date;
 }
 
 export interface ICategory {
-  /** 分类唯一标识符 */
   id: string;
-  /** 分类名称 */
   name: string;
-  /** 分类描述 */
+  slug: string;
   description?: string;
-  /** 分类图标URL */
-  icon?: string;
-  /** 父分类ID */
   parentId?: string;
-  /** 子分类 */
+  parent?: ICategory;
   children?: ICategory[];
-  /** 排序权重 */
+  image?: string;
+  level: number;
   sortOrder: number;
-  /** 是否激活 */
   isActive: boolean;
-  /** 创建时间 */
   createdAt: Date;
-  /** 更新时间 */
   updatedAt: Date;
+}
+
+export interface IProductAttribute {
+  id: string;
+  name: string;
+  value: string;
+  type: AttributeType;
+}
+
+export enum ProductStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  OUT_OF_STOCK = 'out_of_stock',
+  DISCONTINUED = 'discontinued'
+}
+
+export enum AttributeType {
+  TEXT = 'text',
+  NUMBER = 'number',
+  BOOLEAN = 'boolean',
+  SELECT = 'select',
+  MULTI_SELECT = 'multi_select'
+}
+
+export interface IUser {
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  avatar?: string;
+  dateOfBirth?: Date;
+  gender?: Gender;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
+  status: UserStatus;
+  preferences: IUserPreferences;
+  addresses: IAddress[];
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt?: Date;
+}
+
+export enum Gender {
+  MALE = 'male',
+  FEMALE = 'female',
+  OTHER = 'other',
+  PREFER_NOT_TO_SAY = 'prefer_not_to_say'
+}
+
+export enum UserStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  SUSPENDED = 'suspended',
+  PENDING_VERIFICATION = 'pending_verification'
+}
+
+export interface IUserPreferences {
+  language: string;
+  currency: string;
+  timezone: string;
+  notifications: INotificationSettings;
+  privacy: IPrivacySettings;
+}
+
+export interface INotificationSettings {
+  email: boolean;
+  sms: boolean;
+  push: boolean;
+  marketing: boolean;
+  orderUpdates: boolean;
+  promotions: boolean;
+}
+
+export interface IPrivacySettings {
+  profileVisibility: ProfileVisibility;
+  showOnlineStatus: boolean;
+  allowDataCollection: boolean;
+}
+
+export enum ProfileVisibility {
+  PUBLIC = 'public',
+  PRIVATE = 'private',
+  FRIENDS_ONLY = 'friends_only'
 }
 
 export interface IAddress {
-  /** 地址唯一标识符 */
   id: string;
-  /** 收货人姓名 */
-  recipientName: string;
-  /** 收货人手机号 */
-  recipientPhone: string;
-  /** 省份 */
-  province: string;
-  /** 城市 */
+  userId: string;
+  type: AddressType;
+  firstName: string;
+  lastName: string;
+  company?: string;
+  street1: string;
+  street2?: string;
   city: string;
-  /** 区县 */
-  district: string;
-  /** 详细地址 */
-  detail: string;
-  /** 邮政编码 */
-  postalCode?: string;
-  /** 是否默认地址 */
+  state: string;
+  postalCode: string;
+  country: string;
+  phone?: string;
   isDefault: boolean;
-  /** 创建时间 */
-  createdAt: Date;
-  /** 更新时间 */
-  updatedAt: Date;
+  coordinates?: ICoordinates;
+}
+
+export enum AddressType {
+  SHIPPING = 'shipping',
+  BILLING = 'billing',
+  BOTH = 'both'
+}
+
+export interface ICoordinates {
+  latitude: number;
+  longitude: number;
 }
 
 export interface ICartItem {
-  /** 购物车项唯一标识符 */
   id: string;
-  /** 用户ID */
-  userId: string;
-  /** 商品ID */
   productId: string;
-  /** 商品信息 */
-  product?: IProduct;
-  /** 购买数量 */
+  product: IProduct;
   quantity: number;
-  /** 添加时间 */
+  selectedAttributes: Record<string, string>;
   addedAt: Date;
-  /** 更新时间 */
-  updatedAt: Date;
 }
 
-export interface IOrderItem {
-  /** 订单项唯一标识符 */
+export interface ICart {
   id: string;
-  /** 商品ID */
-  productId: string;
-  /** 商品信息 */
-  product?: IProduct;
-  /** 商品名称快照 */
-  productName: string;
-  /** 商品图片快照 */
-  productImage: string;
-  /** 购买单价 */
-  unitPrice: number;
-  /** 购买数量 */
-  quantity: number;
-  /** 小计金额 */
+  userId?: string;
+  sessionId: string;
+  items: ICartItem[];
   subtotal: number;
+  tax: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  currency: string;
+  updatedAt: Date;
+  expiresAt: Date;
 }
 
 export interface IOrder {
-  /** 订单唯一标识符 */
   id: string;
-  /** 订单号 */
   orderNumber: string;
-  /** 用户ID */
   userId: string;
-  /** 用户信息 */
-  user?: IUser;
-  /** 订单项列表 */
+  user: IUser;
+  status: OrderStatus;
   items: IOrderItem[];
-  /** 收货地址ID */
-  addressId: string;
-  /** 收货地址 */
-  address?: IAddress;
-  /** 订单总金额 */
-  totalAmount: number;
-  /** 运费 */
-  shippingFee: number;
-  /** 优惠金额 */
-  discountAmount: number;
-  /** 实际支付金额 */
-  paidAmount: number;
-  /** 订单状态 */
-  status: TOrderStatus;
-  /** 支付状态 */
-  paymentStatus: TPaymentStatus;
-  /** 支付方式 */
-  paymentMethod?: string;
-  /** 支付时间 */
-  paidAt?: Date;
-  /** 发货时间 */
-  shippedAt?: Date;
-  /** 完成时间 */
-  completedAt?: Date;
-  /** 取消时间 */
-  cancelledAt?: Date;
-  /** 取消原因 */
-  cancelReason?: string;
-  /** 备注 */
-  remark?: string;
-  /** 创建时间 */
+  shippingAddress: IAddress;
+  billingAddress: IAddress;
+  paymentMethod: IPaymentMethod;
+  subtotal: number;
+  tax: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  currency: string;
+  notes?: string;
+  trackingNumber?: string;
+  estimatedDelivery?: Date;
+  actualDelivery?: Date;
   createdAt: Date;
-  /** 更新时间 */
   updatedAt: Date;
+  history: IOrderHistory[];
+}
+
+export interface IOrderItem {
+  id: string;
+  productId: string;
+  product: IProduct;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  selectedAttributes: Record<string, string>;
+}
+
+export enum OrderStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  PROCESSING = 'processing',
+  SHIPPED = 'shipped',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled',
+  REFUNDED = 'refunded',
+  RETURNED = 'returned'
+}
+
+export interface IOrderHistory {
+  id: string;
+  orderId: string;
+  status: OrderStatus;
+  note?: string;
+  timestamp: Date;
+  userId?: string;
+}
+
+export interface IPaymentMethod {
+  id: string;
+  type: PaymentType;
+  name: string;
+  last4?: string;
+  expiryMonth?: number;
+  expiryYear?: number;
+  isDefault: boolean;
+  billingAddress?: IAddress;
+}
+
+export enum PaymentType {
+  CREDIT_CARD = 'credit_card',
+  DEBIT_CARD = 'debit_card',
+  PAYPAL = 'paypal',
+  APPLE_PAY = 'apple_pay',
+  GOOGLE_PAY = 'google_pay',
+  BANK_TRANSFER = 'bank_transfer',
+  CASH_ON_DELIVERY = 'cash_on_delivery'
 }
 
 export interface IReview {
-  /** 评价唯一标识符 */
   id: string;
-  /** 订单ID */
-  orderId: string;
-  /** 商品ID */
   productId: string;
-  /** 用户ID */
   userId: string;
-  /** 用户信息 */
-  user?: IUser;
-  /** 评分 (1-5) */
+  user: IUser;
   rating: number;
-  /** 评价内容 */
+  title: string;
   content: string;
-  /** 评价图片 */
   images?: string[];
-  /** 是否匿名 */
-  isAnonymous: boolean;
-  /** 创建时间 */
+  isVerified: boolean;
+  helpfulCount: number;
+  reportedCount: number;
+  status: ReviewStatus;
   createdAt: Date;
-  /** 更新时间 */
   updatedAt: Date;
 }
 
-export interface ICoupon {
-  /** 优惠券唯一标识符 */
+export enum ReviewStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  FLAGGED = 'flagged'
+}
+
+export interface IWishlist {
   id: string;
-  /** 优惠券名称 */
+  userId: string;
   name: string;
-  /** 优惠券描述 */
-  description?: string;
-  /** 优惠券码 */
-  code: string;
-  /** 优惠类型 */
-  discountType: 'percentage' | 'fixed';
-  /** 优惠值 */
-  discountValue: number;
-  /** 使用门槛金额 */
-  minAmount?: number;
-  /** 最大优惠金额 */
-  maxDiscountAmount?: number;
-  /** 使用开始时间 */
-  validFrom: Date;
-  /** 使用结束时间 */
-  validTo: Date;
-  /** 使用次数限制 */
-  usageLimit?: number;
-  /** 已使用次数 */
-  usedCount: number;
-  /** 是否激活 */
-  isActive: boolean;
-  /** 创建时间 */
+  isDefault: boolean;
+  items: IWishlistItem[];
   createdAt: Date;
-  /** 更新时间 */
   updatedAt: Date;
 }
 
 export interface IWishlistItem {
-  /** 收藏项唯一标识符 */
   id: string;
-  /** 用户ID */
-  userId: string;
-  /** 商品ID */
   productId: string;
-  /** 商品信息 */
-  product?: IProduct;
-  /** 收藏时间 */
+  product: IProduct;
   addedAt: Date;
 }
 
-export type TUserRole = 'customer' | 'admin' | 'seller';
+export interface ICoupon {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  type: CouponType;
+  value: number;
+  minimumAmount?: number;
+  maximumDiscount?: number;
+  usageLimit?: number;
+  usedCount: number;
+  validFrom: Date;
+  validUntil: Date;
+  isActive: boolean;
+  applicableCategories?: string[];
+  applicableProducts?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export type TOrderStatus = 
-  | 'pending' 
-  | 'confirmed' 
-  | 'processing' 
-  | 'shipped' 
-  | 'delivered' 
-  | 'cancelled' 
-  | 'refunded';
+export enum CouponType {
+  PERCENTAGE = 'percentage',
+  FIXED_AMOUNT = 'fixed_amount',
+  FREE_SHIPPING = 'free_shipping',
+  BUY_X_GET_Y = 'buy_x_get_y'
+}
 
-export type TPaymentStatus = 
-  | 'pending' 
-  | 'paid' 
-  | 'failed' 
-  | 'refunded' 
-  | 'partially_refunded';
+export interface IShippingMethod {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  estimatedDays: number;
+  carrier: string;
+  trackingAvailable: boolean;
+  isActive: boolean;
+}
 
-export type TDiscountType = 'percentage' | 'fixed';
+export interface ITaxRate {
+  id: string;
+  country: string;
+  state?: string;
+  rate: number;
+  name: string;
+  isActive: boolean;
+}
+
+export interface IDiscount {
+  id: string;
+  type: DiscountType;
+  value: number;
+  description: string;
+  code?: string;
+  minimumAmount?: number;
+  validFrom: Date;
+  validUntil: Date;
+  usageLimit?: number;
+  usedCount: number;
+}
+
+export enum DiscountType {
+  PERCENTAGE = 'percentage',
+  FIXED_AMOUNT = 'fixed_amount',
+  FREE_SHIPPING = 'free_shipping'
+}
 
 export interface IPaginationParams {
-  /** 页码 (从1开始) */
   page: number;
-  /** 每页数量 */
-  pageSize: number;
-}
-
-export interface IPaginationResult<T> {
-  /** 数据列表 */
-  data: T[];
-  /** 总数量 */
-  total: number;
-  /** 当前页码 */
-  page: number;
-  /** 每页数量 */
-  pageSize: number;
-  /** 总页数 */
-  totalPages: number;
-  /** 是否有上一页 */
-  hasPrevious: boolean;
-  /** 是否有下一页 */
-  hasNext: boolean;
-}
-
-export interface ISearchParams extends IPaginationParams {
-  /** 搜索关键词 */
-  keyword?: string;
-  /** 排序字段 */
+  limit: number;
   sortBy?: string;
-  /** 排序方向 */
-  sortOrder?: 'asc' | 'desc';
-  /** 筛选条件 */
-  filters?: Record<string, any>;
+  sortOrder?: SortOrder;
 }
 
-export interface IApiResponse<T = any> {
-  /** 是否成功 */
+export enum SortOrder {
+  ASC = 'asc',
+  DESC = 'desc'
+}
+
+export interface IPaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface IApiResponse<T> {
   success: boolean;
-  /** 响应数据 */
   data?: T;
-  /** 错误信息 */
-  error?: string;
-  /** 错误代码 */
-  code?: string;
-  /** 时间戳 */
-  timestamp: string;
+  error?: IApiError;
+  message?: string;
 }
 
-export interface ILoginRequest {
-  /** 用户名或邮箱 */
-  username: string;
-  /** 密码 */
-  password: string;
+export interface IApiError {
+  code: string;
+  message: string;
+  details?: Record<string, any>;
 }
 
-export interface ILoginResponse {
-  /** 访问令牌 */
-  accessToken: string;
-  /** 刷新令牌 */
-  refreshToken: string;
-  /** 用户信息 */
-  user: IUser;
-  /** 令牌过期时间 */
-  expiresIn: number;
+export interface ISearchFilters {
+  query?: string;
+  categoryId?: string;
+  brand?: string;
+  priceMin?: number;
+  priceMax?: number;
+  rating?: number;
+  inStock?: boolean;
+  tags?: string[];
+  attributes?: Record<string, string[]>;
 }
 
-export interface IRegisterRequest {
-  /** 用户名 */
-  username: string;
-  /** 邮箱 */
-  email: string;
-  /** 密码 */
-  password: string;
-  /** 确认密码 */
-  confirmPassword: string;
-  /** 真实姓名 */
-  fullName: string;
-  /** 手机号 */
-  phone?: string;
+export interface ISearchResult {
+  products: IProduct[];
+  facets: ISearchFacets;
+  total: number;
+  query: string;
+  took: number;
 }
 
-export interface IChangePasswordRequest {
-  /** 旧密码 */
-  oldPassword: string;
-  /** 新密码 */
-  newPassword: string;
-  /** 确认新密码 */
-  confirmPassword: string;
+export interface ISearchFacets {
+  categories: Array<{ id: string; name: string; count: number }>;
+  brands: Array<{ name: string; count: number }>;
+  priceRanges: Array<{ min: number; max: number; count: number }>;
+  ratings: Array<{ rating: number; count: number }>;
+  attributes: Record<string, Array<{ value: string; count: number }>>;
 }
 
-export interface IUpdateProfileRequest {
-  /** 真实姓名 */
-  fullName?: string;
-  /** 手机号 */
-  phone?: string;
-  /** 头像 */
-  avatar?: string;
+export interface INotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  isRead: boolean;
+  createdAt: Date;
 }
 
-export interface IResetPasswordRequest {
-  /** 邮箱 */
-  email: string;
+export enum NotificationType {
+  ORDER_UPDATE = 'order_update',
+  PAYMENT_CONFIRMATION = 'payment_confirmation',
+  SHIPPING_UPDATE = 'shipping_update',
+  PROMOTION = 'promotion',
+  REVIEW_REQUEST = 'review_request',
+  PRICE_DROP = 'price_drop',
+  BACK_IN_STOCK = 'back_in_stock'
 }
 
-export interface IConfirmResetPasswordRequest {
-  /** 重置令牌 */
-  token: string;
-  /** 新密码 */
-  newPassword: string;
-  /** 确认新密码 */
-  confirmPassword: string;
+export interface IAnalytics {
+  userId: string;
+  events: IAnalyticsEvent[];
+  preferences: IAnalyticsPreferences;
 }
+
+export interface IAnalyticsEvent {
+  type: string;
+  timestamp: Date;
+  data: Record<string, any>;
+  sessionId: string;
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+export interface IAnalyticsPreferences {
+  trackingEnabled: boolean;
+  dataRetentionDays: number;
+  anonymizeData: boolean;
+}
+
+export type TProductStatus = keyof typeof ProductStatus;
+export type TUserStatus = keyof typeof UserStatus;
+export type TGender = keyof typeof Gender;
+export type TAddressType = keyof typeof AddressType;
+export type TOrderStatus = keyof typeof OrderStatus;
+export type TPaymentType = keyof typeof PaymentType;
+export type TReviewStatus = keyof typeof ReviewStatus;
+export type TCouponType = keyof typeof CouponType;
+export type TDiscountType = keyof typeof DiscountType;
+export type TSortOrder = keyof typeof SortOrder;
+export type TNotificationType = keyof typeof NotificationType;
+export type TProfileVisibility = keyof typeof ProfileVisibility;
