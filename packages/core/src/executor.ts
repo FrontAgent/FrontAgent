@@ -68,6 +68,23 @@ export class Executor {
     const startTime = Date.now();
 
     try {
+      // 0. 参数有效性检查（检查关键参数是否为空）
+      const paramValidation = this.validateStepParams(step);
+      if (!paramValidation.valid) {
+        if (this.config.debug) {
+          console.log(`[Executor] Skipping step due to invalid params: ${paramValidation.reason}`);
+        }
+        return {
+          stepResult: {
+            success: true,
+            output: { skipped: true, reason: paramValidation.reason },
+            duration: Date.now() - startTime
+          },
+          validation: { pass: true, results: [] },
+          needsRollback: false
+        };
+      }
+
       // 1. 执行前验证
       const preValidation = await this.validateBeforeExecution(step);
       if (!preValidation.pass) {
@@ -260,6 +277,57 @@ export class Executor {
         needsRollback: true
       };
     }
+  }
+
+  /**
+   * 验证步骤参数的有效性
+   */
+  private validateStepParams(step: ExecutionStep): { valid: boolean; reason?: string } {
+    const params = step.params as any;
+
+    // 检查不同 action 类型的必需参数
+    switch (step.action) {
+      case 'read_file':
+      case 'create_file':
+      case 'apply_patch':
+        if (!params.path || params.path.trim() === '') {
+          return { valid: false, reason: `${step.action} requires non-empty path parameter` };
+        }
+        break;
+
+      case 'list_directory':
+        if (!params.path || params.path.trim() === '') {
+          return { valid: false, reason: 'list_directory requires non-empty path parameter' };
+        }
+        break;
+
+      case 'search_code':
+        if (!params.pattern || params.pattern.trim() === '') {
+          return { valid: false, reason: 'search_code requires non-empty pattern parameter' };
+        }
+        break;
+
+      case 'run_command':
+        if (!params.command || params.command.trim() === '') {
+          return { valid: false, reason: 'run_command requires non-empty command parameter' };
+        }
+        break;
+
+      case 'browser_navigate':
+        if (!params.url || params.url.trim() === '') {
+          return { valid: false, reason: 'browser_navigate requires non-empty url parameter' };
+        }
+        break;
+
+      case 'browser_click':
+      case 'browser_type':
+        if (!params.selector || params.selector.trim() === '') {
+          return { valid: false, reason: `${step.action} requires non-empty selector parameter` };
+        }
+        break;
+    }
+
+    return { valid: true };
   }
 
   /**
