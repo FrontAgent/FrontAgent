@@ -252,6 +252,7 @@ export class Planner {
       'apply_patch': 'apply_patch',
       'search_code': 'search_code',
       'get_ast': 'get_ast',
+      'run_command': 'run_command',
       'browser_navigate': 'browser_navigate',
       'get_page_structure': 'get_page_structure',
       'browser_click': 'browser_click',

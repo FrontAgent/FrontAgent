@@ -163,6 +163,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 - **search_code**: 搜索代码（参数: { pattern: "搜索模式" }）
 - **create_file**: 创建新文件（参数: { path: "文件路径", codeDescription: "代码描述" }）
 - **apply_patch**: 修改现有文件（参数: { path: "文件路径", changeDescription: "修改描述" }）
+- **run_command**: 运行终端命令（参数: { command: "命令", description: "命令说明" }）- 需要用户批准
 
 # 重要原则
 1. **正确使用工具**：
@@ -173,6 +174,11 @@ ${options.sddConstraints ?? '无特殊约束'}
 3. **描述而非代码**：用自然语言描述要做什么，而不是直接给出代码
 4. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤（create_file, apply_patch），将 needsCodeGeneration 设为 true
 5. **清晰的文件路径**：确保 path 参数准确无误
+6. **项目初始化顺序**：
+   - 创建前端项目时，必须先创建 package.json 和相关配置文件
+   - 然后使用 run_command 安装依赖（如 npm install 或 pnpm install）
+   - 最后再创建源代码文件
+   - 例如：React 项目需要 package.json、tsconfig.json、vite.config.ts 等配置文件
 
 # 示例
 正确的 create_file 步骤：
@@ -469,6 +475,7 @@ const GeneratedPlanSchema = z.object({
       'apply_patch',
       'search_code',
       'get_ast',
+      'run_command',
       'browser_navigate',
       'get_page_structure',
       'browser_click',
@@ -482,11 +489,13 @@ const GeneratedPlanSchema = z.object({
     // - 对于 search_code: { pattern: string, directory?: string }
     // - 对于 create_file: { path: string, codeDescription: string } (不包含实际代码)
     // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
+    // - 对于 run_command: { command: string, description: string }
     params: z.object({
       path: z.string().optional().describe('文件或目录路径'),
       recursive: z.boolean().optional().describe('是否递归列出子目录 (list_directory)'),
       pattern: z.string().optional().describe('搜索模式'),
       directory: z.string().optional().describe('搜索目录'),
+      command: z.string().optional().describe('要执行的终端命令 (run_command)'),
       url: z.string().optional().describe('URL (browser 操作)'),
       selector: z.string().optional().describe('选择器 (browser 操作)'),
       text: z.string().optional().describe('输入文本 (browser 操作)'),

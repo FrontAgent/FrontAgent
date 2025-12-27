@@ -100,6 +100,7 @@ export type ActionType =
   | 'delete_file'
   | 'search_code'
   | 'get_ast'
+  | 'run_command'
   | 'browser_navigate'
   | 'browser_click'
   | 'browser_type'

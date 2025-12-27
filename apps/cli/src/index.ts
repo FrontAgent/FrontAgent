@@ -11,7 +11,9 @@ import { createAgent, type AgentConfig } from '@frontagent/core';
 import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { FileMCPClient, WebMCPClient } from './mcp-client.js';
+import { createShellMCPClient } from '@frontagent/mcp-shell';
 
 const program = new Command();
 
@@ -269,6 +271,44 @@ program
     const fileClient = new FileMCPClient(projectRoot);
     agent.registerMCPClient('file', fileClient);
     agent.registerFileTools();
+
+    // 注册 Shell 客户端（带命令批准）
+    const shellClient = createShellMCPClient(
+      projectRoot,
+      async (command: string) => {
+        // 暂停 spinner 以便显示提示
+        spinner.stop();
+
+        console.log(chalk.yellow('\n⚠️  Agent 请求执行终端命令:'));
+        console.log(chalk.cyan(`   ${command}\n`));
+
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
+        const answer = await new Promise<string>((resolve) => {
+          rl.question(chalk.white('是否允许执行此命令? (y/N): '), resolve);
+        });
+
+        rl.close();
+
+        const approved = answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
+
+        if (approved) {
+          console.log(chalk.green('✓ 命令已批准\n'));
+        } else {
+          console.log(chalk.red('✗ 命令已拒绝\n'));
+        }
+
+        // 重启 spinner
+        spinner.start('正在执行...');
+
+        return approved;
+      }
+    );
+    agent.registerMCPClient('shell', shellClient);
+    agent.registerShellTools();
 
     if (options.url) {
       const webClient = new WebMCPClient();

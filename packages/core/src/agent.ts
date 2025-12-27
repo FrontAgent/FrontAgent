@@ -127,6 +127,16 @@ export class FrontAgent {
   }
 
   /**
+   * 批量注册 Shell 工具
+   */
+  registerShellTools(): void {
+    const tools = ['run_command'];
+    for (const tool of tools) {
+      this.executor.registerToolMapping(tool, 'shell');
+    }
+  }
+
+  /**
    * 添加事件监听器
    */
   addEventListener(listener: AgentEventListener): void {

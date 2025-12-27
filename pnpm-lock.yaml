@@ -26,6 +26,9 @@ importers:
       '@frontagent/mcp-file':
         specifier: workspace:*
         version: link:../../packages/mcp-file
+      '@frontagent/mcp-shell':
+        specifier: workspace:*
+        version: link:../../packages/mcp-shell
       '@frontagent/mcp-web':
         specifier: workspace:*
         version: link:../../packages/mcp-web
@@ -134,6 +137,19 @@ importers:
         version: 20.19.27
       typescript:
         specifier: ^5.3.0
+        version: 5.9.3
+
+  packages/mcp-shell:
+    dependencies:
+      '@frontagent/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.27
+      typescript:
+        specifier: ^5.3.3
         version: 5.9.3
 
   packages/mcp-web:
