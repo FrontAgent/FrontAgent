@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCartStore } from '../stores/useCartStore';
-import { CartItem } from '../types/ICartItem';
+// import { CartItem } from '../types/ICartItem';
 import { formatPrice } from '../utils/formatPrice';
 
 /**
@@ -74,7 +74,7 @@ export const Cart: React.FC = () => {
         {/* 购物车商品列表 */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-lg shadow-md p-6">
-            {items.map((item: CartItem) => (
+            {items.map((item: any) => (
               <div
                 key={item.id}
                 className="flex items-center justify-between py-4 border-b last:border-b-0"
@@ -148,7 +148,7 @@ export const Cart: React.FC = () => {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
             <h2 className="text-xl font-semibold mb-4">订单摘要</h2>
-            
+
             <div className="space-y-3 mb-6">
               <div className="flex justify-between">
                 <span className="text-gray-600">商品总数</span>
