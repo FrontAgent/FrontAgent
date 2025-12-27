@@ -157,11 +157,22 @@ export class LLMService {
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
 
+# 可用工具
+- **read_file**: 读取单个文件的内容（参数: { path: "文件路径" }）
+- **list_directory**: 列出目录内容（参数: { path: "目录路径", recursive: true/false }）
+- **search_code**: 搜索代码（参数: { pattern: "搜索模式" }）
+- **create_file**: 创建新文件（参数: { path: "文件路径", codeDescription: "代码描述" }）
+- **apply_patch**: 修改现有文件（参数: { path: "文件路径", changeDescription: "修改描述" }）
+
 # 重要原则
-1. **不要在 params 中包含任何代码**：对于 create_file 或 apply_patch 操作，只需在 codeDescription 或 changeDescription 中描述要生成什么代码或做什么修改
-2. **描述而非代码**：用自然语言描述要做什么，而不是直接给出代码
-3. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤（create_file, apply_patch），将 needsCodeGeneration 设为 true
-4. **清晰的文件路径**：确保 path 参数准确无误
+1. **正确使用工具**：
+   - 分析项目结构时使用 **list_directory**（不是 read_file）
+   - 读取文件内容时使用 **read_file**（必须是文件路径，不能是目录）
+   - 例如：分析 src 目录结构 → 使用 list_directory，参数 { path: "src", recursive: true }
+2. **不要在 params 中包含任何代码**：对于 create_file 或 apply_patch 操作，只需在 codeDescription 或 changeDescription 中描述要生成什么代码或做什么修改
+3. **描述而非代码**：用自然语言描述要做什么，而不是直接给出代码
+4. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤（create_file, apply_patch），将 needsCodeGeneration 设为 true
+5. **清晰的文件路径**：确保 path 参数准确无误
 
 # 示例
 正确的 create_file 步骤：
@@ -453,6 +464,7 @@ const GeneratedPlanSchema = z.object({
     description: z.string().describe('步骤描述 - 说明要做什么'),
     action: z.enum([
       'read_file',
+      'list_directory',
       'create_file',
       'apply_patch',
       'search_code',
@@ -466,11 +478,13 @@ const GeneratedPlanSchema = z.object({
     tool: z.string().describe('要调用的工具'),
     // 参数说明：
     // - 对于 read_file: { path: string }
+    // - 对于 list_directory: { path: string, recursive?: boolean }
     // - 对于 search_code: { pattern: string, directory?: string }
     // - 对于 create_file: { path: string, codeDescription: string } (不包含实际代码)
     // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
     params: z.object({
-      path: z.string().optional().describe('文件路径'),
+      path: z.string().optional().describe('文件或目录路径'),
+      recursive: z.boolean().optional().describe('是否递归列出子目录 (list_directory)'),
       pattern: z.string().optional().describe('搜索模式'),
       directory: z.string().optional().describe('搜索目录'),
       url: z.string().optional().describe('URL (browser 操作)'),

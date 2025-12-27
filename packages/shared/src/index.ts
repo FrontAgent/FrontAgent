@@ -91,8 +91,9 @@ export interface ExecutionStep {
 /**
  * 动作类型
  */
-export type ActionType = 
+export type ActionType =
   | 'read_file'
+  | 'list_directory'
   | 'write_file'
   | 'apply_patch'
   | 'create_file'

@@ -247,6 +247,7 @@ export class Planner {
   private mapLLMAction(action: string): ExecutionStep['action'] {
     const actionMap: Record<string, ExecutionStep['action']> = {
       'read_file': 'read_file',
+      'list_directory': 'list_directory',
       'create_file': 'create_file',
       'apply_patch': 'apply_patch',
       'search_code': 'search_code',
