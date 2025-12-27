@@ -2,17 +2,17 @@
   "name": "frontagent",
   "version": "0.1.0",
   "description": "工程级 Agent 系统 - 以 SDD 为约束，通过 MCP 实现可控感知与执行",
-  "private": true,
   "type": "module",
+  "bin": {
+    "frontagent": "./bin/frontagent"
+  },
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "clean": "turbo clean && rm -rf node_modules",
-    "agent": "node apps/cli/dist/index.js",
-    "frontagent": "node apps/cli/dist/index.js"
+    "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

@@ -2,6 +2,8 @@
 
 > 工程级 AI Agent 系统 - 以 SDD 为约束，通过 MCP 实现可控感知与执行
 
+**[📖 快速开始](QUICKSTART.md)** | [架构文档](docs/architecture.md) | [设计文档](docs/design.md)
+
 FrontAgent 是一个专为前端工程设计的 AI Agent 系统，旨在解决 Agent 在真实工程中落地时面临的核心问题：
 
 - ✅ **幻觉防控** - 多层次的幻觉检测与拦截机制
@@ -9,6 +11,23 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，旨在解决 A
 - ✅ **MCP 协议** - 通过 Model Context Protocol 实现可控的工具调用
 - ✅ **最小修改** - 基于补丁的代码修改，支持回滚
 - ✅ **Web 感知** - 通过浏览器 MCP 理解页面结构
+
+## TL;DR
+
+```bash
+# 安装
+git clone <repo> && cd frontagent && pnpm install && pnpm build && npm link
+
+# 配置
+export BASE_URL="https://api.anthropic.com"
+export MODEL="claude-sonnet-4-20250514"
+export API_KEY="your-key"
+
+# 使用
+cd your-project
+frontagent init
+frontagent run "你的任务"
+```
 
 ## 架构概览
 
@@ -44,81 +63,72 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，旨在解决 A
 
 ## 快速开始
 
-### 安装
+### 一次性安装配置
 
 ```bash
-# 克隆仓库
+# 1. 克隆并构建 FrontAgent
 git clone https://github.com/your-org/frontagent.git
 cd frontagent
-
-# 安装依赖
 pnpm install
-
-# 构建
 pnpm build
+
+# 2. 全局安装 CLI
+npm link
+
+# 3. 配置 LLM（可选：创建配置文件）
+cp CONFIG.example.sh CONFIG.sh
+vim CONFIG.sh  # 填入你的 API Key
+source CONFIG.sh
+
+# 或直接 export
+export BASE_URL="https://api.anthropic.com"
+export MODEL="claude-sonnet-4-20250514"
+export API_KEY="your-api-key"
 ```
 
-### ⚠️ 工作模式说明
+**提示**: 配置文件 `CONFIG.sh` 已在 `.gitignore` 中，不会被提交到版本控制
 
-**FrontAgent 是以 SDD 为核心的 Agent 系统，必须在有 `sdd.yaml` 配置文件的目标项目目录下运行。**
+### 在项目中使用
 
-工作流程：
-1. **在 FrontAgent 仓库中** - 构建 CLI 工具
-2. **在目标项目中** - 初始化 SDD 配置
-3. **在目标项目中** - 运行 Agent 任务
-
-### 完整使用示例
+**⚠️ 重要**: FrontAgent 必须在目标项目目录下运行
 
 ```bash
-# 步骤 1: 在 FrontAgent 仓库中构建 CLI
-cd /path/to/frontagent
-pnpm install
-pnpm build
-
-# 步骤 2: 进入目标项目目录
+# 1. 进入你的项目目录
 cd /path/to/your-project
 
-# 步骤 3: 初始化 SDD 配置
-node /path/to/frontagent/apps/cli/dist/index.js init
-# 这会在当前目录创建 sdd.yaml 配置文件
+# 2. 初始化 SDD 配置
+frontagent init
 
-# 步骤 4: 根据项目实际情况编辑 sdd.yaml
+# 3. 编辑 sdd.yaml（根据项目实际情况配置）
 vim sdd.yaml
 
-# 步骤 5: 验证 SDD 配置（默认检测当前目录的 sdd.yaml）
-node /path/to/frontagent/apps/cli/dist/index.js validate
+# 4. 验证配置
+frontagent validate
 
-# 步骤 6: 运行 Agent 任务
+# 5. 开始使用
 # 查询任务
-node /path/to/frontagent/apps/cli/dist/index.js run "查找所有使用了 useState 的组件"
+frontagent run "查找所有使用了 useState 的组件"
 
 # 修改任务
-node /path/to/frontagent/apps/cli/dist/index.js run "添加 loading 状态到 Button 组件" \
+frontagent run "添加 loading 状态到 Button 组件" \
   --type modify \
   --files src/components/Button.tsx
 
 # 创建任务
-node /path/to/frontagent/apps/cli/dist/index.js run "创建一个 Modal 组件" \
+frontagent run "创建一个 Modal 组件" \
   --type create \
   --files src/components/Modal.tsx
-
-# 使用自定义模型（需要配置 API Key）
-node /path/to/frontagent/apps/cli/dist/index.js run "重构认证模块" \
-  --provider anthropic \
-  --model claude-sonnet-4-5-20250929 \
-  --api-key your-api-key \
-  --type refactor
 ```
 
-**提示**: 为方便使用，可以为 CLI 创建别名：
+### 常用命令
 
 ```bash
-# 在 ~/.bashrc 或 ~/.zshrc 中添加
-alias frontagent="node /path/to/frontagent/apps/cli/dist/index.js"
-
-# 之后就可以直接使用
-frontagent validate
-frontagent run "你的任务"
+frontagent init                    # 初始化 SDD 配置
+frontagent validate                # 验证当前目录的 sdd.yaml
+frontagent run "任务描述"          # 执行任务（默认 query 类型）
+frontagent run "任务" --type modify --files path/to/file  # 修改文件
+frontagent info                    # 显示系统信息
+frontagent --help                  # 查看帮助
 ```
 
 ## 核心模块
@@ -267,66 +277,38 @@ pnpm build
 pnpm clean
 ```
 
-## 配置 LLM
+## LLM 配置
 
-FrontAgent 支持 OpenAI 和 Anthropic（Claude）两种 LLM 提供商。
-
-### 方式 1: 环境变量（推荐）
+### 环境变量配置（推荐）
 
 ```bash
-# 配置 Anthropic Claude Sonnet 4.5
-export ANTHROPIC_API_KEY=sk-ant-xxx
-export MODEL=claude-sonnet-4-5-20250929
+# 使用通用配置
+export BASE_URL="https://api.anthropic.com"
+export MODEL="claude-sonnet-4-20250514"
+export API_KEY="your-api-key"
 
-# 配置 OpenAI GPT-4
-export OPENAI_API_KEY=sk-xxx
-export MODEL=gpt-4-turbo
-
-# 使用自定义代理
-export ANTHROPIC_BASE_URL=https://your-proxy.com
-# 或使用通用配置
-export BASE_URL=https://your-proxy.com
-export API_KEY=your-key
+# 或使用厂商专用配置
+export ANTHROPIC_BASE_URL="https://api.anthropic.com"
+export ANTHROPIC_API_KEY="sk-ant-xxx"
 ```
 
-### 方式 2: CLI 参数
+### 常用模型
+
+| 提供商 | 模型 ID | 说明 |
+|-------|---------|------|
+| Anthropic | `claude-sonnet-4-20250514` | Sonnet 4（推荐） |
+| Anthropic | `claude-opus-4-5-20251101` | Opus 4.5（最强） |
+| Anthropic | `claude-3-5-sonnet-20241022` | Sonnet 3.5 |
+| OpenAI | `gpt-4-turbo` | GPT-4 Turbo |
+| OpenAI | `gpt-4` | GPT-4 |
+
+### CLI 参数覆盖（可选）
 
 ```bash
-# 使用 Claude Sonnet 4.5
-frontagent run "创建按钮组件" \
-  --provider anthropic \
-  --model claude-sonnet-4-5-20250929 \
-  --api-key sk-ant-xxx
-
-# 使用 GPT-4 通过代理
-frontagent run "修复 bug" \
-  --provider openai \
-  --model gpt-4-turbo \
-  --base-url https://api.openai-proxy.com/v1 \
-  --max-tokens 8192 \
-  --temperature 0.7
+frontagent run "任务" --provider anthropic --model claude-sonnet-4-20250514 --api-key your-key
 ```
 
-### 支持的模型
-
-**Anthropic Claude:**
-- `claude-opus-4-5-20251101` - Opus 4.5（最强）
-- `claude-sonnet-4-5-20250929` - Sonnet 4.5（推荐）
-- `claude-sonnet-4-20250514` - Sonnet 4
-- `claude-3-5-sonnet-20241022` - Sonnet 3.5（默认）
-- `claude-3-5-haiku-20241022` - Haiku 3.5（快速）
-
-**OpenAI:**
-- `gpt-4-turbo` - GPT-4 Turbo
-- `gpt-4` - GPT-4
-- `gpt-3.5-turbo` - GPT-3.5 Turbo
-
-### 配置优先级
-
-1. CLI 参数
-2. 厂商专用环境变量（`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`）
-3. 通用环境变量（`API_KEY`、`BASE_URL`、`MODEL`）
-4. 默认值
+**配置优先级**: CLI 参数 > 厂商专用环境变量 > 通用环境变量 > 默认值
 
 ## 路线图
 

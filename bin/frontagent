@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+/**
+ * FrontAgent 全局 CLI 入口
+ * 该脚本会自动找到 FrontAgent 安装位置并执行
+ */
+
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { spawn } from 'node:child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// FrontAgent CLI 实际位置
+const cliPath = resolve(__dirname, '../apps/cli/dist/index.js');
+
+// 转发所有参数到实际的 CLI
+const child = spawn('node', [cliPath, ...process.argv.slice(2)], {
+  stdio: 'inherit',
+  cwd: process.cwd(), // 使用用户当前工作目录
+});
+
+child.on('exit', (code) => {
+  process.exit(code ?? 0);
+});
