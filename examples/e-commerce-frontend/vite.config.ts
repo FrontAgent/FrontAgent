@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
@@ -16,11 +16,14 @@ export default defineConfig({
       '@stores': path.resolve(__dirname, './src/stores'),
       '@types': path.resolve(__dirname, './src/types'),
       '@pages': path.resolve(__dirname, './src/pages'),
+      '@assets': path.resolve(__dirname, './src/assets'),
+      '@styles': path.resolve(__dirname, './src/styles'),
     },
   },
   server: {
     port: 3000,
     open: true,
+    host: true,
   },
   build: {
     outDir: 'dist',
@@ -38,4 +41,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'zustand'],
   },
-})
+});

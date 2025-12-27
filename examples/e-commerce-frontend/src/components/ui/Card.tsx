@@ -1,80 +1,78 @@
 import React from 'react';
 
-export interface ICardProps {
-  /** 卡片标题 */
+/**
+ * Card component props interface
+ */
+interface ICardProps {
+  /** Card title */
   title?: string;
-  /** 卡片内容 */
+  /** Card subtitle */
+  subtitle?: string;
+  /** Card content */
   children: React.ReactNode;
-  /** 自定义样式类名 */
+  /** Card footer content */
+  footer?: React.ReactNode;
+  /** Additional CSS classes */
   className?: string;
-  /** 是否显示边框 */
-  bordered?: boolean;
-  /** 是否显示阴影 */
-  shadowed?: boolean;
-  /** 是否显示圆角 */
-  rounded?: boolean;
-  /** 内边距大小 */
-  padding?: 'none' | 'sm' | 'md' | 'lg';
+  /** Card variant style */
+  variant?: 'default' | 'outlined' | 'elevated';
+  /** Click handler */
+  onClick?: () => void;
 }
 
 /**
- * 卡片容器组件
- * 用于展示内容块，支持多种样式配置
+ * Card component for displaying product information and content cards
+ * @param props - Card component props
+ * @returns Card component
  */
 export const Card: React.FC<ICardProps> = ({
   title,
+  subtitle,
   children,
+  footer,
   className = '',
-  bordered = true,
-  shadowed = true,
-  rounded = true,
-  padding = 'md'
+  variant = 'default',
+  onClick
 }) => {
-  /** 构建样式类名 */
-  const getCardClasses = (): string => {
-    const baseClasses = ['bg-white'];
-    
-    if (bordered) {
-      baseClasses.push('border border-gray-200');
-    }
-    
-    if (shadowed) {
-      baseClasses.push('shadow-sm');
-    }
-    
-    if (rounded) {
-      baseClasses.push('rounded-lg');
-    }
-    
-    // 内边距样式
-    const paddingClasses = {
-      none: '',
-      sm: 'p-3',
-      md: 'p-4',
-      lg: 'p-6'
-    };
-    
-    baseClasses.push(paddingClasses[padding]);
-    
-    if (className) {
-      baseClasses.push(className);
-    }
-    
-    return baseClasses.join(' ');
+  const baseClasses = 'rounded-lg p-6 transition-all duration-200';
+  
+  const variantClasses = {
+    default: 'bg-white shadow-sm',
+    outlined: 'bg-white border border-gray-200',
+    elevated: 'bg-white shadow-lg hover:shadow-xl'
   };
 
+  const clickableClasses = onClick ? 'cursor-pointer hover:scale-[1.02]' : '';
+
   return (
-    <div className={getCardClasses()}>
-      {title && (
-        <div className="mb-3 pb-2 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {title}
-          </h3>
+    <div
+      className={`${baseClasses} ${variantClasses[variant]} ${clickableClasses} ${className}`}
+      onClick={onClick}
+    >
+      {(title || subtitle) && (
+        <div className="mb-4">
+          {title && (
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              {title}
+            </h3>
+          )}
+          {subtitle && (
+            <p className="text-sm text-gray-600">
+              {subtitle}
+            </p>
+          )}
         </div>
       )}
-      <div className="card-content">
+      
+      <div className="text-gray-800">
         {children}
       </div>
+      
+      {footer && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          {footer}
+        </div>
+      )}
     </div>
   );
 };

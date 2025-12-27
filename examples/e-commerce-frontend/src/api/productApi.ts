@@ -1,245 +1,163 @@
-import { TProduct, TProductListResponse, TProductDetailResponse } from '../types/product';
+export interface IProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  category: string;
+  stock: number;
+  rating: number;
+  reviews: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
+export interface IProductListResponse {
+  products: IProduct[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface IProductFilters {
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  rating?: number;
+  search?: string;
+  sortBy?: 'price' | 'rating' | 'name' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface IProductListParams {
+  page?: number;
+  limit?: number;
+  filters?: IProductFilters;
+}
+
+const API_BASE_URL = '/api/products';
 
 /**
- * 构建请求URL
+ * 获取产品列表
+ * @param params 查询参数
+ * @returns 产品列表响应
  */
-const buildUrl = (endpoint: string, params?: Record<string, string | number>): string => {
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
+export const getProducts = async (params?: IProductListParams): Promise<IProductListResponse> => {
+  const searchParams = new URLSearchParams();
   
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, String(value));
-    });
+  if (params?.page) {
+    searchParams.append('page', params.page.toString());
   }
   
-  return url.toString();
-};
-
-/**
- * 处理API响应
- */
-const handleResponse = async <T>(response: Response): Promise<T> => {
+  if (params?.limit) {
+    searchParams.append('limit', params.limit.toString());
+  }
+  
+  if (params?.filters) {
+    const { filters } = params;
+    
+    if (filters.category) {
+      searchParams.append('category', filters.category);
+    }
+    
+    if (filters.minPrice !== undefined) {
+      searchParams.append('minPrice', filters.minPrice.toString());
+    }
+    
+    if (filters.maxPrice !== undefined) {
+      searchParams.append('maxPrice', filters.maxPrice.toString());
+    }
+    
+    if (filters.rating !== undefined) {
+      searchParams.append('rating', filters.rating.toString());
+    }
+    
+    if (filters.search) {
+      searchParams.append('search', filters.search);
+    }
+    
+    if (filters.sortBy) {
+      searchParams.append('sortBy', filters.sortBy);
+    }
+    
+    if (filters.sortOrder) {
+      searchParams.append('sortOrder', filters.sortOrder);
+    }
+  }
+  
+  const url = `${API_BASE_URL}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  
+  const response = await fetch(url);
+  
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    throw new Error(`Failed to fetch products: ${response.statusText}`);
   }
   
   return response.json();
 };
 
 /**
- * 获取商品列表
+ * 获取产品详情
+ * @param id 产品ID
+ * @returns 产品详情
  */
-export const getProductList = async (
-  page: number = 1,
-  limit: number = 20,
-  category?: string,
-  search?: string
-): Promise<TProductListResponse> => {
-  const params: Record<string, string | number> = {
-    page,
-    limit
-  };
+export const getProductById = async (id: string): Promise<IProduct> => {
+  const response = await fetch(`${API_BASE_URL}/${id}`);
   
-  if (category) {
-    params.category = category;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch product: ${response.statusText}`);
   }
   
-  if (search) {
-    params.search = search;
-  }
-  
-  const url = buildUrl('/products', params);
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<TProductListResponse>(response);
+  return response.json();
 };
 
 /**
- * 获取商品详情
- */
-export const getProductDetail = async (productId: string): Promise<TProductDetailResponse> => {
-  const url = buildUrl(`/products/${productId}`);
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<TProductDetailResponse>(response);
-};
-
-/**
- * 获取推荐商品
- */
-export const getRecommendedProducts = async (
-  productId: string,
-  limit: number = 6
-): Promise<TProductListResponse> => {
-  const url = buildUrl(`/products/${productId}/recommendations`, { limit });
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<TProductListResponse>(response);
-};
-
-/**
- * 获取热门商品
- */
-export const getPopularProducts = async (
-  limit: number = 10
-): Promise<TProductListResponse> => {
-  const url = buildUrl('/products/popular', { limit });
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<TProductListResponse>(response);
-};
-
-/**
- * 获取新品上市
- */
-export const getNewProducts = async (
-  limit: number = 10
-): Promise<TProductListResponse> => {
-  const url = buildUrl('/products/new', { limit });
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<TProductListResponse>(response);
-};
-
-/**
- * 获取商品分类列表
+ * 获取产品分类列表
+ * @returns 分类列表
  */
 export const getProductCategories = async (): Promise<string[]> => {
-  const url = buildUrl('/products/categories');
+  const response = await fetch(`${API_BASE_URL}/categories`);
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<string[]>(response);
-};
-
-/**
- * 搜索商品
- */
-export const searchProducts = async (
-  query: string,
-  page: number = 1,
-  limit: number = 20,
-  category?: string
-): Promise<TProductListResponse> => {
-  const params: Record<string, string | number> = {
-    q: query,
-    page,
-    limit
-  };
-  
-  if (category) {
-    params.category = category;
+  if (!response.ok) {
+    throw new Error(`Failed to fetch categories: ${response.statusText}`);
   }
   
-  const url = buildUrl('/products/search', params);
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return handleResponse<TProductListResponse>(response);
+  return response.json();
 };
 
 /**
- * 获取商品价格区间
+ * 获取推荐产品
+ * @param limit 返回数量限制
+ * @returns 推荐产品列表
  */
-export const getProductPriceRange = async (
-  category?: string
-): Promise<{ min: number; max: number }> => {
-  const params = category ? { category } : undefined;
-  const url = buildUrl('/products/price-range', params);
+export const getRecommendedProducts = async (limit: number = 10): Promise<IProduct[]> => {
+  const response = await fetch(`${API_BASE_URL}/recommended?limit=${limit}`);
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch recommended products: ${response.statusText}`);
+  }
   
-  return handleResponse<{ min: number; max: number }>(response);
+  return response.json();
 };
 
 /**
- * 获取商品库存状态
+ * 搜索产品
+ * @param query 搜索关键词
+ * @param limit 返回数量限制
+ * @returns 搜索结果
  */
-export const getProductStockStatus = async (
-  productId: string
-): Promise<{ inStock: boolean; stockCount: number }> => {
-  const url = buildUrl(`/products/${productId}/stock`);
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+export const searchProducts = async (query: string, limit: number = 20): Promise<IProduct[]> => {
+  const searchParams = new URLSearchParams({
+    q: query,
+    limit: limit.toString()
   });
   
-  return handleResponse<{ inStock: boolean; stockCount: number }>(response);
-};
-
-/**
- * 获取商品评价统计
- */
-export const getProductRatingStats = async (
-  productId: string
-): Promise<{
-  averageRating: number;
-  totalReviews: number;
-  ratingDistribution: Record<number, number>;
-}> => {
-  const url = buildUrl(`/products/${productId}/ratings`);
+  const response = await fetch(`${API_BASE_URL}/search?${searchParams.toString()}`);
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+  if (!response.ok) {
+    throw new Error(`Failed to search products: ${response.statusText}`);
+  }
   
-  return handleResponse<{
-    averageRating: number;
-    totalReviews: number;
-    ratingDistribution: Record<number, number>;
-  }>(response);
+  return response.json();
 };

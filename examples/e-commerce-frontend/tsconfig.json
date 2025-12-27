@@ -25,9 +25,8 @@
       "@/utils/*": ["src/utils/*"],
       "@/api/*": ["src/api/*"],
       "@/stores/*": ["src/stores/*"],
-      "@/pages/*": ["src/pages/*"],
       "@/types/*": ["src/types/*"],
-      "@/constants/*": ["src/constants/*"]
+      "@/assets/*": ["src/assets/*"]
     }
   },
   "include": ["src"],

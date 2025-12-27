@@ -1,154 +1,193 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProductStore } from '../../stores/useProductStore';
-import { IProduct, IFilterOptions } from '../../types/product';
 import { ProductCard } from '../ui/ProductCard';
-import { FilterPanel } from '../ui/FilterPanel';
-import { Pagination } from '../ui/Pagination';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
+import { Input } from '../ui/Input';
+import { IProduct } from '../../types/IProduct';
+import { IPagination } from '../../types/IPagination';
 
 /**
- * 商品列表展示组件
- * 支持分页和筛选功能
+ * ProductList component - Displays a grid of products with filtering and pagination
  */
 export const ProductList: React.FC = () => {
-  const { 
-    products, 
-    filteredProducts, 
-    isLoading, 
-    error,
-    filters,
-    pagination,
-    setFilters,
-    setCurrentPage,
-    setPageSize
-  } = useProductStore();
+  const { products, loading, error, fetchProducts, filters, setFilters, pagination } = useProductStore();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const [localFilters, setLocalFilters] = useState<IFilterOptions>(filters);
+  useEffect(() => {
+    fetchProducts({
+      ...filters,
+      search: searchTerm,
+      sortBy,
+      sortOrder,
+      page: pagination.currentPage,
+      limit: pagination.itemsPerPage
+    });
+  }, [searchTerm, sortBy, sortOrder, pagination.currentPage]);
 
-  /**
-   * 处理筛选条件变更
-   */
-  const handleFilterChange = (newFilters: IFilterOptions): void => {
-    setLocalFilters(newFilters);
-    setFilters(newFilters);
-    setCurrentPage(1); // 重置到第一页
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    setFilters({ ...filters, search: value });
   };
 
-  /**
-   * 处理分页变更
-   */
-  const handlePageChange = (page: number): void => {
-    setCurrentPage(page);
+  const handleSort = (field: string) => {
+    setSortBy(field);
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
   };
 
-  /**
-   * 处理每页显示数量变更
-   */
-  const handlePageSizeChange = (pageSize: number): void => {
-    setPageSize(pageSize);
-    setCurrentPage(1); // 重置到第一页
+  const handlePageChange = (page: number) => {
+    fetchProducts({
+      ...filters,
+      search: searchTerm,
+      sortBy,
+      sortOrder,
+      page,
+      limit: pagination.itemsPerPage
+    });
   };
 
-  /**
-   * 计算分页数据
-   */
-  const paginatedProducts = useMemo(() => {
-    const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
-    const endIndex = startIndex + pagination.pageSize;
-    return filteredProducts.slice(startIndex, endIndex);
-  }, [filteredProducts, pagination.currentPage, pagination.pageSize]);
+  const handleCategoryFilter = (category: string) => {
+    setFilters({ ...filters, category });
+  };
 
-  /**
-   * 渲染加载状态
-   */
-  const renderLoading = (): JSX.Element => (
-    <div className="flex justify-center items-center py-12">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <span className="ml-2 text-gray-600">加载中...</span>
-    </div>
-  );
+  const handlePriceFilter = (minPrice: number, maxPrice: number) => {
+    setFilters({ ...filters, minPrice, maxPrice });
+  };
 
-  /**
-   * 渲染错误状态
-   */
-  const renderError = (): JSX.Element => (
-    <div className="text-center py-12">
-      <div className="text-red-600 mb-2">加载失败</div>
-      <div className="text-gray-500 text-sm">{error}</div>
-    </div>
-  );
-
-  /**
-   * 渲染空状态
-   */
-  const renderEmptyState = (): JSX.Element => (
-    <div className="text-center py-12">
-      <div className="text-gray-500 mb-2">暂无商品数据</div>
-      <div className="text-gray-400 text-sm">
-        {Object.keys(filters).length > 0 ? '请尝试调整筛选条件' : '请稍后再试'}
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
-    </div>
-  );
-
-  /**
-   * 渲染商品列表
-   */
-  const renderProductList = (): JSX.Element => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-600">
-          共找到 {filteredProducts.length} 件商品
-        </div>
-        <div className="text-sm text-gray-600">
-          第 {pagination.currentPage} 页，共 {Math.ceil(filteredProducts.length / pagination.pageSize)} 页
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {paginatedProducts.map((product: IProduct) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
-      
-      {filteredProducts.length > pagination.pageSize && (
-        <Pagination
-          currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredProducts.length / pagination.pageSize)}
-          pageSize={pagination.pageSize}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      )}
-    </div>
-  );
-
-  if (isLoading) {
-    return renderLoading();
+    );
   }
 
   if (error) {
-    return renderError();
+    return (
+      <div className="text-center text-red-600 p-4">
+        <p>Error loading products: {error}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* 筛选面板 */}
-        <div className="lg:w-1/4">
-          <FilterPanel
-            filters={localFilters}
-            onFilterChange={handleFilterChange}
-            availableCategories={Array.from(new Set(products.map(p => p.category)))}
-            availableBrands={Array.from(new Set(products.map(p => p.brand)))}
-          />
+    <div className="container mx-auto px-4 py-8">
+      {/* Filters Section */}
+      <div className="mb-8 bg-white p-6 rounded-lg shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <Input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <Select
+              value={filters.category || ''}
+              onChange={(e) => handleCategoryFilter(e.target.value)}
+              className="w-full"
+            >
+              <option value="">All Categories</option>
+              <option value="electronics">Electronics</option>
+              <option value="clothing">Clothing</option>
+              <option value="books">Books</option>
+              <option value="home">Home & Garden</option>
+            </Select>
+          </div>
+          <div>
+            <Select
+              value={sortBy}
+              onChange={(e) => handleSort(e.target.value)}
+              className="w-full"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="price">Sort by Price</option>
+              <option value="rating">Sort by Rating</option>
+              <option value="createdAt">Sort by Date</option>
+            </Select>
+          </div>
+          <div>
+            <Button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              variant="outline"
+              className="w-full"
+            >
+              {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+            </Button>
+          </div>
         </div>
         
-        {/* 商品列表 */}
-        <div className="lg:w-3/4">
-          {filteredProducts.length === 0 ? renderEmptyState() : renderProductList()}
+        {/* Price Range Filter */}
+        <div className="mt-4 flex items-center gap-4">
+          <span className="text-sm font-medium">Price Range:</span>
+          <Input
+            type="number"
+            placeholder="Min"
+            value={filters.minPrice || ''}
+            onChange={(e) => handlePriceFilter(Number(e.target.value), filters.maxPrice || 0)}
+            className="w-24"
+          />
+          <span>-</span>
+          <Input
+            type="number"
+            placeholder="Max"
+            value={filters.maxPrice || ''}
+            onChange={(e) => handlePriceFilter(filters.minPrice || 0, Number(e.target.value))}
+            className="w-24"
+          />
         </div>
+      </div>
+
+      {/* Products Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+        {products.map((product: IProduct) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2">
+          <Button
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage === 1}
+            variant="outline"
+          >
+            Previous
+          </Button>
+          
+          <div className="flex gap-1">
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                variant={page === pagination.currentPage ? 'default' : 'outline'}
+                className="w-10 h-10"
+              >
+                {page}
+              </Button>
+            ))}
+          </div>
+          
+          <Button
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            variant="outline"
+          >
+            Next
+          </Button>
+        </div>
+      )}
+
+      {/* Results Count */}
+      <div className="mt-4 text-center text-gray-600">
+        Showing {products.length} of {pagination.totalItems} products
       </div>
     </div>
   );
 };
-
-export default ProductList;

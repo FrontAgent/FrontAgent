@@ -71,19 +71,22 @@ export class Executor {
       // 1. 执行前验证
       const preValidation = await this.validateBeforeExecution(step);
       if (!preValidation.pass) {
-        // 检查是否是"尝试读取目录"这类可以跳过的错误
+        // 检查是否是可以跳过的错误
         const errorMsg = preValidation.blockedBy?.join('; ') || '';
-        const isSkippableError = errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
+        const isDirectoryError = errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
+        const isFileNotExist = errorMsg.includes('does not exist') && step.action === 'read_file';
 
-        if (isSkippableError) {
+        if (isDirectoryError || isFileNotExist) {
           // 跳过这个步骤而不是失败
+          // - 对于 read_file 读取不存在的文件：让工具返回"文件不存在"而不是阻止
+          // - 对于尝试读取目录：直接跳过
           if (this.config.debug) {
             console.log(`[Executor] Skipping step due to validation: ${errorMsg}`);
           }
           return {
             stepResult: {
               success: true, // 标记为成功，这样不会阻塞后续步骤
-              output: { skipped: true, reason: errorMsg },
+              output: { skipped: true, reason: errorMsg, exists: false },
               duration: Date.now() - startTime
             },
             validation: { pass: true, results: [] },

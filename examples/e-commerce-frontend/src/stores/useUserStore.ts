@@ -1,112 +1,151 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-/**
- * 用户信息接口
- */
-export interface IUserInfo {
+interface IUser {
   id: string;
-  username: string;
   email: string;
+  name: string;
   avatar?: string;
   phone?: string;
+  role: 'user' | 'admin';
   createdAt: string;
   updatedAt: string;
 }
 
-/**
- * 用户状态接口
- */
-export interface IUserState {
-  // 状态
+interface IAuthState {
+  user: IUser | null;
+  token: string | null;
   isAuthenticated: boolean;
-  userInfo: IUserInfo | null;
   isLoading: boolean;
-  error: string | null;
+}
 
-  // 操作方法
-  login: (userInfo: IUserInfo) => void;
+interface IAuthActions {
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
-  updateUserInfo: (userInfo: Partial<IUserInfo>) => void;
+  updateUser: (userData: Partial<IUser>) => void;
   setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
   clearError: () => void;
 }
 
-/**
- * 用户状态管理 Store
- * 使用 Zustand 进行状态管理，支持持久化存储
- */
-export const useUserStore = create<IUserState>()(
+interface IAuthStore extends IAuthState, IAuthActions {
+  error: string | null;
+}
+
+const mockUsers: IUser[] = [
+  {
+    id: '1',
+    email: 'user@example.com',
+    name: 'John Doe',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
+    role: 'user',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export const useUserStore = create<IAuthStore>()(
   persist(
     (set, get) => ({
-      // 初始状态
+      user: null,
+      token: null,
       isAuthenticated: false,
-      userInfo: null,
       isLoading: false,
       error: null,
 
-      /**
-       * 用户登录
-       * @param userInfo 用户信息
-       */
-      login: (userInfo: IUserInfo) => {
-        set({
-          isAuthenticated: true,
-          userInfo,
-          error: null,
-        });
+      login: async (email: string, password: string) => {
+        set({ isLoading: true, error: null });
+        
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const user = mockUsers.find(u => u.email === email);
+          
+          if (!user || password !== 'password') {
+            set({ error: 'Invalid email or password', isLoading: false });
+            return;
+          }
+          
+          const token = `mock-token-${Date.now()}`;
+          
+          set({
+            user,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+        } catch (error) {
+          set({ error: 'Login failed', isLoading: false });
+        }
       },
 
-      /**
-       * 用户登出
-       */
+      register: async (email: string, password: string, name: string) => {
+        set({ isLoading: true, error: null });
+        
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const existingUser = mockUsers.find(u => u.email === email);
+          
+          if (existingUser) {
+            set({ error: 'Email already exists', isLoading: false });
+            return;
+          }
+          
+          const newUser: IUser = {
+            id: Date.now().toString(),
+            email,
+            name,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+            role: 'user',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          
+          mockUsers.push(newUser);
+          
+          const token = `mock-token-${Date.now()}`;
+          
+          set({
+            user: newUser,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+        } catch (error) {
+          set({ error: 'Registration failed', isLoading: false });
+        }
+      },
+
       logout: () => {
         set({
+          user: null,
+          token: null,
           isAuthenticated: false,
-          userInfo: null,
           error: null,
         });
       },
 
-      /**
-       * 更新用户信息
-       * @param userInfo 用户信息更新数据
-       */
-      updateUserInfo: (userInfo: Partial<IUserInfo>) => {
-        const currentUserInfo = get().userInfo;
-        if (!currentUserInfo) {
-          return;
-        }
-
-        set({
-          userInfo: {
-            ...currentUserInfo,
-            ...userInfo,
-            updatedAt: new Date().toISOString(),
-          },
-        });
+      updateUser: (userData: Partial<IUser>) => {
+        const currentUser = get().user;
+        
+        if (!currentUser) return;
+        
+        const updatedUser: IUser = {
+          ...currentUser,
+          ...userData,
+          updatedAt: new Date().toISOString(),
+        };
+        
+        set({ user: updatedUser });
       },
 
-      /**
-       * 设置加载状态
-       * @param loading 加载状态
-       */
       setLoading: (loading: boolean) => {
         set({ isLoading: loading });
       },
 
-      /**
-       * 设置错误信息
-       * @param error 错误信息
-       */
-      setError: (error: string | null) => {
-        set({ error });
-      },
-
-      /**
-       * 清除错误信息
-       */
       clearError: () => {
         set({ error: null });
       },
@@ -114,8 +153,9 @@ export const useUserStore = create<IUserState>()(
     {
       name: 'user-storage',
       partialize: (state) => ({
+        user: state.user,
+        token: state.token,
         isAuthenticated: state.isAuthenticated,
-        userInfo: state.userInfo,
       }),
     }
   )
