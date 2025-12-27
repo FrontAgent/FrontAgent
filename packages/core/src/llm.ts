@@ -325,6 +325,7 @@ ${options.sddConstraints ?? '无特殊约束'}
       system: outlineSystem,
       schema: PlanOutlineSchema,
       temperature: 0.3,
+      maxTokens: 8192,
     });
 
     console.log(`[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`);
@@ -371,6 +372,7 @@ ${JSON.stringify(batch, null, 2)}
         system: expansionSystem,
         schema: StepExpansionSchema,
         temperature: 0.3,
+        maxTokens: 16384,
       });
 
       allSteps.push(...expansion.steps);
@@ -1035,20 +1037,20 @@ const StepExpansionSchema = z.object({
     ]).describe('执行动作'),
     tool: z.string().describe('要调用的工具'),
     params: z.object({
-      path: z.string().default('').describe('文件或目录路径'),
-      recursive: z.boolean().default(false).describe('是否递归列出子目录 (list_directory)'),
-      pattern: z.string().default('').describe('搜索模式'),
-      directory: z.string().default('').describe('搜索目录'),
-      command: z.string().default('').describe('要执行的终端命令 (run_command)'),
-      url: z.string().default('').describe('URL (browser 操作)'),
-      selector: z.string().default('').describe('选择器 (browser 操作)'),
-      text: z.string().default('').describe('输入文本 (browser 操作)'),
-      fullPage: z.boolean().default(false).describe('是否全页截图 (browser_screenshot)'),
-      codeDescription: z.string().default('').describe('要生成的代码的描述 (create_file/apply_patch)'),
-      changeDescription: z.string().default('').describe('要做的修改描述 (apply_patch)'),
-    }).describe('工具参数 - 不包含实际代码，只包含描述'),
+      path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
+      recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+      pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+      directory: z.string().describe('搜索目录（不适用时填空字符串）'),
+      command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
+      url: z.string().describe('URL（不适用时填空字符串）'),
+      selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
+      text: z.string().describe('输入文本（不适用时填空字符串）'),
+      fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
+      codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
+      changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
+    }).describe('工具参数 - 所有字段必填，不适用的字段填空字符串或false'),
     reasoning: z.string().describe('为什么需要这个步骤'),
-    needsCodeGeneration: z.boolean().optional().describe('此步骤是否需要在执行时生成代码'),
+    needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
   })).describe('展开后的详细步骤列表'),
 });
 
@@ -1079,20 +1081,20 @@ const GeneratedPlanSchema = z.object({
     // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
     // - 对于 run_command: { command: string, description: string }
     params: z.object({
-      path: z.string().default('').describe('文件或目录路径'),
-      recursive: z.boolean().default(false).describe('是否递归列出子目录 (list_directory)'),
-      pattern: z.string().default('').describe('搜索模式'),
-      directory: z.string().default('').describe('搜索目录'),
-      command: z.string().default('').describe('要执行的终端命令 (run_command)'),
-      url: z.string().default('').describe('URL (browser 操作)'),
-      selector: z.string().default('').describe('选择器 (browser 操作)'),
-      text: z.string().default('').describe('输入文本 (browser 操作)'),
-      fullPage: z.boolean().default(false).describe('是否全页截图 (browser_screenshot)'),
-      codeDescription: z.string().default('').describe('要生成的代码的描述 (create_file/apply_patch)'),
-      changeDescription: z.string().default('').describe('要做的修改描述 (apply_patch)'),
-    }).describe('工具参数 - 不包含实际代码，只包含描述'),
+      path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
+      recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+      pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+      directory: z.string().describe('搜索目录（不适用时填空字符串）'),
+      command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
+      url: z.string().describe('URL（不适用时填空字符串）'),
+      selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
+      text: z.string().describe('输入文本（不适用时填空字符串）'),
+      fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
+      codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
+      changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
+    }).describe('工具参数 - 所有字段必填，不适用的字段填空字符串或false'),
     reasoning: z.string().describe('为什么需要这个步骤'),
-    needsCodeGeneration: z.boolean().optional().describe('此步骤是否需要在执行时生成代码'),
+    needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
   })).describe('执行步骤列表'),
   risks: z.array(z.string()).describe('潜在风险（可为空数组）'),
   alternatives: z.array(z.string()).describe('备选方案（可为空数组）'),
