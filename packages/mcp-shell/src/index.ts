@@ -113,6 +113,8 @@ export class ShellMCPClient {
         maxBuffer: 1024 * 1024 * 10 // 10MB
       });
 
+      // 命令执行成功（exitCode = 0）
+      // 注意：stderr 可能包含警告信息，但这不代表失败
       return {
         success: true,
         stdout,
@@ -120,12 +122,17 @@ export class ShellMCPClient {
         exitCode: 0
       };
     } catch (error: any) {
+      // 只有当命令真正失败（非0退出码）时才标记为失败
+      // 有些命令会在 stderr 输出警告但仍然成功（exitCode = 0）
+      const exitCode = error.code || error.exitCode || 1;
+      const isActualFailure = exitCode !== 0;
+
       return {
-        success: false,
-        stdout: error.stdout,
-        stderr: error.stderr,
-        exitCode: error.code,
-        error: error.message
+        success: !isActualFailure,
+        stdout: error.stdout || '',
+        stderr: error.stderr || '',
+        exitCode,
+        error: isActualFailure ? error.message : undefined
       };
     }
   }

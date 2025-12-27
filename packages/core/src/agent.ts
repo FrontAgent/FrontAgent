@@ -261,6 +261,18 @@ export class FrontAgent {
         (step, output) => {
           if (output.stepResult.success) {
             this.emit({ type: 'step_completed', step, result: output.stepResult });
+
+            // 如果是 read_file，将内容添加到上下文
+            if (step.action === 'read_file' && output.stepResult.output) {
+              const result = output.stepResult.output as any;
+              if (result.content && step.params.path) {
+                const filePath = step.params.path as string;
+                executionContext.collectedContext.files.set(filePath, result.content);
+                if (this.config.debug) {
+                  console.log(`[Agent] Added file to context: ${filePath}`);
+                }
+              }
+            }
           } else {
             this.emit({ type: 'step_failed', step, error: output.stepResult.error ?? 'Unknown error' });
           }
