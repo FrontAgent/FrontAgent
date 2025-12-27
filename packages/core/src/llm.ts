@@ -150,6 +150,30 @@ export class LLMService {
   }): Promise<GeneratedPlan> {
     const system = `你是一个专业的前端工程 AI Agent，负责分析任务并生成执行计划。
 
+# 🚨 关键要求：必须输出完整的 JSON 对象 🚨
+
+你必须按照以下 schema 输出一个**完整的、结构正确的 JSON 对象**。
+
+**必需的顶层字段**（缺一不可）：
+{
+  "summary": "计划的简要描述（字符串，必需）",
+  "steps": [步骤数组，至少1个，必需],
+  "risks": ["风险1", "风险2"],  // 可选，但建议提供
+  "alternatives": ["方案1", "方案2"]  // 可选
+}
+
+**每个步骤的必需字段**（缺一不可）：
+{
+  "description": "步骤描述（字符串，必需）",
+  "action": "动作类型（枚举，必需）",
+  "tool": "工具名称（字符串，必需）",
+  "params": { 参数对象，必需 },
+  "reasoning": "原因说明（字符串，必需）",
+  "needsCodeGeneration": true/false  // 布尔值，可选
+}
+
+**严禁简化输出**：不要只输出 {"path": "xxx"} 这样的简化 JSON，必须输出完整的包含所有字段的对象。
+
 # 两阶段 Agent 架构说明
 你当前处于 Stage 1（规划阶段），只需要生成结构化的执行步骤描述，**不要生成任何实际代码**。
 代码会在 Stage 2（执行阶段）由专门的代码生成器逐文件生成。
@@ -202,7 +226,38 @@ ${options.sddConstraints ?? '无特殊约束'}
   }
 }
 
-请分析用户的任务，生成详细的执行计划。`;
+# 完整的 JSON 输出模板
+
+你的输出必须严格遵循以下结构：
+
+{
+  "summary": "任务类型: 任务描述\n步骤数: X (action1: Y, action2: Z)",
+  "steps": [
+    {
+      "description": "具体步骤描述",
+      "action": "read_file | list_directory | create_file | apply_patch | run_command | search_code | get_ast",
+      "tool": "工具名称（如 read_file, create_file, run_command 等）",
+      "params": {
+        "path": "文件或目录路径（如适用）",
+        "command": "命令（如适用）",
+        "codeDescription": "代码描述（如适用）",
+        "changeDescription": "修改描述（如适用）"
+      },
+      "reasoning": "为什么需要这个步骤",
+      "needsCodeGeneration": true  // 仅当 action 是 create_file 或 apply_patch 时设为 true
+    }
+  ],
+  "risks": [
+    "可能的风险1",
+    "可能的风险2"
+  ],
+  "alternatives": [
+    "备选方案1",
+    "备选方案2"
+  ]
+}
+
+请分析用户的任务，严格按照上述模板生成完整的执行计划。`;
 
     const messages: Message[] = [
       {
@@ -212,7 +267,9 @@ ${options.sddConstraints ?? '无特殊约束'}
 上下文信息:
 ${options.context}
 
-请生成执行计划（只生成步骤描述，不生成实际代码）。`
+请严格按照上述 JSON 模板生成**完整的**执行计划。
+必须包含 summary、steps（含所有必需字段）、risks、alternatives。
+不要简化输出，不要遗漏任何必需字段。`
       }
     ];
 
