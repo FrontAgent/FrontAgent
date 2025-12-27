@@ -36,6 +36,16 @@ export class LLMService {
     // 获取 model - 支持从环境变量覆盖
     const modelName = process.env.MODEL ?? model;
 
+    // Debug: 输出配置（仅在有 DEBUG 环境变量时）
+    if (process.env.DEBUG) {
+      console.log('[LLMService] Creating model with config:', {
+        provider,
+        model: modelName,
+        baseURL: endpoint,
+        hasApiKey: !!key,
+      });
+    }
+
     // 根据 provider 选择对应的创建函数
     const providerConfig = { apiKey: key, baseURL: endpoint };
 

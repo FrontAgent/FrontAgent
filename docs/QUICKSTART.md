@@ -61,11 +61,21 @@ frontagent --help                  # 查看帮助
 
 ## 配置 LLM
 
-在 `CONFIG.sh` 中配置：
+在 `CONFIG.sh` 中配置（根据你使用的提供商）：
 
+**使用 Anthropic Claude:**
 ```bash
+export PROVIDER="anthropic"
 export BASE_URL="https://api.anthropic.com"
 export MODEL="claude-sonnet-4-20250514"
+export API_KEY="your-api-key"
+```
+
+**使用 OpenAI:**
+```bash
+export PROVIDER="openai"
+export BASE_URL="https://api.openai.com/v1"
+export MODEL="gpt-4-turbo"
 export API_KEY="your-api-key"
 ```
 
@@ -73,8 +83,11 @@ export API_KEY="your-api-key"
 
 ```bash
 source CONFIG.sh
+frontagent info          # 查看配置是否正确
 frontagent run "你的任务"
 ```
+
+**提示**: `PROVIDER` 环境变量会决定使用哪个 LLM 提供商，如果不设置则默认使用 `anthropic`
 
 ## 注意事项
 

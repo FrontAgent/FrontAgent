@@ -204,8 +204,8 @@ program
   .option('-t, --type <type>', '任务类型 (create/modify/query/debug/refactor/test)', 'query')
   .option('-f, --files <files...>', '相关文件列表')
   .option('-u, --url <url>', '浏览器 URL (用于 Web 相关任务)')
-  .option('--provider <provider>', 'LLM 提供商 (openai/anthropic)', 'anthropic')
-  .option('--model <model>', 'LLM 模型', 'claude-3-5-sonnet-20241022')
+  .option('--provider <provider>', 'LLM 提供商 (openai/anthropic)')
+  .option('--model <model>', 'LLM 模型')
   .option('--base-url <url>', 'LLM API 基础 URL (用于代理或兼容 API)')
   .option('--api-key <key>', 'LLM API Key (默认从环境变量读取)')
   .option('--max-tokens <tokens>', '最大 token 数', '4096')
@@ -222,14 +222,39 @@ program
       console.log(chalk.gray('   将在无约束模式下运行\n'));
     }
 
+    // 根据环境变量和 CLI 参数确定 provider
+    const provider = (options.provider || process.env.PROVIDER || 'anthropic').toLowerCase() as 'openai' | 'anthropic';
+
+    // 根据 provider 确定默认模型
+    const getDefaultModel = (provider: string): string => {
+      switch (provider) {
+        case 'openai':
+          return 'gpt-4-turbo';
+        case 'anthropic':
+          return 'claude-3-5-sonnet-20241022';
+        default:
+          return 'claude-3-5-sonnet-20241022';
+      }
+    };
+
+    const model = options.model || process.env.MODEL || getDefaultModel(provider);
+
+    // 显示 LLM 配置信息
+    if (options.debug) {
+      console.log(chalk.gray(`\n🔧 LLM 配置:`));
+      console.log(chalk.gray(`   Provider: ${provider}`));
+      console.log(chalk.gray(`   Model: ${model}`));
+      console.log(chalk.gray(`   Base URL: ${options.baseUrl || process.env[`${provider.toUpperCase()}_BASE_URL`] || process.env.BASE_URL || '(default)'}\n`));
+    }
+
     const spinner = ora('正在初始化 Agent...').start();
 
     const config: AgentConfig = {
       projectRoot,
       sddPath: existsSync(sddPath) ? sddPath : undefined,
       llm: {
-        provider: options.provider as 'openai' | 'anthropic',
-        model: options.model,
+        provider,
+        model,
         baseURL: options.baseUrl,
         apiKey: options.apiKey,
         maxTokens: parseInt(options.maxTokens, 10),
@@ -321,6 +346,17 @@ program
     } else {
       console.log(chalk.yellow('⚠️ SDD 配置: 未找到'));
     }
+
+    console.log(chalk.cyan('\n🤖 LLM 配置:'));
+    const provider = process.env.PROVIDER || 'anthropic';
+    const model = process.env.MODEL || (provider === 'openai' ? 'gpt-4-turbo' : 'claude-3-5-sonnet-20241022');
+    const baseUrl = process.env[`${provider.toUpperCase()}_BASE_URL`] || process.env.BASE_URL || '(使用默认)';
+    const apiKey = process.env[`${provider.toUpperCase()}_API_KEY`] || process.env.API_KEY;
+
+    console.log(chalk.gray(`  Provider: ${provider}`));
+    console.log(chalk.gray(`  Model: ${model}`));
+    console.log(chalk.gray(`  Base URL: ${baseUrl}`));
+    console.log(apiKey ? chalk.green('  API Key: 已配置 ✓') : chalk.red('  API Key: 未配置 ✗'));
 
     console.log(chalk.cyan('\n📦 模块:'));
     console.log(chalk.gray('  - @frontagent/core'));

@@ -24,7 +24,8 @@ pnpm install
 pnpm build
 npm link
 
-# 配置LLM
+# 根据你的供应商配置LLM
+export PROVIDER="anthropic"
 export BASE_URL="https://api.anthropic.com"
 export MODEL="claude-sonnet-4-20250514"
 export API_KEY="your-key"
