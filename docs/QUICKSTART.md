@@ -21,31 +21,42 @@ source CONFIG.sh
 ## 在任意项目中使用
 
 ```bash
-# 1. 进入你的项目
+# 1. 进入你的项目目录
 cd /path/to/your-project
 
-# 2. 初始化 SDD
+# 2. 初始化 SDD 配置
 frontagent init
 
-# 3. 编辑配置
+# 3. 编辑 sdd.yaml（根据项目实际情况配置）
 vim sdd.yaml
 
 # 4. 验证配置
 frontagent validate
 
 # 5. 开始使用
-frontagent run "查找所有 React 组件"
-frontagent run "添加 loading 到 Button" --type modify --files src/components/Button.tsx
+# 查询任务
+frontagent run "查找所有使用了 useState 的组件"
+
+# 修改任务
+frontagent run "添加 loading 状态到 Button 组件" \
+  --type modify \
+  --files src/components/Button.tsx
+
+# 创建任务
+frontagent run "创建一个 Modal 组件" \
+  --type create \
+  --files src/components/Modal.tsx
 ```
 
 ## 常用命令
 
 ```bash
-frontagent init          # 初始化 SDD
-frontagent validate      # 验证配置
-frontagent run "任务"    # 执行任务
-frontagent info          # 系统信息
-frontagent --help        # 帮助
+frontagent init                    # 初始化 SDD 配置
+frontagent validate                # 验证当前目录的 sdd.yaml
+frontagent run "任务描述"          # 执行任务（默认 query 类型）
+frontagent run "任务" --type modify --files path/to/file  # 修改文件
+frontagent info                    # 显示系统信息
+frontagent --help                  # 查看帮助
 ```
 
 ## 配置 LLM
