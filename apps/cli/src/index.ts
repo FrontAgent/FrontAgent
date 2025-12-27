@@ -306,7 +306,12 @@ program
           spinner.text = `执行: ${event.step.description}`;
           break;
         case 'step_completed':
-          console.log(chalk.green(`   ✅ ${event.step.description}`));
+          // 检查是否是跳过的步骤
+          if (event.result && typeof event.result.output === 'object' && (event.result.output as any).skipped) {
+            console.log(chalk.yellow(`   ⏭️  ${event.step.description} (已跳过)`));
+          } else {
+            console.log(chalk.green(`   ✅ ${event.step.description}`));
+          }
           break;
         case 'step_failed':
           console.log(chalk.red(`   ❌ ${event.step.description}: ${event.error}`));

@@ -71,10 +71,31 @@ export class Executor {
       // 1. 执行前验证
       const preValidation = await this.validateBeforeExecution(step);
       if (!preValidation.pass) {
+        // 检查是否是"尝试读取目录"这类可以跳过的错误
+        const errorMsg = preValidation.blockedBy?.join('; ') || '';
+        const isSkippableError = errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
+
+        if (isSkippableError) {
+          // 跳过这个步骤而不是失败
+          if (this.config.debug) {
+            console.log(`[Executor] Skipping step due to validation: ${errorMsg}`);
+          }
+          return {
+            stepResult: {
+              success: true, // 标记为成功，这样不会阻塞后续步骤
+              output: { skipped: true, reason: errorMsg },
+              duration: Date.now() - startTime
+            },
+            validation: { pass: true, results: [] },
+            needsRollback: false
+          };
+        }
+
+        // 其他验证失败仍然返回错误
         return {
           stepResult: {
             success: false,
-            error: `Pre-execution validation failed: ${preValidation.blockedBy?.join('; ')}`,
+            error: `Pre-execution validation failed: ${errorMsg}`,
             duration: Date.now() - startTime
           },
           validation: preValidation,

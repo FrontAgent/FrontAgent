@@ -221,7 +221,13 @@ ${options.context}
     language: string;
     sddConstraints?: string;
   }): Promise<string> {
-    const system = `你是一个专业的前端工程 AI Agent，负责生成高质量的代码。
+    const system = `你是一个专业的代码生成器。你的唯一任务是生成代码，不要做任何其他事情。
+
+# 严格规则
+1. **只输出代码**：不要输出任何解释、说明、思考过程
+2. **不要使用工具**：不要调用任何 TOOL_CALL，不要读取文件，不要做任何分析
+3. **不要使用 markdown**：不要使用 \`\`\` 代码块标记
+4. **直接开始**：从第一行代码开始，到最后一行代码结束
 
 # 任务说明
 - 文件路径: ${options.filePath}
@@ -230,15 +236,21 @@ ${options.context}
 
 # 技术要求
 - 遵循最佳实践和设计模式
-- 代码应该清晰、可维护、有适当的注释
-- 使用 TypeScript 的类型系统
-- 遵循项目的代码风格
+- 代码清晰、可维护
+- 使用 TypeScript 类型系统
+- 遵循项目代码风格
 
 ${options.sddConstraints ? `# SDD 约束\n${options.sddConstraints}` : ''}
 
-# 输出格式
-直接输出完整的代码，不要包含任何 markdown 代码块标记（\`\`\`）或其他格式。
-只输出纯代码内容，从第一行代码开始，到最后一行代码结束。`;
+# 输出示例
+对于一个 React 组件，你应该直接输出：
+import React from 'react';
+
+export const MyComponent: React.FC = () => {
+  return <div>Hello</div>;
+};
+
+不要输出任何其他内容！`;
 
     const messages: Message[] = [
       {
@@ -253,11 +265,44 @@ ${options.sddConstraints ? `# SDD 约束\n${options.sddConstraints}` : ''}
       temperature: 0.2,
     });
 
-    // 清理可能的 markdown 代码块标记
-    return code
-      .replace(/^```[\w]*\n/m, '')  // 移除开始的 ```
-      .replace(/\n```$/m, '')        // 移除结束的 ```
-      .trim();
+    // 清理可能的多余内容
+    let cleaned = code;
+
+    // 移除 markdown 代码块标记
+    cleaned = cleaned.replace(/^```[\w]*\n/m, '').replace(/\n```$/m, '');
+
+    // 移除可能的 TOOL_CALL 标记和相关内容
+    cleaned = cleaned.replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '');
+
+    // 移除中文说明性文字（通常在代码前）
+    const lines = cleaned.split('\n');
+    let codeStartIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      // 找到第一行看起来像代码的行（import, export, const, function, class, interface, type, //, /*, etc.）
+      if (
+        line.startsWith('import ') ||
+        line.startsWith('export ') ||
+        line.startsWith('const ') ||
+        line.startsWith('let ') ||
+        line.startsWith('var ') ||
+        line.startsWith('function ') ||
+        line.startsWith('class ') ||
+        line.startsWith('interface ') ||
+        line.startsWith('type ') ||
+        line.startsWith('//') ||
+        line.startsWith('/*') ||
+        line.startsWith('{') ||
+        line.startsWith('<')
+      ) {
+        codeStartIndex = i;
+        break;
+      }
+    }
+
+    cleaned = lines.slice(codeStartIndex).join('\n');
+
+    return cleaned.trim();
   }
 
   /**
@@ -300,7 +345,13 @@ ${options.code}
     language: string;
     sddConstraints?: string;
   }): Promise<string> {
-    const system = `你是一个专业的代码修改助手，负责根据要求修改代码。
+    const system = `你是一个专业的代码修改器。你的唯一任务是修改代码，不要做任何其他事情。
+
+# 严格规则
+1. **只输出代码**：不要输出任何解释、说明、思考过程
+2. **不要使用工具**：不要调用任何 TOOL_CALL，不要读取文件
+3. **不要使用 markdown**：不要使用 \`\`\` 代码块标记
+4. **直接开始**：从第一行代码开始，到最后一行代码结束
 
 # 任务说明
 - 文件路径: ${options.filePath}
@@ -315,9 +366,8 @@ ${options.code}
 
 ${options.sddConstraints ? `# SDD 约束\n${options.sddConstraints}` : ''}
 
-# 输出格式
-直接输出修改后的完整代码文件内容，不要包含任何 markdown 代码块标记（\`\`\`）或其他格式。
-只输出纯代码内容，从第一行代码开始，到最后一行代码结束。`;
+# 输出示例
+直接输出修改后的完整代码，不要有任何其他内容！`;
 
     const messages: Message[] = [
       {
@@ -337,11 +387,44 @@ ${options.originalCode}
       temperature: 0.2,
     });
 
-    // 清理可能的 markdown 代码块标记
-    return code
-      .replace(/^```[\w]*\n/m, '')
-      .replace(/\n```$/m, '')
-      .trim();
+    // 清理可能的多余内容（同 generateCodeForFile）
+    let cleaned = code;
+
+    // 移除 markdown 代码块标记
+    cleaned = cleaned.replace(/^```[\w]*\n/m, '').replace(/\n```$/m, '');
+
+    // 移除可能的 TOOL_CALL 标记和相关内容
+    cleaned = cleaned.replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '');
+
+    // 移除中文说明性文字（通常在代码前）
+    const lines = cleaned.split('\n');
+    let codeStartIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      // 找到第一行看起来像代码的行
+      if (
+        line.startsWith('import ') ||
+        line.startsWith('export ') ||
+        line.startsWith('const ') ||
+        line.startsWith('let ') ||
+        line.startsWith('var ') ||
+        line.startsWith('function ') ||
+        line.startsWith('class ') ||
+        line.startsWith('interface ') ||
+        line.startsWith('type ') ||
+        line.startsWith('//') ||
+        line.startsWith('/*') ||
+        line.startsWith('{') ||
+        line.startsWith('<')
+      ) {
+        codeStartIndex = i;
+        break;
+      }
+    }
+
+    cleaned = lines.slice(codeStartIndex).join('\n');
+
+    return cleaned.trim();
   }
 
   /**
