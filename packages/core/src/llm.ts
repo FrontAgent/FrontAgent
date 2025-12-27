@@ -138,6 +138,83 @@ export class LLMService {
   }
 
   /**
+   * 规范化和修正 LLM 输出的计划
+   * 自动修复常见的类型错误，提高鲁棒性
+   */
+  private normalizePlan(rawPlan: any): GeneratedPlan {
+    // 确保 summary 是字符串
+    const summary = typeof rawPlan.summary === 'string'
+      ? rawPlan.summary
+      : 'Generated Plan';
+
+    // 确保 steps 是数组
+    let steps = Array.isArray(rawPlan.steps) ? rawPlan.steps : [];
+
+    // 如果 steps 是字符串，尝试解析或创建默认步骤
+    if (typeof rawPlan.steps === 'string') {
+      console.warn('[LLM] Warning: steps is a string, expected array. Creating default step.');
+      steps = [];
+    }
+
+    // 规范化每个步骤
+    steps = steps.map((step: any, index: number) => {
+      // 确保 params 是对象
+      let params = step.params;
+      if (typeof params === 'string') {
+        console.warn(`[LLM] Warning: step[${index}].params is a string, expected object. Converting.`);
+        // 尝试解析 JSON 字符串
+        try {
+          params = JSON.parse(params);
+        } catch {
+          // 如果解析失败，创建一个包含原字符串的对象
+          params = { value: params };
+        }
+      } else if (!params || typeof params !== 'object') {
+        params = {};
+      }
+
+      // 确保 needsCodeGeneration 是布尔值
+      let needsCodeGeneration = step.needsCodeGeneration;
+      if (typeof needsCodeGeneration === 'string') {
+        needsCodeGeneration = needsCodeGeneration.toLowerCase() === 'true';
+      } else if (typeof needsCodeGeneration !== 'boolean') {
+        needsCodeGeneration = undefined;
+      }
+
+      return {
+        ...step,
+        params,
+        needsCodeGeneration
+      };
+    });
+
+    // 确保 risks 是数组
+    let risks = rawPlan.risks;
+    if (typeof risks === 'string') {
+      console.warn('[LLM] Warning: risks is a string, expected array. Converting to array.');
+      risks = [risks];
+    } else if (!Array.isArray(risks)) {
+      risks = [];
+    }
+
+    // 确保 alternatives 是数组
+    let alternatives = rawPlan.alternatives;
+    if (typeof alternatives === 'string') {
+      console.warn('[LLM] Warning: alternatives is a string, expected array. Converting to array.');
+      alternatives = [alternatives];
+    } else if (!Array.isArray(alternatives)) {
+      alternatives = [];
+    }
+
+    return {
+      summary,
+      steps,
+      risks,
+      alternatives
+    };
+  }
+
+  /**
    * 生成执行计划（结构化输出 - Stage 1: 纯规划阶段）
    *
    * 重要：这是两阶段 Agent 架构的第一阶段，只生成结构化的执行步骤描述，不生成实际代码。
@@ -218,7 +295,9 @@ ${options.sddConstraints ?? '无特殊约束'}
   "needsCodeGeneration": true
 }
 
-错误示例（不要这样做）：
+# ❌ 错误示例（严禁这样做）
+
+**错误1：在 params 中包含代码**
 {
   "params": {
     "path": "src/components/Button.tsx",
@@ -226,36 +305,78 @@ ${options.sddConstraints ?? '无特殊约束'}
   }
 }
 
-# 完整的 JSON 输出模板
-
-你的输出必须严格遵循以下结构：
-
+**错误2：数组字段使用字符串**
 {
-  "summary": "任务类型: 任务描述\n步骤数: X (action1: Y, action2: Z)",
-  "steps": [
+  "summary": "任务描述",
+  "steps": [...],
+  "risks": "可能有风险",  // ❌ 错误！risks 必须是数组，不能是字符串
+  "alternatives": "可以用其他方案"  // ❌ 错误！alternatives 必须是数组
+}
+
+**正确的数组格式：**
+{
+  "summary": "任务描述",
+  "steps": [...],
+  "risks": ["可能有风险1", "可能有风险2"],  // ✅ 正确！使用数组
+  "alternatives": ["方案1", "方案2"]  // ✅ 正确！使用数组
+}
+
+**错误3：steps 不是数组**
+{
+  "summary": "...",
+  "steps": "读取文件然后修改"  // ❌ 错误！steps 必须是对象数组
+}
+
+**正确的 steps 格式：**
+{
+  "summary": "...",
+  "steps": [  // ✅ 正确！steps 是数组
     {
-      "description": "具体步骤描述",
-      "action": "read_file | list_directory | create_file | apply_patch | run_command | search_code | get_ast",
-      "tool": "工具名称（如 read_file, create_file, run_command 等）",
-      "params": {
-        "path": "文件或目录路径（如适用）",
-        "command": "命令（如适用）",
-        "codeDescription": "代码描述（如适用）",
-        "changeDescription": "修改描述（如适用）"
-      },
-      "reasoning": "为什么需要这个步骤",
-      "needsCodeGeneration": true  // 仅当 action 是 create_file 或 apply_patch 时设为 true
+      "description": "...",
+      "action": "...",
+      // ... 其他字段
     }
-  ],
-  "risks": [
-    "可能的风险1",
-    "可能的风险2"
-  ],
-  "alternatives": [
-    "备选方案1",
-    "备选方案2"
   ]
 }
+
+# 完整的 JSON 输出模板（严格按照类型）
+
+你的输出必须严格遵循以下结构，特别注意每个字段的类型：
+
+{
+  "summary": "string - 任务类型: 任务描述\n步骤数: X (action1: Y, action2: Z)",
+  "steps": [  // ⚠️ 必须是数组 Array，不能是字符串 string
+    {
+      "description": "string - 具体步骤描述",
+      "action": "string (enum) - read_file | list_directory | create_file | apply_patch | run_command | search_code | get_ast",
+      "tool": "string - 工具名称（如 read_file, create_file, run_command 等）",
+      "params": {  // ⚠️ 必须是对象 Object，不能是字符串
+        "path": "string - 文件或目录路径（如适用）",
+        "command": "string - 命令（如适用）",
+        "codeDescription": "string - 代码描述（如适用）",
+        "changeDescription": "string - 修改描述（如适用）"
+      },
+      "reasoning": "string - 为什么需要这个步骤",
+      "needsCodeGeneration": true  // boolean - 仅当 action 是 create_file 或 apply_patch 时设为 true
+    }
+  ],
+  "risks": [  // ⚠️ 必须是字符串数组 Array<string>，不能是单个字符串 string
+    "string - 可能的风险1",
+    "string - 可能的风险2"
+  ],
+  "alternatives": [  // ⚠️ 必须是字符串数组 Array<string>，不能是单个字符串 string
+    "string - 备选方案1",
+    "string - 备选方案2"
+  ]
+}
+
+**关键类型约束：**
+- summary: string（字符串）
+- steps: Array<Object>（对象数组，不能是字符串）
+- risks: Array<string>（字符串数组，不能是单个字符串）
+- alternatives: Array<string>（字符串数组，不能是单个字符串）
+- 每个 step 的 params: Object（对象，不能是字符串）
+- needsCodeGeneration: boolean（布尔值，不能是字符串）
 
 请分析用户的任务，严格按照上述模板生成完整的执行计划。`;
 
@@ -273,12 +394,16 @@ ${options.context}
       }
     ];
 
-    return this.generateObject({
+    // 生成原始计划
+    const rawPlan = await this.generateObject({
       messages,
       system,
       schema: GeneratedPlanSchema,
       temperature: 0.3,
     });
+
+    // 规范化计划，修正可能的类型错误
+    return this.normalizePlan(rawPlan);
   }
 
   /**
@@ -562,8 +687,8 @@ const GeneratedPlanSchema = z.object({
     reasoning: z.string().describe('为什么需要这个步骤'),
     needsCodeGeneration: z.boolean().optional().describe('此步骤是否需要在执行时生成代码'),
   })).describe('执行步骤列表'),
-  risks: z.array(z.string()).optional().describe('潜在风险'),
-  alternatives: z.array(z.string()).optional().describe('备选方案'),
+  risks: z.array(z.string()).optional().catch([]).describe('潜在风险'),
+  alternatives: z.array(z.string()).optional().catch([]).describe('备选方案'),
 });
 
 export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
