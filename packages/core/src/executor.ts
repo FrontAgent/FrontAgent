@@ -286,6 +286,13 @@ export class Executor {
       return true;
     }
 
+    // apply_patch 的文件路径错误（路径是目录或文件不在上下文中）
+    if ((errorMsg.includes('file not found in context') ||
+         errorMsg.includes('Cannot apply patch')) &&
+        action === 'apply_patch') {
+      return true;
+    }
+
     return false;
   }
 
