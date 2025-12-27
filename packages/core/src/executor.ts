@@ -203,6 +203,31 @@ export class Executor {
       // 3. 调用 MCP 工具
       const toolResult = await this.callTool(step.tool, toolParams);
 
+      // 3.5. 检查工具执行结果是否是可跳过的错误
+      if (typeof toolResult === 'object' && toolResult !== null) {
+        const resultObj = toolResult as { success?: boolean; error?: string };
+        if (resultObj.success === false && resultObj.error) {
+          const errorMsg = resultObj.error;
+          // 检查是否是可跳过的错误类型
+          const isSkippableError = this.isSkippableError(errorMsg, step.action);
+
+          if (isSkippableError) {
+            if (this.config.debug) {
+              console.log(`[Executor] Skipping step due to tool error: ${errorMsg}`);
+            }
+            return {
+              stepResult: {
+                success: true, // 标记为成功，不阻塞后续步骤
+                output: { skipped: true, reason: errorMsg },
+                duration: Date.now() - startTime
+              },
+              validation: { pass: true, results: [] },
+              needsRollback: false
+            };
+          }
+        }
+      }
+
       // 4. 执行后验证
       const postValidation = await this.validateAfterExecution(step, toolResult);
 
@@ -235,6 +260,33 @@ export class Executor {
         needsRollback: true
       };
     }
+  }
+
+  /**
+   * 判断错误是否可以跳过（不中断整个任务）
+   */
+  private isSkippableError(errorMsg: string, action: string): boolean {
+    // 目录不存在的错误（list_directory）
+    if (errorMsg.includes('Directory not found') || errorMsg.includes('目录不存在')) {
+      return true;
+    }
+
+    // 文件不存在的错误（read_file）
+    if ((errorMsg.includes('File not found') ||
+         errorMsg.includes('does not exist') ||
+         errorMsg.includes('文件不存在')) &&
+        action === 'read_file') {
+      return true;
+    }
+
+    // 尝试读取目录而不是文件的错误
+    if (errorMsg.includes('Not a directory') ||
+        errorMsg.includes('is not a file') ||
+        errorMsg.includes('Not a file')) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
