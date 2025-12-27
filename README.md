@@ -2,7 +2,7 @@
 
 > 工程级 AI Agent 系统 - 以 SDD 为约束，通过 MCP 实现可控感知与执行
 
-[📖 快速开始](docs/QUICKSTART.md) | [架构文档](docs/architecture.md) | [设计文档](docs/design.md)
+[快速开始](docs/QUICKSTART.md) | [架构文档](docs/architecture.md) | [设计文档](docs/design.md)
 
 FrontAgent 是一个专为前端工程设计的 AI Agent 系统，旨在解决 Agent 在真实工程中落地时面临的核心问题：
 
