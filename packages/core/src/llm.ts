@@ -250,29 +250,70 @@ export class LLMService {
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
 
-# 开发/创建任务的步骤结构
-如果是开发/创建任务，步骤大纲应该包括：
-1. 分析现有项目结构（list_directory）
-2. 创建配置文件（create_file: package.json, tsconfig.json等）
-3. 创建源代码文件（create_file: 组件、页面等）
-4. 安装依赖（run_command: npm install）
-5. 启动开发服务器（run_command: npm run dev 后台运行）
-6. 验证项目（browser_navigate, browser_screenshot, get_page_structure）
+# 🚨 开发/创建任务的强制要求 🚨
 
-示例输出：
+**如果是开发/创建任务**（包含"开发"、"创建"、"实现"、"生成"、"搭建"等关键词），
+步骤大纲**必须**按照以下顺序包含所有阶段：
+
+## 必需的步骤结构（不可省略任何阶段）：
+
+**阶段 1: 分析阶段（1-3个步骤）**
+- list_directory: 分析项目目录结构
+- read_file: 读取现有配置文件（如果存在）
+
+**阶段 2: 创建阶段（必需！）**
+- create_file: 创建 package.json
+- create_file: 创建 tsconfig.json（如果使用 TypeScript）
+- create_file: 创建构建配置（vite.config.ts/webpack.config.js等）
+- create_file: 创建 Tailwind/样式配置（如果使用）
+- create_file: 创建目录结构命令（mkdir -p ...）
+- create_file: 创建各种源代码文件（组件、页面、utils等）
+  - 至少包含：入口文件、主页面、基础组件
+
+**阶段 3: 安装和启动阶段（必需！）**
+- run_command: npm install 或 pnpm install
+- run_command: npm run dev（后台运行）
+
+**阶段 4: 验证阶段（必需！）**
+- browser_navigate: 访问 http://localhost:5173
+- browser_screenshot: 截图验证页面渲染
+- get_page_structure: 检查页面结构和错误
+
+❌ **严禁**：只生成阶段1（分析），就结束
+❌ **严禁**：跳过阶段3（安装）或阶段4（验证）
+✅ **正确**：必须包含所有4个阶段
+
+## 示例（正确的完整大纲）：
 {
   "summary": "创建电商前端项目，包含配置、组件、验证流程",
   "stepOutlines": [
+    // 阶段1: 分析
     { "description": "分析项目目录", "action": "list_directory" },
+
+    // 阶段2: 创建（必需至少8个create_file）
     { "description": "创建package.json", "action": "create_file" },
-    { "description": "创建主页组件", "action": "create_file" },
+    { "description": "创建tsconfig.json", "action": "create_file" },
+    { "description": "创建vite配置", "action": "create_file" },
+    { "description": "创建Tailwind配置", "action": "create_file" },
+    { "description": "创建index.html", "action": "create_file" },
+    { "description": "创建App.tsx主组件", "action": "create_file" },
+    { "description": "创建Button组件", "action": "create_file" },
+    { "description": "创建首页组件", "action": "create_file" },
+
+    // 阶段3: 安装和启动（必需）
     { "description": "安装依赖", "action": "run_command" },
     { "description": "启动开发服务器", "action": "run_command" },
-    { "description": "浏览器访问验证", "action": "browser_navigate" }
+
+    // 阶段4: 验证（必需）
+    { "description": "浏览器访问验证", "action": "browser_navigate" },
+    { "description": "截图验证渲染", "action": "browser_screenshot" },
+    { "description": "检查页面结构", "action": "get_page_structure" }
   ],
   "risks": ["依赖版本冲突", "端口占用"],
   "alternatives": ["使用Next.js框架"]
-}`;
+}
+
+⚠️ 注意：stepOutlines 数组通常应该有 15-30 个步骤（取决于项目复杂度）`;
 
     const outline = await this.generateObject({
       messages: [
