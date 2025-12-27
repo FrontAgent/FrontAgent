@@ -215,12 +215,165 @@ export class LLMService {
   }
 
   /**
+   * 两阶段生成执行计划
+   * Phase 1: 生成计划大纲（summary + 简化的步骤列表）
+   * Phase 2: 展开详细步骤
+   *
+   * 优势：避免一次性生成大量 JSON 导致的 token 限制和解析错误
+   */
+  async generatePlanInTwoPhases(options: {
+    task: string;
+    context: string;
+    sddConstraints?: string;
+  }): Promise<GeneratedPlan> {
+    console.log('[LLMService] Using two-phase plan generation...');
+
+    // Phase 1: 生成计划大纲
+    const outlineSystem = `你是一个专业的前端工程 AI Agent，负责分析任务并生成执行计划的大纲。
+
+# 任务类型判断
+请先判断用户任务是什么类型：
+- **开发/创建任务**：包含"开发"、"创建"、"实现"、"搭建"、"生成"等关键词
+- **修改任务**：包含"修改"、"更新"、"优化"、"重构"等关键词
+- **分析任务**：包含"分析"、"查看"、"了解"等关键词
+
+# 你的任务（Phase 1）
+生成一个**高层次的计划大纲**，包括：
+1. summary - 对整个任务的概括性描述
+2. stepOutlines - 步骤概要列表（只需简单描述每个步骤的目的和动作类型）
+3. risks - 潜在风险（可选）
+4. alternatives - 备选方案（可选）
+
+⚠️ 注意：此阶段只需生成步骤的**概要**，不需要填充详细的参数和推理。
+⚠️ 步骤概要格式：{ description: "简短描述", action: "动作类型" }
+
+# SDD 约束
+${options.sddConstraints ?? '无特殊约束'}
+
+# 开发/创建任务的步骤结构
+如果是开发/创建任务，步骤大纲应该包括：
+1. 分析现有项目结构（list_directory）
+2. 创建配置文件（create_file: package.json, tsconfig.json等）
+3. 创建源代码文件（create_file: 组件、页面等）
+4. 安装依赖（run_command: npm install）
+5. 启动开发服务器（run_command: npm run dev 后台运行）
+6. 验证项目（browser_navigate, browser_screenshot, get_page_structure）
+
+示例输出：
+{
+  "summary": "创建电商前端项目，包含配置、组件、验证流程",
+  "stepOutlines": [
+    { "description": "分析项目目录", "action": "list_directory" },
+    { "description": "创建package.json", "action": "create_file" },
+    { "description": "创建主页组件", "action": "create_file" },
+    { "description": "安装依赖", "action": "run_command" },
+    { "description": "启动开发服务器", "action": "run_command" },
+    { "description": "浏览器访问验证", "action": "browser_navigate" }
+  ],
+  "risks": ["依赖版本冲突", "端口占用"],
+  "alternatives": ["使用Next.js框架"]
+}`;
+
+    const outline = await this.generateObject({
+      messages: [
+        {
+          role: 'user',
+          content: `任务：${options.task}\n\n项目上下文：\n${options.context}`
+        }
+      ],
+      system: outlineSystem,
+      schema: PlanOutlineSchema,
+      temperature: 0.3,
+    });
+
+    console.log(`[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`);
+
+    // Phase 2: 批量展开步骤详情
+    const expansionSystem = `你是一个专业的前端工程 AI Agent，负责将步骤概要展开为详细的可执行步骤。
+
+# 你的任务（Phase 2）
+将以下步骤概要展开为详细的可执行步骤，每个步骤需要包括：
+1. description - 详细描述
+2. action - 动作类型（与概要保持一致）
+3. tool - 工具名称（通常与action相同）
+4. params - 详细参数（根据动作类型填充）
+5. reasoning - 为什么需要这个步骤
+6. needsCodeGeneration - 是否需要代码生成（create_file和apply_patch设为true）
+
+# 重要原则
+- create_file: params 包含 path 和 codeDescription，设置 needsCodeGeneration: true
+- apply_patch: params 包含 path 和 changeDescription，设置 needsCodeGeneration: true
+- run_command: params 包含 command
+- browser 操作: params 包含 url/selector 等
+- 后台启动开发服务器使用: "nohup npm run dev > /dev/null 2>&1 & sleep 3"
+
+# SDD 约束
+${options.sddConstraints ?? '无特殊约束'}`;
+
+    // 分批展开步骤（每批最多10个步骤，避免输出过大）
+    const batchSize = 10;
+    const allSteps = [];
+
+    for (let i = 0; i < outline.stepOutlines.length; i += batchSize) {
+      const batch = outline.stepOutlines.slice(i, i + batchSize);
+      const batchPrompt = `请将以下步骤概要展开为详细的可执行步骤：
+
+${JSON.stringify(batch, null, 2)}
+
+注意：
+- 确保 params 包含所有必需字段
+- 为 create_file 和 apply_patch 设置 needsCodeGeneration: true
+- 提供清晰的 reasoning`;
+
+      const expansion = await this.generateObject({
+        messages: [{ role: 'user', content: batchPrompt }],
+        system: expansionSystem,
+        schema: StepExpansionSchema,
+        temperature: 0.3,
+      });
+
+      allSteps.push(...expansion.steps);
+      console.log(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${expansion.steps.length} steps expanded`);
+    }
+
+    const finalPlan: GeneratedPlan = {
+      summary: outline.summary,
+      steps: allSteps,
+      risks: outline.risks as string[] | undefined,
+      alternatives: outline.alternatives as string[] | undefined,
+    };
+
+    console.log(`[LLMService] Two-phase generation complete: ${allSteps.length} total steps`);
+    return finalPlan;
+  }
+
+  /**
    * 生成执行计划（结构化输出 - Stage 1: 纯规划阶段）
    *
    * 重要：这是两阶段 Agent 架构的第一阶段，只生成结构化的执行步骤描述，不生成实际代码。
    * 代码将在 Stage 2（Executor 阶段）逐文件动态生成。
+   *
+   * 注意：此方法现在默认使用两阶段生成，避免大型任务的 JSON 解析错误
    */
   async generatePlan(options: {
+    task: string;
+    context: string;
+    sddConstraints?: string;
+  }): Promise<GeneratedPlan> {
+    // 尝试使用两阶段生成
+    try {
+      return await this.generatePlanInTwoPhases(options);
+    } catch (error) {
+      console.warn('[LLMService] Two-phase generation failed, falling back to single-phase:', error);
+      // 如果两阶段失败，回退到原来的单阶段方法
+      return await this.generatePlanSinglePhase(options);
+    }
+  }
+
+  /**
+   * 单阶段生成执行计划（原始方法，作为后备）
+   */
+  private async generatePlanSinglePhase(options: {
     task: string;
     context: string;
     sddConstraints?: string;
@@ -789,6 +942,74 @@ ${options.originalCode}
  * 生成的计划 Schema（两阶段架构 - Stage 1）
  * 注意：不在此阶段生成代码，只生成结构化的执行步骤描述
  */
+/**
+ * Phase 1: 计划大纲 Schema
+ * 只包含高层次的计划概要，避免一次性生成大量详细步骤
+ */
+const PlanOutlineSchema = z.object({
+  summary: z.string().describe('计划的简要描述'),
+  stepOutlines: z.array(z.object({
+    description: z.string().describe('步骤简要描述'),
+    action: z.enum([
+      'read_file',
+      'list_directory',
+      'create_file',
+      'apply_patch',
+      'search_code',
+      'get_ast',
+      'run_command',
+      'browser_navigate',
+      'get_page_structure',
+      'browser_click',
+      'browser_type',
+      'browser_screenshot'
+    ]).describe('执行动作类型'),
+  })).describe('步骤概要列表 - 只需简单描述每个步骤要做什么'),
+  risks: z.array(z.string()).optional().catch([]).describe('潜在风险'),
+  alternatives: z.array(z.string()).optional().catch([]).describe('备选方案'),
+});
+
+export type PlanOutline = z.infer<typeof PlanOutlineSchema>;
+
+/**
+ * Phase 2: 步骤展开 Schema
+ * 将简化的步骤概要展开为详细的可执行步骤
+ */
+const StepExpansionSchema = z.object({
+  steps: z.array(z.object({
+    description: z.string().describe('步骤描述 - 说明要做什么'),
+    action: z.enum([
+      'read_file',
+      'list_directory',
+      'create_file',
+      'apply_patch',
+      'search_code',
+      'get_ast',
+      'run_command',
+      'browser_navigate',
+      'get_page_structure',
+      'browser_click',
+      'browser_type',
+      'browser_screenshot'
+    ]).describe('执行动作'),
+    tool: z.string().describe('要调用的工具'),
+    params: z.object({
+      path: z.string().optional().describe('文件或目录路径'),
+      recursive: z.boolean().optional().describe('是否递归列出子目录 (list_directory)'),
+      pattern: z.string().optional().describe('搜索模式'),
+      directory: z.string().optional().describe('搜索目录'),
+      command: z.string().optional().describe('要执行的终端命令 (run_command)'),
+      url: z.string().optional().describe('URL (browser 操作)'),
+      selector: z.string().optional().describe('选择器 (browser 操作)'),
+      text: z.string().optional().describe('输入文本 (browser 操作)'),
+      codeDescription: z.string().optional().describe('要生成的代码的描述 (create_file/apply_patch)'),
+      changeDescription: z.string().optional().describe('要做的修改描述 (apply_patch)'),
+    }).passthrough().describe('工具参数 - 不包含实际代码，只包含描述'),
+    reasoning: z.string().describe('为什么需要这个步骤'),
+    needsCodeGeneration: z.boolean().optional().describe('此步骤是否需要在执行时生成代码'),
+  })).describe('展开后的详细步骤列表'),
+});
+
 const GeneratedPlanSchema = z.object({
   summary: z.string().describe('计划的简要描述'),
   steps: z.array(z.object({
