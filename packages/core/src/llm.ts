@@ -121,7 +121,7 @@ export class LLMService {
   async generateObject<T>(options: {
     messages: Message[];
     system?: string;
-    schema: z.ZodType<T>;
+    schema: z.ZodType<T>; // Zod 做 强Schema 约束
     maxTokens?: number;
     temperature?: number;
   }): Promise<T> {

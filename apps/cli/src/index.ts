@@ -310,10 +310,14 @@ program
     agent.registerMCPClient('shell', shellClient);
     agent.registerShellTools();
 
+    // 注册 Web 客户端（用于项目验证和浏览器操作）
+    const webClient = new WebMCPClient();
+    agent.registerMCPClient('web', webClient);
+    agent.registerWebTools();
+
+    // 如果提供了初始URL，则导航到该URL
     if (options.url) {
-      const webClient = new WebMCPClient();
-      agent.registerMCPClient('web', webClient);
-      agent.registerWebTools();
+      // 初始导航将在任务执行时由Agent处理
     }
 
     // 添加事件监听
@@ -382,6 +386,9 @@ program
     } catch (error) {
       spinner.fail('执行错误');
       console.log(chalk.red(`\n❌ ${error instanceof Error ? error.message : String(error)}`));
+    } finally {
+      // 关闭浏览器
+      await webClient.close();
     }
   });
 
