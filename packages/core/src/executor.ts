@@ -114,10 +114,12 @@ export class Executor {
 
       // 检查是否需要代码生成：
       // 1. 明确设置了 needsCodeGeneration: true
-      // 2. 或者是 create_file/apply_patch 操作但没有提供 content
+      // 2. 或者是 create_file 操作但没有提供 content
+      // 3. 或者是 apply_patch 操作但没有提供 patches
       const shouldGenerateCode =
         stepAny.needsCodeGeneration ||
-        ((step.action === 'create_file' || step.action === 'apply_patch') && !toolParams.content);
+        (step.action === 'create_file' && !toolParams.content) ||
+        (step.action === 'apply_patch' && !toolParams.patches);
 
       if (shouldGenerateCode && (step.action === 'create_file' || step.action === 'apply_patch')) {
         const filePath = toolParams.path as string;
@@ -174,10 +176,23 @@ export class Executor {
             sddConstraints: context.sddConstraints,
           });
 
-          // 将修改后的代码添加到参数中
+          if (this.config.debug) {
+            console.log(`[Executor] Generated modified code length: ${modifiedCode.length} characters`);
+          }
+
+          // 将修改后的完整代码转换为 patch 格式
+          // 使用一个完整替换的 patch（替换整个文件）
+          const originalLines = originalCode.split('\n').length;
+          const patch = {
+            operation: 'replace' as const,
+            startLine: 1,
+            endLine: originalLines,
+            content: modifiedCode
+          };
+
           toolParams = {
             ...toolParams,
-            content: modifiedCode,
+            patches: [patch],
           };
         }
       }

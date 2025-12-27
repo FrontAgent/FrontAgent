@@ -259,12 +259,31 @@ export class LLMService {
 ${options.sddConstraints ?? '无特殊约束'}
 
 # 可用工具
-- **read_file**: 读取单个文件的内容（参数: { path: "文件路径" }）
-- **list_directory**: 列出目录内容（参数: { path: "目录路径", recursive: true/false }）
-- **search_code**: 搜索代码（参数: { pattern: "搜索模式" }）
-- **create_file**: 创建新文件（参数: { path: "文件路径", codeDescription: "代码描述" }）
-- **apply_patch**: 修改现有文件（参数: { path: "文件路径", changeDescription: "修改描述" }）
-- **run_command**: 运行终端命令（参数: { command: "命令", description: "命令说明" }）- 需要用户批准
+- **read_file**: 读取单个文件的内容
+  - 参数: { path: "文件路径" }
+
+- **list_directory**: 列出目录内容
+  - 参数: { path: "目录路径", recursive: true/false }
+
+- **search_code**: 搜索代码
+  - 参数: { pattern: "搜索模式" }
+
+- **create_file**: 创建新文件（两阶段架构）
+  - 参数: { path: "文件路径", codeDescription: "代码描述" }
+  - ⚠️ **不要**在 params 中提供 content 字段
+  - ✅ **必须**提供 codeDescription 描述要生成什么代码
+  - ✅ **必须**设置 needsCodeGeneration: true
+
+- **apply_patch**: 修改现有文件（两阶段架构）
+  - 参数: { path: "文件路径", changeDescription: "修改描述" }
+  - ⚠️ **不要**在 params 中提供 patches 字段
+  - ✅ **必须**提供 changeDescription 描述要做什么修改
+  - ✅ **必须**设置 needsCodeGeneration: true
+  - 示例: { path: "vite.config.ts", changeDescription: "添加路径别名配置，将 @ 映射到 src 目录" }
+
+- **run_command**: 运行终端命令
+  - 参数: { command: "命令" }
+  - 需要用户批准
 
 # 重要原则
 1. **正确使用工具**：
@@ -281,8 +300,9 @@ ${options.sddConstraints ?? '无特殊约束'}
    - 最后再创建源代码文件
    - 例如：React 项目需要 package.json、tsconfig.json、vite.config.ts 等配置文件
 
-# 示例
-正确的 create_file 步骤：
+# ✅ 正确示例
+
+**正确的 create_file 步骤：**
 {
   "description": "创建 Button 组件文件",
   "action": "create_file",
@@ -292,6 +312,19 @@ ${options.sddConstraints ?? '无特殊约束'}
     "codeDescription": "创建一个支持 loading 状态和不同尺寸的 React Button 组件，使用 TypeScript 和 Tailwind CSS"
   },
   "reasoning": "需要一个可复用的按钮组件",
+  "needsCodeGeneration": true
+}
+
+**正确的 apply_patch 步骤：**
+{
+  "description": "修改 vite.config.ts 添加路径别名",
+  "action": "apply_patch",
+  "tool": "apply_patch",
+  "params": {
+    "path": "vite.config.ts",
+    "changeDescription": "在 resolve.alias 配置中添加路径别名，将 @ 映射到 src 目录，将 @components 映射到 src/components 目录"
+  },
+  "reasoning": "配置路径别名可以简化导入语句",
   "needsCodeGeneration": true
 }
 
