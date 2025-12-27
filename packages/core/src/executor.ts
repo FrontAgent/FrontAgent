@@ -86,7 +86,19 @@ export class Executor {
       let toolParams = { ...step.params };
       const stepAny = step as any;
 
-      if (stepAny.needsCodeGeneration && (step.action === 'create_file' || step.action === 'apply_patch')) {
+      if (this.config.debug) {
+        console.log(`[Executor] Step action: ${step.action}, needsCodeGeneration: ${stepAny.needsCodeGeneration}`);
+        console.log(`[Executor] Step params:`, toolParams);
+      }
+
+      // 检查是否需要代码生成：
+      // 1. 明确设置了 needsCodeGeneration: true
+      // 2. 或者是 create_file/apply_patch 操作但没有提供 content
+      const shouldGenerateCode =
+        stepAny.needsCodeGeneration ||
+        ((step.action === 'create_file' || step.action === 'apply_patch') && !toolParams.content);
+
+      if (shouldGenerateCode && (step.action === 'create_file' || step.action === 'apply_patch')) {
         const filePath = toolParams.path as string;
         const language = this.detectLanguage(filePath);
 
@@ -108,6 +120,10 @@ export class Executor {
             language: language || 'typescript',
             sddConstraints: context.sddConstraints,
           });
+
+          if (this.config.debug) {
+            console.log(`[Executor] Generated code length: ${code.length} characters`);
+          }
 
           // 将生成的代码添加到参数中
           toolParams = {
