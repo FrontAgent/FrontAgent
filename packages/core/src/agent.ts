@@ -10,6 +10,7 @@ import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { ContextManager } from './context.js';
 import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
+import { LLMService } from './llm.js';
 import type {
   AgentConfig,
   AgentExecutionResult,
@@ -28,6 +29,7 @@ export class FrontAgent {
   private sddParser: SDDParser;
   private sddConfig?: SDDConfig;
   private hallucinationGuard: HallucinationGuard;
+  private llmService: LLMService;
   private promptGenerator?: SDDPromptGenerator;
   private eventListeners: AgentEventListener[] = [];
 
@@ -45,6 +47,9 @@ export class FrontAgent {
       }
     }
 
+    // 初始化 LLM 服务
+    this.llmService = new LLMService(config.llm);
+
     // 初始化幻觉防控器
     this.hallucinationGuard = new HallucinationGuard({
       projectRoot: config.projectRoot,
@@ -58,9 +63,10 @@ export class FrontAgent {
       sddConfig: this.sddConfig
     });
 
-    // 初始化 Executor
+    // 初始化 Executor（两阶段架构 - 传递 llmService）
     this.executor = new Executor({
       hallucinationGuard: this.hallucinationGuard,
+      llmService: this.llmService,
       debug: config.debug
     });
   }
@@ -227,11 +233,21 @@ export class FrontAgent {
       this.contextManager.setPlan(task.id, planResult.plan);
       this.emit({ type: 'planning_completed', plan: planResult.plan });
 
-      // 执行阶段
+      // 执行阶段（两阶段架构 - 传递上下文给 Executor）
       const validations: ValidationResult[] = [];
+      const executionContext = this.contextManager.getContext(task.id);
+
+      if (!executionContext) {
+        throw new Error('Execution context not found');
+      }
 
       await this.executor.executeSteps(
         planResult.plan.steps,
+        {
+          task,
+          collectedContext: { files: executionContext.collectedContext.files },
+          sddConstraints: this.promptGenerator?.generate(),
+        },
         (step, output) => {
           if (output.stepResult.success) {
             this.emit({ type: 'step_completed', step, result: output.stepResult });

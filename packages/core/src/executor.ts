@@ -1,11 +1,12 @@
 /**
- * Agent Executor
- * 负责执行计划中的步骤
+ * Agent Executor（两阶段架构 - Stage 2）
+ * 负责执行计划中的步骤，并在需要时动态生成代码
  */
 
-import type { ExecutionStep, StepResult, ValidationResult } from '@frontagent/shared';
+import type { ExecutionStep, StepResult, ValidationResult, AgentTask } from '@frontagent/shared';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import type { ExecutorOutput } from './types.js';
+import { LLMService } from './llm.js';
 
 /**
  * MCP 客户端接口
@@ -21,6 +22,8 @@ export interface MCPClient {
 export interface ExecutorConfig {
   /** 幻觉防控器 */
   hallucinationGuard: HallucinationGuard;
+  /** LLM 服务（用于动态代码生成） */
+  llmService: LLMService;
   /** 调试模式 */
   debug?: boolean;
 }
@@ -52,9 +55,16 @@ export class Executor {
   }
 
   /**
-   * 执行单个步骤
+   * 执行单个步骤（Stage 2: 支持动态代码生成）
    */
-  async executeStep(step: ExecutionStep): Promise<ExecutorOutput> {
+  async executeStep(
+    step: ExecutionStep,
+    context: {
+      task: AgentTask;
+      collectedContext: { files: Map<string, string> };
+      sddConstraints?: string;
+    }
+  ): Promise<ExecutorOutput> {
     const startTime = Date.now();
 
     try {
@@ -72,13 +82,76 @@ export class Executor {
         };
       }
 
-      // 2. 调用 MCP 工具
-      const toolResult = await this.callTool(step.tool, step.params);
+      // 2. 动态代码生成（如果需要）
+      let toolParams = { ...step.params };
+      const stepAny = step as any;
 
-      // 3. 执行后验证
+      if (stepAny.needsCodeGeneration && (step.action === 'create_file' || step.action === 'apply_patch')) {
+        const filePath = toolParams.filePath as string;
+        const language = this.detectLanguage(filePath);
+
+        if (step.action === 'create_file') {
+          // 生成新文件代码
+          const codeDescription = (toolParams.codeDescription as string) || step.description;
+          const contextStr = this.buildContextString(context.collectedContext);
+
+          if (this.config.debug) {
+            console.log(`[Executor] Generating code for new file: ${filePath}`);
+            console.log(`[Executor] Code description: ${codeDescription}`);
+          }
+
+          const code = await this.config.llmService.generateCodeForFile({
+            task: context.task.description,
+            filePath,
+            codeDescription,
+            context: contextStr,
+            language: language || 'typescript',
+            sddConstraints: context.sddConstraints,
+          });
+
+          // 将生成的代码添加到参数中
+          toolParams = {
+            ...toolParams,
+            content: code,
+          };
+
+        } else if (step.action === 'apply_patch') {
+          // 修改现有文件
+          const changeDescription = (toolParams.changeDescription as string) || step.description;
+          const originalCode = context.collectedContext.files.get(filePath) || '';
+
+          if (!originalCode) {
+            throw new Error(`Cannot apply patch: file not found in context: ${filePath}`);
+          }
+
+          if (this.config.debug) {
+            console.log(`[Executor] Generating modified code for: ${filePath}`);
+            console.log(`[Executor] Change description: ${changeDescription}`);
+          }
+
+          const modifiedCode = await this.config.llmService.generateModifiedCode({
+            originalCode,
+            changeDescription,
+            filePath,
+            language: language || 'typescript',
+            sddConstraints: context.sddConstraints,
+          });
+
+          // 将修改后的代码添加到参数中
+          toolParams = {
+            ...toolParams,
+            content: modifiedCode,
+          };
+        }
+      }
+
+      // 3. 调用 MCP 工具
+      const toolResult = await this.callTool(step.tool, toolParams);
+
+      // 4. 执行后验证
       const postValidation = await this.validateAfterExecution(step, toolResult);
 
-      // 4. 构建结果
+      // 5. 构建结果
       const stepResult: StepResult = {
         success: postValidation.pass,
         output: toolResult,
@@ -107,6 +180,25 @@ export class Executor {
         needsRollback: true
       };
     }
+  }
+
+  /**
+   * 构建上下文字符串
+   */
+  private buildContextString(collectedContext: { files: Map<string, string> }): string {
+    const parts: string[] = [];
+
+    if (collectedContext.files.size > 0) {
+      parts.push('相关文件:');
+      for (const [path, content] of collectedContext.files) {
+        const truncatedContent = content.length > 1000
+          ? content.substring(0, 1000) + '\n... (内容已截断)'
+          : content;
+        parts.push(`\n--- ${path} ---\n${truncatedContent}`);
+      }
+    }
+
+    return parts.join('\n');
   }
 
   /**
@@ -216,10 +308,15 @@ export class Executor {
   }
 
   /**
-   * 批量执行步骤
+   * 批量执行步骤（Stage 2: 支持动态代码生成）
    */
   async executeSteps(
     steps: ExecutionStep[],
+    context: {
+      task: AgentTask;
+      collectedContext: { files: Map<string, string> };
+      sddConstraints?: string;
+    },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void
   ): Promise<ExecutorOutput[]> {
     const results: ExecutorOutput[] = [];
@@ -227,7 +324,7 @@ export class Executor {
 
     // 按依赖顺序执行
     const pendingSteps = [...steps];
-    
+
     while (pendingSteps.length > 0) {
       // 找到可以执行的步骤（依赖已完成）
       const executableIndex = pendingSteps.findIndex(step =>
@@ -242,7 +339,7 @@ export class Executor {
       const step = pendingSteps.splice(executableIndex, 1)[0];
       step.status = 'running';
 
-      const output = await this.executeStep(step);
+      const output = await this.executeStep(step, context);
       step.result = output.stepResult;
       step.status = output.stepResult.success ? 'completed' : 'failed';
 
