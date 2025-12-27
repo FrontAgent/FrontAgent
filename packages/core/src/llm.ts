@@ -161,7 +161,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 1. **不要在 params 中包含任何代码**：对于 create_file 或 apply_patch 操作，只需在 codeDescription 或 changeDescription 中描述要生成什么代码或做什么修改
 2. **描述而非代码**：用自然语言描述要做什么，而不是直接给出代码
 3. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤（create_file, apply_patch），将 needsCodeGeneration 设为 true
-4. **清晰的文件路径**：确保 filePath 参数准确无误
+4. **清晰的文件路径**：确保 path 参数准确无误
 
 # 示例
 正确的 create_file 步骤：
@@ -170,7 +170,7 @@ ${options.sddConstraints ?? '无特殊约束'}
   "action": "create_file",
   "tool": "create_file",
   "params": {
-    "filePath": "src/components/Button.tsx",
+    "path": "src/components/Button.tsx",
     "codeDescription": "创建一个支持 loading 状态和不同尺寸的 React Button 组件，使用 TypeScript 和 Tailwind CSS"
   },
   "reasoning": "需要一个可复用的按钮组件",
@@ -180,7 +180,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 错误示例（不要这样做）：
 {
   "params": {
-    "filePath": "src/components/Button.tsx",
+    "path": "src/components/Button.tsx",
     "content": "export const Button = () => { ... }" // ❌ 不要包含实际代码
   }
 }
@@ -382,12 +382,12 @@ const GeneratedPlanSchema = z.object({
     ]).describe('执行动作'),
     tool: z.string().describe('要调用的工具'),
     // 参数说明：
-    // - 对于 read_file: { filePath: string }
+    // - 对于 read_file: { path: string }
     // - 对于 search_code: { pattern: string, directory?: string }
-    // - 对于 create_file: { filePath: string, codeDescription: string } (不包含实际代码)
-    // - 对于 apply_patch: { filePath: string, changeDescription: string } (不包含实际代码)
+    // - 对于 create_file: { path: string, codeDescription: string } (不包含实际代码)
+    // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
     params: z.object({
-      filePath: z.string().optional().describe('文件路径'),
+      path: z.string().optional().describe('文件路径'),
       pattern: z.string().optional().describe('搜索模式'),
       directory: z.string().optional().describe('搜索目录'),
       url: z.string().optional().describe('URL (browser 操作)'),

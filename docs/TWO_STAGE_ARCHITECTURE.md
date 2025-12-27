@@ -16,8 +16,8 @@
 - **输出**: 使用 `generateObject` 返回符合严格 schema 的计划
 - **关键点**:
   - 在 `params` 中不包含实际代码
-  - 对于 `create_file`：只包含 `filePath` 和 `codeDescription`（代码的自然语言描述）
-  - 对于 `apply_patch`：只包含 `filePath` 和 `changeDescription`（修改的自然语言描述）
+  - 对于 `create_file`：只包含 `path` 和 `codeDescription`（代码的自然语言描述）
+  - 对于 `apply_patch`：只包含 `path` 和 `changeDescription`（修改的自然语言描述）
   - 设置 `needsCodeGeneration` 标志来标识需要代码生成的步骤
 
 ### **Stage 2: Executor（逐文件代码生成 + 执行）**
@@ -73,7 +73,7 @@ const GeneratedPlanSchema = z.object({
     action: z.enum([...]),
     tool: z.string(),
     params: z.object({
-      filePath: z.string().optional(),
+      path: z.string().optional(),
       codeDescription: z.string().optional(),  // ← 代码的描述，不是代码本身
       changeDescription: z.string().optional(), // ← 修改的描述，不是实际修改
       // ... 其他参数
@@ -98,7 +98,7 @@ const system = `你是一个专业的前端工程 AI Agent，负责分析任务�
 1. **不要在 params 中包含任何代码**
 2. **描述而非代码**：用自然语言描述要做什么
 3. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤，将 needsCodeGeneration 设为 true
-4. **清晰的文件路径**：确保 filePath 参数准确无误
+4. **清晰的文件路径**：确保 path 参数准确无误
 
 # 示例
 正确的 create_file 步骤：
@@ -107,7 +107,7 @@ const system = `你是一个专业的前端工程 AI Agent，负责分析任务�
   "action": "create_file",
   "tool": "create_file",
   "params": {
-    "filePath": "src/components/Button.tsx",
+    "path": "src/components/Button.tsx",
     "codeDescription": "创建一个支持 loading 状态和不同尺寸的 React Button 组件，使用 TypeScript 和 Tailwind CSS"
   },
   "reasoning": "需要一个可复用的按钮组件",
@@ -117,7 +117,7 @@ const system = `你是一个专业的前端工程 AI Agent，负责分析任务�
 错误示例（不要这样做）：
 {
   "params": {
-    "filePath": "src/components/Button.tsx",
+    "path": "src/components/Button.tsx",
     "content": "export const Button = () => { ... }" // ❌ 不要包含实际代码
   }
 }
@@ -312,7 +312,7 @@ async execute(taskInput: string | AgentTask, options?: TaskExecuteOptions): Prom
       "action": "create_file",
       "tool": "create_file",
       "params": {
-        "filePath": "src/components/Button.tsx",
+        "path": "src/components/Button.tsx",
         "codeDescription": "创建一个 React Button 组件，支持 loading 状态、不同尺寸(sm/md/lg)、禁用状态，使用 TypeScript 和 Tailwind CSS"
       },
       "reasoning": "需要创建组件文件",
@@ -330,7 +330,7 @@ async execute(taskInput: string | AgentTask, options?: TaskExecuteOptions): Prom
    - 输出: 完整的 TypeScript 代码（纯文本）
 3. **将代码添加到 params.content**
 4. **调用 MCP tool: create_file**
-   - 参数: `{ filePath: "...", content: "<生成的代码>" }`
+   - 参数: `{ path: "...", content: "<生成的代码>" }`
 5. **验证并返回结果**
 
 ## 迁移指南

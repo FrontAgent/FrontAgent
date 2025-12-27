@@ -87,7 +87,7 @@ export class Executor {
       const stepAny = step as any;
 
       if (stepAny.needsCodeGeneration && (step.action === 'create_file' || step.action === 'apply_patch')) {
-        const filePath = toolParams.filePath as string;
+        const filePath = toolParams.path as string;
         const language = this.detectLanguage(filePath);
 
         if (step.action === 'create_file') {

@@ -288,6 +288,18 @@ program
         case 'planning_completed':
           spinner.succeed(`计划生成完成 (${event.plan.steps.length} 步骤)`);
           console.log(chalk.gray(`\n📋 ${event.plan.summary}\n`));
+
+          // Debug: 显示完整步骤和参数
+          if (options.debug) {
+            console.log(chalk.gray('步骤详情:'));
+            for (const step of event.plan.steps) {
+              console.log(chalk.gray(`  ${step.stepId}: ${step.description}`));
+              console.log(chalk.gray(`    Tool: ${step.tool}`));
+              console.log(chalk.gray(`    Params: ${JSON.stringify(step.params, null, 2)}`));
+            }
+            console.log('');
+          }
+
           spinner.start('正在执行...');
           break;
         case 'step_started':
