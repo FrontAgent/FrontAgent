@@ -380,8 +380,8 @@ ${JSON.stringify(batch, null, 2)}
     const finalPlan: GeneratedPlan = {
       summary: outline.summary,
       steps: allSteps,
-      risks: outline.risks as string[] | undefined,
-      alternatives: outline.alternatives as string[] | undefined,
+      risks: outline.risks ?? [],
+      alternatives: outline.alternatives ?? [],
     };
 
     console.log(`[LLMService] Two-phase generation complete: ${allSteps.length} total steps`);
@@ -1006,8 +1006,8 @@ const PlanOutlineSchema = z.object({
       'browser_screenshot'
     ]).describe('执行动作类型'),
   })).describe('步骤概要列表 - 只需简单描述每个步骤要做什么'),
-  risks: z.array(z.string()).optional().catch([]).describe('潜在风险'),
-  alternatives: z.array(z.string()).optional().catch([]).describe('备选方案'),
+  risks: z.array(z.string()).default([]).describe('潜在风险'),
+  alternatives: z.array(z.string()).default([]).describe('备选方案'),
 });
 
 export type PlanOutline = z.infer<typeof PlanOutlineSchema>;
@@ -1092,8 +1092,8 @@ const GeneratedPlanSchema = z.object({
     reasoning: z.string().describe('为什么需要这个步骤'),
     needsCodeGeneration: z.boolean().optional().describe('此步骤是否需要在执行时生成代码'),
   })).describe('执行步骤列表'),
-  risks: z.array(z.string()).optional().catch([]).describe('潜在风险'),
-  alternatives: z.array(z.string()).optional().catch([]).describe('备选方案'),
+  risks: z.array(z.string()).default([]).describe('潜在风险'),
+  alternatives: z.array(z.string()).default([]).describe('备选方案'),
 });
 
 export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
