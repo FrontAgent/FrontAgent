@@ -361,6 +361,15 @@ export class Executor {
       return true;
     }
 
+    // run_command 的执行错误（命令失败、模块未找到等）
+    if ((errorMsg.includes('Command failed') ||
+         errorMsg.includes('Cannot find module') ||
+         errorMsg.includes('MODULE_NOT_FOUND') ||
+         errorMsg.includes('ENOENT')) &&
+        action === 'run_command') {
+      return true;
+    }
+
     return false;
   }
 
