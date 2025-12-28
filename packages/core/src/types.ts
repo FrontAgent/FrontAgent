@@ -102,6 +102,36 @@ export interface AgentContext {
 }
 
 /**
+ * 模块信息 - 追踪已创建的模块及其导入导出
+ */
+export interface ModuleInfo {
+  /** 模块路径（相对于项目根目录） */
+  path: string;
+  /** 模块类型 */
+  type: 'component' | 'page' | 'store' | 'api' | 'util' | 'config' | 'style' | 'other';
+  /** 导出的符号 */
+  exports: string[];
+  /** 默认导出的名称 */
+  defaultExport?: string;
+  /** 导入的模块（相对路径或包名） */
+  imports: string[];
+  /** 创建时间戳 */
+  createdAt: number;
+}
+
+/**
+ * 模块依赖图 - 追踪模块间的依赖关系
+ */
+export interface ModuleDependencyGraph {
+  /** 所有已创建的模块 */
+  modules: Map<string, ModuleInfo>;
+  /** 依赖关系：模块路径 -> 被依赖的模块路径列表 */
+  dependencies: Map<string, string[]>;
+  /** 反向依赖：模块路径 -> 依赖该模块的模块列表 */
+  reverseDependencies: Map<string, string[]>;
+}
+
+/**
  * 项目事实 - 从工具执行中提取的结构化信息
  */
 export interface ProjectFacts {
@@ -132,6 +162,8 @@ export interface ProjectFacts {
     /** 构建状态 */
     buildStatus?: 'success' | 'failed' | 'unknown';
   };
+  /** 模块依赖图 */
+  moduleDependencyGraph: ModuleDependencyGraph;
   /** 错误历史 */
   errors: Array<{
     /** 步骤ID */

@@ -8,7 +8,121 @@ import type {
   ExecutionStep,
   SDDConfig
 } from '@frontagent/shared';
-import type { AgentContext, Message } from './types.js';
+import type { AgentContext, Message, ModuleInfo } from './types.js';
+
+/**
+ * 解析代码中的导入语句
+ */
+function parseImports(code: string): string[] {
+  const imports: string[] = [];
+
+  // 匹配 ES6 import 语句
+  const importRegex = /import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+)?['"]([^'"]+)['"]/g;
+  let match;
+  while ((match = importRegex.exec(code)) !== null) {
+    imports.push(match[1]);
+  }
+
+  // 匹配 require 语句
+  const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  while ((match = requireRegex.exec(code)) !== null) {
+    imports.push(match[1]);
+  }
+
+  return [...new Set(imports)];
+}
+
+/**
+ * 解析代码中的导出语句
+ */
+function parseExports(code: string): { exports: string[]; defaultExport?: string } {
+  const exports: string[] = [];
+  let defaultExport: string | undefined;
+
+  // 匹配命名导出
+  const namedExportRegex = /export\s+(?:const|let|var|function|class|type|interface)\s+(\w+)/g;
+  let match;
+  while ((match = namedExportRegex.exec(code)) !== null) {
+    exports.push(match[1]);
+  }
+
+  // 匹配 export { ... } 语句
+  const exportBraceRegex = /export\s*\{([^}]+)\}/g;
+  while ((match = exportBraceRegex.exec(code)) !== null) {
+    const names = match[1].split(',').map(n => n.trim().split(/\s+as\s+/).pop()?.trim() || '');
+    exports.push(...names.filter(n => n && n !== 'default'));
+  }
+
+  // 匹配默认导出
+  const defaultExportRegex = /export\s+default\s+(?:function\s+|class\s+)?(\w+)?/;
+  const defaultMatch = code.match(defaultExportRegex);
+  if (defaultMatch) {
+    defaultExport = defaultMatch[1] || 'default';
+  }
+
+  return { exports: [...new Set(exports)], defaultExport };
+}
+
+/**
+ * 根据文件路径判断模块类型
+ */
+function inferModuleType(path: string): ModuleInfo['type'] {
+  const lowerPath = path.toLowerCase();
+
+  if (lowerPath.includes('/components/')) return 'component';
+  if (lowerPath.includes('/pages/') || lowerPath.includes('/views/')) return 'page';
+  if (lowerPath.includes('/stores/') || lowerPath.includes('/store/')) return 'store';
+  if (lowerPath.includes('/api/') || lowerPath.includes('/services/')) return 'api';
+  if (lowerPath.includes('/utils/') || lowerPath.includes('/helpers/') || lowerPath.includes('/lib/')) return 'util';
+  if (lowerPath.endsWith('.config.ts') || lowerPath.endsWith('.config.js') || lowerPath.includes('/config/')) return 'config';
+  if (lowerPath.endsWith('.css') || lowerPath.endsWith('.scss') || lowerPath.endsWith('.less')) return 'style';
+
+  return 'other';
+}
+
+/**
+ * 解析相对路径为绝对路径
+ */
+function resolveImportPath(importPath: string, fromPath: string, _projectRoot: string): string | null {
+  // 忽略外部包
+  if (!importPath.startsWith('.') && !importPath.startsWith('@/')) {
+    return null;
+  }
+
+  // 处理 @/ 别名
+  if (importPath.startsWith('@/')) {
+    const srcPath = importPath.replace('@/', 'src/');
+    return normalizeModulePath(srcPath);
+  }
+
+  // 处理相对路径
+  const fromDir = fromPath.substring(0, fromPath.lastIndexOf('/'));
+  const parts = fromDir.split('/');
+  const importParts = importPath.split('/');
+
+  for (const part of importParts) {
+    if (part === '..') {
+      parts.pop();
+    } else if (part !== '.') {
+      parts.push(part);
+    }
+  }
+
+  return normalizeModulePath(parts.join('/'));
+}
+
+/**
+ * 规范化模块路径（添加扩展名）
+ */
+function normalizeModulePath(path: string): string {
+  // 如果已有扩展名则直接返回
+  if (/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) {
+    return path;
+  }
+
+  // 默认添加 .tsx 扩展名（React 项目最常用）
+  return path + '.tsx';
+}
 
 /**
  * 上下文管理器
@@ -43,6 +157,11 @@ export class ContextManager {
         project: {
           devServerRunning: false,
           buildStatus: 'unknown'
+        },
+        moduleDependencyGraph: {
+          modules: new Map(),
+          dependencies: new Map(),
+          reverseDependencies: new Map()
         },
         errors: []
       }
@@ -325,6 +444,109 @@ export class ContextManager {
   }
 
   /**
+   * 更新模块依赖图
+   */
+  updateModuleDependencyGraph(
+    taskId: string,
+    toolName: string,
+    params: Record<string, unknown>,
+    result: { success?: boolean; content?: string; [key: string]: unknown }
+  ): void {
+    const context = this.contexts.get(taskId);
+    if (!context) return;
+
+    const { moduleDependencyGraph } = context.facts;
+
+    // 只处理成功的 create_file 和 apply_patch 操作
+    if (!result.success) return;
+    if (toolName !== 'create_file' && toolName !== 'apply_patch') return;
+
+    const path = params.path as string;
+    const content = (params.content as string) || (result.content as string) || '';
+
+    // 只处理 TS/JS 文件
+    if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) return;
+
+    // 解析导入和导出
+    const imports = parseImports(content);
+    const { exports: exportedSymbols, defaultExport } = parseExports(content);
+
+    // 创建模块信息
+    const moduleInfo: ModuleInfo = {
+      path,
+      type: inferModuleType(path),
+      exports: exportedSymbols,
+      defaultExport,
+      imports,
+      createdAt: Date.now()
+    };
+
+    // 更新模块映射
+    moduleDependencyGraph.modules.set(path, moduleInfo);
+
+    // 更新依赖关系
+    const resolvedDeps: string[] = [];
+    for (const importPath of imports) {
+      const resolved = resolveImportPath(importPath, path, '');
+      if (resolved) {
+        resolvedDeps.push(resolved);
+      }
+    }
+    moduleDependencyGraph.dependencies.set(path, resolvedDeps);
+
+    // 更新反向依赖
+    for (const dep of resolvedDeps) {
+      const reverseDeps = moduleDependencyGraph.reverseDependencies.get(dep) || [];
+      if (!reverseDeps.includes(path)) {
+        reverseDeps.push(path);
+        moduleDependencyGraph.reverseDependencies.set(dep, reverseDeps);
+      }
+    }
+  }
+
+  /**
+   * 验证模块依赖关系
+   * 返回缺失的模块引用
+   */
+  validateModuleDependencies(taskId: string): Array<{ from: string; missing: string; importPath: string }> {
+    const context = this.contexts.get(taskId);
+    if (!context) return [];
+
+    const { moduleDependencyGraph, filesystem } = context.facts;
+    const missingDeps: Array<{ from: string; missing: string; importPath: string }> = [];
+
+    for (const [modulePath, deps] of moduleDependencyGraph.dependencies) {
+      const moduleInfo = moduleDependencyGraph.modules.get(modulePath);
+      if (!moduleInfo) continue;
+
+      for (let i = 0; i < deps.length; i++) {
+        const depPath = deps[i];
+        const importPath = moduleInfo.imports[i] || depPath;
+
+        // 检查模块是否存在
+        const exists =
+          moduleDependencyGraph.modules.has(depPath) ||
+          filesystem.existingFiles.has(depPath) ||
+          // 尝试其他扩展名
+          filesystem.existingFiles.has(depPath.replace(/\.tsx$/, '.ts')) ||
+          filesystem.existingFiles.has(depPath.replace(/\.tsx$/, '.js')) ||
+          filesystem.existingFiles.has(depPath.replace(/\.tsx$/, '/index.tsx')) ||
+          filesystem.existingFiles.has(depPath.replace(/\.tsx$/, '/index.ts'));
+
+        if (!exists) {
+          missingDeps.push({
+            from: modulePath,
+            missing: depPath,
+            importPath
+          });
+        }
+      }
+    }
+
+    return missingDeps;
+  }
+
+  /**
    * 添加错误事实
    */
   addErrorFact(
@@ -403,6 +625,43 @@ export class ContextManager {
     parts.push(`- 开发服务器: ${facts.project.devServerRunning ? `运行中${facts.project.runningPort ? ` (端口: ${facts.project.runningPort})` : ''}` : '未运行'}`);
     if (facts.project.buildStatus && facts.project.buildStatus !== 'unknown') {
       parts.push(`- 构建状态: ${facts.project.buildStatus === 'success' ? '成功' : '失败'}`);
+    }
+
+    // 模块依赖图
+    if (facts.moduleDependencyGraph.modules.size > 0) {
+      parts.push('\n## 已创建的模块');
+
+      // 按类型分组
+      const byType = new Map<string, ModuleInfo[]>();
+      for (const module of facts.moduleDependencyGraph.modules.values()) {
+        const list = byType.get(module.type) || [];
+        list.push(module);
+        byType.set(module.type, list);
+      }
+
+      for (const [type, modules] of byType) {
+        parts.push(`\n### ${type} (${modules.length}个):`);
+        for (const m of modules) {
+          const exportInfo = m.defaultExport
+            ? `默认导出: ${m.defaultExport}`
+            : m.exports.length > 0
+              ? `导出: ${m.exports.slice(0, 3).join(', ')}${m.exports.length > 3 ? '...' : ''}`
+              : '无导出';
+          parts.push(`- ${m.path} (${exportInfo})`);
+        }
+      }
+
+      // 检查缺失的依赖
+      const missingDeps = this.validateModuleDependencies(taskId);
+      if (missingDeps.length > 0) {
+        parts.push('\n### ⚠️ 缺失的模块引用:');
+        for (const { from, missing: _missing, importPath } of missingDeps.slice(0, 10)) {
+          parts.push(`- ${from} 引用了不存在的模块: ${importPath}`);
+        }
+        if (missingDeps.length > 10) {
+          parts.push(`... 还有 ${missingDeps.length - 10} 个缺失引用`);
+        }
+      }
     }
 
     // 最近错误
