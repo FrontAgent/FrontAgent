@@ -538,6 +538,114 @@ export class FrontAgent {
   }
 
   /**
+   * 检查代码中使用但未在 package.json 中声明的 npm 依赖
+   */
+  private async checkMissingNpmDependencies(taskId: string): Promise<string[]> {
+    const context = this.contextManager['contexts'].get(taskId);
+    if (!context) return [];
+
+    const { filesystem } = context.facts;
+
+    // 读取 package.json
+    const packageJsonPath = 'package.json';
+    let packageJson: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {};
+
+    if (filesystem.existingFiles.has(packageJsonPath)) {
+      try {
+        const packageJsonContent = await this.executor['callTool']('read_file', { path: packageJsonPath }) as { content: string };
+        packageJson = JSON.parse(packageJsonContent.content);
+      } catch (error) {
+        console.warn('[Agent] Failed to parse package.json:', error);
+      }
+    }
+
+    const declaredDeps = new Set([
+      ...Object.keys(packageJson.dependencies || {}),
+      ...Object.keys(packageJson.devDependencies || {})
+    ]);
+
+    // 分析所有 JS/TS 文件，提取 import 语句中的外部依赖
+    const usedDeps = new Set<string>();
+    const importRegex = /^import\s+.*?\s+from\s+['"]([^'"]+)['"]/gm;
+    const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+    for (const [filePath, content] of context.collectedContext.files.entries()) {
+      if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(filePath)) continue;
+
+      // 提取 import 语句
+      let match;
+      while ((match = importRegex.exec(content)) !== null) {
+        const importPath = match[1];
+        // 只关注外部依赖（非相对路径）
+        if (!importPath.startsWith('.') && !importPath.startsWith('/')) {
+          // 提取包名（处理 @scope/package 和 package/subpath）
+          const pkgName = importPath.startsWith('@')
+            ? importPath.split('/').slice(0, 2).join('/')
+            : importPath.split('/')[0];
+          usedDeps.add(pkgName);
+        }
+      }
+
+      // 提取 require 语句
+      while ((match = requireRegex.exec(content)) !== null) {
+        const requirePath = match[1];
+        if (!requirePath.startsWith('.') && !requirePath.startsWith('/')) {
+          const pkgName = requirePath.startsWith('@')
+            ? requirePath.split('/').slice(0, 2).join('/')
+            : requirePath.split('/')[0];
+          usedDeps.add(pkgName);
+        }
+      }
+    }
+
+    // 找出缺失的依赖
+    const missingDeps: string[] = [];
+    for (const dep of usedDeps) {
+      if (!declaredDeps.has(dep)) {
+        missingDeps.push(dep);
+      }
+    }
+
+    return missingDeps;
+  }
+
+  /**
+   * 运行 TypeScript 类型检查并解析错误为结构化数据
+   */
+  private async runTypeCheck(workingDir: string): Promise<Array<{ file: string; line: number; column: number; message: string; code: string }>> {
+    try {
+      // 执行 tsc --noEmit 获取类型错误
+      const result = await this.executor['callTool']('run_command', {
+        command: 'npx tsc --noEmit 2>&1',
+        cwd: workingDir
+      }) as { success: boolean; output: string; error?: string };
+
+      const output = result.output || result.error || '';
+
+      // 解析 TypeScript 错误输出
+      // 格式：src/App.tsx(10,5): error TS2304: Cannot find name 'Foo'.
+      const errorRegex = /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/gm;
+      const errors: Array<{ file: string; line: number; column: number; message: string; code: string }> = [];
+
+      let match;
+      while ((match = errorRegex.exec(output)) !== null) {
+        errors.push({
+          file: match[1],
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
+          code: match[4],
+          message: match[5]
+        });
+      }
+
+      return errors;
+    } catch (error) {
+      console.warn('[Agent] TypeScript check failed:', error);
+      return [];
+    }
+  }
+
+  /**
    * 获取 SDD 配置
    */
   getSDDConfig(): SDDConfig | undefined {
