@@ -183,6 +183,111 @@ LLM 通过 Tool Calling 生成结构化 JSON 时存在以下问题：
 - ✅ 通过重试机制提高成功率
 - ✅ 降低 LLM 输出的不确定性
 
+### TypeScript 错误智能修复（2025-12）
+
+为了应对 TypeScript 类型检查失败后的自动修复问题，FrontAgent 实现了完整的错误恢复机制：
+
+#### 问题背景
+
+在代码生成后运行 TypeScript 类型检查时，可能会出现各种类型错误：
+1. **缺少导入** - `Cannot find name 'X'` (TS2304)
+2. **类型不匹配** - `Type 'X' is not assignable to type 'Y'` (TS2322)
+3. **缺少类型注解** - `Parameter 'X' implicitly has an 'any' type` (TS7006)
+4. **属性不存在** - `Property 'X' does not exist on type 'Y'` (TS2339)
+5. **未使用的变量** - `'X' is declared but its value is never read` (TS6133)
+
+以前的错误恢复机制只生成诊断步骤（如"查看错误"、"检查配置"），而不生成实际的代码修复。
+
+#### 优化方案
+
+**方案 1：TypeScript 错误解析** ✅
+```typescript
+// 解析 tsc 输出，提取结构化错误信息
+parseTypeScriptErrors(failedSteps) {
+  // 支持两种格式：
+  // 1. file.ts(line,col): error TSxxxx: message
+  // 2. file.ts:line:col - error TSxxxx: message
+
+  return [{
+    file: "src/components/Button.tsx",
+    line: 15,
+    column: 23,
+    errorCode: "TS2304",
+    message: "Cannot find name 'ButtonProps'",
+    rawError: "..."
+  }]
+}
+```
+
+**方案 2：智能修复步骤生成** ✅
+- 增强 System Prompt，添加 TypeScript 错误类型的详细修复策略
+- 提供每种错误代码的修复示例（使用 `apply_patch` 而不是 `run_command`）
+- 将解析后的错误按文件分组，并附加到 LLM 提示中
+- 强制要求生成实际的代码修复步骤
+
+示例修复步骤：
+```typescript
+{
+  action: "apply_patch",
+  tool: "apply_patch",
+  params: {
+    path: "src/components/Button.tsx",
+    changeDescription: "在文件顶部添加缺失的类型导入: import type { ButtonProps } from './types'"
+  },
+  needsCodeGeneration: true  // 关键：触发 LLM 代码生成
+}
+```
+
+**方案 3：修复验证和重试机制** ✅
+```typescript
+// 在 executor.ts 中实现验证循环
+const MAX_RECOVERY_ATTEMPTS = 3;
+let recoveryAttempt = 0;
+
+while (phaseErrors.length > 0 && recoveryAttempt < MAX_RECOVERY_ATTEMPTS) {
+  // 1. 生成修复步骤
+  const recoverySteps = await onPhaseError(phase, phaseErrors);
+
+  // 2. 执行修复步骤
+  for (const step of recoverySteps) {
+    await this.executeStep(step, context);
+  }
+
+  // 3. 重新验证：再次运行 TypeScript 类型检查
+  const verificationErrors = await onPhaseComplete(phase, allResults);
+
+  if (verificationErrors.length === 0) {
+    console.log('✅ Recovery successful! All errors fixed.');
+    break;
+  }
+
+  recoveryAttempt++;
+}
+```
+
+**方案 4：阶段完成自动检查** ✅
+- 在阶段完成时自动运行 TypeScript 类型检查
+- TypeScript 错误会触发错误恢复机制
+- 修复后自动重新验证
+
+#### 技术亮点
+
+1. **结构化错误解析**：正则表达式解析 tsc 输出，提取文件、行号、错误代码、错误信息
+2. **上下文感知修复**：将错误按文件分组，提供完整的错误上下文给 LLM
+3. **自动验证循环**：修复后自动重新运行类型检查，确保修复成功
+4. **防止无限循环**：最多重试 3 次，避免死循环
+5. **详细日志**：每个修复尝试都有详细的日志输出
+
+#### 效果
+
+优化后的 TypeScript 错误恢复系统能够：
+- ✅ 自动识别 TypeScript 编译错误
+- ✅ 解析错误信息并按文件分组
+- ✅ 生成实际的代码修复步骤（`apply_patch`）
+- ✅ 自动验证修复是否成功
+- ✅ 最多重试 3 次直到所有错误被修复
+- ✅ 防止无限循环，提供清晰的错误日志
+
 ### 两阶段架构设计
 
 FrontAgent 采用创新的两阶段架构，彻底解决了 AI Agent 在生成大量代码时的 JSON 解析错误问题：

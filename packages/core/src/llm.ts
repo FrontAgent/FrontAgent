@@ -1520,6 +1520,67 @@ ${options.originalCode}
   }
 
   /**
+   * 解析 TypeScript 编译错误
+   */
+  private parseTypeScriptErrors(failedSteps: Array<{ error: string; params: Record<string, unknown> }>): Array<{
+    file: string;
+    line: number;
+    column: number;
+    errorCode: string;
+    message: string;
+    rawError: string;
+  }> {
+    const tsErrors: Array<{
+      file: string;
+      line: number;
+      column: number;
+      errorCode: string;
+      message: string;
+      rawError: string;
+    }> = [];
+
+    for (const step of failedSteps) {
+      // Check if this is a TypeScript compilation error
+      const isTscCommand =
+        step.params.command?.toString().includes('tsc') ||
+        step.params.command?.toString().includes('typecheck');
+
+      if (!isTscCommand) continue;
+
+      // Parse TypeScript error format: "file.ts(line,col): error TSxxxx: message"
+      const tsErrorRegex = /([^\s:]+\.tsx?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)/g;
+      let match;
+
+      while ((match = tsErrorRegex.exec(step.error)) !== null) {
+        tsErrors.push({
+          file: match[1],
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
+          errorCode: match[4],
+          message: match[5],
+          rawError: match[0]
+        });
+      }
+
+      // Also try alternative format: "file.ts:line:col - error TSxxxx: message"
+      const altFormatRegex = /([^\s:]+\.tsx?):(\d+):(\d+)\s+-\s+error\s+(TS\d+):\s+(.+)/g;
+
+      while ((match = altFormatRegex.exec(step.error)) !== null) {
+        tsErrors.push({
+          file: match[1],
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
+          errorCode: match[4],
+          message: match[5],
+          rawError: match[0]
+        });
+      }
+    }
+
+    return tsErrors;
+  }
+
+  /**
    * 分析错误并生成修复计划（Tool Error Feedback Loop）
    */
   async analyzeErrorsAndGenerateRecovery(options: {
@@ -1533,6 +1594,21 @@ ${options.originalCode}
     }>;
     context: string;
   }): Promise<ErrorRecoveryPlan> {
+    // Parse TypeScript errors if present
+    const tsErrors = this.parseTypeScriptErrors(options.failedSteps);
+    const hasTsErrors = tsErrors.length > 0;
+
+    if (hasTsErrors) {
+      console.log('[LLMService] ========================================');
+      console.log(`[LLMService] Detected ${tsErrors.length} TypeScript errors`);
+      console.log('[LLMService] ========================================');
+      for (const err of tsErrors) {
+        console.log(`[LLMService] ${err.file}:${err.line}:${err.column} - ${err.errorCode}: ${err.message}`);
+      }
+      console.log('[LLMService] Generating intelligent fix steps...');
+      console.log('[LLMService] ========================================');
+    }
+
     const system = `你是一个专业的错误诊断和恢复规划专家。你的任务是分析工具执行过程中的错误，并生成修复步骤。
 
 # 你的职责
@@ -1568,11 +1644,98 @@ ${options.originalCode}
 - 执行 npm install 或 pnpm install
 - 确认命令路径正确
 
+## 5. TypeScript 类型错误 🔥 重点关注 🔥
+**识别**: 错误信息包含 "TS" 错误代码（如 TS2304, TS2345）或来自 tsc/npx tsc 命令
+
+### 5.1 "Cannot find name 'X'" (TS2304)
+**原因**: 缺少类型导入或变量声明
+**修复**: 生成 apply_patch 步骤，添加缺失的 import 语句
+**示例**:
+\`\`\`
+{
+  action: "apply_patch",
+  tool: "apply_patch",
+  params: {
+    path: "src/components/Button.tsx",
+    changeDescription: "在文件顶部添加缺失的类型导入: import type { ButtonProps } from './types'",
+    ...
+  },
+  needsCodeGeneration: true
+}
+\`\`\`
+
+### 5.2 "Type 'X' is not assignable to type 'Y'" (TS2322)
+**原因**: 类型不匹配
+**修复**: 生成 apply_patch 步骤，修正类型注解或添加类型转换
+**示例**:
+\`\`\`
+{
+  action: "apply_patch",
+  params: {
+    path: "src/utils/helper.ts",
+    changeDescription: "修正函数返回类型: 将 Promise<string> 改为 Promise<number>",
+    ...
+  }
+}
+\`\`\`
+
+### 5.3 "Parameter 'X' implicitly has an 'any' type" (TS7006)
+**原因**: 缺少参数类型注解
+**修复**: 生成 apply_patch 步骤，添加明确的类型注解
+**示例**:
+\`\`\`
+{
+  action: "apply_patch",
+  params: {
+    path: "src/api/handler.ts",
+    changeDescription: "为参数 'data' 添加类型注解: data: RequestData",
+    ...
+  }
+}
+\`\`\`
+
+### 5.4 "Property 'X' does not exist on type 'Y'" (TS2339)
+**原因**: 访问了不存在的属性
+**修复**: 生成 apply_patch 步骤，添加属性定义或修正属性名
+**示例**:
+\`\`\`
+{
+  action: "apply_patch",
+  params: {
+    path: "src/types/user.ts",
+    changeDescription: "在 UserType 接口中添加缺失的属性: email: string",
+    ...
+  }
+}
+\`\`\`
+
+### 5.5 "'X' is declared but its value is never read" (TS6133)
+**原因**: 未使用的变量或导入
+**修复**: 生成 apply_patch 步骤，删除未使用的声明
+**示例**:
+\`\`\`
+{
+  action: "apply_patch",
+  params: {
+    path: "src/components/Card.tsx",
+    changeDescription: "删除未使用的导入: 移除 import { unused } from './utils'",
+    ...
+  }
+}
+\`\`\`
+
+### TypeScript 错误修复流程
+1. **先读取文件**: 对于每个需要修改的文件，先生成 read_file 步骤
+2. **生成补丁**: 使用 apply_patch 并在 changeDescription 中精确描述要做的修改
+3. **验证修复**: 生成 run_command 步骤执行 "npx tsc --noEmit" 验证类型错误是否解决
+4. **设置 needsCodeGeneration**: 对于 apply_patch 步骤，必须设置 needsCodeGeneration: true
+
 # 修复步骤生成原则
 1. **最小修复**: 只生成必要的修复步骤，不重复原有成功的步骤
 2. **保持阶段**: 修复步骤的 phase 字段应与原失败步骤的 phase 保持一致
 3. **顺序正确**: 确保修复步骤的依赖关系正确（如先 read_file 再 apply_patch）
 4. **完整参数**: 确保所有必需参数都已填充，path 必须包含文件扩展名
+5. **实际修复**: 对于 TypeScript 错误，必须生成实际的代码修复步骤（apply_patch），而不是仅仅查看错误
 
 # 输出要求
 - canRecover: 如果错误可以通过生成步骤修复则为 true，否则为 false
@@ -1586,6 +1749,36 @@ ${options.originalCode}
    错误: ${step.error}`
     ).join('\n\n');
 
+    // Add TypeScript error details if present
+    let tsErrorDetails = '';
+    if (hasTsErrors && tsErrors.length > 0) {
+      tsErrorDetails = `\n\n🔥 检测到 ${tsErrors.length} 个 TypeScript 编译错误 🔥\n`;
+      tsErrorDetails += '请为这些错误生成实际的代码修复步骤（apply_patch），而不是仅仅查看错误。\n\n';
+
+      // Group errors by file
+      const errorsByFile = new Map<string, typeof tsErrors>();
+      for (const error of tsErrors) {
+        if (!errorsByFile.has(error.file)) {
+          errorsByFile.set(error.file, []);
+        }
+        errorsByFile.get(error.file)!.push(error);
+      }
+
+      for (const [file, errors] of errorsByFile) {
+        tsErrorDetails += `文件: ${file}\n`;
+        for (const error of errors) {
+          tsErrorDetails += `  行 ${error.line}:${error.column} - ${error.errorCode}: ${error.message}\n`;
+        }
+        tsErrorDetails += '\n';
+      }
+
+      tsErrorDetails += '修复步骤要求:\n';
+      tsErrorDetails += '1. 对于每个需要修改的文件，先生成 read_file 步骤读取文件内容\n';
+      tsErrorDetails += '2. 然后生成 apply_patch 步骤，在 changeDescription 中详细描述要做的修改\n';
+      tsErrorDetails += '3. 对于 apply_patch 步骤，必须设置 needsCodeGeneration: true\n';
+      tsErrorDetails += '4. 最后生成 run_command 步骤执行 "npx tsc --noEmit" 验证修复是否成功\n';
+    }
+
     const messages: Message[] = [
       {
         role: 'user',
@@ -1596,7 +1789,7 @@ ${options.originalCode}
 ${options.context}
 
 以下步骤执行失败:
-${errorSummary}
+${errorSummary}${tsErrorDetails}
 
 请分析这些错误并生成修复计划。`
       }

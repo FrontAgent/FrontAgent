@@ -444,9 +444,28 @@ export class FrontAgent {
               if (typeErrors.length > 0) {
                 console.log(`[Agent] TypeScript check found ${typeErrors.length} errors`);
                 // 记录 TS 错误到 Facts 系统
-                for (const error of typeErrors.slice(0, 5)) {
+                for (const error of typeErrors.slice(0, 10)) {
                   this.contextManager.addErrorFact(task.id, 'type-check', 'typescript', error.message);
                 }
+
+                // 触发错误恢复机制
+                const tsErrorOutput = typeErrors.map(e => e.message).join('\n');
+                errors.push({
+                  step: {
+                    stepId: 'typescript-type-check',
+                    description: `TypeScript 类型检查`,
+                    action: 'run_command' as const,
+                    tool: 'run_command',
+                    params: { command: 'npx tsc --noEmit' },
+                    dependencies: [],
+                    validation: [],
+                    status: 'failed' as const,
+                    phase
+                  } as ExecutionStep,
+                  error: `TypeScript compilation failed with ${typeErrors.length} error(s):\n${tsErrorOutput}`
+                });
+              } else {
+                console.log(`[Agent] ✅ TypeScript check passed`);
               }
             }
           }

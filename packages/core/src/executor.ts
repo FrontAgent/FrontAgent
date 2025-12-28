@@ -632,7 +632,7 @@ export class Executor {
 
       // 执行该阶段的所有步骤
       const phaseResults: ExecutorOutput[] = [];
-      const phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
+      let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
 
       for (const step of phaseSteps) {
         // 检查依赖是否都已完成
@@ -679,42 +679,79 @@ export class Executor {
         }
       }
 
-      // 阶段结束后，检查是否有错误需要修复
-      if (phaseErrors.length > 0 && onPhaseError) {
-        console.log(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, requesting recovery plan...`);
+      // 阶段结束后，检查是否有错误需要修复（带重试限制）
+      const MAX_RECOVERY_ATTEMPTS = 3;
+      let recoveryAttempt = 0;
+
+      while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < MAX_RECOVERY_ATTEMPTS) {
+        recoveryAttempt++;
+        console.log(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${MAX_RECOVERY_ATTEMPTS}...`);
 
         try {
           const recoverySteps = await onPhaseError(phase, phaseErrors);
-          if (recoverySteps.length > 0) {
-            console.log(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
+          if (recoverySteps.length === 0) {
+            console.log(`[Executor] No recovery steps generated, stopping recovery attempts`);
+            break;
+          }
 
-            // 将修复步骤插入到当前阶段的步骤组中
-            // 为修复步骤添加适当的依赖关系
-            for (const recoveryStep of recoverySteps) {
-              recoveryStep.phase = phase; // 确保属于同一阶段
-              phaseSteps.push(recoveryStep);
+          console.log(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
+
+          // 将修复步骤插入到当前阶段的步骤组中
+          for (const recoveryStep of recoverySteps) {
+            recoveryStep.phase = phase; // 确保属于同一阶段
+            phaseSteps.push(recoveryStep);
+          }
+
+          // 执行修复步骤
+          const recoveryFailed = [];
+          for (const recoveryStep of recoverySteps) {
+            recoveryStep.status = 'running';
+            const output = await this.executeStep(recoveryStep, context);
+            recoveryStep.result = output.stepResult;
+            recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
+
+            allResults.push(output);
+
+            if (output.stepResult.success) {
+              completedStepIds.add(recoveryStep.stepId);
+            } else {
+              recoveryFailed.push({ step: recoveryStep, error: output.stepResult.error || 'Unknown error' });
             }
 
-            // 重新执行修复步骤
-            for (const recoveryStep of recoverySteps) {
-              recoveryStep.status = 'running';
-              const output = await this.executeStep(recoveryStep, context);
-              recoveryStep.result = output.stepResult;
-              recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
-
-              allResults.push(output);
-
-              if (output.stepResult.success) {
-                completedStepIds.add(recoveryStep.stepId);
-              }
-
-              if (onStepComplete) {
-                onStepComplete(recoveryStep, output);
-              }
+            if (onStepComplete) {
+              onStepComplete(recoveryStep, output);
             }
           }
+
+          // 验证修复是否成功：重新运行阶段完成检查
+          if (onPhaseComplete) {
+            console.log(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
+            phaseErrors = [];
+            try {
+              const verificationErrors = await onPhaseComplete(phase, allResults);
+              phaseErrors = verificationErrors;
+
+              if (phaseErrors.length === 0) {
+                console.log(`[Executor] ✅ Recovery successful! All errors fixed.`);
+                break;
+              } else {
+                console.log(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
+                if (recoveryAttempt >= MAX_RECOVERY_ATTEMPTS) {
+                  console.warn(`[Executor] ❌ Max recovery attempts (${MAX_RECOVERY_ATTEMPTS}) reached. Stopping recovery.`);
+                }
+              }
+            } catch (error) {
+              console.error(`[Executor] Verification check failed:`, error);
+              break;
+            }
+          } else {
+            // 如果没有验证回调，只执行一次修复
+            break;
+          }
+
         } catch (error) {
-          console.error(`[Executor] Failed to generate recovery plan:`, error);
+          console.error(`[Executor] Failed to generate/execute recovery plan:`, error);
+          break;
         }
       }
 
