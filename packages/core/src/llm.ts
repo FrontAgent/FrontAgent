@@ -284,18 +284,24 @@ ${options.sddConstraints ?? '无特殊约束'}
 - create_file: 创建各种源代码文件（组件、页面、utils等）
   - 至少包含：入口文件、主页面、基础组件
 
-**阶段 3: 安装和启动阶段（必需！）**
+**阶段 3: 安装阶段（必需！）**
 - run_command: npm install 或 pnpm install
+
+**阶段 4: 验证阶段（必需！在启动服务器前验证）**
+- run_command: npm run typecheck 或 tsc --noEmit（验证类型）
+- run_command: npm run lint（可选：验证代码规范）
+
+**阶段 5: 启动阶段（必需！）**
 - run_command: npm run dev（后台运行）
 
-**阶段 4: 验证阶段（必需！）**
+**阶段 6: 浏览器验证阶段（必需！）**
 - browser_navigate: 访问 http://localhost:5173
 - browser_screenshot: 截图验证页面渲染
 - get_page_structure: 检查页面结构和错误
 
 ❌ **严禁**：只生成阶段1（分析），就结束
-❌ **严禁**：跳过阶段3（安装）或阶段4（验证）
-✅ **正确**：必须包含所有4个阶段
+❌ **严禁**：跳过阶段3（安装）、阶段4（验证）或阶段5（启动）
+✅ **正确**：必须包含所有6个阶段
 
 ## 示例（正确的完整大纲）：
 {
@@ -314,17 +320,20 @@ ${options.sddConstraints ?? '无特殊约束'}
     { "description": "创建Button组件", "action": "create_file", "phase": "阶段2-创建" },
     { "description": "创建首页组件", "action": "create_file", "phase": "阶段2-创建" },
 
-    // 阶段3: 安装和启动（必需）
+    // 阶段3: 安装（必需）
     { "description": "安装依赖", "action": "run_command", "phase": "阶段3-安装" },
-    { "description": "启动开发服务器", "action": "run_command", "phase": "阶段3-启动" },
 
     // 阶段4: 验证（必需）
-    { "description": "浏览器访问验证", "action": "browser_navigate", "phase": "阶段4-验证" },
-    { "description": "截图验证渲染", "action": "browser_screenshot", "phase": "阶段4-验证" },
-    { "description": "检查页面结构", "action": "get_page_structure", "phase": "阶段4-验证" }
-  ],
-  "risks": ["依赖版本冲突", "端口占用"],
-  "alternatives": ["使用Next.js框架"]
+    { "description": "类型检查", "action": "run_command", "phase": "阶段4-验证" },
+    { "description": "代码规范检查", "action": "run_command", "phase": "阶段4-验证" },
+
+    // 阶段5: 启动（必需）
+    { "description": "启动开发服务器", "action": "run_command", "phase": "阶段5-启动" },
+
+    // 阶段6: 浏览器验证（必需）
+    { "description": "访问首页", "action": "browser_navigate", "phase": "阶段6-浏览器验证" },
+    { "description": "页面截图", "action": "browser_screenshot", "phase": "阶段6-浏览器验证" }
+  ]
 }
 
 ⚠️ 重要：
@@ -385,6 +394,19 @@ ${options.sddConstraints ?? '无特殊约束'}
 - run_command: params 包含 command
 - browser 操作: params 包含 url/selector 等
 - 后台启动开发服务器使用: "nohup npm run dev > /dev/null 2>&1 & sleep 3"
+
+## 配置文件内容格式要求：
+对于配置文件（如 tsconfig.json、package.json、vite.config.ts 等），codeDescription 必须明确说明：
+- **直接输出标准 JSON/JS 配置对象**，不要嵌套在其他结构中
+- tsconfig.json: 直接输出 { "compilerOptions": {...}, "include": [...] }
+- package.json: 直接输出 { "name": "...", "dependencies": {...} }
+- ❌ 禁止生成包含 "files" 数组或其他包装结构的内容
+
+## 验证步骤要求：
+- 在"安装依赖"之后、"启动开发服务器"之前，必须包含验证步骤
+- 验证步骤应包括：npm run typecheck 或 tsc --noEmit（类型检查）
+- 如果 package.json 中定义了 typecheck 脚本，使用 npm run typecheck
+- 否则使用 tsc --noEmit 或 tsc -b（如果是项目引用）
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}`;
@@ -828,6 +850,22 @@ ${options.context}
 - 语言: ${options.language}
 - 要求: ${options.codeDescription}
 
+# 配置文件特殊要求
+${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
+⚠️ 这是一个配置文件，必须严格遵守以下格式：
+
+**如果是 tsconfig.json**：
+- 直接输出标准的 tsconfig 对象：{ "compilerOptions": {...}, "include": [...] }
+- ❌ 禁止嵌套在 "files" 数组或其他包装结构中
+
+**如果是 package.json**：
+- 直接输出标准的 package 对象：{ "name": "...", "version": "...", "dependencies": {...} }
+- 必须包含 "typecheck" 脚本（如："typecheck": "tsc --noEmit"）
+
+**如果是 vite.config.ts/webpack.config.js**：
+- 直接输出标准的配置导出
+` : ''}
+
 # 技术要求
 - 遵循最佳实践和设计模式
 - 代码清晰、可维护
@@ -842,6 +880,15 @@ import React from 'react';
 export const MyComponent: React.FC = () => {
   return <div>Hello</div>;
 };
+
+对于 tsconfig.json，你应该直接输出：
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}
 
 不要输出任何其他内容！`;
 
