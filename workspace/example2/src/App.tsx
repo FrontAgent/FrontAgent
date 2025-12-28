@@ -28,10 +28,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div role="alert" style={{ padding: 16 }}>
-            <h1 style={{ margin: 0, fontSize: 18 }}>Something went wrong.</h1>
+          <div role="alert" className="p-4">
+            <h1 className="text-lg font-semibold">Something went wrong.</h1>
             {import.meta.env.DEV && this.state.error?.message ? (
-              <pre style={{ marginTop: 12, whiteSpace: 'pre-wrap' }}>{this.state.error.message}</pre>
+              <pre className="mt-3 whitespace-pre-wrap text-sm text-red-600">{this.state.error.message}</pre>
             ) : null}
           </div>
         )
@@ -42,21 +42,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ padding: 16, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-        <div style={{ fontWeight: 600 }}>E-Commerce App</div>
-      </header>
-      <main style={{ flex: 1, padding: 16 }}>{children}</main>
-    </div>
-  );
-};
-
 const LoadingFallback: React.FC = () => {
   return (
-    <div aria-busy="true" aria-live="polite" style={{ padding: 16 }}>
-      Loading...
+    <div aria-busy="true" aria-live="polite" className="flex items-center justify-center min-h-[50vh]">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
     </div>
   );
 };
@@ -64,11 +53,9 @@ const LoadingFallback: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <AppShell>
-        <Suspense fallback={<LoadingFallback />}>
-          <AppRouter />
-        </Suspense>
-      </AppShell>
+      <Suspense fallback={<LoadingFallback />}>
+        <AppRouter />
+      </Suspense>
     </ErrorBoundary>
   );
 };

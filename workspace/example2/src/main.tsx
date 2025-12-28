@@ -2,8 +2,7 @@ import React, { PropsWithChildren } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
-// If you have a global stylesheet, import it here.
-// import './styles/global.css';
+import './index.css';
 
 import App from './App';
 
