@@ -38,7 +38,7 @@
 
 该 Agent 系统必须满足以下三点核心设计约束：
 
-1️⃣ 以 SDD（Software Design Document）作为「设计控制层」
+1️⃣ 以 SDD（Specification Driven Development）作为「设计控制层」
 	•	SDD 不是文档参考，而是：
 	•	Agent 行为的 硬约束来源
 	•	决定：

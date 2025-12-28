@@ -9,7 +9,7 @@
 
 ## 一、项目概览
 
-本项目是一个基于 React 的电商前端单页应用(SPA)，采用现代化的技术栈和严格的工程规范约束。项目遵循 SDD (Software Design Document) 规范，确保代码的可维护性、可审计性和可扩展性。
+本项目是一个基于 React 的电商前端单页应用(SPA)，采用现代化的技术栈和严格的工程规范约束。项目遵循 SDD (Specification Driven Development) 规范，确保代码的可维护性、可审计性和可扩展性。
 
 ### 1.1 项目目标
 
@@ -123,7 +123,7 @@ workspace/E-commerce-4/
 ├── .eslintrc.cjs            # ESLint 配置
 ├── .gitignore               # Git 忽略文件
 ├── README.md                # 项目说明
-└── sdd.yaml                 # 软件设计文档规范
+└── sdd.yaml                 # 规格驱动开发规范
 
 **总计文件数**: 76个源文件（.tsx/.ts）
 ```

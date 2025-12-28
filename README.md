@@ -12,7 +12,7 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，旨在解决 A
 - ✅ **事实记忆** - 基于结构化事实的上下文系统，精准追踪项目状态
 - ✅ **模块依赖追踪** - 自动解析模块导入导出，检测路径幻觉
 - ✅ **幻觉防控** - 多层次的幻觉检测与拦截机制
-- ✅ **SDD 约束** - 以软件设计文档作为 Agent 行为的硬约束
+- ✅ **SDD 约束** - 以规格驱动开发（Specification Driven Development）作为 Agent 行为的硬约束
 - ✅ **MCP 协议** - 通过 Model Context Protocol 实现可控的工具调用
 - ✅ **最小修改** - 基于补丁的代码修改，支持回滚
 - ✅ **Web 感知** - 通过浏览器 MCP 理解页面结构
@@ -397,7 +397,7 @@ import { Spinner } from '../components/ui/Spinner'; // ✗ 缺失
 
 ### @frontagent/sdd - SDD 控制层
 
-软件设计文档（SDD）作为 Agent 行为的硬约束来源：
+规格驱动开发（SDD - Specification Driven Development）作为 Agent 行为的硬约束来源：
 
 ```yaml
 # sdd.yaml

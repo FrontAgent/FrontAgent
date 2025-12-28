@@ -106,7 +106,7 @@
 #### 2.1.1 SDD Schema 设计 (YAML 格式)
 
 ```yaml
-# sdd.yaml - 软件设计文档（结构化约束）
+# sdd.yaml - 规格驱动开发配置（结构化约束）
 version: "1.0"
 project:
   name: "my-frontend-app"

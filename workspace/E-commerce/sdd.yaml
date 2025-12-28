@@ -1,5 +1,5 @@
 # FrontAgent SDD 配置示例
-# 软件设计文档 - Agent 行为约束
+# 规格驱动开发 - Agent 行为约束
 
 version: "1.0"
 

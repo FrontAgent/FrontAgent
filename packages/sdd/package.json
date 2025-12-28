@@ -1,7 +1,7 @@
 {
   "name": "@frontagent/sdd",
   "version": "0.1.0",
-  "description": "SDD (Software Design Document) 控制层 - Agent 行为约束引擎",
+  "description": "SDD (Specification Driven Development) 控制层 - Agent 行为约束引擎",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -44,9 +44,9 @@ export class SDDPromptGenerator {
     const sections: string[] = [];
 
     // 标题
-    sections.push(isZh 
-      ? '## 📋 项目约束（来自 SDD - Software Design Document）'
-      : '## 📋 Project Constraints (from SDD - Software Design Document)'
+    sections.push(isZh
+      ? '## 📋 项目约束（来自 SDD - Specification Driven Development）'
+      : '## 📋 Project Constraints (from SDD - Specification Driven Development)'
     );
 
     sections.push('');

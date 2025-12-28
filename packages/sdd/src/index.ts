@@ -1,7 +1,7 @@
 /**
  * @frontagent/sdd - SDD 控制层
- * 
- * 提供 SDD (Software Design Document) 的解析、验证和约束生成功能
+ *
+ * 提供 SDD (Specification Driven Development) 的解析、验证和约束生成功能
  */
 
 export { SDDParser, createSDDParser, type ParseResult } from './parser.js';

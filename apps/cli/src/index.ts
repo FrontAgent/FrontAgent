@@ -33,7 +33,7 @@ program
     const spinner = ora('正在生成 SDD 配置模板...').start();
 
     const sddTemplate = `# FrontAgent SDD 配置文件
-# 软件设计文档 - Agent 行为约束
+# 规格驱动开发 - Agent 行为约束
 
 version: "1.0"
 
