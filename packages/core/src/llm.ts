@@ -828,6 +828,23 @@ ${JSON.stringify(batch, null, 2)}
         throw new Error(`Invalid steps format: expected array, got ${typeof steps}`);
       }
 
+      // 验证并修复 phase 字段
+      for (let j = 0; j < steps.length; j++) {
+        const step = steps[j];
+        const batchItem = batch[j];
+
+        // 如果步骤缺少 phase 或 phase 为空，从原始 batch 中恢复
+        if (!step.phase || step.phase.trim() === '') {
+          if (batchItem?.phase) {
+            console.warn(`[LLMService] Restoring missing phase for step: ${batchItem.phase}`);
+            step.phase = batchItem.phase;
+          } else {
+            console.warn(`[LLMService] Both step and batch item missing phase, using default`);
+            step.phase = '未分组';
+          }
+        }
+      }
+
       allSteps.push(...steps);
       console.log(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${steps.length} steps expanded`);
     }
