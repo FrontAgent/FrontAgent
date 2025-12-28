@@ -432,7 +432,7 @@ modification_rules:
 
 #### SDD 驱动的开发效果
 
-基于同一份 SDD 配置文件开发电商项目的实际效果对比：
+基于同一份 SDD 配置文件开发电商项目的实际效果对比 ( [沙盒实验仓库地址](https://github.com/ceilf6/FrontAgent-sandbox) )
 
 <table>
   <tr>
