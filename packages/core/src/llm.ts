@@ -176,14 +176,22 @@ export class LLMService {
     } catch (error: any) {
       console.log('[LLMService] generateObject failed, attempting to fix...');
 
+      // 统计错误
+      LLMService.errorStats.totalErrors++;
+
       // 尝试修复并返回
       const fixed = this.tryFixGeneratedObject(error, options.schema);
       if (fixed) {
+        LLMService.errorStats.fixedErrors++;
+        console.log('[LLMService] ✅ Error fixed successfully');
+        console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
         return fixed as T;
       }
 
       // 如果所有修复尝试都失败，重新抛出原始错误
-      console.error('[LLMService] All fix attempts failed');
+      LLMService.errorStats.unfixedErrors++;
+      console.error('[LLMService] ❌ All fix attempts failed');
+      console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
       throw error;
     }
   }
@@ -229,6 +237,7 @@ export class LLMService {
       console.log('[LLMService] Strategy 1: Unwrapped $ keys');
       try {
         const validated = schema.parse(unwrapped);
+        LLMService.errorStats.fixStrategies.unwrapDollarKeys++;
         console.log('[LLMService] ✅ Strategy 1 succeeded');
         return validated as T;
       } catch (validationError) {
@@ -242,6 +251,7 @@ export class LLMService {
       console.log('[LLMService] Strategy 2: Deep parsed stringified fields');
       try {
         const validated = schema.parse(deepFixed);
+        LLMService.errorStats.fixStrategies.deepParseStringified++;
         console.log('[LLMService] ✅ Strategy 2 succeeded');
         return validated as T;
       } catch (validationError) {
@@ -255,6 +265,7 @@ export class LLMService {
       console.log('[LLMService] Strategy 3: Combined unwrap + parse');
       try {
         const validated = schema.parse(combined);
+        LLMService.errorStats.fixStrategies.combined++;
         console.log('[LLMService] ✅ Strategy 3 succeeded');
         return validated as T;
       } catch (validationError) {
@@ -269,6 +280,7 @@ export class LLMService {
         const parsed = JSON.parse(errorToCheck.text);
         const fixed = this.deepParseStringifiedFields(this.unwrapDollarKeys(parsed));
         const validated = schema.parse(fixed);
+        LLMService.errorStats.fixStrategies.parseFromText++;
         console.log('[LLMService] ✅ Strategy 4 succeeded');
         return validated as T;
       } catch (parseError) {
