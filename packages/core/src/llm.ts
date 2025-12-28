@@ -16,9 +16,46 @@ export class LLMService {
   private config: LLMConfig;
   private model: LanguageModel;
 
+  // 错误统计（类级别的静态成员）
+  private static errorStats = {
+    totalErrors: 0,
+    fixedErrors: 0,
+    fixStrategies: {
+      unwrapDollarKeys: 0,
+      deepParseStringified: 0,
+      combined: 0,
+      parseFromText: 0
+    },
+    unfixedErrors: 0
+  };
+
   constructor(config: LLMConfig) {
     this.config = config;
     this.model = this.createModel();
+  }
+
+  /**
+   * 获取错误统计信息
+   */
+  static getErrorStats() {
+    return { ...LLMService.errorStats };
+  }
+
+  /**
+   * 重置错误统计
+   */
+  static resetErrorStats() {
+    LLMService.errorStats = {
+      totalErrors: 0,
+      fixedErrors: 0,
+      fixStrategies: {
+        unwrapDollarKeys: 0,
+        deepParseStringified: 0,
+        combined: 0,
+        parseFromText: 0
+      },
+      unfixedErrors: 0
+    };
   }
 
   /**
@@ -149,6 +186,166 @@ export class LLMService {
       console.error('[LLMService] All fix attempts failed');
       throw error;
     }
+  }
+
+  /**
+   * 尝试修复 generateObject 失败的响应
+   * 实现多种修复策略，提高鲁棒性
+   */
+  private tryFixGeneratedObject<T>(error: any, schema: z.ZodType<T>): T | null {
+    const errorToCheck = error.cause || error;
+
+    if (!errorToCheck.value || typeof errorToCheck.value !== 'object') {
+      console.log('[LLMService] No value to fix');
+      return null;
+    }
+
+    // 详细日志：错误类型和结构
+    console.log('[LLMService] ========================================');
+    console.log('[LLMService] Schema Validation Error Detected');
+    console.log('[LLMService] ========================================');
+    console.log('[LLMService] Error name:', error.name);
+    console.log('[LLMService] Error type:', error.constructor.name);
+    console.log('[LLMService] Has cause:', !!error.cause);
+    console.log('[LLMService] Original value keys:', Object.keys(errorToCheck.value));
+    console.log('[LLMService] Original value structure:', JSON.stringify(errorToCheck.value, null, 2).substring(0, 500) + '...');
+
+    // 如果有 Zod 错误信息，打印出来
+    if (errorToCheck.cause?.issues) {
+      console.log('[LLMService] Zod validation issues:');
+      errorToCheck.cause.issues.forEach((issue: any, index: number) => {
+        console.log(`[LLMService]   Issue ${index + 1}:`, {
+          path: issue.path.join('.'),
+          message: issue.message,
+          expected: issue.expected,
+          received: issue.received
+        });
+      });
+    }
+
+    // 策略 1: 检测并解包 $ 包装键
+    const unwrapped = this.unwrapDollarKeys(errorToCheck.value);
+    if (unwrapped !== errorToCheck.value) {
+      console.log('[LLMService] Strategy 1: Unwrapped $ keys');
+      try {
+        const validated = schema.parse(unwrapped);
+        console.log('[LLMService] ✅ Strategy 1 succeeded');
+        return validated as T;
+      } catch (validationError) {
+        console.log('[LLMService] Strategy 1 failed, trying next...');
+      }
+    }
+
+    // 策略 2: 深度递归解析字符串化的 JSON 字段
+    const deepFixed = this.deepParseStringifiedFields(errorToCheck.value);
+    if (deepFixed !== errorToCheck.value) {
+      console.log('[LLMService] Strategy 2: Deep parsed stringified fields');
+      try {
+        const validated = schema.parse(deepFixed);
+        console.log('[LLMService] ✅ Strategy 2 succeeded');
+        return validated as T;
+      } catch (validationError) {
+        console.log('[LLMService] Strategy 2 failed, trying next...');
+      }
+    }
+
+    // 策略 3: 组合策略 - 先解包再解析
+    const combined = this.deepParseStringifiedFields(unwrapped);
+    if (combined !== errorToCheck.value) {
+      console.log('[LLMService] Strategy 3: Combined unwrap + parse');
+      try {
+        const validated = schema.parse(combined);
+        console.log('[LLMService] ✅ Strategy 3 succeeded');
+        return validated as T;
+      } catch (validationError) {
+        console.log('[LLMService] Strategy 3 failed, trying next...');
+      }
+    }
+
+    // 策略 4: 尝试从 text 字段中提取 JSON
+    if (errorToCheck.text && typeof errorToCheck.text === 'string') {
+      console.log('[LLMService] Strategy 4: Parsing from error.text field');
+      try {
+        const parsed = JSON.parse(errorToCheck.text);
+        const fixed = this.deepParseStringifiedFields(this.unwrapDollarKeys(parsed));
+        const validated = schema.parse(fixed);
+        console.log('[LLMService] ✅ Strategy 4 succeeded');
+        return validated as T;
+      } catch (parseError) {
+        console.log('[LLMService] Strategy 4 failed');
+      }
+    }
+
+    console.log('[LLMService] All repair strategies failed');
+    return null;
+  }
+
+  /**
+   * 解包以 $ 开头的包装键
+   */
+  private unwrapDollarKeys(obj: any): any {
+    if (typeof obj !== 'object' || obj === null) {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.unwrapDollarKeys(item));
+    }
+
+    // 查找 $ 开头的键
+    const dollarKeys = Object.keys(obj).filter(key => key.startsWith('$'));
+
+    if (dollarKeys.length === 1 && Object.keys(obj).length === 1) {
+      // 如果只有一个 $ 键，解包它
+      console.log(`[LLMService] Unwrapping ${dollarKeys[0]}`);
+      return this.unwrapDollarKeys(obj[dollarKeys[0]]);
+    }
+
+    // 递归处理所有字段
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (!key.startsWith('$')) {
+        result[key] = this.unwrapDollarKeys(value);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 深度递归解析字符串化的 JSON 字段
+   */
+  private deepParseStringifiedFields(obj: any): any {
+    if (typeof obj !== 'object' || obj === null) {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.deepParseStringifiedFields(item));
+    }
+
+    const result: any = {};
+
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        // 尝试解析以 [ 或 { 开头的字符串
+        if (value.trim().startsWith('[') || value.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(value);
+            console.log(`[LLMService] Parsed string field "${key}"`);
+            result[key] = this.deepParseStringifiedFields(parsed);
+            continue;
+          } catch (parseError) {
+            // 无法解析，保持原样
+          }
+        }
+      }
+
+      // 递归处理对象和数组
+      result[key] = this.deepParseStringifiedFields(value);
+    }
+
+    return result;
   }
 
   /**
