@@ -84,15 +84,37 @@ export class LLMService {
     }
 
     // 根据 provider 选择对应的创建函数
-    const providerConfig = { apiKey: key, baseURL: endpoint };
-
     switch (provider) {
       case 'openai': {
-        const openai = createOpenAI(providerConfig);
+        const openai = createOpenAI({ apiKey: key, baseURL: endpoint });
         return openai(modelName);
       }
       case 'anthropic': {
-        const anthropic = createAnthropic(providerConfig);
+        // 构建 Anthropic beta headers
+        // 启用高级工具使用特性以提高结构化输出的可靠性
+        const betaHeaders: string[] = [];
+
+        // 启用高级工具使用（2025-11-20）
+        // 包括: Tool Search, Programmatic Tool Calling, Tool Use Examples
+        betaHeaders.push('advanced-tool-use-2025-11-20');
+
+        // 可选：启用更高效的 token 使用（2025-02-19）
+        // betaHeaders.push('token-efficient-tools-2025-02-19');
+
+        const anthropicConfig: any = {
+          apiKey: key,
+          baseURL: endpoint,
+        };
+
+        // 只有在有 beta headers 时才添加
+        if (betaHeaders.length > 0) {
+          anthropicConfig.headers = {
+            'anthropic-beta': betaHeaders.join(',')
+          };
+          console.log('[LLMService] Using Anthropic beta headers:', betaHeaders.join(','));
+        }
+
+        const anthropic = createAnthropic(anthropicConfig);
         return anthropic(modelName);
       }
       default:
