@@ -389,15 +389,19 @@ export class FrontAgent {
           console.log(`[Agent] Generated ${recoverySteps.length} recovery steps`);
           return recoverySteps;
         },
-        // onPhaseComplete: 阶段结束时进行模块依赖验证
+        // onPhaseComplete: 阶段结束时进行自检验证
         async (phase, _results) => {
-          // 在创建阶段结束后检查模块依赖
+          const errors: Array<{ step: ExecutionStep; error: string }> = [];
+
+          // 在创建阶段结束后进行多项检查
           if (phase.includes('创建') || phase.includes('实现') || phase === '未分组') {
+            console.log(`[Agent] Running phase completion checks for: ${phase}`);
+
+            // 1. 检查模块依赖
             const missingModules = this.contextManager.validateModuleDependencies(task.id);
             if (missingModules.length > 0) {
-              console.log(`[Agent] Phase "${phase}" module validation found ${missingModules.length} missing dependencies`);
-              // 返回缺失模块作为错误，触发修复流程
-              return missingModules.slice(0, 5).map(missing => ({
+              console.log(`[Agent] Module validation found ${missingModules.length} missing dependencies`);
+              errors.push(...missingModules.slice(0, 5).map(missing => ({
                 step: {
                   stepId: `module-validation-${missing.missing.replace(/[^a-zA-Z0-9]/g, '-')}`,
                   description: `模块 ${missing.from} 引用了不存在的模块: ${missing.importPath}`,
@@ -409,10 +413,45 @@ export class FrontAgent {
                   status: 'failed' as const
                 } as ExecutionStep,
                 error: `Missing module: ${missing.importPath} (resolved path: ${missing.missing})`
-              }));
+              })));
+            }
+
+            // 2. 检查缺失的 npm 依赖（检查代码中使用但未在 package.json 中声明的依赖）
+            const missingDeps = await this.checkMissingNpmDependencies(task.id);
+            if (missingDeps.length > 0) {
+              console.log(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
+              // 生成安装缺失依赖的步骤
+              errors.push({
+                step: {
+                  stepId: 'install-missing-deps',
+                  description: `安装缺失的依赖: ${missingDeps.join(', ')}`,
+                  action: 'run_command' as const,
+                  tool: 'run_command',
+                  params: { command: `npm install ${missingDeps.join(' ')}` },
+                  dependencies: [],
+                  validation: [],
+                  status: 'failed' as const
+                } as ExecutionStep,
+                error: `Missing npm dependencies: ${missingDeps.join(', ')}`
+              });
+            }
+
+            // 3. TypeScript 类型检查（如果有 tsconfig.json）
+            const hasTsConfig = executionContext.collectedContext.files.has('tsconfig.json');
+            if (hasTsConfig) {
+              console.log(`[Agent] Running TypeScript type check...`);
+              const typeErrors = await this.runTypeCheck(task.context?.workingDirectory || process.cwd());
+              if (typeErrors.length > 0) {
+                console.log(`[Agent] TypeScript check found ${typeErrors.length} errors`);
+                // 记录 TS 错误到 Facts 系统
+                for (const error of typeErrors.slice(0, 5)) {
+                  this.contextManager.addErrorFact(task.id, 'type-check', 'typescript', error.message);
+                }
+              }
             }
           }
-          return [];
+
+          return errors;
         }
       );
 
