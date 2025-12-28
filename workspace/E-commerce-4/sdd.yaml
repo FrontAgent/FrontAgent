@@ -1,0 +1,241 @@
+version: "1.1"
+
+project:
+  name: "e-commerce-frontend"
+  type: "react-spa"
+  description: "电商前端应用"
+  goals:
+    - "可维护、强约束的前端工程结构"
+    - "Agent 生成代码可审计、可回溯"
+    - "UI / 业务 / 数据层解耦"
+
+# =========================
+# 技术栈约束
+# =========================
+tech_stack:
+  framework: "react"
+  version: "^18.0.0"
+  language: "typescript"
+  styling: "tailwindcss"
+  state_management: "zustand"
+  routing: "react-router-dom"
+  build_tool: "vite"
+
+  forbidden_packages:
+    - "jquery"           # 不使用 jQuery
+    - "moment"           # 使用 date-fns 替代
+    - "lodash"           # 使用 es-toolkit 替代
+    - "axios"            # 使用 fetch 或 ky 替代
+
+# =========================
+# 资源（Assets）使用规范
+# =========================
+assets_rules:
+  base_directory: "src/assets"
+  allowed_types:
+    images:
+      - ".png"
+      - ".jpg"
+      - ".jpeg"
+      - ".svg"
+      - ".webp"
+    icons:
+      - ".svg"
+  naming:
+    convention: "kebab-case"
+  usage_rules:
+    - "所有图片资源必须来自 src/assets"
+    - "禁止直接使用外链图片（如 http(s) URL）"
+    - "组件中引用图片必须通过 import 引入"
+    - "禁止在 UI 组件中进行图片路径字符串拼接"
+
+# =========================
+# 目录结构约束
+# =========================
+directory_structure:
+  src/assets:
+    purpose: "静态资源（图片、图标）"
+    pattern: "kebab-case"
+    max_depth: 3
+
+  src/components:
+    pattern: "PascalCase"
+    max_lines: 300
+    required_exports:
+      - "default"
+
+  src/components/ui:
+    pattern: "PascalCase"
+    max_lines: 150
+    forbidden:
+      - "fetch"
+      - "axios"
+      - "ky"
+      - "zustand"
+      - "useEffect"
+
+  src/components/features:
+    pattern: "PascalCase"
+    max_lines: 300
+
+  src/hooks:
+    pattern: "use*.ts"
+    must_be_pure: false
+
+  src/utils:
+    pattern: "camelCase"
+    must_be_pure: true
+    max_lines: 100
+
+  src/api:
+    pattern: "camelCase"
+    max_lines: 200
+
+  src/stores:
+    pattern: "use*Store.ts"
+    max_lines: 200
+
+  src/pages:
+    pattern: "PascalCase"
+    max_lines: 300
+
+# =========================
+# 模块边界约束
+# =========================
+module_boundaries:
+  - from: "src/components/ui/*"
+    can_import:
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/assets/*"
+    cannot_import:
+      - "src/api/*"
+      - "src/stores/*"
+      - "src/hooks/*"
+      - "src/components/features/*"
+      - "src/pages/*"
+
+  - from: "src/components/features/*"
+    can_import:
+      - "src/components/ui/*"
+      - "src/hooks/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+      - "src/assets/*"
+    cannot_import:
+      - "src/api/*"
+      - "src/pages/*"
+
+  - from: "src/hooks/*"
+    can_import:
+      - "src/api/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+    cannot_import:
+      - "src/components/*"
+      - "src/pages/*"
+
+  - from: "src/pages/*"
+    can_import:
+      - "src/components/*"
+      - "src/hooks/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+      - "src/assets/*"
+    cannot_import:
+      - "src/api/*"
+
+# =========================
+# 命名规范
+# =========================
+naming_conventions:
+  components: "PascalCase"
+  hooks: "camelCase with 'use' prefix"
+  utils: "camelCase"
+  constants: "SCREAMING_SNAKE_CASE"
+  types:
+    interface: "PascalCase with 'I' prefix"
+    type_alias: "PascalCase with 'T' prefix"
+
+# =========================
+# 代码质量约束
+# =========================
+code_quality:
+  max_function_lines: 50
+  max_file_lines: 300
+  max_parameters: 4
+  require_jsdoc: true
+
+  forbidden_patterns:
+    - "any"
+    - "// @ts-ignore"
+    - "// @ts-nocheck"
+    - "console.log"
+    - "debugger"
+    - "eval("
+    - "innerHTML"
+
+# =========================
+# 修改安全边界
+# =========================
+modification_rules:
+  protected_files:
+    - "package.json"
+    - "package-lock.json"
+    - "pnpm-lock.yaml"
+    - "tsconfig.json"
+    - "vite.config.ts"
+    - ".env"
+    - ".env.*"
+
+  protected_directories:
+    - "node_modules"
+    - ".git"
+    - "dist"
+    - "build"
+
+  require_approval:
+    - pattern: "*.config.*"
+      reason: "配置文件修改需要人工审批"
+    - pattern: "src/api/*"
+      reason: "API 层修改需要人工审批"
+    - pattern: "src/stores/*"
+      reason: "状态管理修改需要人工审批"
+    - pattern: "src/utils/auth*"
+      reason: "认证相关代码修改需要人工审批"
+
+# =========================
+# 生成后强制交付物
+# =========================
+post_generation_requirements:
+  generate_review_document: true
+  review_document:
+    file_name: "review.md"
+    location: "project_root"
+    language: "zh-CN"
+    required_sections:
+      - "项目概览"
+      - "生成的目录结构说明"
+      - "核心技术选型与理由"
+      - "模块划分与边界说明"
+      - "状态管理设计说明"
+      - "资源（assets）组织与使用说明"
+      - "可扩展性与后续演进建议"
+      - "Agent 生成内容的已知限制"
+
+  rules:
+    - "review.md 必须在项目代码生成完成后创建"
+    - "review.md 内容必须与实际生成目录保持一致"
+    - "禁止空章节或模板占位文本"
+
+# =========================
+# Agent 行为总约束
+# =========================
+agent_behavior:
+  - "严格遵守本 SDD 中的目录、模块与依赖约束"
+  - "不得自行放宽 forbidden / cannot_import 规则"
+  - "若需求与 SDD 冲突，必须停止生成并给出冲突说明"
+  - "生成代码必须可通过 TypeScript 严格模式检查"

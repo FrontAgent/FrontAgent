@@ -231,6 +231,14 @@ export class LLMService {
     // Phase 1: 生成计划大纲
     const outlineSystem = `你是一个专业的前端工程 AI Agent，负责分析任务并生成执行计划的大纲。
 
+# 🚨 核心要求：每个步骤必须包含 phase 字段 🚨
+
+**最重要的规则**：
+- 输出中的**每一个步骤**都必须包含 phase 字段
+- phase 字段指明该步骤属于哪个执行阶段
+- 不同阶段的步骤会在不同时间执行，每个阶段结束后都会进行自检
+- 如果 phase 字段缺失或全部相同，系统将无法正确分阶段执行
+
 # 🔥 任务类型判断（优先级规则）
 
 ## 判断规则（按优先级排序）：
@@ -254,12 +262,12 @@ export class LLMService {
 # 你的任务（Phase 1）
 生成一个**高层次的计划大纲**，包括：
 1. summary - 对整个任务的概括性描述
-2. stepOutlines - 步骤概要列表（只需简单描述每个步骤的目的和动作类型）
+2. stepOutlines - 步骤概要列表（**每个步骤都必须包含 phase 字段**）
 3. risks - 潜在风险（可为空数组）
 4. alternatives - 备选方案（可为空数组）
 
 ⚠️ 注意：此阶段只需生成步骤的**概要**，不需要填充详细的参数和推理。
-⚠️ 步骤概要格式：{ description: "简短描述", action: "动作类型" }
+⚠️ 步骤概要格式：{ description: "简短描述", action: "动作类型", **phase: "阶段名称"** }
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
@@ -339,13 +347,22 @@ ${options.sddConstraints ?? '无特殊约束'}
 ⚠️ 重要：
 1. **每个步骤必须包含 phase 字段**，指明所属阶段（如："阶段1-分析"、"阶段2-创建"等）
 2. **步骤数量不限**：根据任务复杂度生成足够的步骤（可以是30、50甚至更多步骤）
-3. **阶段划分清晰**：方便执行器分阶段执行，确保逻辑顺序正确`;
+3. **阶段划分清晰**：方便执行器分阶段执行，确保逻辑顺序正确
+4. **严禁所有步骤使用相同的 phase**：不同类型的步骤必须归属不同阶段
+
+# 🔍 输出验证清单（在生成前自检）
+
+在生成 JSON 之前，请确认：
+- ✅ 每个步骤都有 phase 字段（不能为空）
+- ✅ phase 字段的值符合"阶段X-名称"格式
+- ✅ 至少包含 3 个不同的 phase 值（分析、创建、安装等）
+- ✅ 不要让所有步骤都属于同一个 phase`;
 
     const outline = await this.generateObject({
       messages: [
         {
           role: 'user',
-          content: `任务：${options.task}\n\n项目上下文：\n${options.context}`
+          content: `任务：${options.task}\n\n项目上下文：\n${options.context}\n\n🚨 关键提醒：输出的每个步骤都必须包含 phase 字段，且不同类型的步骤应归属不同阶段！`
         }
       ],
       system: outlineSystem,
