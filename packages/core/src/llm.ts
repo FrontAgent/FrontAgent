@@ -175,7 +175,7 @@ export class LLMService {
   }
 
   /**
-   * 生成结构化对象
+   * 生成结构化对象（带重试机制）
    */
   async generateObject<T>(options: {
     messages: Message[];
@@ -183,39 +183,80 @@ export class LLMService {
     schema: z.ZodType<T>; // Zod 做 强Schema 约束
     maxTokens?: number;
     temperature?: number;
+    maxRetries?: number; // 最大重试次数
   }): Promise<T> {
-    try {
-      const result = await generateObject({
-        model: this.model,
-        messages: this.convertMessages(options.messages),
-        system: options.system,
-        schema: options.schema,
-        maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
-        temperature: options.temperature ?? this.config.temperature ?? 0.3,
-      });
+    const maxRetries = options.maxRetries ?? 2;
 
-      return result.object;
-    } catch (error: any) {
-      console.log('[LLMService] generateObject failed, attempting to fix...');
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // 对于重试，逐渐降低温度以获得更确定性的输出
+        const temperature = attempt === 0
+          ? (options.temperature ?? this.config.temperature ?? 0.3)
+          : Math.max(0.1, (options.temperature ?? 0.3) - (attempt * 0.1));
 
-      // 统计错误
-      LLMService.errorStats.totalErrors++;
+        if (attempt > 0) {
+          console.log(`[LLMService] Retry attempt ${attempt}/${maxRetries} with temperature ${temperature.toFixed(2)}`);
+        }
 
-      // 尝试修复并返回
-      const fixed = this.tryFixGeneratedObject(error, options.schema);
-      if (fixed) {
-        LLMService.errorStats.fixedErrors++;
-        console.log('[LLMService] ✅ Error fixed successfully');
+        const result = await generateObject({
+          model: this.model,
+          messages: this.convertMessages(options.messages),
+          system: options.system,
+          schema: options.schema,
+          maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
+          temperature,
+        });
+
+        if (attempt > 0) {
+          console.log(`[LLMService] ✅ Retry attempt ${attempt} succeeded`);
+        }
+
+        return result.object;
+      } catch (error: any) {
+        const isLastAttempt = attempt === maxRetries;
+
+        console.log(`[LLMService] generateObject failed (attempt ${attempt + 1}/${maxRetries + 1}), attempting to fix...`);
+
+        // 统计错误（只在最后一次尝试时统计）
+        if (isLastAttempt) {
+          LLMService.errorStats.totalErrors++;
+        }
+
+        // 尝试修复并返回
+        const fixed = this.tryFixGeneratedObject(error, options.schema);
+        if (fixed) {
+          if (isLastAttempt) {
+            LLMService.errorStats.fixedErrors++;
+          }
+          console.log('[LLMService] ✅ Error fixed successfully');
+          console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
+          return fixed as T;
+        }
+
+        // 如果修复失败，且还有重试机会，继续重试
+        if (!isLastAttempt) {
+          console.log(`[LLMService] Fix failed, will retry with lower temperature...`);
+          await this.sleep(1000 * (attempt + 1)); // 指数退避
+          continue;
+        }
+
+        // 如果是最后一次尝试且修复失败，抛出错误
+        LLMService.errorStats.unfixedErrors++;
+        console.error('[LLMService] ❌ All fix attempts and retries failed');
         console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
-        return fixed as T;
+        throw error;
       }
-
-      // 如果所有修复尝试都失败，重新抛出原始错误
-      LLMService.errorStats.unfixedErrors++;
-      console.error('[LLMService] ❌ All fix attempts failed');
-      console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
-      throw error;
     }
+
+    // 理论上不会到达这里
+    throw new Error('Unexpected error in generateObject retry logic');
+  }
+
+  /**
+   * 简单的延迟函数
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
