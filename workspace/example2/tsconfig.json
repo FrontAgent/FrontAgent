@@ -1,0 +1,58 @@
+{
+  "files": [
+    {
+      "path": "tsconfig.json",
+      "content": {
+        "compilerOptions": {
+          "target": "ES2020",
+          "lib": [
+            "DOM",
+            "DOM.Iterable",
+            "ES2020"
+          ],
+          "jsx": "react-jsx",
+          "module": "ESNext",
+          "moduleResolution": "Bundler",
+          "strict": true,
+          "baseUrl": ".",
+          "paths": {
+            "@/*": [
+              "src/*"
+            ]
+          },
+          "noEmit": true,
+          "types": [
+            "vite/client"
+          ]
+        },
+        "include": [
+          "src"
+        ],
+        "references": [
+          {
+            "path": "./tsconfig.node.json"
+          }
+        ]
+      }
+    },
+    {
+      "path": "tsconfig.node.json",
+      "content": {
+        "compilerOptions": {
+          "composite": true,
+          "module": "ESNext",
+          "moduleResolution": "Node",
+          "types": [
+            "node"
+          ],
+          "allowSyntheticDefaultImports": true
+        },
+        "include": [
+          "vite.config.ts",
+          "postcss.config.ts",
+          "tailwind.config.ts"
+        ]
+      }
+    }
+  ]
+}
