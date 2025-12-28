@@ -289,7 +289,20 @@ export class FrontAgent {
                 const filePath = step.params.path as string;
                 executionContext.collectedContext.files.set(filePath, result.content);
                 if (this.config.debug) {
-                  console.log(`[Agent] Added file to context: ${filePath}`);
+                  console.log(`[Agent] Added read file to context: ${filePath}`);
+                }
+              }
+            }
+
+            // 如果是 create_file，也将创建的内容添加到上下文（用于后续代码生成时知道哪些模块已存在）
+            if (step.action === 'create_file' && step.params.path) {
+              const filePath = step.params.path as string;
+              const result = output.stepResult.output as any;
+              const content = result?.content || step.params.content as string || '';
+              if (content) {
+                executionContext.collectedContext.files.set(filePath, content);
+                if (this.config.debug) {
+                  console.log(`[Agent] Added created file to context: ${filePath}`);
                 }
               }
             }

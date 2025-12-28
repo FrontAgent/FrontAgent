@@ -547,6 +547,34 @@ export class ContextManager {
   }
 
   /**
+   * 获取已创建的模块路径列表
+   * 用于在代码生成时告知 LLM 哪些模块已存在
+   */
+  getCreatedModulePaths(taskId: string): string[] {
+    const context = this.contexts.get(taskId);
+    if (!context) return [];
+
+    const { moduleDependencyGraph, filesystem } = context.facts;
+
+    // 合并模块依赖图中的模块和文件系统中确认存在的 JS/TS 文件
+    const modulePaths = new Set<string>();
+
+    // 从模块依赖图获取
+    for (const path of moduleDependencyGraph.modules.keys()) {
+      modulePaths.add(path);
+    }
+
+    // 从文件系统事实获取
+    for (const path of filesystem.existingFiles) {
+      if (/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) {
+        modulePaths.add(path);
+      }
+    }
+
+    return Array.from(modulePaths);
+  }
+
+  /**
    * 添加错误事实
    */
   addErrorFact(

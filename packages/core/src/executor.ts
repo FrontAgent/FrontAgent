@@ -26,6 +26,8 @@ export interface ExecutorConfig {
   llmService: LLMService;
   /** 调试模式 */
   debug?: boolean;
+  /** 获取已创建模块列表的回调（用于防止路径幻觉） */
+  getCreatedModules?: () => string[];
 }
 
 /**
@@ -149,9 +151,14 @@ export class Executor {
           const codeDescription = (toolParams.codeDescription as string) || step.description;
           const contextStr = this.buildContextString(context.collectedContext);
 
+          // 获取已创建的模块列表（用于防止路径幻觉）
+          const existingModules = this.config.getCreatedModules?.() ??
+            Array.from(context.collectedContext.files.keys()).filter(f => /\.(tsx?|jsx?|mjs|cjs)$/.test(f));
+
           if (this.config.debug) {
             console.log(`[Executor] Generating code for new file: ${filePath}`);
             console.log(`[Executor] Code description: ${codeDescription}`);
+            console.log(`[Executor] Existing modules: ${existingModules.length}`);
           }
 
           // Executor 只按照 Planner 的规划执行，不再关注 SDD（SDD 已在 Planner 阶段约束）
@@ -161,6 +168,7 @@ export class Executor {
             codeDescription,
             context: contextStr,
             language: language || 'typescript',
+            existingModules,
           });
 
           if (this.config.debug) {

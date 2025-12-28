@@ -836,7 +836,14 @@ ${options.context}
     context: string;
     existingCode?: string;
     language: string;
+    /** 已创建的模块列表（用于防止路径幻觉） */
+    existingModules?: string[];
   }): Promise<string> {
+    // 提取上下文中已存在的模块
+    const existingModulesInfo = options.existingModules?.length
+      ? `\n# 🚨 已创建的模块（只能引用这些模块！）\n${options.existingModules.map(m => `- ${m}`).join('\n')}`
+      : '';
+
     const system = `你是一个专业的代码生成器。你的唯一任务是生成代码，不要做任何其他事情。
 
 # 严格规则
@@ -849,6 +856,26 @@ ${options.context}
 - 文件路径: ${options.filePath}
 - 语言: ${options.language}
 - 要求: ${options.codeDescription}
+${existingModulesInfo}
+
+# 🚨 导入路径规则（非常重要！）
+
+## 禁止引用不存在的模块
+1. **只能引用上面列出的"已创建的模块"**
+2. **不要假设任何模块存在**，除非它在列表中
+3. **禁止编造路径**：如 \`../components/ui/Spinner\` 等未列出的模块
+4. **外部依赖除外**：react、tailwindcss 等 npm 包可以正常引用
+
+## 如果需要某个组件但它不在已创建列表中：
+- ❌ 不要 import 它
+- ✅ 在当前文件中内联实现，或者暂时用占位符
+
+## 示例：
+假设已创建模块只有: src/components/Button.tsx
+
+✅ 正确: import { Button } from '../components/Button';
+❌ 错误: import { Card } from '../components/Card'; // Card 不在列表中！
+❌ 错误: import { Spinner } from '../components/ui/Spinner'; // 不存在！
 
 # 配置文件特殊要求
 ${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
@@ -872,6 +899,7 @@ ${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
 - 使用 TypeScript 类型系统
 - 遵循项目代码风格
 - 严格按照 Planner 提供的 codeDescription 要求生成代码
+- **只引用已存在的模块或外部 npm 包**
 
 # 输出示例
 对于一个 React 组件，你应该直接输出：
