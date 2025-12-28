@@ -138,6 +138,7 @@ export class LLMService {
       return result.object;
     } catch (error: any) {
       // 修复：AI SDK 有时会将对象包装在 $PARAMETER_NAME 或 $parameter 等键下
+      // 或者将数组/对象字段错误地序列化为 JSON 字符串
       // 这是 Anthropic provider 的一个已知问题
       // 如果验证失败，尝试从错误中提取并解包对象
 
@@ -145,7 +146,7 @@ export class LLMService {
       const errorToCheck = error.cause || error;
 
       if (errorToCheck.value && typeof errorToCheck.value === 'object') {
-        // 查找任何以 $ 开头的键
+        // 1. 首先检查是否有 $ 包装键
         const wrapperKey = Object.keys(errorToCheck.value).find(key => key.startsWith('$'));
 
         if (wrapperKey) {
@@ -158,12 +159,38 @@ export class LLMService {
             return validated as T;
           } catch (validationError) {
             console.error('[LLMService] Failed to validate unwrapped object:', validationError);
-            throw error; // 如果解包后的对象也无效，抛出原始错误
+            // 继续尝试其他修复方法
+          }
+        }
+
+        // 2. 检查是否有字符串字段需要解析为 JSON
+        const fixedValue = { ...errorToCheck.value };
+        let hasStringFields = false;
+
+        for (const [key, value] of Object.entries(fixedValue)) {
+          if (typeof value === 'string' && (value.trim().startsWith('[') || value.trim().startsWith('{'))) {
+            try {
+              fixedValue[key] = JSON.parse(value);
+              hasStringFields = true;
+              console.log(`[LLMService] Parsed string field "${key}" as JSON`);
+            } catch (parseError) {
+              // 无法解析，保持原样
+            }
+          }
+        }
+
+        if (hasStringFields) {
+          // 尝试验证修复后的对象
+          try {
+            const validated = options.schema.parse(fixedValue);
+            return validated as T;
+          } catch (validationError) {
+            console.error('[LLMService] Failed to validate after parsing string fields:', validationError);
           }
         }
       }
 
-      // 如果没有包装键，重新抛出原始错误
+      // 如果所有修复尝试都失败，重新抛出原始错误
       throw error;
     }
   }
