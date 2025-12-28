@@ -567,6 +567,116 @@ export class Executor {
   }
 
   /**
+   * 按阶段执行步骤，支持错误反馈循环（Tool Error Feedback Loop）
+   */
+  async executeStepsWithErrorFeedback(
+    steps: ExecutionStep[],
+    context: {
+      task: AgentTask;
+      collectedContext: { files: Map<string, string> };
+    },
+    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
+    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>
+  ): Promise<ExecutorOutput[]> {
+    // 按阶段分组
+    const phaseGroups = new Map<string, ExecutionStep[]>();
+    for (const step of steps) {
+      const phase = step.phase || '未分组';
+      if (!phaseGroups.has(phase)) {
+        phaseGroups.set(phase, []);
+      }
+      phaseGroups.get(phase)!.push(step);
+    }
+
+    const allResults: ExecutorOutput[] = [];
+    const completedStepIds = new Set<string>();
+
+    // 按阶段顺序执行
+    for (const [phase, phaseSteps] of phaseGroups) {
+      console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
+
+      // 执行该阶段的所有步骤
+      const phaseResults: ExecutorOutput[] = [];
+      const phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
+
+      for (const step of phaseSteps) {
+        // 检查依赖是否都已完成
+        const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
+        if (!dependenciesMet) {
+          console.warn(`[Executor] Skipping step ${step.stepId}: dependencies not met`);
+          step.status = 'skipped';
+          continue;
+        }
+
+        step.status = 'running';
+        const output = await this.executeStep(step, context);
+        step.result = output.stepResult;
+        step.status = output.stepResult.success ? 'completed' : 'failed';
+
+        phaseResults.push(output);
+        allResults.push(output);
+
+        if (output.stepResult.success) {
+          completedStepIds.add(step.stepId);
+        } else {
+          // 收集错误
+          phaseErrors.push({
+            step,
+            error: output.stepResult.error || 'Unknown error'
+          });
+        }
+
+        if (onStepComplete) {
+          onStepComplete(step, output);
+        }
+      }
+
+      // 阶段结束后，检查是否有错误需要修复
+      if (phaseErrors.length > 0 && onPhaseError) {
+        console.log(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, requesting recovery plan...`);
+
+        try {
+          const recoverySteps = await onPhaseError(phase, phaseErrors);
+          if (recoverySteps.length > 0) {
+            console.log(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
+
+            // 将修复步骤插入到当前阶段的步骤组中
+            // 为修复步骤添加适当的依赖关系
+            for (const recoveryStep of recoverySteps) {
+              recoveryStep.phase = phase; // 确保属于同一阶段
+              phaseSteps.push(recoveryStep);
+            }
+
+            // 重新执行修复步骤
+            for (const recoveryStep of recoverySteps) {
+              recoveryStep.status = 'running';
+              const output = await this.executeStep(recoveryStep, context);
+              recoveryStep.result = output.stepResult;
+              recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
+
+              allResults.push(output);
+
+              if (output.stepResult.success) {
+                completedStepIds.add(recoveryStep.stepId);
+              }
+
+              if (onStepComplete) {
+                onStepComplete(recoveryStep, output);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`[Executor] Failed to generate recovery plan:`, error);
+        }
+      }
+
+      console.log(`[Executor] Phase ${phase} completed`);
+    }
+
+    return allResults;
+  }
+
+  /**
    * 回滚操作
    */
   async rollback(snapshotId: string): Promise<{ success: boolean; message: string }> {

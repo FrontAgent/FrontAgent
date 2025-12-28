@@ -3,7 +3,7 @@
  * 负责整体编排
  */
 
-import type { AgentTask, ExecutionPlan, SDDConfig, ValidationResult } from '@frontagent/shared';
+import type { AgentTask, ExecutionPlan, ExecutionStep, SDDConfig, ValidationResult } from '@frontagent/shared';
 import { generateId } from '@frontagent/shared';
 import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
@@ -251,14 +251,16 @@ export class FrontAgent {
         throw new Error('Execution context not found');
       }
 
-      // 执行阶段：Executor 只关注执行 Plan，不再传递 SDD 约束
+      // 执行阶段：使用错误反馈循环机制
+      // Executor 只关注执行 Plan，不再传递 SDD 约束
       // SDD 已在 Planner 阶段约束，确保生成的 Plan 符合 SDD 规范
-      await this.executor.executeSteps(
+      await this.executor.executeStepsWithErrorFeedback(
         planResult.plan.steps,
         {
           task,
           collectedContext: { files: executionContext.collectedContext.files },
         },
+        // onStepComplete
         (step, output) => {
           if (output.stepResult.success) {
             this.emit({ type: 'step_completed', step, result: output.stepResult });
@@ -281,6 +283,53 @@ export class FrontAgent {
 
           // 更新上下文
           this.contextManager.addExecutedStep(task.id, step);
+        },
+        // onPhaseError: Tool Error Feedback Loop
+        async (phase, errors) => {
+          console.log(`[Agent] Error feedback loop triggered for phase: ${phase}`);
+
+          // 构建上下文摘要
+          const contextSummary = Array.from(executionContext.collectedContext.files.entries())
+            .map(([path, _]) => path)
+            .join(', ');
+
+          // 调用LLM分析错误并生成修复步骤
+          const recoveryPlan = await this.llmService.analyzeErrorsAndGenerateRecovery({
+            task: task.description,
+            phase,
+            failedSteps: errors.map(e => ({
+              description: e.step.description,
+              action: e.step.action,
+              params: e.step.params,
+              error: e.error
+            })),
+            context: `已读取的文件: ${contextSummary || '无'}`
+          });
+
+          console.log(`[Agent] Recovery plan analysis: ${recoveryPlan.analysis}`);
+          console.log(`[Agent] Can recover: ${recoveryPlan.canRecover}`);
+          console.log(`[Agent] Recommendation: ${recoveryPlan.recommendation}`);
+
+          if (!recoveryPlan.canRecover) {
+            console.warn(`[Agent] Cannot recover from errors in phase ${phase}`);
+            return [];
+          }
+
+          // 将LLM生成的修复步骤转换为ExecutionStep
+          const recoverySteps: ExecutionStep[] = recoveryPlan.recoverySteps.map((step, idx) => ({
+            stepId: generateId('recovery-step'),
+            description: step.description,
+            action: step.action as any,
+            tool: step.tool,
+            params: step.params as Record<string, unknown>,
+            dependencies: idx > 0 ? [generateId('recovery-step')] : [],
+            validation: [],
+            status: 'pending' as const,
+            phase: step.phase
+          }));
+
+          console.log(`[Agent] Generated ${recoverySteps.length} recovery steps`);
+          return recoverySteps;
         }
       );
 

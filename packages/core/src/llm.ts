@@ -1032,6 +1032,98 @@ ${options.originalCode}
   getConfig(): LLMConfig {
     return { ...this.config };
   }
+
+  /**
+   * 分析错误并生成修复计划（Tool Error Feedback Loop）
+   */
+  async analyzeErrorsAndGenerateRecovery(options: {
+    task: string;
+    phase: string;
+    failedSteps: Array<{
+      description: string;
+      action: string;
+      params: Record<string, unknown>;
+      error: string;
+    }>;
+    context: string;
+  }): Promise<ErrorRecoveryPlan> {
+    const system = `你是一个专业的错误诊断和恢复规划专家。你的任务是分析工具执行过程中的错误，并生成修复步骤。
+
+# 你的职责
+1. 分析为什么这些步骤会失败
+2. 判断是否可以通过生成新的步骤来修复问题
+3. 如果可以修复，生成详细的修复步骤
+4. 提供避免类似错误的建议
+
+# 常见错误类型及修复策略
+
+## 1. "Cannot apply patch: file not found in context"
+**原因**: apply_patch 需要修改的文件没有被读取到 context 中
+**修复**: 在 apply_patch 之前添加 read_file 步骤读取该文件
+
+## 2. "File already exists"
+**原因**: create_file 尝试创建已存在的文件
+**修复**:
+- 如果需要修改，改用 apply_patch
+- 如果需要覆盖，添加 overwrite: true 参数
+- 如果不需要创建，跳过该步骤
+
+## 3. "Directory not found" / "File not found"
+**原因**: 文件或目录不存在
+**修复**:
+- 先使用 list_directory 确认目录结构
+- 如果需要创建目录，使用 run_command: mkdir -p
+- 调整文件路径到正确位置
+
+## 4. "MODULE_NOT_FOUND" / "Command failed"
+**原因**: 依赖未安装或命令不存在
+**修复**:
+- 先检查 package.json
+- 执行 npm install 或 pnpm install
+- 确认命令路径正确
+
+# 修复步骤生成原则
+1. **最小修复**: 只生成必要的修复步骤，不重复原有成功的步骤
+2. **保持阶段**: 修复步骤的 phase 字段应与原失败步骤的 phase 保持一致
+3. **顺序正确**: 确保修复步骤的依赖关系正确（如先 read_file 再 apply_patch）
+4. **完整参数**: 确保所有必需参数都已填充，path 必须包含文件扩展名
+
+# 输出要求
+- canRecover: 如果错误可以通过生成步骤修复则为 true，否则为 false
+- analysis: 清晰说明错误原因
+- recoverySteps: 修复步骤数组（按执行顺序排列）
+- recommendation: 给出建议`;
+
+    const errorSummary = options.failedSteps.map((step, idx) =>
+      `${idx + 1}. [${step.action}] ${step.description}
+   参数: ${JSON.stringify(step.params, null, 2)}
+   错误: ${step.error}`
+    ).join('\n\n');
+
+    const messages: Message[] = [
+      {
+        role: 'user',
+        content: `任务: ${options.task}
+当前阶段: ${options.phase}
+
+执行上下文:
+${options.context}
+
+以下步骤执行失败:
+${errorSummary}
+
+请分析这些错误并生成修复计划。`
+      }
+    ];
+
+    return this.generateObject({
+      messages,
+      system,
+      schema: ErrorRecoveryPlanSchema,
+      temperature: 0.3,
+      maxTokens: 8192,
+    });
+  }
 }
 
 /**
@@ -1157,6 +1249,51 @@ const GeneratedPlanSchema = z.object({
 });
 
 export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
+
+/**
+ * 错误修复计划 Schema
+ */
+const ErrorRecoveryPlanSchema = z.object({
+  canRecover: z.boolean().describe('是否可以通过生成修复步骤来解决问题'),
+  analysis: z.string().describe('错误分析：为什么会出现这些错误'),
+  recoverySteps: z.array(z.object({
+    description: z.string().describe('修复步骤描述'),
+    action: z.enum([
+      'read_file',
+      'list_directory',
+      'create_file',
+      'apply_patch',
+      'search_code',
+      'get_ast',
+      'run_command',
+      'browser_navigate',
+      'get_page_structure',
+      'browser_click',
+      'browser_type',
+      'browser_screenshot'
+    ]).describe('修复动作'),
+    tool: z.string().describe('工具名称'),
+    phase: z.string().describe('所属阶段'),
+    params: z.object({
+      path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
+      recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+      pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+      directory: z.string().describe('搜索目录（不适用时填空字符串）'),
+      command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
+      url: z.string().describe('URL（不适用时填空字符串）'),
+      selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
+      text: z.string().describe('输入文本（不适用时填空字符串）'),
+      fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
+      codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
+      changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
+    }).describe('工具参数'),
+    reasoning: z.string().describe('为什么需要这个修复步骤'),
+    needsCodeGeneration: z.boolean().describe('是否需要代码生成'),
+  })).describe('修复步骤列表（如果canRecover为false则为空数组）'),
+  recommendation: z.string().describe('建议：如何避免类似错误，或者如果无法修复应该如何处理'),
+});
+
+export type ErrorRecoveryPlan = z.infer<typeof ErrorRecoveryPlanSchema>;
 
 /**
  * 生成的代码 Schema
