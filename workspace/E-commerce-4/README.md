@@ -1,10 +1,10 @@
-# React Todo App
+# E-commerce 电商平台
 
-一个使用现代前端技术栈构建的待办事项管理应用。
+一个使用现代前端技术栈构建的全功能电商平台应用。
 
 ## 📖 项目简介
 
-这是一个功能完整的待办事项管理应用，支持任务的创建、编辑、删除、分类、优先级设置等功能。采用现代化的 UI 设计，提供流畅的用户体验。
+这是一个功能完整的电商平台，支持商品浏览、搜索筛选、购物车管理、用户注册登录、订单结账等完整的电商购物流程。采用现代化的 UI 设计，提供流畅的用户体验。
 
 ## 🛠️ 技术栈
 
@@ -14,20 +14,49 @@
 - **Tailwind CSS** - 实用优先的 CSS 框架
 - **Zustand** - 轻量级状态管理库
 - **React Router v6** - React 应用的声明式路由
-- **date-fns** - 现代 JavaScript 日期工具库
-- **UUID** - 用于生成唯一标识符
+- **Lucide React** - 现代化图标库
 
 ## ✨ 功能特性
 
-- ✅ 创建、编辑、删除待办事项
-- 📂 任务分类管理（工作、个人、购物、健康等）
-- 🎯 优先级设置（高、中、低）
-- 📅 截止日期设置与提醒
-- 🔍 任务搜索与筛选
-- 📊 任务统计与概览
-- 💾 本地数据持久化
-- 📱 响应式设计，支持移动端
-- 🎨 现代化 UI 设计
+### 商品管理
+- 商品列表展示与分页
+- 商品详情页面
+- 商品搜索功能
+- 多条件筛选（分类、价格区间、库存状态）
+- 商品评分与评论展示
+
+### 购物车
+- 添加/删除商品
+- 修改商品数量
+- 购物车金额统计
+- 购物车图标实时更新
+
+### 用户系统
+- 用户注册与登录
+- 个人信息管理
+- 收货地址管理
+- 订单历史查询
+
+### 订单流程
+- 订单结算页面
+- 多种支付方式选择
+- 订单确认
+- 订单状态跟踪
+
+### 商品分类
+- 电子产品（手机、电脑、数码配件等）
+- 服装（男装、女装、童装及配件）
+- 食品（零食、饮料、生鲜等）
+- 家居（家具、厨具、家电等）
+- 运动（健身器材、户外用品）
+- 美妆（护肤品、彩妆、个人护理）
+- 图书（图书、电子书、文具）
+
+### 其他特性
+- 响应式设计，支持移动端
+- 本地数据持久化
+- 路由懒加载优化
+- 现代化 UI 设计
 
 ## 🚀 快速开始
 
@@ -38,7 +67,9 @@
 
 ### 安装依赖
 
+```bash
 npm install
+```
 
 ### 启动开发服务器
 
@@ -56,6 +87,12 @@ npm run build
 
 构建产物将输出到 `dist` 目录。
 
+### 类型检查
+
+```bash
+npm run typecheck
+```
+
 ### 预览生产版本
 
 ```bash
@@ -65,48 +102,129 @@ npm run preview
 ## 📁 项目目录结构
 
 ```
-react-todo-app/
-├── public/                 # 静态资源目录
+E-commerce-4/
+├── assets/                 # 静态资源（商品图片等）
 ├── src/
 │   ├── components/         # 组件目录
-│   │   ├── common/         # 通用组件
-│   │   │   ├── Button.tsx
-│   │   │   ├── Input.tsx
-│   │   │   ├── Modal.tsx
-│   │   │   └── Select.tsx
-│   │   ├── layout/         # 布局组件
+│   │   ├── cart/          # 购物车相关组件
+│   │   │   ├── CartIcon.tsx
+│   │   │   ├── CartItem.tsx
+│   │   │   ├── CartList.tsx
+│   │   │   └── CartSummary.tsx
+│   │   ├── checkout/      # 结账相关组件
+│   │   │   ├── CheckoutForm.tsx
+│   │   │   ├── OrderConfirmation.tsx
+│   │   │   └── PaymentMethod.tsx
+│   │   ├── common/        # 通用组件
+│   │   │   ├── Badge.tsx
+│   │   │   ├── Card.tsx
+│   │   │   └── Loading.tsx
+│   │   ├── layout/        # 布局组件
+│   │   │   ├── Footer.tsx
 │   │   │   ├── Header.tsx
-│   │   │   ├── Sidebar.tsx
-│   │   │   └── Layout.tsx
-│   │   └── todo/           # 待办事项相关组件
-│   │       ├── TodoItem.tsx
-│   │       ├── TodoList.tsx
-│   │       ├── TodoForm.tsx
-│   │       └── TodoFilter.tsx
-│   ├── hooks/              # 自定义 Hooks
-│   │   └── useTodos.ts
-│   ├── pages/              # 页面组件
+│   │   │   ├── Layout.tsx
+│   │   │   ├── Navbar.tsx
+│   │   │   └── Sidebar.tsx
+│   │   ├── product/       # 商品相关组件
+│   │   │   ├── ProductCard.tsx
+│   │   │   ├── ProductDetail.tsx
+│   │   │   ├── ProductFilter.tsx
+│   │   │   ├── ProductList.tsx
+│   │   │   └── ProductSearch.tsx
+│   │   └── user/          # 用户相关组件
+│   │       ├── AddressForm.tsx
+│   │       ├── LoginForm.tsx
+│   │       ├── RegisterForm.tsx
+│   │       └── UserProfile.tsx
+│   ├── contexts/          # React Context
+│   │   ├── AuthContext.tsx
+│   │   └── CartContext.tsx
+│   ├── data/              # Mock 数据
+│   │   ├── mockCategories.ts
+│   │   └── mockProducts.ts
+│   ├── hooks/             # 自定义 Hooks
+│   │   ├── useAuth.ts
+│   │   ├── useCart.ts
+│   │   └── useProducts.ts
+│   ├── pages/             # 页面组件
 │   │   ├── HomePage.tsx
-│   │   ├── TodoPage.tsx
-│   │   └── StatsPage.tsx
-│   ├── store/              # 状态管理
-│   │   └── todoStore.ts
-│   ├── types/              # TypeScript 类型定义
+│   │   ├── ProductsPage.tsx
+│   │   ├── ProductDetailPage.tsx
+│   │   ├── CartPage.tsx
+│   │   ├── CheckoutPage.tsx
+│   │   ├── OrdersPage.tsx
+│   │   ├── LoginPage.tsx
+│   │   ├── RegisterPage.tsx
+│   │   ├── ProfilePage.tsx
+│   │   └── NotFoundPage.tsx
+│   ├── router/            # 路由配置
+│   │   ├── index.tsx
+│   │   └── PrivateRoute.tsx
+│   ├── store/             # Zustand 状态管理
+│   │   ├── authStore.ts
+│   │   ├── cartStore.ts
+│   │   ├── orderStore.ts
+│   │   └── userStore.ts
+│   ├── types/             # TypeScript 类型定义
+│   │   ├── cart.ts
+│   │   ├── order.ts
+│   │   ├── product.ts
+│   │   ├── user.ts
 │   │   └── index.ts
-│   ├── utils/              # 工具函数
+│   ├── utils/             # 工具函数
+│   │   ├── api.ts
+│   │   ├── formatters.ts
 │   │   ├── storage.ts
-│   │   └── date.ts
-│   ├── App.tsx             # 应用根组件
-│   ├── main.tsx            # 应用入口
-│   └── index.css           # 全局样式
-├── index.html              # HTML 模板
-├── package.json            # 项目配置
-├── tsconfig.json           # TypeScript 配置
-├── vite.config.ts          # Vite 配置
-├── tailwind.config.js      # Tailwind CSS 配置
-├── postcss.config.js       # PostCSS 配置
-└── README.md               # 项目说明文档
+│   │   └── validators.ts
+│   ├── App.tsx            # 应用根组件
+│   ├── main.tsx           # 应用入口
+│   └── index.css          # 全局样式
+├── index.html             # HTML 模板
+├── package.json           # 项目配置
+├── tsconfig.json          # TypeScript 配置
+├── vite.config.ts         # Vite 配置
+├── tailwind.config.cjs    # Tailwind CSS 配置
+├── postcss.config.cjs     # PostCSS 配置
+└── README.md              # 项目说明文档
 ```
+
+## 🔑 主要页面路由
+
+- `/` - 首页（商品推荐、分类导航）
+- `/products` - 商品列表页
+- `/products/:id` - 商品详情页
+- `/cart` - 购物车页面
+- `/checkout` - 订单结算页面
+- `/orders` - 我的订单页面
+- `/login` - 用户登录
+- `/register` - 用户注册
+- `/profile` - 个人中心
+
+## 📦 数据模型
+
+### Product（商品）
+- 基本信息：名称、描述、价格、图片
+- 库存信息：库存数量、可售状态
+- 促销信息：原价、折扣价
+- 分类标签：所属分类、商品标签
+- 评价信息：评分、评论数
+
+### Cart（购物车）
+- 商品列表
+- 数量管理
+- 金额统计
+
+### Order（订单）
+- 订单信息：订单号、下单时间
+- 商品列表
+- 收货地址
+- 支付方式
+- 订单状态
+
+### User（用户）
+- 基本信息：用户名、邮箱、手机号
+- 收货地址列表
+- 订单历史
 
 ## 📝 开发规范
 
@@ -114,24 +232,24 @@ react-todo-app/
 
 - 使用 TypeScript 进行类型安全的开发
 - 组件使用函数式组件 + Hooks
-- 使用 ESLint 进行代码检查
-- 使用 Prettier 进行代码格式化
+- 合理使用 Context 和 Zustand 进行状态管理
+- 保持组件的单一职责原则
 
 ### 命名规范
 
-- **组件文件**: PascalCase（如 `TodoItem.tsx`）
-- **工具函数文件**: camelCase（如 `storage.ts`）
-- **组件名**: PascalCase（如 `TodoItem`）
-- **函数名**: camelCase（如 `handleSubmit`）
-- **常量**: UPPER_SNAKE_CASE（如 `MAX_TODO_COUNT`）
-- **类型/接口**: PascalCase，接口以 `I` 开头或使用 `Type` 后缀
+- **组件文件**: PascalCase（如 `ProductCard.tsx`）
+- **工具函数文件**: camelCase（如 `formatters.ts`）
+- **组件名**: PascalCase（如 `ProductCard`）
+- **函数名**: camelCase（如 `handleAddToCart`）
+- **常量**: UPPER_SNAKE_CASE（如 `MAX_CART_ITEMS`）
+- **类型/接口**: PascalCase（如 `Product`, `CartItem`）
 
 ### 组件规范
 
 - 每个组件一个文件
 - 组件 Props 使用 TypeScript 接口定义
-- 使用 React.FC 类型注解
-- 合理拆分组件，保持单一职责
+- 合理拆分组件，保持代码可维护性
+- 使用路由懒加载优化性能
 
 ### Git 提交规范
 
