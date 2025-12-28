@@ -417,7 +417,7 @@ export class FrontAgent {
             }
 
             // 2. 检查缺失的 npm 依赖（检查代码中使用但未在 package.json 中声明的依赖）
-            const missingDeps = await this.checkMissingNpmDependencies(task.id, executionContext.collectedContext.files);
+            const missingDeps = await this.checkMissingNpmDependencies(executionContext.collectedContext.files);
             if (missingDeps.length > 0) {
               console.log(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
               // 生成安装缺失依赖的步骤
@@ -542,7 +542,6 @@ export class FrontAgent {
    * 需要从执行上下文中传入 collectedContext
    */
   private async checkMissingNpmDependencies(
-    taskId: string,
     collectedFiles: Map<string, string> = new Map()
   ): Promise<string[]> {
     // 读取 package.json
