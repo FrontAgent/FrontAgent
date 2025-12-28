@@ -325,6 +325,12 @@ export class Executor {
           return { valid: false, reason: `${step.action} requires non-empty selector parameter` };
         }
         break;
+
+      case 'get_ast':
+        if (!params.path || params.path.trim() === '') {
+          return { valid: false, reason: 'get_ast requires non-empty path parameter' };
+        }
+        break;
     }
 
     return { valid: true };
@@ -367,6 +373,14 @@ export class Executor {
          errorMsg.includes('MODULE_NOT_FOUND') ||
          errorMsg.includes('ENOENT')) &&
         action === 'run_command') {
+      return true;
+    }
+
+    // get_ast 的文件错误（文件不存在、路径是目录等）
+    if ((errorMsg.includes('File not found') ||
+         errorMsg.includes('does not exist') ||
+         errorMsg.includes('Not a file')) &&
+        action === 'get_ast') {
       return true;
     }
 
