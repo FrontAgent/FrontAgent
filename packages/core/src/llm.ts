@@ -356,9 +356,28 @@ ${options.sddConstraints ?? '无特殊约束'}
 5. reasoning - 为什么需要这个步骤
 6. needsCodeGeneration - 是否需要代码生成（create_file和apply_patch设为true）
 
-# 重要原则
-- create_file: params 包含 path 和 codeDescription，设置 needsCodeGeneration: true
-- apply_patch: params 包含 path 和 changeDescription，设置 needsCodeGeneration: true
+# 🚨 关键原则：文件路径必须包含完整扩展名 🚨
+
+## create_file / apply_patch 的 path 参数规则：
+**必须包含完整的文件扩展名**，根据文件类型选择正确的扩展名：
+
+✅ **正确示例**：
+- TypeScript 文件：\`src/types/product.ts\`
+- React 组件：\`src/components/ui/Button.tsx\`
+- 工具函数：\`src/utils/format.ts\`
+- Hook：\`src/hooks/useAuth.ts\`
+- Store：\`src/stores/useCartStore.ts\`
+- 样式文件：\`src/styles/global.css\`
+- 配置文件：\`tailwind.config.ts\`, \`vite.config.ts\`
+
+❌ **错误示例**：
+- ❌ \`src/types\` → 应该是 \`src/types/index.ts\` 或具体文件名如 \`src/types/product.ts\`
+- ❌ \`src/utils\` → 应该是 \`src/utils/format.ts\` 等具体文件
+- ❌ \`src/components/ui\` → 应该是 \`src/components/ui/Button.tsx\` 等具体组件文件
+
+## 其他参数规则：
+- create_file: params 包含 **path（含扩展名）** 和 codeDescription，设置 needsCodeGeneration: true
+- apply_patch: params 包含 **path（含扩展名）** 和 changeDescription，设置 needsCodeGeneration: true
 - run_command: params 包含 command
 - browser 操作: params 包含 url/selector 等
 - 后台启动开发服务器使用: "nohup npm run dev > /dev/null 2>&1 & sleep 3"
@@ -522,13 +541,16 @@ ${options.sddConstraints ?? '无特殊约束'}
   - 参数: { pattern: "搜索模式" }
 
 - **create_file**: 创建新文件（两阶段架构）
-  - 参数: { path: "文件路径", codeDescription: "代码描述" }
+  - 参数: { path: "文件路径（含扩展名）", codeDescription: "代码描述" }
+  - ⚠️ **path 必须包含完整的文件扩展名**（.ts/.tsx/.css/.json 等）
   - ⚠️ **不要**在 params 中提供 content 字段
   - ✅ **必须**提供 codeDescription 描述要生成什么代码
   - ✅ **必须**设置 needsCodeGeneration: true
+  - 示例: { path: "src/components/ui/Button.tsx", codeDescription: "..." }
 
 - **apply_patch**: 修改现有文件（两阶段架构）
-  - 参数: { path: "文件路径", changeDescription: "修改描述" }
+  - 参数: { path: "文件路径（含扩展名）", changeDescription: "修改描述" }
+  - ⚠️ **path 必须包含完整的文件扩展名**（.ts/.tsx/.css/.json 等）
   - ⚠️ **不要**在 params 中提供 patches 字段
   - ✅ **必须**提供 changeDescription 描述要做什么修改
   - ✅ **必须**设置 needsCodeGeneration: true
@@ -543,10 +565,13 @@ ${options.sddConstraints ?? '无特殊约束'}
    - 分析项目结构时使用 **list_directory**（不是 read_file）
    - 读取文件内容时使用 **read_file**（必须是文件路径，不能是目录）
    - 例如：分析 src 目录结构 → 使用 list_directory，参数 { path: "src", recursive: true }
-2. **不要在 params 中包含任何代码**：对于 create_file 或 apply_patch 操作，只需在 codeDescription 或 changeDescription 中描述要生成什么代码或做什么修改
-3. **描述而非代码**：用自然语言描述要做什么，而不是直接给出代码
-4. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤（create_file, apply_patch），将 needsCodeGeneration 设为 true
-5. **清晰的文件路径**：确保 path 参数准确无误
+2. **🚨 文件路径必须包含完整扩展名**：
+   - create_file 和 apply_patch 的 path 参数**必须包含完整的文件扩展名**
+   - ✅ 正确：\`src/types/product.ts\`, \`src/components/ui/Button.tsx\`, \`src/utils/format.ts\`
+   - ❌ 错误：\`src/types\`, \`src/utils\`, \`src/components/ui\`
+3. **不要在 params 中包含任何代码**：对于 create_file 或 apply_patch 操作，只需在 codeDescription 或 changeDescription 中描述要生成什么代码或做什么修改
+4. **描述而非代码**：用自然语言描述要做什么，而不是直接给出代码
+5. **设置 needsCodeGeneration 标志**：对于需要生成代码的步骤（create_file, apply_patch），将 needsCodeGeneration 设为 true
 6. **项目初始化顺序**：
    - 创建前端项目时，必须先创建 package.json 和相关配置文件
    - 然后使用 run_command 安装依赖（如 npm install 或 pnpm install）
