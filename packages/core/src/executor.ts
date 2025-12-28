@@ -62,7 +62,6 @@ export class Executor {
     context: {
       task: AgentTask;
       collectedContext: { files: Map<string, string> };
-      sddConstraints?: string;
     }
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
@@ -155,13 +154,13 @@ export class Executor {
             console.log(`[Executor] Code description: ${codeDescription}`);
           }
 
+          // Executor 只按照 Planner 的规划执行，不再关注 SDD（SDD 已在 Planner 阶段约束）
           const code = await this.config.llmService.generateCodeForFile({
             task: context.task.description,
             filePath,
             codeDescription,
             context: contextStr,
             language: language || 'typescript',
-            sddConstraints: context.sddConstraints,
           });
 
           if (this.config.debug) {
@@ -188,12 +187,12 @@ export class Executor {
             console.log(`[Executor] Change description: ${changeDescription}`);
           }
 
+          // Executor 只按照 Planner 的规划执行，不再关注 SDD（SDD 已在 Planner 阶段约束）
           const modifiedCode = await this.config.llmService.generateModifiedCode({
             originalCode,
             changeDescription,
             filePath,
             language: language || 'typescript',
-            sddConstraints: context.sddConstraints,
           });
 
           if (this.config.debug) {
@@ -520,7 +519,6 @@ export class Executor {
     context: {
       task: AgentTask;
       collectedContext: { files: Map<string, string> };
-      sddConstraints?: string;
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void
   ): Promise<ExecutorOutput[]> {

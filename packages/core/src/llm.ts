@@ -810,7 +810,6 @@ ${options.context}
     context: string;
     existingCode?: string;
     language: string;
-    sddConstraints?: string;
   }): Promise<string> {
     const system = `你是一个专业的代码生成器。你的唯一任务是生成代码，不要做任何其他事情。
 
@@ -830,8 +829,7 @@ ${options.context}
 - 代码清晰、可维护
 - 使用 TypeScript 类型系统
 - 遵循项目代码风格
-
-${options.sddConstraints ? `# SDD 约束\n${options.sddConstraints}` : ''}
+- 严格按照 Planner 提供的 codeDescription 要求生成代码
 
 # 输出示例
 对于一个 React 组件，你应该直接输出：
@@ -934,7 +932,6 @@ ${options.code}
     changeDescription: string;
     filePath: string;
     language: string;
-    sddConstraints?: string;
   }): Promise<string> {
     const system = `你是一个专业的代码修改器。你的唯一任务是修改代码，不要做任何其他事情。
 
@@ -954,8 +951,7 @@ ${options.code}
 - 保持代码风格一致
 - 确保修改后代码语法正确
 - 保留所有未修改的部分
-
-${options.sddConstraints ? `# SDD 约束\n${options.sddConstraints}` : ''}
+- 严格按照 Planner 提供的 changeDescription 要求进行修改
 
 # 输出示例
 直接输出修改后的完整代码，不要有任何其他内容！`;

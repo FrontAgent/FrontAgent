@@ -251,12 +251,13 @@ export class FrontAgent {
         throw new Error('Execution context not found');
       }
 
+      // 执行阶段：Executor 只关注执行 Plan，不再传递 SDD 约束
+      // SDD 已在 Planner 阶段约束，确保生成的 Plan 符合 SDD 规范
       await this.executor.executeSteps(
         planResult.plan.steps,
         {
           task,
           collectedContext: { files: executionContext.collectedContext.files },
-          sddConstraints: this.promptGenerator?.generate(),
         },
         (step, output) => {
           if (output.stepResult.success) {
