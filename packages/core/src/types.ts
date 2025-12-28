@@ -97,6 +97,52 @@ export interface AgentContext {
   collectedContext: ContextInfo;
   /** 会话消息历史 */
   messages: Message[];
+  /** 项目事实 - 从工具执行中提取的结构化信息 */
+  facts: ProjectFacts;
+}
+
+/**
+ * 项目事实 - 从工具执行中提取的结构化信息
+ */
+export interface ProjectFacts {
+  /** 文件系统状态 */
+  filesystem: {
+    /** 已确认存在的文件 */
+    existingFiles: Set<string>;
+    /** 已确认存在的目录 */
+    existingDirectories: Set<string>;
+    /** 已确认不存在的文件/目录 */
+    nonExistentPaths: Set<string>;
+    /** 目录内容映射 */
+    directoryContents: Map<string, string[]>;
+  };
+  /** 依赖状态 */
+  dependencies: {
+    /** 已安装的包 */
+    installedPackages: Set<string>;
+    /** 缺失的包 */
+    missingPackages: Set<string>;
+  };
+  /** 项目状态 */
+  project: {
+    /** 开发服务器是否运行 */
+    devServerRunning: boolean;
+    /** 运行的端口 */
+    runningPort?: number;
+    /** 构建状态 */
+    buildStatus?: 'success' | 'failed' | 'unknown';
+  };
+  /** 错误历史 */
+  errors: Array<{
+    /** 步骤ID */
+    stepId: string;
+    /** 错误类型 */
+    type: string;
+    /** 错误消息 */
+    message: string;
+    /** 时间戳 */
+    timestamp: number;
+  }>;
 }
 
 /**

@@ -28,7 +28,24 @@ export class ContextManager {
         files: new Map(),
         metadata: {}
       },
-      messages: []
+      messages: [],
+      facts: {
+        filesystem: {
+          existingFiles: new Set(),
+          existingDirectories: new Set(),
+          nonExistentPaths: new Set(),
+          directoryContents: new Map()
+        },
+        dependencies: {
+          installedPackages: new Set(),
+          missingPackages: new Set()
+        },
+        project: {
+          devServerRunning: false,
+          buildStatus: 'unknown'
+        },
+        errors: []
+      }
     };
 
     this.contexts.set(task.id, context);
@@ -183,6 +200,221 @@ export class ContextManager {
     }
 
     return summary.join('\n');
+  }
+
+  /**
+   * 更新文件系统事实
+   */
+  updateFileSystemFacts(
+    taskId: string,
+    toolName: string,
+    params: Record<string, unknown>,
+    result: { success?: boolean; error?: string; [key: string]: unknown }
+  ): void {
+    const context = this.contexts.get(taskId);
+    if (!context) return;
+
+    const { facts } = context;
+
+    switch (toolName) {
+      case 'create_file':
+      case 'apply_patch': {
+        const path = params.path as string;
+        if (result.success) {
+          facts.filesystem.existingFiles.add(path);
+          facts.filesystem.nonExistentPaths.delete(path);
+        } else if (result.error?.includes('not found')) {
+          facts.filesystem.nonExistentPaths.add(path);
+        }
+        break;
+      }
+      case 'read_file': {
+        const path = params.path as string;
+        if (result.success) {
+          facts.filesystem.existingFiles.add(path);
+          facts.filesystem.nonExistentPaths.delete(path);
+        } else if (result.error?.includes('not found') || result.error?.includes('does not exist')) {
+          facts.filesystem.nonExistentPaths.add(path);
+          facts.filesystem.existingFiles.delete(path);
+        }
+        break;
+      }
+      case 'list_directory': {
+        const path = params.path as string;
+        if (result.success && Array.isArray(result.entries)) {
+          facts.filesystem.existingDirectories.add(path);
+          facts.filesystem.directoryContents.set(path, result.entries as string[]);
+        } else if (result.error?.includes('not found')) {
+          facts.filesystem.nonExistentPaths.add(path);
+        }
+        break;
+      }
+    }
+  }
+
+  /**
+   * 更新依赖事实
+   */
+  updateDependencyFacts(
+    taskId: string,
+    toolName: string,
+    params: Record<string, unknown>,
+    result: { success?: boolean; error?: string; [key: string]: unknown }
+  ): void {
+    const context = this.contexts.get(taskId);
+    if (!context) return;
+
+    const { facts } = context;
+
+    if (toolName === 'run_command') {
+      const command = params.command as string;
+
+      // 检测包管理器安装命令
+      if (command.includes('npm install') || command.includes('pnpm install') || command.includes('yarn add')) {
+        const packageMatch = command.match(/(?:install|add)\s+(@?[\w/-]+)/);
+        if (packageMatch && result.success) {
+          facts.dependencies.installedPackages.add(packageMatch[1]);
+          facts.dependencies.missingPackages.delete(packageMatch[1]);
+        }
+      }
+
+      // 检测缺失的包（从错误信息中提取）
+      if (result.error) {
+        const missingMatch = result.error.match(/Cannot find (?:module|package) ['"](@?[\w/-]+)['"]/);
+        if (missingMatch) {
+          facts.dependencies.missingPackages.add(missingMatch[1]);
+        }
+      }
+    }
+  }
+
+  /**
+   * 更新项目状态事实
+   */
+  updateProjectFacts(
+    taskId: string,
+    toolName: string,
+    params: Record<string, unknown>,
+    result: { success?: boolean; error?: string; output?: string; [key: string]: unknown }
+  ): void {
+    const context = this.contexts.get(taskId);
+    if (!context) return;
+
+    const { facts } = context;
+
+    if (toolName === 'run_command') {
+      const command = params.command as string;
+
+      // 检测开发服务器启动
+      if (command.includes('dev') || command.includes('start')) {
+        if (result.success) {
+          facts.project.devServerRunning = true;
+          // 尝试提取端口号
+          const portMatch = result.output?.match(/(?:localhost|127\.0\.0\.1):(\d+)/);
+          if (portMatch) {
+            facts.project.runningPort = parseInt(portMatch[1], 10);
+          }
+        }
+      }
+
+      // 检测构建命令
+      if (command.includes('build')) {
+        facts.project.buildStatus = result.success ? 'success' : 'failed';
+      }
+    }
+  }
+
+  /**
+   * 添加错误事实
+   */
+  addErrorFact(
+    taskId: string,
+    stepId: string,
+    errorType: string,
+    errorMessage: string
+  ): void {
+    const context = this.contexts.get(taskId);
+    if (!context) return;
+
+    context.facts.errors.push({
+      stepId,
+      type: errorType,
+      message: errorMessage,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 序列化事实为 LLM 可读格式
+   */
+  serializeFactsForLLM(taskId: string): string {
+    const context = this.contexts.get(taskId);
+    if (!context) return '';
+
+    const { facts } = context;
+    const parts: string[] = [];
+
+    // 文件系统事实
+    parts.push('## 文件系统状态');
+
+    if (facts.filesystem.existingFiles.size > 0) {
+      parts.push('\n### 已确认存在的文件:');
+      for (const file of facts.filesystem.existingFiles) {
+        parts.push(`- ${file}`);
+      }
+    }
+
+    if (facts.filesystem.existingDirectories.size > 0) {
+      parts.push('\n### 已确认存在的目录:');
+      for (const dir of facts.filesystem.existingDirectories) {
+        const contents = facts.filesystem.directoryContents.get(dir);
+        if (contents && contents.length > 0) {
+          parts.push(`- ${dir}/ (包含: ${contents.slice(0, 5).join(', ')}${contents.length > 5 ? '...' : ''})`);
+        } else {
+          parts.push(`- ${dir}/`);
+        }
+      }
+    }
+
+    if (facts.filesystem.nonExistentPaths.size > 0) {
+      parts.push('\n### 已确认不存在的路径:');
+      for (const path of facts.filesystem.nonExistentPaths) {
+        parts.push(`- ${path}`);
+      }
+    }
+
+    // 依赖状态
+    if (facts.dependencies.installedPackages.size > 0 || facts.dependencies.missingPackages.size > 0) {
+      parts.push('\n## 依赖状态');
+
+      if (facts.dependencies.installedPackages.size > 0) {
+        parts.push('\n### 已安装的包:');
+        parts.push(Array.from(facts.dependencies.installedPackages).join(', '));
+      }
+
+      if (facts.dependencies.missingPackages.size > 0) {
+        parts.push('\n### 缺失的包:');
+        parts.push(Array.from(facts.dependencies.missingPackages).join(', '));
+      }
+    }
+
+    // 项目状态
+    parts.push('\n## 项目状态');
+    parts.push(`- 开发服务器: ${facts.project.devServerRunning ? `运行中${facts.project.runningPort ? ` (端口: ${facts.project.runningPort})` : ''}` : '未运行'}`);
+    if (facts.project.buildStatus && facts.project.buildStatus !== 'unknown') {
+      parts.push(`- 构建状态: ${facts.project.buildStatus === 'success' ? '成功' : '失败'}`);
+    }
+
+    // 最近错误
+    if (facts.errors.length > 0) {
+      parts.push('\n## 最近的错误 (最多显示5条)');
+      const recentErrors = facts.errors.slice(-5);
+      for (const error of recentErrors) {
+        parts.push(`- [${error.type}] ${error.message}`);
+      }
+    }
+
+    return parts.join('\n');
   }
 }
 

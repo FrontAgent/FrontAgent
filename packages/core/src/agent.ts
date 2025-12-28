@@ -262,6 +262,21 @@ export class FrontAgent {
         },
         // onStepComplete
         (step, output) => {
+          // 更新项目事实（从工具执行结果中提取结构化信息）
+          const toolResult = output.stepResult.output as any;
+          const resultWithStatus = {
+            success: output.stepResult.success,
+            error: output.stepResult.error,
+            ...toolResult
+          };
+
+          // 更新文件系统事实
+          this.contextManager.updateFileSystemFacts(task.id, step.tool, step.params, resultWithStatus);
+          // 更新依赖事实
+          this.contextManager.updateDependencyFacts(task.id, step.tool, step.params, resultWithStatus);
+          // 更新项目状态事实
+          this.contextManager.updateProjectFacts(task.id, step.tool, step.params, resultWithStatus);
+
           if (output.stepResult.success) {
             this.emit({ type: 'step_completed', step, result: output.stepResult });
 
@@ -278,6 +293,14 @@ export class FrontAgent {
             }
           } else {
             this.emit({ type: 'step_failed', step, error: output.stepResult.error ?? 'Unknown error' });
+
+            // 记录错误事实
+            this.contextManager.addErrorFact(
+              task.id,
+              step.stepId,
+              step.action,
+              output.stepResult.error ?? 'Unknown error'
+            );
           }
           validations.push(output.validation);
 
@@ -288,10 +311,8 @@ export class FrontAgent {
         async (phase, errors) => {
           console.log(`[Agent] Error feedback loop triggered for phase: ${phase}`);
 
-          // 构建上下文摘要
-          const contextSummary = Array.from(executionContext.collectedContext.files.entries())
-            .map(([path, _]) => path)
-            .join(', ');
+          // 使用结构化的事实而非日志
+          const factsContext = this.contextManager.serializeFactsForLLM(task.id);
 
           // 调用LLM分析错误并生成修复步骤
           const recoveryPlan = await this.llmService.analyzeErrorsAndGenerateRecovery({
@@ -303,7 +324,7 @@ export class FrontAgent {
               params: e.step.params,
               error: e.error
             })),
-            context: `已读取的文件: ${contextSummary || '无'}`
+            context: factsContext || '无可用的项目状态信息'
           });
 
           console.log(`[Agent] Recovery plan analysis: ${recoveryPlan.analysis}`);
