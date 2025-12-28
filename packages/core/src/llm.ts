@@ -137,60 +137,16 @@ export class LLMService {
 
       return result.object;
     } catch (error: any) {
-      // 修复：AI SDK 有时会将对象包装在 $PARAMETER_NAME 或 $parameter 等键下
-      // 或者将数组/对象字段错误地序列化为 JSON 字符串
-      // 这是 Anthropic provider 的一个已知问题
-      // 如果验证失败，尝试从错误中提取并解包对象
+      console.log('[LLMService] generateObject failed, attempting to fix...');
 
-      // 检查错误本身或其 cause 中是否有包装
-      const errorToCheck = error.cause || error;
-
-      if (errorToCheck.value && typeof errorToCheck.value === 'object') {
-        // 1. 首先检查是否有 $ 包装键
-        const wrapperKey = Object.keys(errorToCheck.value).find(key => key.startsWith('$'));
-
-        if (wrapperKey) {
-          console.log(`[LLMService] Detected ${wrapperKey} wrapper, unwrapping...`);
-          const unwrapped = errorToCheck.value[wrapperKey];
-
-          // 验证解包后的对象是否符合 schema
-          try {
-            const validated = options.schema.parse(unwrapped);
-            return validated as T;
-          } catch (validationError) {
-            console.error('[LLMService] Failed to validate unwrapped object:', validationError);
-            // 继续尝试其他修复方法
-          }
-        }
-
-        // 2. 检查是否有字符串字段需要解析为 JSON
-        const fixedValue = { ...errorToCheck.value };
-        let hasStringFields = false;
-
-        for (const [key, value] of Object.entries(fixedValue)) {
-          if (typeof value === 'string' && (value.trim().startsWith('[') || value.trim().startsWith('{'))) {
-            try {
-              fixedValue[key] = JSON.parse(value);
-              hasStringFields = true;
-              console.log(`[LLMService] Parsed string field "${key}" as JSON`);
-            } catch (parseError) {
-              // 无法解析，保持原样
-            }
-          }
-        }
-
-        if (hasStringFields) {
-          // 尝试验证修复后的对象
-          try {
-            const validated = options.schema.parse(fixedValue);
-            return validated as T;
-          } catch (validationError) {
-            console.error('[LLMService] Failed to validate after parsing string fields:', validationError);
-          }
-        }
+      // 尝试修复并返回
+      const fixed = this.tryFixGeneratedObject(error, options.schema);
+      if (fixed) {
+        return fixed as T;
       }
 
       // 如果所有修复尝试都失败，重新抛出原始错误
+      console.error('[LLMService] All fix attempts failed');
       throw error;
     }
   }
