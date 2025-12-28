@@ -225,7 +225,7 @@ export class Executor {
         if (resultObj.success === false && resultObj.error) {
           const errorMsg = resultObj.error;
           // 检查是否是可跳过的错误类型
-          const isSkippableError = this.isSkippableError(errorMsg, step.action);
+          const isSkippableError = this.isSkippableError(errorMsg, step.action, toolParams);
 
           if (isSkippableError) {
             if (this.config.debug) {
@@ -338,7 +338,7 @@ export class Executor {
   /**
    * 判断错误是否可以跳过（不中断整个任务）
    */
-  private isSkippableError(errorMsg: string, action: string): boolean {
+  private isSkippableError(errorMsg: string, action: string, params?: Record<string, unknown>): boolean {
     // 目录不存在的错误（list_directory）
     if (errorMsg.includes('Directory not found') || errorMsg.includes('目录不存在')) {
       return true;
@@ -367,9 +367,11 @@ export class Executor {
     }
 
     // run_command 的错误处理 - 需要区分关键命令和非关键命令
-    if (action === 'run_command') {
+    if (action === 'run_command' && params?.command) {
+      const command = (params.command as string).toLowerCase();
+
       // 关键命令（安装、构建、验证）失败不能跳过
-      // 这些命令的失败会影响后续步骤
+      // 这些命令的失败会影响后续步骤，需要触发错误恢复
       const criticalCommandPatterns = [
         'npm install', 'pnpm install', 'yarn install', 'yarn add',
         'npm run build', 'pnpm build', 'yarn build',
@@ -379,19 +381,22 @@ export class Executor {
         'npm run start', 'pnpm start'
       ];
 
-      // 检查错误信息中是否包含关键命令
+      // 检查命令是否是关键命令
       const isCriticalCommand = criticalCommandPatterns.some(pattern =>
-        errorMsg.toLowerCase().includes(pattern.toLowerCase())
+        command.includes(pattern.toLowerCase())
       );
 
       // 关键命令失败不跳过，触发错误恢复
       if (isCriticalCommand) {
+        if (this.config.debug) {
+          console.log(`[Executor] Critical command failed, triggering error recovery: ${command}`);
+        }
         return false;
       }
 
-      // 非关键命令的某些错误可以跳过
-      if (errorMsg.includes('MODULE_NOT_FOUND') ||
-          errorMsg.includes('ENOENT')) {
+      // 非关键命令的某些错误可以跳过（如 mkdir 已存在等）
+      if (errorMsg.includes('already exists') ||
+          errorMsg.includes('File exists')) {
         return true;
       }
     }
