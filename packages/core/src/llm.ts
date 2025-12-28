@@ -140,9 +140,13 @@ export class LLMService {
       // 修复：AI SDK 有时会将对象包装在 $PARAMETER_NAME 键下
       // 这是 Anthropic provider 的一个已知问题
       // 如果验证失败，尝试从错误中提取并解包对象
-      if (error.text && error.value && error.value.$PARAMETER_NAME) {
+
+      // 检查错误本身或其 cause 中是否有 $PARAMETER_NAME 包装
+      const errorToCheck = error.cause || error;
+
+      if (errorToCheck.value && errorToCheck.value.$PARAMETER_NAME) {
         console.log('[LLMService] Detected $PARAMETER_NAME wrapper, unwrapping...');
-        const unwrapped = error.value.$PARAMETER_NAME;
+        const unwrapped = errorToCheck.value.$PARAMETER_NAME;
 
         // 验证解包后的对象是否符合 schema
         const validated = options.schema.parse(unwrapped);
