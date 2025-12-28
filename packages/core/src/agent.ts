@@ -417,7 +417,7 @@ export class FrontAgent {
             }
 
             // 2. 检查缺失的 npm 依赖（检查代码中使用但未在 package.json 中声明的依赖）
-            const missingDeps = await this.checkMissingNpmDependencies(task.id);
+            const missingDeps = await this.checkMissingNpmDependencies(task.id, executionContext.collectedContext.files);
             if (missingDeps.length > 0) {
               console.log(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
               // 生成安装缺失依赖的步骤
@@ -539,21 +539,20 @@ export class FrontAgent {
 
   /**
    * 检查代码中使用但未在 package.json 中声明的 npm 依赖
+   * 需要从执行上下文中传入 collectedContext
    */
-  private async checkMissingNpmDependencies(taskId: string): Promise<string[]> {
-    const context = this.contextManager['contexts'].get(taskId);
-    if (!context) return [];
-
-    const { filesystem } = context.facts;
-
+  private async checkMissingNpmDependencies(
+    taskId: string,
+    collectedFiles: Map<string, string> = new Map()
+  ): Promise<string[]> {
     // 读取 package.json
     const packageJsonPath = 'package.json';
     let packageJson: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {};
 
-    if (filesystem.existingFiles.has(packageJsonPath)) {
+    const packageJsonContent = collectedFiles.get(packageJsonPath);
+    if (packageJsonContent) {
       try {
-        const packageJsonContent = await this.executor['callTool']('read_file', { path: packageJsonPath }) as { content: string };
-        packageJson = JSON.parse(packageJsonContent.content);
+        packageJson = JSON.parse(packageJsonContent);
       } catch (error) {
         console.warn('[Agent] Failed to parse package.json:', error);
       }
@@ -569,7 +568,7 @@ export class FrontAgent {
     const importRegex = /^import\s+.*?\s+from\s+['"]([^'"]+)['"]/gm;
     const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-    for (const [filePath, content] of context.collectedContext.files.entries()) {
+    for (const [filePath, content] of collectedFiles.entries()) {
       if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(filePath)) continue;
 
       // 提取 import 语句
