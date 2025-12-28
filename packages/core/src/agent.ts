@@ -375,6 +375,31 @@ export class FrontAgent {
 
           console.log(`[Agent] Generated ${recoverySteps.length} recovery steps`);
           return recoverySteps;
+        },
+        // onPhaseComplete: 阶段结束时进行模块依赖验证
+        async (phase, _results) => {
+          // 在创建阶段结束后检查模块依赖
+          if (phase.includes('创建') || phase.includes('实现') || phase === '未分组') {
+            const missingModules = this.contextManager.validateModuleDependencies(task.id);
+            if (missingModules.length > 0) {
+              console.log(`[Agent] Phase "${phase}" module validation found ${missingModules.length} missing dependencies`);
+              // 返回缺失模块作为错误，触发修复流程
+              return missingModules.slice(0, 5).map(missing => ({
+                step: {
+                  stepId: `module-validation-${missing.missing.replace(/[^a-zA-Z0-9]/g, '-')}`,
+                  description: `模块 ${missing.from} 引用了不存在的模块: ${missing.importPath}`,
+                  action: 'create_file' as const,
+                  tool: 'create_file',
+                  params: { path: missing.missing },
+                  dependencies: [],
+                  validation: [],
+                  status: 'failed' as const
+                } as ExecutionStep,
+                error: `Missing module: ${missing.importPath} (resolved path: ${missing.missing})`
+              }));
+            }
+          }
+          return [];
         }
       );
 

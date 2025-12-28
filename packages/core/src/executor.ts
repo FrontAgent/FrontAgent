@@ -602,7 +602,8 @@ export class Executor {
       collectedContext: { files: Map<string, string> };
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
-    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>
+    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
+    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
   ): Promise<ExecutorOutput[]> {
     // 按阶段分组
     const phaseGroups = new Map<string, ExecutionStep[]>();
@@ -654,6 +655,19 @@ export class Executor {
 
         if (onStepComplete) {
           onStepComplete(step, output);
+        }
+      }
+
+      // 阶段结束后，调用 onPhaseComplete 进行额外验证（如模块依赖检查）
+      if (onPhaseComplete) {
+        try {
+          const additionalErrors = await onPhaseComplete(phase, phaseResults);
+          if (additionalErrors.length > 0) {
+            console.log(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
+            phaseErrors.push(...additionalErrors);
+          }
+        } catch (error) {
+          console.error(`[Executor] Phase complete validation failed:`, error);
         }
       }
 
