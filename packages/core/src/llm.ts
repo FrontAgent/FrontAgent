@@ -137,23 +137,33 @@ export class LLMService {
 
       return result.object;
     } catch (error: any) {
-      // 修复：AI SDK 有时会将对象包装在 $PARAMETER_NAME 键下
+      // 修复：AI SDK 有时会将对象包装在 $PARAMETER_NAME 或 $parameter 等键下
       // 这是 Anthropic provider 的一个已知问题
       // 如果验证失败，尝试从错误中提取并解包对象
 
-      // 检查错误本身或其 cause 中是否有 $PARAMETER_NAME 包装
+      // 检查错误本身或其 cause 中是否有包装
       const errorToCheck = error.cause || error;
 
-      if (errorToCheck.value && errorToCheck.value.$PARAMETER_NAME) {
-        console.log('[LLMService] Detected $PARAMETER_NAME wrapper, unwrapping...');
-        const unwrapped = errorToCheck.value.$PARAMETER_NAME;
+      if (errorToCheck.value && typeof errorToCheck.value === 'object') {
+        // 查找任何以 $ 开头的键
+        const wrapperKey = Object.keys(errorToCheck.value).find(key => key.startsWith('$'));
 
-        // 验证解包后的对象是否符合 schema
-        const validated = options.schema.parse(unwrapped);
-        return validated as T;
+        if (wrapperKey) {
+          console.log(`[LLMService] Detected ${wrapperKey} wrapper, unwrapping...`);
+          const unwrapped = errorToCheck.value[wrapperKey];
+
+          // 验证解包后的对象是否符合 schema
+          try {
+            const validated = options.schema.parse(unwrapped);
+            return validated as T;
+          } catch (validationError) {
+            console.error('[LLMService] Failed to validate unwrapped object:', validationError);
+            throw error; // 如果解包后的对象也无效，抛出原始错误
+          }
+        }
       }
 
-      // 如果没有 $PARAMETER_NAME 包装，重新抛出原始错误
+      // 如果没有包装键，重新抛出原始错误
       throw error;
     }
   }
