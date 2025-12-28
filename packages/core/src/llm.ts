@@ -134,7 +134,15 @@ export class LLMService {
       temperature: options.temperature ?? this.config.temperature ?? 0.3,
     });
 
-    return result.object;
+    // 修复：AI SDK 有时会将对象包装在 $PARAMETER_NAME 键下
+    // 这是 Anthropic provider 的一个已知问题
+    let obj = result.object as any;
+    if (obj && typeof obj === 'object' && '$PARAMETER_NAME' in obj) {
+      console.log('[LLMService] Unwrapping object from $PARAMETER_NAME');
+      obj = obj.$PARAMETER_NAME;
+    }
+
+    return obj as T;
   }
 
   /**
