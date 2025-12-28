@@ -276,6 +276,8 @@ export class FrontAgent {
           this.contextManager.updateDependencyFacts(task.id, step.tool, step.params, resultWithStatus);
           // 更新项目状态事实
           this.contextManager.updateProjectFacts(task.id, step.tool, step.params, resultWithStatus);
+          // 更新模块依赖图（追踪已创建的模块）
+          this.contextManager.updateModuleDependencyGraph(task.id, step.tool, step.params, resultWithStatus);
 
           if (output.stepResult.success) {
             this.emit({ type: 'step_completed', step, result: output.stepResult });
@@ -310,6 +312,28 @@ export class FrontAgent {
         // onPhaseError: Tool Error Feedback Loop
         async (phase, errors) => {
           console.log(`[Agent] Error feedback loop triggered for phase: ${phase}`);
+
+          // 检查模块依赖问题（在创建阶段尤其重要）
+          const missingModules = this.contextManager.validateModuleDependencies(task.id);
+          if (missingModules.length > 0) {
+            console.log(`[Agent] Found ${missingModules.length} missing module dependencies`);
+            // 将缺失的模块作为额外的错误添加到分析中
+            for (const missing of missingModules.slice(0, 5)) {
+              errors.push({
+                step: {
+                  stepId: 'module-validation',
+                  description: `模块 ${missing.from} 引用了不存在的模块`,
+                  action: 'create_file',
+                  tool: 'create_file',
+                  params: { path: missing.missing },
+                  dependencies: [],
+                  validation: [],
+                  status: 'failed'
+                } as ExecutionStep,
+                error: `Missing module: ${missing.importPath} (resolved: ${missing.missing})`
+              });
+            }
+          }
 
           // 使用结构化的事实而非日志
           const factsContext = this.contextManager.serializeFactsForLLM(task.id);
