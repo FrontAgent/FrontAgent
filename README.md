@@ -430,6 +430,43 @@ modification_rules:
       reason: "API 层修改需要审批"
 ```
 
+#### SDD 驱动的开发效果
+
+基于同一份 SDD 配置文件开发电商项目的实际效果对比：
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="assets/FrontAgent.png" alt="FrontAgent 效果 1"/>
+      <p align="center"><b>FrontAgent - 电商首页</b></p>
+    </td>
+    <td width="50%">
+      <img src="assets/FrontAgent2.png" alt="FrontAgent 效果 2"/>
+      <p align="center"><b>FrontAgent - 商品详情</b></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/Cursor.png" alt="Cursor 效果"/>
+      <p align="center"><b>Cursor</b></p>
+    </td>
+    <td width="50%">
+      <img src="assets/VSCode.jpg" alt="VSCode 效果"/>
+      <p align="center"><b>VSCode Copilot</b></p>
+    </td>
+  </tr>
+</table>
+
+**FrontAgent 的核心优势**：
+
+- ✅ **严格遵循约束** - 完全按照 SDD 中定义的目录结构、命名规范、模块边界进行开发
+- ✅ **代码高度规范** - 自动遵守代码质量要求（行数限制、禁用模式、类型安全等）
+- ✅ **结构完全可控** - 生成的项目结构与 SDD 预期完全一致，无偏离
+- ✅ **可审计可追溯** - 所有操作都可追溯到 SDD 约束，确保工程质量
+- ✅ **多页面一致性** - 如上图所示，无论是首页还是详情页，都能保持统一的设计规范和代码风格
+
+通过 SDD 约束，FrontAgent 能够像专业前端工程师一样，严格按照设计规范进行开发，确保代码的一致性、可维护性和可扩展性。
+
 ### @frontagent/mcp-file - 文件操作 MCP
 
 提供文件操作的 MCP 工具：
