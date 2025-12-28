@@ -16,7 +16,7 @@ const navLinkStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties 
   opacity: isActive ? 1 : 0.9,
 });
 
-export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
+const Header: React.FC<HeaderProps> = ({ cartCount }) => {
   const resolvedCartCount = cartCount ?? 0;
 
   return (
@@ -94,15 +94,11 @@ export const Header: React.FC<HeaderProps> = ({ cartCount }) => {
   );
 };
 
-export default Header;
-import React from 'react';
-import { Link } from 'react-router-dom';
-
 export interface FooterProps {
   year?: number;
 }
 
-export const Footer: React.FC<FooterProps> = ({ year }) => {
+const Footer: React.FC<FooterProps> = ({ year }) => {
   const resolvedYear = year ?? new Date().getFullYear();
 
   return (
@@ -137,12 +133,6 @@ export const Footer: React.FC<FooterProps> = ({ year }) => {
   );
 };
 
-export default Footer;
-import React from 'react';
-import { Outlet } from 'react-router-dom';
-import Header from './Header';
-import Footer from './Footer';
-
 export interface MainLayoutProps {
   children?: React.ReactNode;
   cartCount?: number;
@@ -160,7 +150,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, cartCount }) =
         }}
       >
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px' }}>
-          {children ?? <Outlet />}
+          {children}
         </div>
       </main>
       <Footer />

@@ -80,13 +80,13 @@ interface ErrorResponse {
 const nowIso = () => new Date().toISOString();
 
 const base64UrlEncode = (input: string): string => {
-  const b64 = typeof btoa === 'function' ? btoa(input) : Buffer.from(input, 'utf-8').toString('base64');
+  const b64 = btoa(unescape(encodeURIComponent(input)));
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 };
 
 const base64UrlDecode = (input: string): string => {
   const b64 = input.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(input.length / 4) * 4, '=');
-  return typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('utf-8');
+  return decodeURIComponent(escape(atob(b64)));
 };
 
 const createMockJwt = (payload: AuthTokenPayload): string => {

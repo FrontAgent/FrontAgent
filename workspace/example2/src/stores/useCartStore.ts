@@ -1,15 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartItem } from '../api/types';
+import type { CartItem, Product } from '../api/types';
 
-type CartItemKey = Pick<CartItem, 'productId'> & Partial<Pick<CartItem, 'variantId'>>;
+type CartItemKey = Pick<CartItem, 'productId'>;
 
 const normalizeQty = (qty: number) => {
   if (!Number.isFinite(qty)) return 1;
   return Math.max(1, Math.floor(qty));
 };
 
-const getItemKey = (item: CartItemKey) => `${item.productId}::${item.variantId ?? ''}`;
+const getItemKey = (item: CartItemKey) => item.productId;
 
 const sameItem = (a: CartItemKey, b: CartItemKey) => getItemKey(a) === getItemKey(b);
 
@@ -17,8 +17,9 @@ export type CartStoreState = {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   removeItem: (item: CartItemKey) => void;
-  updateQty: (item: CartItemKey, qty: number) => void;
+  updateQuantity: (item: CartItemKey, quantity: number) => void;
   clear: () => void;
+  getTotal: () => number;
 };
 
 export const useCartStore = create<CartStoreState>()(
@@ -26,16 +27,16 @@ export const useCartStore = create<CartStoreState>()(
     (set, get) => ({
       items: [],
       addItem: (item) => {
-        const qty = normalizeQty((item as CartItem).qty ?? 1);
+        const quantity = normalizeQty(item.quantity ?? 1);
         set((state) => {
           const idx = state.items.findIndex((it) => sameItem(it, item));
           if (idx >= 0) {
             const next = state.items.slice();
-            const currentQty = normalizeQty((next[idx] as CartItem).qty ?? 1);
-            next[idx] = { ...next[idx], ...item, qty: currentQty + qty };
+            const currentQty = normalizeQty(next[idx].quantity ?? 1);
+            next[idx] = { ...next[idx], ...item, quantity: currentQty + quantity };
             return { items: next };
           }
-          return { items: [...state.items, { ...item, qty }] };
+          return { items: [...state.items, { ...item, quantity }] };
         });
       },
       removeItem: (item) => {
@@ -43,22 +44,29 @@ export const useCartStore = create<CartStoreState>()(
           items: state.items.filter((it) => !sameItem(it, item)),
         }));
       },
-      updateQty: (item, qty) => {
-        if (!Number.isFinite(qty)) return;
-        if (qty <= 0) {
+      updateQuantity: (item, quantity) => {
+        if (!Number.isFinite(quantity)) return;
+        if (quantity <= 0) {
           get().removeItem(item);
           return;
         }
-        const nextQty = normalizeQty(qty);
+        const nextQty = normalizeQty(quantity);
         set((state) => {
           const idx = state.items.findIndex((it) => sameItem(it, item));
           if (idx < 0) return state;
           const next = state.items.slice();
-          next[idx] = { ...next[idx], qty: nextQty };
+          next[idx] = { ...next[idx], quantity: nextQty };
           return { items: next };
         });
       },
       clear: () => set({ items: [] }),
+      getTotal: () => {
+        const items = get().items;
+        return items.reduce((sum, item) => {
+          const price = item.product?.price?.amount ?? 0;
+          return sum + price * item.quantity;
+        }, 0);
+      },
     }),
     {
       name: 'cart-store',

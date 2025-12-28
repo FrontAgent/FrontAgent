@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { AppRouter } from './router/AppRouter';
+import { AppRouter } from './routes/index';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -20,8 +19,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   public componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    if (process.env.NODE_ENV !== 'production') {
-      // eslint-disable-next-line no-console
+    if (import.meta.env.DEV) {
       console.error('Unhandled error caught by ErrorBoundary:', error, errorInfo);
     }
   }
@@ -32,7 +30,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         this.props.fallback ?? (
           <div role="alert" style={{ padding: 16 }}>
             <h1 style={{ margin: 0, fontSize: 18 }}>Something went wrong.</h1>
-            {process.env.NODE_ENV !== 'production' && this.state.error?.message ? (
+            {import.meta.env.DEV && this.state.error?.message ? (
               <pre style={{ marginTop: 12, whiteSpace: 'pre-wrap' }}>{this.state.error.message}</pre>
             ) : null}
           </div>
@@ -48,7 +46,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header style={{ padding: 16, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-        <div style={{ fontWeight: 600 }}>App</div>
+        <div style={{ fontWeight: 600 }}>E-Commerce App</div>
       </header>
       <main style={{ flex: 1, padding: 16 }}>{children}</main>
     </div>
@@ -68,7 +66,7 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <AppShell>
         <Suspense fallback={<LoadingFallback />}>
-          <RouterProvider router={AppRouter} fallbackElement={<LoadingFallback />} />
+          <AppRouter />
         </Suspense>
       </AppShell>
     </ErrorBoundary>

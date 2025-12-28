@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { productsApi } from '../api/productsApi';
-
-type Product = Awaited<ReturnType<typeof productsApi.list>> extends (infer T)[] ? T : unknown;
+import { productsApi, ProductsListResponse } from '../api/productsApi';
+import type { Product } from '../api/types';
 
 export interface ProductsState {
   products: Product[];
@@ -18,14 +17,14 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   fetchProducts: async (options) => {
     const force = options?.force ?? false;
 
-    // Cache strategy placeholder: if we already have products, avoid refetch unless forced
+    // Cache strategy: if we already have products, avoid refetch unless forced
     if (!force && get().products.length > 0) return;
 
     set({ loading: true, error: null });
 
     try {
-      const products = await productsApi.list();
-      set({ products: (products ?? []) as Product[], loading: false, error: null });
+      const response = await productsApi.list();
+      set({ products: response.items ?? [], loading: false, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       set({ loading: false, error: message });
