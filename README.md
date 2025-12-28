@@ -7,6 +7,9 @@
 FrontAgent 是一个专为前端工程设计的 AI Agent 系统，旨在解决 Agent 在真实工程中落地时面临的核心问题：
 
 - ✅ **两阶段架构** - 规划与执行分离，避免 JSON 解析错误，动态生成代码
+- ✅ **阶段化执行** - 步骤按阶段分组执行，支持阶段内错误恢复
+- ✅ **错误自愈** - Tool Error Feedback Loop，自动分析错误并生成修复步骤
+- ✅ **事实记忆** - 基于结构化事实的上下文系统，精准追踪项目状态
 - ✅ **幻觉防控** - 多层次的幻觉检测与拦截机制
 - ✅ **SDD 约束** - 以软件设计文档作为 Agent 行为的硬约束
 - ✅ **MCP 协议** - 通过 Model Context Protocol 实现可控的工具调用
@@ -81,6 +84,45 @@ frontagent run "添加暗黑模式支持"
    └──────────────┘ └──────────┘     └──────────┘
 ```
 
+### 执行流程图
+
+```
+用户任务
+   │
+   ▼
+┌──────────────────┐
+│  Planner (阶段1) │ ← SDD 约束
+└────────┬─────────┘
+         │ 生成执行计划（含phase字段）
+         ▼
+┌──────────────────────────────────────────┐
+│           Executor (阶段2)                │
+│  ┌────────────────────────────────┐      │
+│  │  Phase 1: 分析阶段              │      │
+│  │  ├─ Step 1 ✓                  │      │
+│  │  ├─ Step 2 ✗ (错误)            │      │
+│  │  └─ Error Recovery             │      │
+│  │     ├─ Analyze error           │      │
+│  │     ├─ Generate fix steps     │      │
+│  │     └─ Execute fix ✓          │      │
+│  └────────────────────────────────┘      │
+│  ┌────────────────────────────────┐      │
+│  │  Phase 2: 创建阶段              │      │
+│  │  ├─ Step 3 ✓                  │      │
+│  │  └─ Step 4 ✓                  │      │
+│  └────────────────────────────────┘      │
+│                                           │
+│  每个步骤执行后:                           │
+│  └─ 更新 Facts                            │
+│     ├─ 文件系统状态                        │
+│     ├─ 依赖状态                           │
+│     └─ 项目状态                           │
+└───────────────────────────────────────────┘
+         │
+         ▼
+    任务完成 ✓
+```
+
 ### 两阶段架构设计
 
 FrontAgent 采用创新的两阶段架构，彻底解决了 AI Agent 在生成大量代码时的 JSON 解析错误问题：
@@ -119,6 +161,166 @@ FrontAgent 采用创新的两阶段架构，彻底解决了 AI Agent 在生成�
 2. ✅ 更好的可控性（每个步骤单独验证）
 3. ✅ 支持大型项目（无 JSON 大小限制）
 4. ✅ 更精确的代码生成（基于实时上下文）
+
+### 阶段化执行与错误自愈
+
+FrontAgent 实现了先进的阶段化执行和自动错误恢复机制：
+
+#### 阶段化执行（Phase-based Execution）
+
+执行计划被自动分为多个阶段，每个阶段专注于特定目标：
+
+```json
+{
+  "steps": [
+    {
+      "stepId": "step-1",
+      "phase": "分析阶段",
+      "description": "读取现有文件，分析项目结构",
+      "action": "read_file"
+    },
+    {
+      "stepId": "step-2",
+      "phase": "创建阶段",
+      "description": "创建新组件文件",
+      "action": "create_file"
+    },
+    {
+      "stepId": "step-3",
+      "phase": "安装阶段",
+      "description": "安装必要的依赖",
+      "action": "run_command"
+    },
+    {
+      "stepId": "step-4",
+      "phase": "验证阶段",
+      "description": "运行测试验证功能",
+      "action": "run_command"
+    }
+  ]
+}
+```
+
+**优势**:
+- 🎯 **清晰的执行流程** - 每个阶段有明确的目标
+- 🔄 **阶段内错误恢复** - 错误在阶段内自动修复，不影响后续阶段
+- 📊 **更好的进度追踪** - 用户可以看到当前处于哪个阶段
+
+#### Tool Error Feedback Loop（错误自愈机制）
+
+当工具执行失败时，系统会自动分析错误并生成修复步骤：
+
+```typescript
+// 1. 检测到错误
+Error: Cannot apply patch: file not found in context: src/App.tsx
+
+// 2. LLM 分析错误
+{
+  "canRecover": true,
+  "analysis": "文件 src/App.tsx 未被读取到上下文中，需要先读取该文件",
+  "recoverySteps": [
+    {
+      "description": "读取 src/App.tsx 文件到上下文",
+      "action": "read_file",
+      "tool": "filesystem",
+      "params": { "path": "src/App.tsx" }
+    },
+    {
+      "description": "重新应用补丁到 src/App.tsx",
+      "action": "apply_patch",
+      "tool": "filesystem",
+      "params": { /* 原始参数 */ }
+    }
+  ]
+}
+
+// 3. 自动执行修复步骤
+// 4. 继续原有流程
+```
+
+**特点**:
+- 🔍 **智能错误分析** - LLM 理解错误原因并找出根本原因
+- 🛠️ **自动生成修复** - 无需人工干预，自动生成恢复步骤
+- 📝 **常见错误模式** - 内置常见错误处理策略
+- ♻️ **阶段级恢复** - 在阶段内完成错误修复，不阻塞整体流程
+
+#### Facts-based Context（事实记忆系统）
+
+传统 Agent 使用日志作为上下文，容易产生信息冗余和不准确。FrontAgent 使用结构化的"事实"系统：
+
+**传统方式（基于日志）**:
+```
+已执行的操作日志:
+1. 尝试读取 src/App.tsx - 失败
+2. 尝试创建 src/components/Button.tsx - 成功
+3. 尝试读取 src/App.tsx - 成功
+4. 安装 react-router-dom - 成功
+...（大量重复和冗余信息）
+```
+
+**FrontAgent 方式（基于事实）**:
+```yaml
+## 文件系统状态
+
+### 已确认存在的文件:
+- src/App.tsx
+- src/components/Button.tsx
+- package.json
+
+### 已确认不存在的路径:
+- src/pages/Login.tsx
+
+## 依赖状态
+
+### 已安装的包:
+react-router-dom, axios
+
+### 缺失的包:
+@types/node
+
+## 项目状态
+- 开发服务器: 运行中 (端口: 5173)
+- 构建状态: 成功
+
+## 最近的错误
+- [apply_patch] Cannot apply patch: file not found in context
+```
+
+**优势**:
+- 📊 **结构化信息** - 清晰的状态分类（文件系统、依赖、项目状态）
+- 🎯 **去重去噪** - 使用 Set/Map 自动去重，避免信息重复
+- 💡 **上下文感知** - LLM 知道哪些文件存在/不存在，生成更准确的操作
+- 🔄 **实时更新** - 每次工具执行后自动更新事实
+- 📉 **降低 Token 消耗** - 精简的信息减少 LLM 输入长度
+
+**实现细节**:
+```typescript
+// 工具执行后自动提取事实
+executeStep() {
+  const result = await tool.execute()
+
+  // 更新文件系统事实
+  if (tool === 'create_file' && result.success) {
+    facts.filesystem.existingFiles.add(path)
+    facts.filesystem.nonExistentPaths.delete(path)
+  }
+
+  // 更新依赖事实
+  if (tool === 'run_command' && command.includes('npm install')) {
+    facts.dependencies.installedPackages.add(packageName)
+  }
+
+  // 更新项目状态事实
+  if (command.includes('dev') && result.success) {
+    facts.project.devServerRunning = true
+    facts.project.runningPort = extractPort(result.output)
+  }
+}
+
+// 序列化为 LLM 可读格式
+const context = serializeFactsForLLM(taskId)
+// 传递给 LLM 用于错误分析和决策
+```
 
 ## 核心模块
 
@@ -325,6 +527,39 @@ Agent 会：
 3. 提出优化方案
 4. 实施代码级优化（懒加载、代码分割等）
 
+### 示例 5: 自动错误恢复
+
+```bash
+frontagent run "在 App.tsx 中添加路由配置"
+```
+
+执行过程展示错误自愈：
+```
+Phase 1: 分析阶段
+  ✓ Step 1: 读取 package.json
+
+Phase 2: 创建阶段
+  ✗ Step 2: 修改 App.tsx
+     Error: Cannot apply patch: file not found in context
+
+  🔄 错误恢复中...
+     分析: App.tsx 未被读取到上下文中
+
+  ✓ Recovery Step 1: 读取 src/App.tsx 到上下文
+  ✓ Recovery Step 2: 重新应用补丁到 App.tsx
+
+Phase 3: 验证阶段
+  ✓ Step 3: 运行类型检查
+
+✅ 任务完成！自动修复了 1 个错误
+```
+
+**关键特性**:
+- 🎯 **阶段化执行** - 清晰的执行阶段（分析、创建、验证）
+- 🔄 **自动修复** - 检测到文件未读取，自动插入读取步骤
+- 📊 **事实追踪** - 系统知道哪些文件已读取，哪些未读取
+- ⚡ **无需重试** - 一次性完成，不需要用户手动重新运行
+
 ## 环境变量配置
 
 ### 必需配置
@@ -396,6 +631,33 @@ A: FrontAgent 内置了多层幻觉防控机制，会在执行前校验：
 
 如果发现错误，可以使用 `frontagent run "修复上一次生成的代码错误"` 让 Agent 自我修正。
 
+### Q: Tool Error Feedback Loop 是什么？如何工作？
+
+A: 这是 FrontAgent 的自动错误恢复机制。当工具执行失败时（如文件未找到、依赖缺失等），系统会：
+
+1. **捕获错误** - 记录失败的步骤和错误信息
+2. **智能分析** - LLM 分析错误原因和上下文
+3. **生成修复** - 自动生成恢复步骤（如读取缺失文件、安装依赖）
+4. **自动执行** - 在当前阶段内执行修复步骤
+5. **继续流程** - 修复完成后继续原有任务
+
+这意味着大多数常见错误（如文件未读取、依赖未安装）都会自动修复，无需人工干预。
+
+### Q: Facts-based Context 与传统日志方式有什么区别？
+
+A: 传统 Agent 使用执行日志作为上下文，会导致：
+- 信息重复（同一文件读取多次都会记录）
+- 噪音过多（大量无用的中间状态）
+- Token 浪费（长日志消耗大量 Token）
+
+FrontAgent 的 Facts-based Context 使用结构化事实：
+- **去重** - 使用 Set 存储，自动去除重复信息
+- **精准** - 只记录最终状态（文件存在/不存在，依赖已安装/缺失）
+- **分类** - 按文件系统、依赖、项目状态分类
+- **实时** - 每次工具执行后自动更新
+
+这让 LLM 获得更准确的项目状态，生成更精确的操作。
+
 ## 开发
 
 ```bash
@@ -416,16 +678,19 @@ pnpm clean
 
 ### 已完成 ✅
 - [x] 两阶段 Agent 架构（Planner + Executor）
+- [x] 阶段化执行（Phase-based Execution）
+- [x] Tool Error Feedback Loop（错误自愈机制）
+- [x] Facts-based Context System（事实记忆系统）
 - [x] 多 LLM 提供商支持（OpenAI、Anthropic）
 - [x] Shell 命令执行（带用户批准机制）
 - [x] 动态代码生成（避免 JSON 解析错误）
 - [x] MCP 工具集成（File、Web、Shell）
 - [x] 类型自动规范化（处理 LLM 输出不确定性）
+- [x] 无步骤数限制（支持复杂任务的大量步骤）
 
 ### 进行中 🚧
 - [ ] SDD 约束增强（更细粒度的规则控制）
 - [ ] 幻觉防控优化（更智能的验证机制）
-- [ ] 上下文管理优化（更高效的文件缓存）
 
 ### 计划中 📋
 - [ ] RAG 经验库集成（从历史任务中学习）
