@@ -38,7 +38,8 @@ export class Planner {
   constructor(config: PlannerConfig) {
     this.config = {
       ...config,
-      maxSteps: config.maxSteps ?? 20,
+      // 移除步骤数上限，允许生成任意数量的步骤
+      maxSteps: config.maxSteps ?? Infinity,
       useLLM: config.useLLM ?? true
     };
     this.llmService = new LLMService(config.llm);
@@ -144,15 +145,12 @@ export class Planner {
       return null;
     }
 
-    // 限制步骤数量
-    const limitedSteps = steps.slice(0, this.config.maxSteps!);
-
     const plan: ExecutionPlan = {
       taskId: task.id,
-      summary: this.generatePlanSummary(task, limitedSteps),
-      steps: limitedSteps,
+      summary: this.generatePlanSummary(task, steps),
+      steps: steps,
       rollbackStrategy: this.determineRollbackStrategy(task),
-      estimatedDuration: this.estimateDuration(limitedSteps)
+      estimatedDuration: this.estimateDuration(steps)
     };
 
     return plan;

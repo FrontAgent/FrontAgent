@@ -69,8 +69,24 @@ export interface ExecutionPlan {
   taskId: string;
   summary: string;
   steps: ExecutionStep[];
+  /** 计划的阶段划分（可选） */
+  phases?: ExecutionPhase[];
   estimatedDuration?: number;
   rollbackStrategy: RollbackStrategy;
+}
+
+/**
+ * 执行阶段
+ */
+export interface ExecutionPhase {
+  /** 阶段ID */
+  phaseId: string;
+  /** 阶段名称 */
+  name: string;
+  /** 阶段描述 */
+  description: string;
+  /** 该阶段包含的步骤索引 */
+  stepIndices: number[];
 }
 
 /**
@@ -86,6 +102,8 @@ export interface ExecutionStep {
   validation: ValidationRule[];
   status: StepStatus;
   result?: StepResult;
+  /** 所属阶段（可选） */
+  phase?: string;
 }
 
 /**

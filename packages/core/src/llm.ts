@@ -302,32 +302,35 @@ ${options.sddConstraints ?? '无特殊约束'}
   "summary": "创建电商前端项目，包含配置、组件、验证流程",
   "stepOutlines": [
     // 阶段1: 分析
-    { "description": "分析项目目录", "action": "list_directory" },
+    { "description": "分析项目目录", "action": "list_directory", "phase": "阶段1-分析" },
 
     // 阶段2: 创建（必需至少8个create_file）
-    { "description": "创建package.json", "action": "create_file" },
-    { "description": "创建tsconfig.json", "action": "create_file" },
-    { "description": "创建vite配置", "action": "create_file" },
-    { "description": "创建Tailwind配置", "action": "create_file" },
-    { "description": "创建index.html", "action": "create_file" },
-    { "description": "创建App.tsx主组件", "action": "create_file" },
-    { "description": "创建Button组件", "action": "create_file" },
-    { "description": "创建首页组件", "action": "create_file" },
+    { "description": "创建package.json", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建tsconfig.json", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建vite配置", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建Tailwind配置", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建index.html", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建App.tsx主组件", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建Button组件", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "创建首页组件", "action": "create_file", "phase": "阶段2-创建" },
 
     // 阶段3: 安装和启动（必需）
-    { "description": "安装依赖", "action": "run_command" },
-    { "description": "启动开发服务器", "action": "run_command" },
+    { "description": "安装依赖", "action": "run_command", "phase": "阶段3-安装" },
+    { "description": "启动开发服务器", "action": "run_command", "phase": "阶段3-启动" },
 
     // 阶段4: 验证（必需）
-    { "description": "浏览器访问验证", "action": "browser_navigate" },
-    { "description": "截图验证渲染", "action": "browser_screenshot" },
-    { "description": "检查页面结构", "action": "get_page_structure" }
+    { "description": "浏览器访问验证", "action": "browser_navigate", "phase": "阶段4-验证" },
+    { "description": "截图验证渲染", "action": "browser_screenshot", "phase": "阶段4-验证" },
+    { "description": "检查页面结构", "action": "get_page_structure", "phase": "阶段4-验证" }
   ],
   "risks": ["依赖版本冲突", "端口占用"],
   "alternatives": ["使用Next.js框架"]
 }
 
-⚠️ 注意：stepOutlines 数组通常应该有 15-30 个步骤（取决于项目复杂度）`;
+⚠️ 重要：
+1. **每个步骤必须包含 phase 字段**，指明所属阶段（如："阶段1-分析"、"阶段2-创建"等）
+2. **步骤数量不限**：根据任务复杂度生成足够的步骤（可以是30、50甚至更多步骤）
+3. **阶段划分清晰**：方便执行器分阶段执行，确保逻辑顺序正确`;
 
     const outline = await this.generateObject({
       messages: [
@@ -352,9 +355,10 @@ ${options.sddConstraints ?? '无特殊约束'}
 1. description - 详细描述
 2. action - 动作类型（与概要保持一致）
 3. tool - 工具名称（通常与action相同）
-4. params - 详细参数（根据动作类型填充）
-5. reasoning - 为什么需要这个步骤
-6. needsCodeGeneration - 是否需要代码生成（create_file和apply_patch设为true）
+4. phase - 所属阶段（**必须保留Phase 1中的phase字段，不可修改**）
+5. params - 详细参数（根据动作类型填充）
+6. reasoning - 为什么需要这个步骤
+7. needsCodeGeneration - 是否需要代码生成（create_file和apply_patch设为true）
 
 # 🚨 关键原则：文件路径必须包含完整扩展名 🚨
 
@@ -1056,6 +1060,7 @@ const PlanOutlineSchema = z.object({
       'browser_type',
       'browser_screenshot'
     ]).describe('执行动作类型'),
+    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证）'),
   })).describe('步骤概要列表 - 只需简单描述每个步骤要做什么'),
   risks: z.array(z.string()).describe('潜在风险（可为空数组）'),
   alternatives: z.array(z.string()).describe('备选方案（可为空数组）'),
@@ -1085,6 +1090,7 @@ const StepExpansionSchema = z.object({
       'browser_screenshot'
     ]).describe('执行动作'),
     tool: z.string().describe('要调用的工具'),
+    phase: z.string().describe('所属阶段名称（与Phase 1中的阶段名称保持一致）'),
     params: z.object({
       path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
       recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
@@ -1122,6 +1128,7 @@ const GeneratedPlanSchema = z.object({
       'browser_screenshot'
     ]).describe('执行动作'),
     tool: z.string().describe('要调用的工具'),
+    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证）'),
     // 参数说明：
     // - 对于 read_file: { path: string }
     // - 对于 list_directory: { path: string, recursive?: boolean }
