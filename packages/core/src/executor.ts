@@ -366,13 +366,34 @@ export class Executor {
       return true;
     }
 
-    // run_command 的执行错误（命令失败、模块未找到等）
-    if ((errorMsg.includes('Command failed') ||
-         errorMsg.includes('Cannot find module') ||
-         errorMsg.includes('MODULE_NOT_FOUND') ||
-         errorMsg.includes('ENOENT')) &&
-        action === 'run_command') {
-      return true;
+    // run_command 的错误处理 - 需要区分关键命令和非关键命令
+    if (action === 'run_command') {
+      // 关键命令（安装、构建、验证）失败不能跳过
+      // 这些命令的失败会影响后续步骤
+      const criticalCommandPatterns = [
+        'npm install', 'pnpm install', 'yarn install', 'yarn add',
+        'npm run build', 'pnpm build', 'yarn build',
+        'npm run typecheck', 'tsc', 'tsc --noEmit',
+        'npm run lint', 'eslint',
+        'npm run dev', 'pnpm dev', 'yarn dev',
+        'npm run start', 'pnpm start'
+      ];
+
+      // 检查错误信息中是否包含关键命令
+      const isCriticalCommand = criticalCommandPatterns.some(pattern =>
+        errorMsg.toLowerCase().includes(pattern.toLowerCase())
+      );
+
+      // 关键命令失败不跳过，触发错误恢复
+      if (isCriticalCommand) {
+        return false;
+      }
+
+      // 非关键命令的某些错误可以跳过
+      if (errorMsg.includes('MODULE_NOT_FOUND') ||
+          errorMsg.includes('ENOENT')) {
+        return true;
+      }
     }
 
     // get_ast 的文件错误（文件不存在、路径是目录等）
