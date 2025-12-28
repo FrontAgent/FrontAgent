@@ -359,6 +359,21 @@ ${options.sddConstraints ?? '无特殊约束'}
     // Phase 2: 批量展开步骤详情
     const expansionSystem = `你是一个专业的前端工程 AI Agent，负责将步骤概要展开为详细的可执行步骤。
 
+# 🚨 关键要求：必须输出符合 JSON Schema 的对象 🚨
+
+**你必须输出一个包含 steps 数组的 JSON 对象**，格式如下：
+{
+  "steps": [
+    { ...step1... },
+    { ...step2... },
+    ...
+  ]
+}
+
+**严禁将 steps 输出为字符串**：
+❌ 错误：{ "steps": "[{...}, {...}]" }  // steps 是字符串
+✅ 正确：{ "steps": [{...}, {...}] }    // steps 是数组
+
 # 你的任务（Phase 2）
 将以下步骤概要展开为详细的可执行步骤，每个步骤需要包括：
 1. description - 详细描述
@@ -417,14 +432,26 @@ ${options.sddConstraints ?? '无特殊约束'}`;
 
     for (let i = 0; i < outline.stepOutlines.length; i += batchSize) {
       const batch = outline.stepOutlines.slice(i, i + batchSize);
-      const batchPrompt = `请将以下步骤概要展开为详细的可执行步骤：
+      const batchPrompt = `请将以下步骤概要展开为详细的可执行步骤。
 
+🚨 重要：你必须返回一个 JSON 对象，其中 steps 字段是一个**数组**，不是字符串！
+
+步骤概要：
 ${JSON.stringify(batch, null, 2)}
+
+输出格式要求：
+{
+  "steps": [    <-- 这里必须是数组，不是字符串！
+    { "description": "...", "action": "...", ... },
+    { "description": "...", "action": "...", ... }
+  ]
+}
 
 注意：
 - 确保 params 包含所有必需字段
 - 为 create_file 和 apply_patch 设置 needsCodeGeneration: true
-- 提供清晰的 reasoning`;
+- 提供清晰的 reasoning
+- 保留原有的 phase 字段`;
 
       const expansion = await this.generateObject({
         messages: [{ role: 'user', content: batchPrompt }],
@@ -434,8 +461,24 @@ ${JSON.stringify(batch, null, 2)}
         maxTokens: 16384,
       });
 
-      allSteps.push(...expansion.steps);
-      console.log(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${expansion.steps.length} steps expanded`);
+      // 修正可能的格式错误：如果 steps 是字符串，尝试解析为数组
+      let steps = expansion.steps;
+      if (typeof steps === 'string') {
+        console.warn(`[LLMService] Warning: expansion.steps is a string, parsing as JSON`);
+        try {
+          steps = JSON.parse(steps);
+        } catch (error) {
+          console.error(`[LLMService] Failed to parse steps string:`, error);
+          throw new Error(`Invalid steps format: expected array, got string that cannot be parsed`);
+        }
+      }
+
+      if (!Array.isArray(steps)) {
+        throw new Error(`Invalid steps format: expected array, got ${typeof steps}`);
+      }
+
+      allSteps.push(...steps);
+      console.log(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${steps.length} steps expanded`);
     }
 
     const finalPlan: GeneratedPlan = {
