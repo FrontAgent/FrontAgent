@@ -726,6 +726,7 @@ export class Executor {
           // 验证修复是否成功：重新运行阶段完成检查
           if (onPhaseComplete) {
             console.log(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
+            const previousPhaseErrors = phaseErrors;
             phaseErrors = [];
             try {
               const verificationErrors = await onPhaseComplete(phase, allResults);
@@ -733,6 +734,16 @@ export class Executor {
 
               if (phaseErrors.length === 0) {
                 console.log(`[Executor] ✅ Recovery successful! All errors fixed.`);
+
+                // 将原本失败的步骤标记为已修复（通过recovery）
+                for (const errorInfo of previousPhaseErrors) {
+                  if (errorInfo.step.status === 'failed') {
+                    console.log(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
+                    errorInfo.step.status = 'completed';
+                    completedStepIds.add(errorInfo.step.stepId);
+                  }
+                }
+
                 break;
               } else {
                 console.log(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);

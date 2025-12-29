@@ -315,6 +315,58 @@ if (pkgJsonResult.success && pkgJsonResult.content) {
 - ✅ 阶段验证和错误恢复能正确工作
 - ✅ 提高执行流程的可控性
 
+#### 3. 自动阶段分配（Fallback）
+**问题**：部分LLM模型（如gpt-5.2）可能不遵循prompt约束，仍然输出"未分组"。
+
+**解决方案**：
+在Phase 1生成后添加自动修正逻辑：
+```typescript
+// 检测是否超过50%的步骤为"未分组"
+const ungroupedCount = outline.stepOutlines.filter(s => !s.phase || s.phase === '未分组').length;
+if (ungroupedCount > outline.stepOutlines.length * 0.5) {
+  // 根据action类型自动分配阶段
+  if (step.action === 'list_directory' || step.action === 'search_code') {
+    step.phase = '阶段1-分析';
+  } else if (step.action === 'create_file') {
+    step.phase = '阶段2-创建';
+  } else if (step.action === 'run_command') {
+    // 根据描述判断：install → 阶段3-安装, typecheck → 阶段4-验证, dev → 阶段5-启动
+  } else if (step.action === 'browser_*') {
+    step.phase = '阶段6-浏览器验证';
+  }
+}
+```
+
+**位置**：`packages/core/src/llm.ts:719-763`
+
+#### 4. Recovery后标记步骤为已修复
+**问题**：当步骤失败后被recovery修复，但步骤status仍为'failed'，导致任务整体被标记为失败。
+
+**解决方案**：
+```typescript
+if (phaseErrors.length === 0) {
+  console.log('✅ Recovery successful! All errors fixed.');
+
+  // 将原本失败的步骤标记为已修复
+  for (const errorInfo of previousPhaseErrors) {
+    if (errorInfo.step.status === 'failed') {
+      errorInfo.step.status = 'completed';
+      completedStepIds.add(errorInfo.step.stepId);
+    }
+  }
+}
+```
+
+**位置**：`packages/core/src/executor.ts:735-745`
+
+**效果**：
+- ✅ Recovery成功后，任务不会因已修复的错误而失败
+- ✅ 提高任务成功率
+
+**已知限制**：
+- ⚠️ 因失败步骤而被跳过的后续步骤不会重新执行
+- ⚠️ 需要recovery步骤完全替代原失败步骤的功能
+
 ### 两阶段架构设计
 
 FrontAgent 采用创新的两阶段架构，彻底解决了 AI Agent 在生成大量代码时的 JSON 解析错误问题：

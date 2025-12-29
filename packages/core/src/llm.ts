@@ -716,6 +716,52 @@ ${options.sddConstraints ?? '无特殊约束'}
 
     console.log(`[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`);
 
+    // 🔧 Phase 1 后处理：检查并修正"未分组"问题
+    const ungroupedCount = outline.stepOutlines.filter(s => !s.phase || s.phase === '未分组').length;
+    if (ungroupedCount > outline.stepOutlines.length * 0.5) {
+      console.warn(`[LLMService] ⚠️  Detected ${ungroupedCount}/${outline.stepOutlines.length} steps with "未分组" or missing phase`);
+      console.log('[LLMService] 🔧 Auto-fixing phase assignments based on action types...');
+
+      // 自动分配阶段
+      for (let i = 0; i < outline.stepOutlines.length; i++) {
+        const step = outline.stepOutlines[i];
+
+        // 如果phase缺失或为"未分组"，根据action类型自动分配
+        if (!step.phase || step.phase === '未分组') {
+          if (step.action === 'list_directory' || step.action === 'search_code' ||
+              (step.action === 'read_file' && i < 10)) {
+            step.phase = '阶段1-分析';
+          } else if (step.action === 'create_file') {
+            step.phase = '阶段2-创建';
+          } else if (step.action === 'run_command') {
+            // 根据描述判断
+            if (step.description.includes('安装') || step.description.includes('install')) {
+              step.phase = '阶段3-安装';
+            } else if (step.description.includes('类型检查') || step.description.includes('typecheck') ||
+                       step.description.includes('tsc')) {
+              step.phase = '阶段4-验证';
+            } else if (step.description.includes('启动') || step.description.includes('dev') ||
+                       step.description.includes('serve')) {
+              step.phase = '阶段5-启动';
+            } else {
+              step.phase = '阶段4-验证';
+            }
+          } else if (step.action === 'browser_navigate' || step.action === 'browser_screenshot' ||
+                     step.action === 'get_page_structure' || step.action === 'browser_click') {
+            step.phase = '阶段6-浏览器验证';
+          } else if (step.action === 'apply_patch') {
+            step.phase = '阶段2-创建';
+          } else {
+            step.phase = '阶段1-分析';
+          }
+
+          console.log(`[LLMService]   Fixed step ${i + 1}: "${step.description}" → ${step.phase}`);
+        }
+      }
+
+      console.log('[LLMService] ✅ Phase assignment auto-fix complete');
+    }
+
     // Phase 2: 批量展开步骤详情
     const expansionSystem = `你是一个专业的前端工程 AI Agent，负责将步骤概要展开为详细的可执行步骤。
 
