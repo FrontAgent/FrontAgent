@@ -288,6 +288,33 @@ while (phaseErrors.length > 0 && recoveryAttempt < MAX_RECOVERY_ATTEMPTS) {
 - ✅ 最多重试 3 次直到所有错误被修复
 - ✅ 防止无限循环，提供清晰的错误日志
 
+### 其他关键优化（2025-12）
+
+#### 1. Package.json 缓存更新
+**问题**：Phase completion check 使用过期的 package.json 缓存，即使 npm install 已安装新依赖，仍报告依赖缺失。
+
+**解决方案**：
+```typescript
+// 在每次 phase completion check 前重新读取 package.json
+const pkgJsonResult = await this.executor['callTool']('read_file', { path: 'package.json' });
+if (pkgJsonResult.success && pkgJsonResult.content) {
+  executionContext.collectedContext.files.set('package.json', pkgJsonResult.content);
+}
+```
+
+#### 2. 强化阶段分组约束
+**问题**：LLM 在 Phase 1 生成计划时，将所有步骤的 phase 字段设置为"未分组"，导致无法分阶段执行。
+
+**解决方案**：
+- 在 Phase 1 prompt 最开头强调禁止使用"未分组"
+- 提供明确的错误和正确示例
+- 在 Phase 2 prompt 开头强调必须保留 Phase 1 的 phase 字段
+
+**效果**：
+- ✅ 确保所有步骤都有明确的阶段名称（阶段1-分析、阶段2-创建等）
+- ✅ 阶段验证和错误恢复能正确工作
+- ✅ 提高执行流程的可控性
+
 ### 两阶段架构设计
 
 FrontAgent 采用创新的两阶段架构，彻底解决了 AI Agent 在生成大量代码时的 JSON 解析错误问题：

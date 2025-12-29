@@ -517,6 +517,35 @@ export class LLMService {
     // Phase 1: 生成计划大纲
     const outlineSystem = `你是一个专业的前端工程 AI Agent，负责分析任务并生成执行计划的大纲。
 
+# 🚨🚨🚨 最重要规则：必须分阶段 🚨🚨🚨
+
+**绝对禁止将所有步骤的 phase 字段设置为 "未分组"！**
+
+每个步骤必须有明确的阶段名称：
+- 阶段1-分析
+- 阶段2-创建
+- 阶段3-安装
+- 阶段4-验证
+- 阶段5-启动
+- 阶段6-浏览器验证
+
+❌ 错误示例：
+{
+  "stepOutlines": [
+    { "description": "...", "action": "...", "phase": "未分组" },  // ❌ 禁止！
+    { "description": "...", "action": "...", "phase": "未分组" }   // ❌ 禁止！
+  ]
+}
+
+✅ 正确示例：
+{
+  "stepOutlines": [
+    { "description": "分析目录", "action": "list_directory", "phase": "阶段1-分析" },
+    { "description": "创建package.json", "action": "create_file", "phase": "阶段2-创建" },
+    { "description": "安装依赖", "action": "run_command", "phase": "阶段3-安装" }
+  ]
+}
+
 # 🚨🚨🚨 JSON 格式强制要求 🚨🚨🚨
 
 ## 输出格式规范：
@@ -689,6 +718,21 @@ ${options.sddConstraints ?? '无特殊约束'}
 
     // Phase 2: 批量展开步骤详情
     const expansionSystem = `你是一个专业的前端工程 AI Agent，负责将步骤概要展开为详细的可执行步骤。
+
+# 🚨🚨🚨 最重要：必须保留原有 phase 字段 🚨🚨🚨
+
+**绝对禁止修改或忽略 Phase 1 中的 phase 字段！**
+
+每个步骤的 phase 字段必须与 Phase 1 中的完全一致：
+- 如果 Phase 1 是 "阶段1-分析"，展开后也必须是 "阶段1-分析"
+- 如果 Phase 1 是 "阶段2-创建"，展开后也必须是 "阶段2-创建"
+- ❌ 禁止改为 "未分组"
+- ❌ 禁止改为其他阶段名称
+
+✅ 正确示例：
+Phase 1 outline: { "description": "创建配置", "action": "create_file", "phase": "阶段2-创建" }
+Phase 2 expanded: { "description": "创建package.json配置文件", "action": "create_file", "phase": "阶段2-创建", ... }
+                                                                                   ^^^^^^^^^^^^^ 必须保持一致
 
 # 🚨🚨🚨 JSON 格式强制要求 🚨🚨🚨
 

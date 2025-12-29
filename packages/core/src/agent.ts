@@ -417,6 +417,16 @@ export class FrontAgent {
             }
 
             // 2. 检查缺失的 npm 依赖（检查代码中使用但未在 package.json 中声明的依赖）
+            // 重新读取 package.json 以获取最新的依赖列表（可能已通过 npm install 更新）
+            try {
+              const pkgJsonResult = await this.executor['callTool']('read_file', { path: 'package.json' }) as { success: boolean; content?: string };
+              if (pkgJsonResult.success && pkgJsonResult.content) {
+                executionContext.collectedContext.files.set('package.json', pkgJsonResult.content);
+              }
+            } catch (error) {
+              console.warn('[Agent] Failed to refresh package.json:', error);
+            }
+
             const missingDeps = await this.checkMissingNpmDependencies(executionContext.collectedContext.files);
             if (missingDeps.length > 0) {
               console.log(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
