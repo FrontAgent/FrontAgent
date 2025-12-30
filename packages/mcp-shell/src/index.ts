@@ -127,12 +127,25 @@ export class ShellMCPClient {
       const exitCode = error.code || error.exitCode || 1;
       const isActualFailure = exitCode !== 0;
 
+      // 构建详细的错误信息，包含 stderr 和 stdout
+      let errorMessage: string | undefined;
+      if (isActualFailure) {
+        const parts: string[] = [`Command failed: ${command}`];
+        if (error.stderr) {
+          parts.push(`stderr: ${error.stderr.trim()}`);
+        }
+        if (error.stdout) {
+          parts.push(`stdout: ${error.stdout.trim()}`);
+        }
+        errorMessage = parts.join('\n');
+      }
+
       return {
         success: !isActualFailure,
         stdout: error.stdout || '',
         stderr: error.stderr || '',
         exitCode,
-        error: isActualFailure ? error.message : undefined
+        error: errorMessage
       };
     }
   }
