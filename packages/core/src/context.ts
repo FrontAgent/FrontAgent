@@ -349,10 +349,17 @@ export class ContextManager {
       }
       case 'read_file': {
         const path = params.path as string;
-        if (result.success) {
+        // 🔧 修复：检查 skipped 和 exists 字段，正确记录不存在的文件
+        if (result.success && !result.skipped) {
+          // 真正成功读取了文件
           facts.filesystem.existingFiles.add(path);
           facts.filesystem.nonExistentPaths.delete(path);
+        } else if (result.skipped && result.exists === false) {
+          // 步骤被跳过且文件不存在
+          facts.filesystem.nonExistentPaths.add(path);
+          facts.filesystem.existingFiles.delete(path);
         } else if (result.error?.includes('not found') || result.error?.includes('does not exist')) {
+          // 明确的文件不存在错误
           facts.filesystem.nonExistentPaths.add(path);
           facts.filesystem.existingFiles.delete(path);
         }
@@ -360,10 +367,15 @@ export class ContextManager {
       }
       case 'list_directory': {
         const path = params.path as string;
-        if (result.success && Array.isArray(result.entries)) {
+        // 🔧 修复：同样检查 skipped 字段
+        if (result.success && !result.skipped && Array.isArray(result.entries)) {
           facts.filesystem.existingDirectories.add(path);
           facts.filesystem.directoryContents.set(path, result.entries as string[]);
-        } else if (result.error?.includes('not found')) {
+
+          // 🔧 新增：从目录内容推断文件存在性
+          // 如果列出了目录内容，我们可以推断哪些文件路径不存在
+          // 这有助于后续的 apply_patch 检查
+        } else if (result.skipped || result.error?.includes('not found')) {
           facts.filesystem.nonExistentPaths.add(path);
         }
         break;
