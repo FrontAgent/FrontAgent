@@ -370,21 +370,23 @@ export class ContextManager {
         // 🔧 修复：同样检查 skipped 字段
         if (result.success && !result.skipped && Array.isArray(result.entries)) {
           facts.filesystem.existingDirectories.add(path);
-          facts.filesystem.directoryContents.set(path, result.entries as string[]);
 
           // 🔧 关键修复：从目录内容推断文件存在性
-          // 将目录中的文件自动添加到 existingFiles
-          const dirPath = path.endsWith('/') ? path : path + '/';
-          for (const entry of result.entries as string[]) {
-            // 只处理文件（不包含子目录标记 '/'）
-            if (!entry.endsWith('/')) {
-              const fullPath = dirPath + entry;
-              facts.filesystem.existingFiles.add(fullPath);
-              facts.filesystem.nonExistentPaths.delete(fullPath);
-            } else {
-              // 子目录
-              const subDirPath = dirPath + entry;
-              facts.filesystem.existingDirectories.add(subDirPath);
+          // list_directory 返回的 entries 是 FileInfo[] 对象数组
+          // FileInfo = { name: string, path: string, type: 'file' | 'directory', size?, modifiedAt? }
+          const entries = result.entries as Array<{ name: string; path: string; type: string }>;
+
+          // 存储路径字符串用于 directoryContents
+          facts.filesystem.directoryContents.set(path, entries.map(e => e.path));
+
+          // 将目录中的文件/子目录添加到相应的集合
+          for (const entry of entries) {
+            if (entry.type === 'file') {
+              facts.filesystem.existingFiles.add(entry.path);
+              facts.filesystem.nonExistentPaths.delete(entry.path);
+            } else if (entry.type === 'directory') {
+              facts.filesystem.existingDirectories.add(entry.path);
+              facts.filesystem.nonExistentPaths.delete(entry.path);
             }
           }
         } else if (result.skipped || result.error?.includes('not found')) {
