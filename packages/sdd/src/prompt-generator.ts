@@ -76,7 +76,19 @@ export class SDDPromptGenerator {
     // 7. 修改安全边界
     sections.push(this.generateModificationRulesSection());
 
-    // 8. 重要提醒
+    // 8. 🔧 修复问题3：迁移需求（如果存在）
+    const migrationSection = this.generateMigrationSection();
+    if (migrationSection) {
+      sections.push(migrationSection);
+    }
+
+    // 9. 🔧 修复问题3：其他自定义字段（通用处理）
+    const customSection = this.generateCustomFieldsSection();
+    if (customSection) {
+      sections.push(customSection);
+    }
+
+    // 10. 重要提醒
     sections.push(this.generateReminders());
 
     return [
@@ -275,6 +287,96 @@ ${modificationRules.requireApproval.map(r => `- \`${r.pattern}\`: ${r.reason}`).
     }
 
     return section;
+  }
+
+  /**
+   * 🔧 修复问题3：生成迁移需求部分（专门处理组件迁移场景）
+   */
+  private generateMigrationSection(): string | null {
+    const isZh = this.options.language === 'zh';
+    const config = this.config as any;
+
+    // 检查是否有迁移相关的配置
+    if (!config.migration_requirements && !config.migrationRequirements) {
+      return null;
+    }
+
+    const migrationReqs = config.migration_requirements || config.migrationRequirements;
+
+    let section = `### ${isZh ? '🔄 迁移任务要求' : '🔄 Migration Task Requirements'}\n\n`;
+
+    if (migrationReqs.description) {
+      section += `**${isZh ? '迁移说明' : 'Description'}**: ${migrationReqs.description}\n\n`;
+    }
+
+    // components_to_remove - 需要删除的组件
+    if (migrationReqs.components_to_remove && Array.isArray(migrationReqs.components_to_remove)) {
+      section += `**${isZh ? '🗑️ 需要删除的文件' : '🗑️ Files to Delete'}**:\n`;
+      for (const component of migrationReqs.components_to_remove) {
+        section += `- \`${component.path}\` - ${component.reason || ''}\n`;
+      }
+      section += '\n';
+    }
+
+    // components_to_refactor - 需要重构的组件
+    if (migrationReqs.components_to_refactor && Array.isArray(migrationReqs.components_to_refactor)) {
+      section += `**${isZh ? '🔧 需要重构的文件' : '🔧 Files to Refactor'}**:\n`;
+      for (const component of migrationReqs.components_to_refactor) {
+        section += `- \`${component.path}\`:\n`;
+        if (component.requirements && Array.isArray(component.requirements)) {
+          for (const req of component.requirements) {
+            section += `  - ${req}\n`;
+          }
+        }
+      }
+      section += '\n';
+    }
+
+    // migration_steps - 迁移步骤建议
+    const migrationSteps = config.migration_steps || config.migrationSteps;
+    if (migrationSteps && Array.isArray(migrationSteps)) {
+      section += `**${isZh ? '📋 建议的迁移步骤' : '📋 Recommended Migration Steps'}**:\n`;
+      for (const step of migrationSteps) {
+        section += `${step.step}. **${step.description}**: ${step.action}\n`;
+      }
+      section += '\n';
+    }
+
+    section += `⚠️ **${isZh ? '重要' : 'Important'}**: ${isZh
+      ? '这是一个迁移任务，你需要严格按照上述要求进行文件的删除、重构和修改，而不是创建新的文件！'
+      : 'This is a migration task. You MUST follow the requirements above to delete, refactor and modify files, NOT create new files!'}`;
+
+    return section;
+  }
+
+  /**
+   * 🔧 修复问题3：生成其他自定义字段部分（通用处理）
+   */
+  private generateCustomFieldsSection(): string | null {
+    const config = this.config as any;
+    const knownFields = new Set([
+      'project', 'techStack', 'directoryStructure', 'moduleBoundaries',
+      'namingConventions', 'codeQuality', 'modificationRules',
+      'migration_requirements', 'migrationRequirements',
+      'migration_steps', 'migrationSteps',
+      'component_migration_rules', 'componentMigrationRules',
+      'acceptance_criteria', 'acceptanceCriteria',
+      'agent_behavior', 'agentBehavior'
+    ]);
+
+    const customFields: string[] = [];
+
+    for (const [key, value] of Object.entries(config)) {
+      if (!knownFields.has(key) && value !== null && value !== undefined) {
+        customFields.push(`**${key}**: ${typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}`);
+      }
+    }
+
+    if (customFields.length === 0) {
+      return null;
+    }
+
+    return `### Additional Constraints\n${customFields.join('\n\n')}`;
   }
 
   /**

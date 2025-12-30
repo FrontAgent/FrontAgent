@@ -32,6 +32,7 @@ export class FrontAgent {
   private llmService: LLMService;
   private promptGenerator?: SDDPromptGenerator;
   private eventListeners: AgentEventListener[] = [];
+  private currentTaskId?: string;  // 🔧 修复问题1：追踪当前执行的任务ID
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -68,7 +69,13 @@ export class FrontAgent {
       hallucinationGuard: this.hallucinationGuard,
       llmService: this.llmService,
       debug: config.debug,
-      getSddConstraints: () => this.promptGenerator?.generate()
+      getSddConstraints: () => this.promptGenerator?.generate(),
+      // 🔧 修复问题1：传递文件系统事实，帮助 Executor 判断文件是否存在
+      getFileSystemFacts: () => {
+        if (!this.currentTaskId) return undefined;
+        const context = this.contextManager.getContext(this.currentTaskId);
+        return context?.facts.filesystem;
+      }
     });
   }
 
@@ -110,14 +117,14 @@ export class FrontAgent {
    */
   registerWebTools(): void {
     const tools = [
-      'navigate',
+      'browser_navigate',    // 注意工具名
       'get_page_structure',
       'get_accessibility_tree',
       'get_interactive_elements',
-      'click',
-      'type',
+      'browser_click',
+      'browser_type',
       'scroll',
-      'screenshot',
+      'browser_screenshot',
       'wait_for_selector',
       'evaluate',
       'close_browser'
@@ -192,6 +199,9 @@ export class FrontAgent {
     this.emit({ type: 'task_started', task });
 
     try {
+      // 设置当前任务ID，以便 Executor 能获取文件系统事实
+      this.currentTaskId = task.id;
+
       // 创建上下文
       const context = this.contextManager.createContext(task, this.sddConfig);
 
@@ -206,7 +216,7 @@ export class FrontAgent {
 
       // 规划阶段
       this.emit({ type: 'planning_started' });
-      
+
       const planResult = await this.planner.plan(
         task,
         {
@@ -219,7 +229,7 @@ export class FrontAgent {
       // 如果需要更多上下文
       if (planResult.needsMoreContext && planResult.contextRequests) {
         await this.gatherContext(task.id, planResult.contextRequests);
-        
+
         // 重新规划
         const retryResult = await this.planner.plan(
           task,
@@ -516,6 +526,7 @@ export class FrontAgent {
       };
     } finally {
       // 清理上下文
+      this.currentTaskId = undefined;  // 清理当前任务ID
       this.contextManager.clearContext(task.id);
     }
   }

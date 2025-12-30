@@ -30,6 +30,12 @@ export interface ExecutorConfig {
   getCreatedModules?: () => string[];
   /** 获取 SDD 约束的回调（用于代码生成时遵守 SDD 规范） */
   getSddConstraints?: () => string | undefined;
+  /** 获取文件系统事实的回调（用于验证文件是否存在） */
+  getFileSystemFacts?: () => {
+    existingFiles: Set<string>;
+    nonExistentPaths: Set<string>;
+    directoryContents: Map<string, string[]>;
+  } | undefined;
 }
 
 /**
@@ -449,6 +455,29 @@ export class Executor {
    */
   private async validateBeforeExecution(step: ExecutionStep): Promise<ValidationResult> {
     const results: ValidationResult['results'] = [];
+
+    // 🔧 修复问题1：使用文件系统事实来验证 apply_patch 操作
+    if (step.action === 'apply_patch' && step.params.path) {
+      const path = step.params.path as string;
+      const facts = this.config.getFileSystemFacts?.();
+
+      // 如果我们已经知道这个文件不存在（通过之前的 list_directory 或 read_file）
+      if (facts?.nonExistentPaths.has(path)) {
+        if (this.config.debug) {
+          console.log(`[Executor] ⚠️  File ${path} is known to not exist. Suggest using create_file instead.`);
+        }
+        return {
+          pass: false,
+          results: [{
+            pass: false,
+            type: 'file_not_found',
+            severity: 'block',
+            message: `Cannot apply patch: file ${path} does not exist (confirmed by previous directory listing). Please use create_file instead.`
+          }],
+          blockedBy: [`File ${path} does not exist. Use create_file instead of apply_patch.`]
+        };
+      }
+    }
 
     // 对于读取文件操作，验证文件存在
     if (step.action === 'read_file' && step.params.path) {
