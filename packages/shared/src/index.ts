@@ -194,6 +194,13 @@ export interface TechStackConfig {
   styling?: string;
   stateManagement?: string;
   forbiddenPackages: string[];
+  // 可选字段：允许扩展
+  requiredPackages?: string[];
+  uiLibrary?: string;
+  uiLibraryVersion?: string;
+  routing?: string;
+  buildTool?: string;
+  [key: string]: any; // 允许任意扩展字段
 }
 
 export interface DirectoryStructureConfig {

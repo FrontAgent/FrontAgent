@@ -642,6 +642,11 @@ ${options.sddConstraints ?? '无特殊约束'}
 
 **阶段 3: 安装阶段（必需！）**
 - run_command: npm install 或 pnpm install
+  ⚠️ **重要提醒**：
+  - npm install 可能因网络、代理、权限等问题失败
+  - 如果失败，系统会自动触发错误恢复流程
+  - 不要在此阶段添加额外的网络诊断或代理配置步骤
+  - 让用户通过命令批准流程来处理权限和网络问题
 
 **阶段 4: 验证阶段（必需！在启动服务器前验证）**
 - run_command: npm run typecheck 或 tsc --noEmit（验证类型）

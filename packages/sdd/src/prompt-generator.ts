@@ -112,8 +112,31 @@ ${this.config.project.description ? `- **${isZh ? '描述' : 'Description'}**: $
       section += `\n- **Styling**: ${techStack.styling}`;
     }
 
+    if (techStack.uiLibrary) {
+      section += `\n- **UI Library**: ${techStack.uiLibrary}`;
+      if (techStack.uiLibraryVersion) {
+        section += ` ${techStack.uiLibraryVersion}`;
+      }
+    }
+
+    if (techStack.routing) {
+      section += `\n- **Routing**: ${techStack.routing}`;
+    }
+
+    if (techStack.buildTool) {
+      section += `\n- **Build Tool**: ${techStack.buildTool}`;
+    }
+
     if (techStack.stateManagement) {
       section += `\n- **State Management**: ${techStack.stateManagement}`;
+    }
+
+    // 🚨 关键修复：生成必需依赖列表
+    if (techStack.requiredPackages && techStack.requiredPackages.length > 0) {
+      section += `\n\n📦 **${isZh ? '必需的依赖包（package.json 中必须包含）' : 'Required Packages (Must be in package.json)'}**:
+${techStack.requiredPackages.map(pkg => `- \`${pkg}\``).join('\n')}
+
+⚠️ ${isZh ? '重要提醒：生成 package.json 时，dependencies 或 devDependencies 中必须包含上述所有包！' : 'Important: When generating package.json, all packages above MUST be included in dependencies or devDependencies!'}`;
     }
 
     if (techStack.forbiddenPackages.length > 0) {

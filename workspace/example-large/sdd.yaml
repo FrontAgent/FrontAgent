@@ -1,0 +1,632 @@
+version: "1.1"
+
+project:
+  name: "e-commerce-frontend"
+  type: "react-spa"
+  description: "电商前端应用"
+  goals:
+    - "可维护、强约束的前端工程结构"
+    - "Agent 生成代码可审计、可回溯"
+    - "UI / 业务 / 数据层解耦"
+
+# =========================
+# 技术栈约束
+# =========================
+tech_stack:
+  framework: "react"
+  version: "^18.0.0"
+  language: "typescript"
+  styling: "tailwindcss"
+  ui_library: "antd"
+  ui_library_version: "^5.0.0"
+  state_management: "zustand"
+  routing: "react-router-dom"
+  build_tool: "vite"
+
+  required_packages:
+    - "antd"                    # UI 组件库
+    - "react-masonry-css"       # 瀑布流布局
+    - "date-fns"                # 日期处理
+    - "es-toolkit"              # 工具函数库
+    - "ky"                      # HTTP 客户端
+
+  forbidden_packages:
+    - "jquery"           # 不使用 jQuery
+    - "moment"           # 使用 date-fns 替代
+    - "lodash"           # 使用 es-toolkit 替代
+    - "axios"            # 使用 ky 替代
+    - "element-ui"       # 使用 antd 替代
+    - "material-ui"      # 使用 antd 替代
+
+# =========================
+# UI 组件库使用规范
+# =========================
+ui_component_rules:
+  library: "antd"
+
+  component_usage:
+    base_components:
+      - "Button"          # 按钮
+      - "Input"           # 输入框
+      - "Form"            # 表单
+      - "Card"            # 卡片
+      - "Modal"           # 弹窗
+      - "Drawer"          # 抽屉
+      - "Table"           # 表格
+      - "Pagination"      # 分页
+      - "Menu"            # 菜单
+      - "Dropdown"        # 下拉菜单
+      - "Breadcrumb"      # 面包屑
+      - "Tag"             # 标签
+      - "Badge"           # 徽标
+      - "Avatar"          # 头像
+      - "Spin"            # 加载中
+      - "Message"         # 消息提示
+      - "Notification"    # 通知提醒
+      - "Empty"           # 空状态
+      - "Skeleton"        # 骨架屏
+
+  theme_configuration:
+    file: "src/config/theme.ts"
+    required: true
+    customization:
+      - "主题色配置（primaryColor）"
+      - "边框圆角（borderRadius）"
+      - "字体大小（fontSize）"
+      - "组件尺寸（componentSize）"
+
+  import_rules:
+    - "使用命名导入：import { Button, Card } from 'antd'"
+    - "禁止全量导入：import * from 'antd'"
+    - "样式导入：import 'antd/dist/reset.css'"
+    - "按需加载图标：import { UserOutlined } from '@ant-design/icons'"
+
+  forbidden_ui_libraries:
+    - "element-ui"
+    - "material-ui"
+    - "chakra-ui"
+    - "react-bootstrap"
+
+# =========================
+# 页面布局规范
+# =========================
+layout_specifications:
+  common_layout:
+    header:
+      component: "Layout.Header"
+      height: "64px"
+      elements:
+        - "Logo（左侧）"
+        - "导航菜单（中间）"
+        - "搜索框（右侧）"
+        - "用户信息/购物车（最右侧）"
+
+    content:
+      component: "Layout.Content"
+      min_height: "calc(100vh - 64px - 200px)"
+      padding: "24px"
+
+    footer:
+      component: "Layout.Footer"
+      height: "200px"
+      elements:
+        - "公司信息"
+        - "友情链接"
+        - "备案信息"
+
+  product_list_layout:
+    display_mode: "masonry"  # 瀑布流布局
+    implementation: "react-masonry-css"
+
+    masonry_config:
+      breakpoint_columns:
+        default: 4
+        1200: 3
+        768: 2
+        480: 1
+      column_gap: "16px"
+      item_min_width: "240px"
+
+    product_card:
+      component: "Card"
+      elements:
+        - order: 1
+          name: "商品图片"
+          aspect_ratio: "auto"  # 瀑布流需要自适应高度
+          hover_effect: true
+        - order: 2
+          name: "商品标题"
+          max_lines: 2
+          font_size: "14px"
+        - order: 3
+          name: "商品价格"
+          font_size: "18px"
+          color: "primary"
+        - order: 4
+          name: "商品标签"
+          component: "Tag"
+          max_count: 3
+        - order: 5
+          name: "操作按钮"
+          buttons:
+            - "加入购物车"
+            - "立即购买"
+
+    loading_state:
+      component: "Skeleton"
+      type: "card"
+      count: 8
+
+    empty_state:
+      component: "Empty"
+      description: "暂无商品"
+
+  product_detail_layout:
+    structure: "two-column"
+    left_column:
+      width: "50%"
+      elements:
+        - "商品图片轮播（Carousel）"
+        - "商品缩略图列表"
+
+    right_column:
+      width: "50%"
+      elements:
+        - order: 1
+          name: "商品标题"
+          component: "Typography.Title"
+        - order: 2
+          name: "商品价格"
+          component: "Typography.Text"
+        - order: 3
+          name: "商品规格选择"
+          component: "Form"
+        - order: 4
+          name: "数量选择"
+          component: "InputNumber"
+        - order: 5
+          name: "购买按钮组"
+          components:
+            - "Button: 加入购物车"
+            - "Button: 立即购买"
+        - order: 6
+          name: "商品详情标签页"
+          component: "Tabs"
+          tabs:
+            - "商品详情"
+            - "规格参数"
+            - "用户评价"
+
+  shopping_cart_layout:
+    component: "Table"
+    columns:
+      - "商品信息（图片 + 名称）"
+      - "单价"
+      - "数量（InputNumber）"
+      - "小计"
+      - "操作（删除）"
+
+    footer_section:
+      elements:
+        - "已选商品数量"
+        - "总价格"
+        - "结算按钮（Button）"
+
+  checkout_layout:
+    structure: "steps"
+    component: "Steps"
+    steps:
+      - step: 1
+        title: "确认订单"
+        content:
+          - "收货地址选择（Radio.Group + Card）"
+          - "商品列表确认"
+      - step: 2
+        title: "支付方式"
+        content:
+          - "支付方式选择（Radio.Group）"
+      - step: 3
+        title: "完成订单"
+        content:
+          - "订单详情（Descriptions）"
+          - "支付按钮"
+
+# =========================
+# 响应式设计规范
+# =========================
+responsive_design:
+  breakpoints:
+    xs: "< 576px"
+    sm: ">= 576px"
+    md: ">= 768px"
+    lg: ">= 992px"
+    xl: ">= 1200px"
+    xxl: ">= 1600px"
+
+  grid_system:
+    use: "antd Grid (Row/Col)"
+    gutter:
+      horizontal: 16
+      vertical: 16
+
+  responsive_rules:
+    - "移动端优先设计"
+    - "使用 Grid 的 xs/sm/md/lg/xl 响应式属性"
+    - "图片必须使用响应式尺寸"
+    - "字体大小使用相对单位（rem）"
+    - "触摸目标最小尺寸 44x44px"
+
+# =========================
+# 设计规范（Design Tokens）
+# =========================
+design_tokens:
+  colors:
+    primary: "#1890ff"       # 主色
+    success: "#52c41a"       # 成功色
+    warning: "#faad14"       # 警告色
+    error: "#ff4d4f"         # 错误色
+    info: "#1890ff"          # 信息色
+    text:
+      primary: "rgba(0, 0, 0, 0.88)"     # 主文本
+      secondary: "rgba(0, 0, 0, 0.65)"   # 次要文本
+      disabled: "rgba(0, 0, 0, 0.25)"    # 禁用文本
+    background:
+      base: "#ffffff"
+      layout: "#f5f5f5"
+      container: "#fafafa"
+    border:
+      base: "#d9d9d9"
+      light: "#f0f0f0"
+
+  spacing:
+    xs: "4px"
+    sm: "8px"
+    md: "16px"
+    lg: "24px"
+    xl: "32px"
+    xxl: "48px"
+
+  typography:
+    font_family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial"
+    font_sizes:
+      xs: "12px"
+      sm: "14px"
+      base: "16px"
+      lg: "18px"
+      xl: "20px"
+      xxl: "24px"
+      h1: "38px"
+      h2: "30px"
+      h3: "24px"
+      h4: "20px"
+    line_heights:
+      tight: 1.2
+      normal: 1.5
+      relaxed: 1.8
+
+  border_radius:
+    sm: "2px"
+    base: "4px"
+    md: "6px"
+    lg: "8px"
+
+  shadows:
+    sm: "0 1px 2px rgba(0, 0, 0, 0.03)"
+    base: "0 1px 8px rgba(0, 0, 0, 0.08)"
+    md: "0 2px 8px rgba(0, 0, 0, 0.15)"
+    lg: "0 4px 16px rgba(0, 0, 0, 0.15)"
+
+  transitions:
+    fast: "0.1s"
+    base: "0.3s"
+    slow: "0.5s"
+
+# =========================
+# 交互规范
+# =========================
+interaction_rules:
+  hover_effects:
+    - "按钮悬停：背景色变化 + 阴影"
+    - "卡片悬停：提升阴影层级"
+    - "链接悬停：颜色变化"
+    - "商品图片悬停：缩放 1.05 倍"
+
+  loading_states:
+    - "页面加载：使用 Skeleton 骨架屏"
+    - "按钮加载：使用 Button loading 属性"
+    - "列表加载：使用 Spin 组件"
+    - "图片加载：显示占位符"
+
+  error_handling:
+    - "表单错误：使用 Form.Item validateStatus"
+    - "网络错误：使用 Message.error 提示"
+    - "空数据：使用 Empty 组件"
+    - "404 页面：使用 Result 组件"
+
+  animation:
+    - "页面切换：使用淡入淡出效果"
+    - "列表项添加/删除：使用滑动动画"
+    - "模态框：使用缩放动画"
+    - "避免过度动画，保持性能"
+
+# =========================
+# 无障碍访问规范
+# =========================
+accessibility:
+  requirements:
+    - "所有交互元素必须支持键盘访问"
+    - "图片必须有 alt 属性"
+    - "表单控件必须有 label 或 aria-label"
+    - "颜色对比度符合 WCAG AA 标准"
+    - "焦点状态必须可见"
+    - "使用语义化 HTML 标签"
+
+  aria_usage:
+    - "使用 aria-label 描述图标按钮"
+    - "使用 aria-describedby 关联帮助文本"
+    - "使用 role 属性增强语义"
+    - "动态内容使用 aria-live"
+
+# =========================
+# 性能优化规范
+# =========================
+performance_optimization:
+  image_optimization:
+    - "使用 WebP 格式优先"
+    - "图片懒加载：使用 lazy loading"
+    - "商品图片尺寸建议：缩略图 400x400，详情图 800x800"
+    - "使用适当的图片压缩"
+
+  code_splitting:
+    - "路由级别代码分割：使用 React.lazy"
+    - "大型组件延迟加载"
+    - "第三方库按需加载"
+
+  rendering_optimization:
+    - "列表使用 React.memo 避免不必要渲染"
+    - "使用 useMemo 缓存计算结果"
+    - "使用 useCallback 缓存函数引用"
+    - "虚拟滚动：长列表使用 antd List 的虚拟滚动"
+
+  bundle_optimization:
+    - "使用 Tree Shaking"
+    - "按需导入 antd 组件"
+    - "避免重复打包"
+    - "使用 gzip/brotli 压缩"
+
+  caching_strategy:
+    - "API 响应缓存"
+    - "静态资源使用浏览器缓存"
+    - "使用 Service Worker 缓存策略"
+
+# =========================
+# 资源（Assets）使用规范
+# =========================
+assets_rules:
+  base_directory: "src/assets"
+  allowed_types:
+    images:
+      - ".png"
+      - ".jpg"
+      - ".jpeg"
+      - ".svg"
+      - ".webp"
+    icons:
+      - ".svg"
+  naming:
+    convention: "kebab-case"
+  usage_rules:
+    - "所有图片资源必须来自 src/assets"
+    - "禁止直接使用外链图片（如 http(s) URL）"
+    - "组件中引用图片必须通过 import 引入"
+    - "禁止在 UI 组件中进行图片路径字符串拼接"
+    - "优先使用 WebP 格式"
+    - "图片命名必须语义化，如：product-placeholder.webp"
+
+# =========================
+# 目录结构约束
+# =========================
+directory_structure:
+  src/assets:
+    purpose: "静态资源（图片、图标）"
+    pattern: "kebab-case"
+    max_depth: 3
+
+  src/components:
+    pattern: "PascalCase"
+    max_lines: 300
+    required_exports:
+      - "default"
+
+  src/components/ui:
+    pattern: "PascalCase"
+    max_lines: 150
+    description: "基础 UI 组件（优先使用 antd 组件封装）"
+    rules:
+      - "优先直接使用 antd 组件"
+      - "仅在需要统一样式或行为时进行二次封装"
+      - "封装组件必须基于 antd 组件构建"
+      - "必须导出 TypeScript 类型定义"
+    forbidden:
+      - "fetch"
+      - "axios"
+      - "ky"
+      - "zustand"
+      - "useEffect"
+    required_antd_usage: true
+
+  src/components/features:
+    pattern: "PascalCase"
+    max_lines: 300
+
+  src/hooks:
+    pattern: "use*.ts"
+    must_be_pure: false
+
+  src/utils:
+    pattern: "camelCase"
+    must_be_pure: true
+    max_lines: 100
+
+  src/api:
+    pattern: "camelCase"
+    max_lines: 200
+
+  src/stores:
+    pattern: "use*Store.ts"
+    max_lines: 200
+
+  src/pages:
+    pattern: "PascalCase"
+    max_lines: 300
+
+# =========================
+# 模块边界约束
+# =========================
+module_boundaries:
+  - from: "src/components/ui/*"
+    can_import:
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/assets/*"
+    cannot_import:
+      - "src/api/*"
+      - "src/stores/*"
+      - "src/hooks/*"
+      - "src/components/features/*"
+      - "src/pages/*"
+
+  - from: "src/components/features/*"
+    can_import:
+      - "src/components/ui/*"
+      - "src/hooks/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+      - "src/assets/*"
+    cannot_import:
+      - "src/api/*"
+      - "src/pages/*"
+
+  - from: "src/hooks/*"
+    can_import:
+      - "src/api/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+    cannot_import:
+      - "src/components/*"
+      - "src/pages/*"
+
+  - from: "src/pages/*"
+    can_import:
+      - "src/components/*"
+      - "src/hooks/*"
+      - "src/utils/*"
+      - "src/types/*"
+      - "src/stores/*"
+      - "src/assets/*"
+    cannot_import:
+      - "src/api/*"
+
+# =========================
+# 命名规范
+# =========================
+naming_conventions:
+  components: "PascalCase"
+  hooks: "camelCase with 'use' prefix"
+  utils: "camelCase"
+  constants: "SCREAMING_SNAKE_CASE"
+  types:
+    interface: "PascalCase with 'I' prefix"
+    type_alias: "PascalCase with 'T' prefix"
+
+# =========================
+# 代码质量约束
+# =========================
+code_quality:
+  max_function_lines: 50
+  max_file_lines: 300
+  max_parameters: 4
+  require_jsdoc: true
+
+  forbidden_patterns:
+    - "any"
+    - "// @ts-ignore"
+    - "// @ts-nocheck"
+    - "console.log"
+    - "debugger"
+    - "eval("
+    - "innerHTML"
+
+# =========================
+# 修改安全边界
+# =========================
+modification_rules:
+  protected_files:
+    - "package.json"
+    - "package-lock.json"
+    - "pnpm-lock.yaml"
+    - "tsconfig.json"
+    - "vite.config.ts"
+    - ".env"
+    - ".env.*"
+
+  protected_directories:
+    - "node_modules"
+    - ".git"
+    - "dist"
+    - "build"
+
+  require_approval:
+    - pattern: "*.config.*"
+      reason: "配置文件修改需要人工审批"
+    - pattern: "src/api/*"
+      reason: "API 层修改需要人工审批"
+    - pattern: "src/stores/*"
+      reason: "状态管理修改需要人工审批"
+    - pattern: "src/utils/auth*"
+      reason: "认证相关代码修改需要人工审批"
+
+# =========================
+# 生成后强制交付物
+# =========================
+post_generation_requirements:
+  generate_review_document: true
+  review_document:
+    file_name: "review.md"
+    location: "project_root"
+    language: "zh-CN"
+    required_sections:
+      - "项目概览"
+      - "生成的目录结构说明"
+      - "核心技术选型与理由"
+      - "UI 组件库使用说明（antd）"
+      - "页面布局设计说明（包含瀑布流实现）"
+      - "响应式设计实现说明"
+      - "模块划分与边界说明"
+      - "状态管理设计说明"
+      - "资源（assets）组织与使用说明"
+      - "主题配置与定制说明"
+      - "可扩展性与后续演进建议"
+      - "Agent 生成内容的已知限制"
+
+  rules:
+    - "review.md 必须在项目代码生成完成后创建"
+    - "review.md 内容必须与实际生成目录保持一致"
+    - "禁止空章节或模板占位文本"
+
+# =========================
+# Agent 行为总约束
+# =========================
+agent_behavior:
+  - "严格遵守本 SDD 中的目录、模块与依赖约束"
+  - "不得自行放宽 forbidden / cannot_import 规则"
+  - "若需求与 SDD 冲突，必须停止生成并给出冲突说明"
+  - "生成代码必须可通过 TypeScript 严格模式检查"
+  - "所有 UI 组件必须使用 antd 组件库"
+  - "商品列表页面必须使用瀑布流（masonry）布局"
+  - "必须实现响应式设计，适配移动端和桌面端"
+  - "遵循 layout_specifications 中定义的页面布局规范"
+  - "使用 antd 的 theme 配置进行主题定制"
+  - "禁止使用其他 UI 组件库（如 element-ui、material-ui）"
