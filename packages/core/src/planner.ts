@@ -59,7 +59,7 @@ export class Planner {
   ): Promise<PlannerOutput> {
     // 分析任务，确定需要的上下文
     const contextRequests = this.analyzeContextNeeds(task, context);
-    
+
     if (contextRequests.length > 0) {
       return {
         needsMoreContext: true,
@@ -69,7 +69,7 @@ export class Planner {
 
     // 生成执行计划
     const plan = await this.generatePlan(task, context, messages);
-    
+
     if (!plan) {
       return {
         needsMoreContext: false,
@@ -230,7 +230,9 @@ export class Planner {
         params: llmStep.params as Record<string, unknown>,
         dependencies: i > 0 ? [steps[i - 1].stepId] : [],
         validation: this.getDefaultValidation(action),
-        status: 'pending'
+        status: 'pending',
+        // 保留 phase 字段
+        phase: llmStep.phase
       };
 
       steps.push(step);

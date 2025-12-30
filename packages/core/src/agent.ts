@@ -63,11 +63,12 @@ export class FrontAgent {
       sddConfig: this.sddConfig
     });
 
-    // 初始化 Executor（两阶段架构 - 传递 llmService）
+    // 初始化 Executor（两阶段架构 - 传递 llmService 和 SDD 约束）
     this.executor = new Executor({
       hallucinationGuard: this.hallucinationGuard,
       llmService: this.llmService,
-      debug: config.debug
+      debug: config.debug,
+      getSddConstraints: () => this.promptGenerator?.generate()
     });
   }
 

@@ -615,6 +615,11 @@ export class LLMService {
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
 
+⚠️ **重要说明**：
+- SDD (Software Design Document) 约束已经通过上述参数提供，**不需要读取 SDD 文件**
+- 分析阶段应该只分析项目现有代码和配置，**不要尝试读取 sdd.yaml、SDD.md 等 SDD 文档**
+- 如果需要读取任何文件，**必须先用 list_directory 查看目录内容**，不要假设文件名
+
 # 🚨 开发/创建任务的强制要求 🚨
 
 **如果是开发/创建任务**（只要包含"开发"、"创建"、"实现"、"生成"、"搭建"、"构建"等任意一个关键词），
@@ -623,8 +628,8 @@ ${options.sddConstraints ?? '无特殊约束'}
 ## 必需的步骤结构（不可省略任何阶段）：
 
 **阶段 1: 分析阶段（1-3个步骤）**
-- list_directory: 分析项目目录结构
-- read_file: 读取现有配置文件（如果存在）
+- list_directory: 分析项目目录结构（**必需**：了解现有文件）
+- read_file: 读取现有配置文件（如 package.json、tsconfig.json 等，**仅在 list_directory 确认文件存在后读取**）
 
 **阶段 2: 创建阶段（必需！）**
 - create_file: 创建 package.json
@@ -1339,10 +1344,17 @@ ${options.context}
     language: string;
     /** 已创建的模块列表（用于防止路径幻觉） */
     existingModules?: string[];
+    /** SDD 约束（可选） */
+    sddConstraints?: string;
   }): Promise<string> {
     // 提取上下文中已存在的模块
     const existingModulesInfo = options.existingModules?.length
       ? `\n# 🚨 已创建的模块（只能引用这些模块！）\n${options.existingModules.map(m => `- ${m}`).join('\n')}`
+      : '';
+
+    // 添加 SDD 约束信息
+    const sddConstraintsInfo = options.sddConstraints
+      ? `\n# 🚨 SDD 约束（必须遵守！）\n${options.sddConstraints}\n`
       : '';
 
     const system = `你是一个专业的代码生成器。你的唯一任务是生成代码，不要做任何其他事情。
@@ -1358,6 +1370,7 @@ ${options.context}
 - 语言: ${options.language}
 - 要求: ${options.codeDescription}
 ${existingModulesInfo}
+${sddConstraintsInfo}
 
 # 🚨 导入路径规则（非常重要！）
 

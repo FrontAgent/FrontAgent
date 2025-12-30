@@ -28,6 +28,8 @@ export interface ExecutorConfig {
   debug?: boolean;
   /** 获取已创建模块列表的回调（用于防止路径幻觉） */
   getCreatedModules?: () => string[];
+  /** 获取 SDD 约束的回调（用于代码生成时遵守 SDD 规范） */
+  getSddConstraints?: () => string | undefined;
 }
 
 /**
@@ -161,7 +163,9 @@ export class Executor {
             console.log(`[Executor] Existing modules: ${existingModules.length}`);
           }
 
-          // Executor 只按照 Planner 的规划执行，不再关注 SDD（SDD 已在 Planner 阶段约束）
+          // Executor 执行时传递 SDD 约束，确保生成的代码符合 SDD 规范
+          const sddConstraints = this.config.getSddConstraints?.();
+
           const code = await this.config.llmService.generateCodeForFile({
             task: context.task.description,
             filePath,
@@ -169,6 +173,7 @@ export class Executor {
             context: contextStr,
             language: language || 'typescript',
             existingModules,
+            sddConstraints,
           });
 
           if (this.config.debug) {
