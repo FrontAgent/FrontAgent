@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { Card as AntCard } from 'antd';
 
 interface CardProps {
   title?: string;
@@ -19,19 +20,12 @@ export const Card: React.FC<CardProps> = ({
   className = ''
 }) => {
   return (
-    <div
-      className={`
-        bg-white rounded-lg shadow-md p-4
-        ${hoverable ? 'hover:shadow-lg transition-shadow cursor-pointer' : ''}
-        ${className}
-      `}
+    <AntCard
+      title={title}
+      hoverable={hoverable}
+      className={className}
     >
-      {title && (
-        <h3 className="text-lg font-semibold mb-3 border-b pb-2">
-          {title}
-        </h3>
-      )}
-      <div>{children}</div>
-    </div>
+      {children}
+    </AntCard>
   );
 };

@@ -1,15 +1,18 @@
 /**
  * 自定义头部组件
- * TODO: 需要替换为 ant-design 的 Layout.Header 组件
+ * 使用 ant-design 的 Layout.Header 组件
  */
 
 import React from 'react';
+import { Layout } from 'antd';
 import { Button } from './Button';
 import { Badge } from './Badge';
 
+const { Header: AntHeader } = Layout;
+
 export const Header: React.FC = () => {
   return (
-    <header className="bg-white shadow-sm border-b">
+    <AntHeader style={{ background: '#fff', padding: 0, height: 'auto', lineHeight: 'normal' }} className="shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center space-x-2">
@@ -39,6 +42,6 @@ export const Header: React.FC = () => {
           <Button type="primary">登录</Button>
         </div>
       </div>
-    </header>
+    </AntHeader>
   );
 };
