@@ -104,11 +104,17 @@ export class ShellMCPClient {
     const cwd = workingDirectory || this.projectRoot;
 
     return new Promise((resolve) => {
+      // 处理 npx 的交互式确认：自动添加 -y 标志
+      let finalCommand = command;
+      if (command.startsWith('npx ') && !command.includes(' -y ') && !command.startsWith('npx -y ')) {
+        finalCommand = command.replace(/^npx /, 'npx -y ');
+      }
+
       // 使用 shell 模式执行命令，支持管道、重定向等
-      const child = spawn(command, {
+      const child = spawn(finalCommand, {
         cwd,
         shell: true,
-        stdio: ['inherit', 'pipe', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe']  // stdin 设为 ignore，避免交互式命令卡住
       });
 
       const stdoutChunks: Buffer[] = [];
