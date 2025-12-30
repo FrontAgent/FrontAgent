@@ -372,9 +372,21 @@ export class ContextManager {
           facts.filesystem.existingDirectories.add(path);
           facts.filesystem.directoryContents.set(path, result.entries as string[]);
 
-          // 🔧 新增：从目录内容推断文件存在性
-          // 如果列出了目录内容，我们可以推断哪些文件路径不存在
-          // 这有助于后续的 apply_patch 检查
+          // 🔧 关键修复：从目录内容推断文件存在性
+          // 将目录中的文件自动添加到 existingFiles
+          const dirPath = path.endsWith('/') ? path : path + '/';
+          for (const entry of result.entries as string[]) {
+            // 只处理文件（不包含子目录标记 '/'）
+            if (!entry.endsWith('/')) {
+              const fullPath = dirPath + entry;
+              facts.filesystem.existingFiles.add(fullPath);
+              facts.filesystem.nonExistentPaths.delete(fullPath);
+            } else {
+              // 子目录
+              const subDirPath = dirPath + entry;
+              facts.filesystem.existingDirectories.add(subDirPath);
+            }
+          }
         } else if (result.skipped || result.error?.includes('not found')) {
           facts.filesystem.nonExistentPaths.add(path);
         }

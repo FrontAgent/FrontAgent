@@ -95,7 +95,7 @@ export class Executor {
       }
 
       // 1. 执行前验证
-      const preValidation = await this.validateBeforeExecution(step);
+      const preValidation = await this.validateBeforeExecution(step, context);
       if (!preValidation.pass) {
         // 检查是否是可以跳过的错误
         const errorMsg = preValidation.blockedBy?.join('; ') || '';
@@ -453,7 +453,10 @@ export class Executor {
   /**
    * 执行前验证
    */
-  private async validateBeforeExecution(step: ExecutionStep): Promise<ValidationResult> {
+  private async validateBeforeExecution(
+    step: ExecutionStep,
+    context: { task: AgentTask; collectedContext: { files: Map<string, string> } }
+  ): Promise<ValidationResult> {
     const results: ValidationResult['results'] = [];
 
     // 🔧 修复问题1：使用文件系统事实来验证 apply_patch 操作
@@ -475,6 +478,23 @@ export class Executor {
             message: `Cannot apply patch: file ${path} does not exist (confirmed by previous directory listing). Please use create_file instead.`
           }],
           blockedBy: [`File ${path} does not exist. Use create_file instead of apply_patch.`]
+        };
+      }
+
+      // 🔧 新增：检查文件是否在上下文中（即是否已被 read_file 读取）
+      if (!context.collectedContext.files.has(path)) {
+        if (this.config.debug) {
+          console.log(`[Executor] ⚠️  File ${path} exists but not in context. Suggest reading it first.`);
+        }
+        return {
+          pass: false,
+          results: [{
+            pass: false,
+            type: 'file_not_in_context',
+            severity: 'block',
+            message: `Cannot apply patch: file ${path} has not been read into context. Please read the file first using read_file.`
+          }],
+          blockedBy: [`File ${path} not in context. Must read file before applying patch.`]
         };
       }
     }
