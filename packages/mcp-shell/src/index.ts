@@ -3,10 +3,7 @@
  * 提供终端命令执行功能
  */
 
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execAsync = promisify(exec);
+import { spawn } from 'node:child_process';
 
 export interface RunCommandParams {
   command: string;
@@ -88,10 +85,10 @@ export class ShellMCPClient {
   }
 
   /**
-   * 执行命令
+   * 执行命令（使用 spawn 支持长时间运行的命令）
    */
   private async runCommand(params: RunCommandParams): Promise<RunCommandResult> {
-    const { command, workingDirectory, timeout = 60000 } = params;
+    const { command, workingDirectory } = params;
 
     // 如果需要批准，先请求用户批准
     if (this.approvalCallback) {
@@ -106,48 +103,63 @@ export class ShellMCPClient {
 
     const cwd = workingDirectory || this.projectRoot;
 
-    try {
-      const { stdout, stderr } = await execAsync(command, {
+    return new Promise((resolve) => {
+      // 使用 shell 模式执行命令，支持管道、重定向等
+      const child = spawn(command, {
         cwd,
-        timeout,
-        maxBuffer: 1024 * 1024 * 10 // 10MB
+        shell: true,
+        stdio: ['inherit', 'pipe', 'pipe']
       });
 
-      // 命令执行成功（exitCode = 0）
-      // 注意：stderr 可能包含警告信息，但这不代表失败
-      return {
-        success: true,
-        stdout,
-        stderr,
-        exitCode: 0
-      };
-    } catch (error: any) {
-      // 只有当命令真正失败（非0退出码）时才标记为失败
-      // 有些命令会在 stderr 输出警告但仍然成功（exitCode = 0）
-      const exitCode = error.code || error.exitCode || 1;
-      const isActualFailure = exitCode !== 0;
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
 
-      // 构建详细的错误信息，包含 stderr 和 stdout
-      let errorMessage: string | undefined;
-      if (isActualFailure) {
-        const parts: string[] = [`Command failed: ${command}`];
-        if (error.stderr) {
-          parts.push(`stderr: ${error.stderr.trim()}`);
-        }
-        if (error.stdout) {
-          parts.push(`stdout: ${error.stdout.trim()}`);
-        }
-        errorMessage = parts.join('\n');
-      }
+      child.stdout?.on('data', (chunk: Buffer) => {
+        stdoutChunks.push(chunk);
+        // 实时输出到控制台
+        process.stdout.write(chunk);
+      });
 
-      return {
-        success: !isActualFailure,
-        stdout: error.stdout || '',
-        stderr: error.stderr || '',
-        exitCode,
-        error: errorMessage
-      };
-    }
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderrChunks.push(chunk);
+        // 实时输出到控制台
+        process.stderr.write(chunk);
+      });
+
+      child.on('error', (error) => {
+        resolve({
+          success: false,
+          stdout: Buffer.concat(stdoutChunks).toString(),
+          stderr: Buffer.concat(stderrChunks).toString(),
+          exitCode: 1,
+          error: `Command execution error: ${error.message}`
+        });
+      });
+
+      child.on('close', (exitCode) => {
+        const stdout = Buffer.concat(stdoutChunks).toString();
+        const stderr = Buffer.concat(stderrChunks).toString();
+        const code = exitCode ?? 0;
+        const success = code === 0;
+
+        let errorMessage: string | undefined;
+        if (!success) {
+          const parts: string[] = [`Command failed with exit code ${code}: ${command}`];
+          if (stderr.trim()) {
+            parts.push(`stderr: ${stderr.trim()}`);
+          }
+          errorMessage = parts.join('\n');
+        }
+
+        resolve({
+          success,
+          stdout,
+          stderr,
+          exitCode: code,
+          error: errorMessage
+        });
+      });
+    });
   }
 }
 
