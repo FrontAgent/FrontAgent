@@ -681,7 +681,14 @@ export class Executor {
 
     // 按阶段顺序执行
     for (const [phase, phaseSteps] of phaseGroups) {
+      console.log(`[Executor] ========================================`);
       console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
+      console.log(`[Executor] 📋 Steps in this phase:`);
+      for (const s of phaseSteps) {
+        console.log(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
+      }
+      console.log(`[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`);
+      console.log(`[Executor] ----------------------------------------`);
 
       // 执行该阶段的所有步骤
       const phaseResults: ExecutorOutput[] = [];
@@ -691,7 +698,12 @@ export class Executor {
         // 检查依赖是否都已完成
         const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
         if (!dependenciesMet) {
-          console.warn(`[Executor] Skipping step ${step.stepId}: dependencies not met`);
+          const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
+          console.warn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
+          console.warn(`[Executor]    Step description: ${step.description}`);
+          console.warn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
+          console.warn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
+          console.warn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
           step.status = 'skipped';
           continue;
         }
@@ -792,10 +804,13 @@ export class Executor {
                 for (const errorInfo of previousPhaseErrors) {
                   if (errorInfo.step.status === 'failed') {
                     console.log(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
+                    console.log(`[Executor]    Step description: ${errorInfo.step.description}`);
                     errorInfo.step.status = 'completed';
                     completedStepIds.add(errorInfo.step.stepId);
                   }
                 }
+
+                console.log(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
 
                 break;
               } else {
@@ -819,7 +834,17 @@ export class Executor {
         }
       }
 
+      // 统计阶段执行结果
+      const phaseStats = {
+        total: phaseSteps.length,
+        completed: phaseSteps.filter(s => s.status === 'completed').length,
+        failed: phaseSteps.filter(s => s.status === 'failed').length,
+        skipped: phaseSteps.filter(s => s.status === 'skipped').length,
+      };
+      console.log(`[Executor] ----------------------------------------`);
       console.log(`[Executor] Phase ${phase} completed`);
+      console.log(`[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`);
+      console.log(`[Executor] ========================================`);
     }
 
     return allResults;
