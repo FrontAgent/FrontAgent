@@ -532,7 +532,7 @@ export class LLMService {
 - **阶段1-分析**: 了解项目现状（list_directory, read_file）
 - **阶段2-创建**: 创建或修改文件（create_file, apply_patch）
 - **阶段3-安装**: 安装依赖（run_command: npm/pnpm install）
-- **阶段4-验证**: 类型检查、代码检查（run_command: tsc, lint）
+- **阶段4-验证**: 类型检查、构建验证（run_command: tsc --noEmit, npm run build）
 - **阶段5-启动**: 启动开发服务器（run_command: npm run dev）
 - **阶段6-浏览器验证**: 验证应用运行（browser_navigate, browser_screenshot）
 

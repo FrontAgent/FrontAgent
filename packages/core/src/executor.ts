@@ -395,7 +395,6 @@ export class Executor {
         'npm install', 'pnpm install', 'yarn install', 'yarn add',
         'npm run build', 'pnpm build', 'yarn build',
         'npm run typecheck', 'tsc', 'tsc --noEmit',
-        'npm run lint', 'eslint',
         'npm run dev', 'pnpm dev', 'yarn dev',
         'npm run start', 'pnpm start'
       ];
