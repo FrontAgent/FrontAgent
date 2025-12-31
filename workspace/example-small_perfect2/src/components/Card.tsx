@@ -1,10 +1,10 @@
 /**
  * 自定义卡片组件
- * TODO: 需要替换为 ant-design 的 Card 组件
+ * 使用 ant-design 的 Card 组件
  */
 
 import React from 'react';
-import { Card as AntCard } from 'antd';
+import { Card as AntdCard } from 'antd';
 
 interface CardProps {
   title?: string;
@@ -20,12 +20,12 @@ export const Card: React.FC<CardProps> = ({
   className = ''
 }) => {
   return (
-    <AntCard
+    <AntdCard
       title={title}
       hoverable={hoverable}
       className={className}
     >
       {children}
-    </AntCard>
+    </AntdCard>
   );
 };

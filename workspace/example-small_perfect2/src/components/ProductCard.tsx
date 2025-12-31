@@ -4,9 +4,8 @@
  */
 
 import React from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { Tag } from './Tag';
+import { Card, Button, Tag } from 'antd';
+import { ShoppingCartOutlined, HeartOutlined } from '@ant-design/icons';
 
 interface ProductCardProps {
   id: number;
@@ -25,21 +24,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   tags = []
 }) => {
   return (
-    <Card hoverable>
-      {/* 商品图片 */}
-      <div className="relative mb-3">
-        <img
-          src={image}
-          alt={name}
-          className="w-full h-48 object-cover rounded-md"
-        />
-        {originalPrice && (
-          <div className="absolute top-2 right-2">
-            <Tag color="red">特价</Tag>
-          </div>
-        )}
-      </div>
-
+    <Card
+      hoverable
+      cover={
+        <div className="relative">
+          <img
+            src={image}
+            alt={name}
+            className="w-full h-48 object-cover"
+          />
+          {originalPrice && (
+            <div className="absolute top-2 right-2">
+              <Tag color="red">特价</Tag>
+            </div>
+          )}
+        </div>
+      }
+    >
       {/* 商品信息 */}
       <div className="space-y-2">
         <h4 className="text-base font-medium text-gray-800 line-clamp-2 h-12">
@@ -65,10 +66,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* 操作按钮 */}
         <div className="flex gap-2 mt-3">
-          <Button type="primary" className="flex-1">
+          <Button type="primary" icon={<ShoppingCartOutlined />} className="flex-1">
             加入购物车
           </Button>
-          <Button type="default">
+          <Button icon={<HeartOutlined />}>
             收藏
           </Button>
         </div>

@@ -1,6 +1,5 @@
 /**
- * 自定义标签组件
- * 使用 ant-design 的 Tag 组件
+ * 标签组件 - 基于 ant-design Tag 组件封装
  */
 
 import React from 'react';

@@ -21,12 +21,12 @@ export const Button: React.FC<ButtonProps> = ({
   disabled = false,
   className = ''
 }) => {
-  const antType = type === 'danger' ? 'primary' : type;
+  const antdType = type === 'danger' ? 'primary' : type;
   const danger = type === 'danger';
 
   return (
     <AntButton
-      type={antType}
+      type={antdType}
       danger={danger}
       onClick={onClick}
       disabled={disabled}

@@ -1,8 +1,3 @@
-/**
- * 自定义徽章组件
- * 使用 ant-design 的 Badge 组件
- */
-
 import React from 'react';
 import { Badge as AntBadge } from 'antd';
 
