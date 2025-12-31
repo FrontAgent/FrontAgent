@@ -214,6 +214,29 @@ export class FrontAgent {
         });
       }
 
+      // 🔧 优化：规划前先获取项目文件结构，帮助 LLM 生成正确的文件路径
+      let projectStructure: string | undefined;
+      try {
+        const listResult = await this.executor['callTool']('list_directory', {
+          path: this.config.projectRoot,
+          recursive: true
+        }) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
+
+        if (listResult.success && listResult.entries) {
+          // 只保留文件（不包括目录），并过滤掉 node_modules 等
+          const files = listResult.entries
+            .filter(e => e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'))
+            .map(e => e.path);
+
+          if (files.length > 0) {
+            projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
+            console.log(`[Agent] 📂 Pre-scanned project structure: ${files.length} files`);
+          }
+        }
+      } catch (error) {
+        console.warn('[Agent] Failed to pre-scan project structure:', error);
+      }
+
       // 规划阶段
       this.emit({ type: 'planning_started' });
 
@@ -221,7 +244,8 @@ export class FrontAgent {
         task,
         {
           files: context.collectedContext.files,
-          pageStructure: context.collectedContext.pageStructure
+          pageStructure: context.collectedContext.pageStructure,
+          projectStructure  // 🔧 传递项目文件结构给 Planner
         },
         this.contextManager.getMessages(task.id)
       );

@@ -54,7 +54,7 @@ export class Planner {
    */
   async plan(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown },
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string },
     messages: Message[]
   ): Promise<PlannerOutput> {
     // 分析任务，确定需要的上下文
@@ -88,7 +88,7 @@ export class Planner {
    */
   private analyzeContextNeeds(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown }
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string }
   ): ContextRequest[] {
     const requests: ContextRequest[] = [];
 
@@ -121,7 +121,7 @@ export class Planner {
    */
   private async generatePlan(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown },
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string },
     _messages: Message[]
   ): Promise<ExecutionPlan | null> {
     let steps: ExecutionStep[];
@@ -161,7 +161,7 @@ export class Planner {
    */
   private async generatePlanWithLLM(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown }
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string }
   ): Promise<GeneratedPlan> {
     // 构建上下文字符串
     const contextParts: string[] = [];
@@ -172,6 +172,12 @@ export class Planner {
     // 添加工作目录
     if (task.context?.workingDirectory) {
       contextParts.push(`工作目录: ${task.context.workingDirectory}`);
+    }
+
+    // 🔧 优化：添加项目文件结构，帮助 LLM 生成正确的文件路径
+    if (context.projectStructure) {
+      contextParts.push(`\n${context.projectStructure}`);
+      contextParts.push('\n⚠️ 重要提示：请只操作上述列出的文件！如果需要读取或修改文件，请使用列表中存在的路径。');
     }
 
     // 添加相关文件内容
