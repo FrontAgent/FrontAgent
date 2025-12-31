@@ -203,6 +203,11 @@ export class Planner {
     // 获取 SDD 约束
     const sddConstraints = this.promptGenerator?.generate();
 
+    // 🔧 优化：明确告诉 LLM SDD 约束已经提供，无需再读取 sdd.yaml
+    if (sddConstraints) {
+      contextParts.push('\n⚠️ 重要提示：SDD约束已经在下方的"SDD约束"部分提供，无需再读取 sdd.yaml 文件！');
+    }
+
     return this.llmService.generatePlan({
       task: task.description,
       context: contextParts.join('\n'),
