@@ -480,21 +480,49 @@ export class Executor {
         };
       }
 
-      // 🔧 新增：检查文件是否在上下文中（即是否已被 read_file 读取）
+      // 🔧 优化：如果文件不在上下文中，自动读取文件（类似 vscode-copilot-chat 的 openFn 机制）
       if (!context.collectedContext.files.has(path)) {
-        if (this.config.debug) {
-          console.log(`[Executor] ⚠️  File ${path} exists but not in context. Suggest reading it first.`);
-        }
-        return {
-          pass: false,
-          results: [{
+        console.log(`[Executor] 📖 File ${path} not in context, auto-reading before apply_patch...`);
+
+        try {
+          // 自动调用 read_file 工具读取文件
+          const readResult = await this.callTool('read_file', { path }) as { success: boolean; content?: string; error?: string };
+
+          if (readResult.success && readResult.content !== undefined) {
+            // 将文件内容添加到上下文
+            context.collectedContext.files.set(path, readResult.content);
+            console.log(`[Executor] ✅ Auto-read file ${path} (${readResult.content.length} chars) into context`);
+          } else {
+            // 读取失败，返回错误
+            const errorMsg = readResult.error || 'Failed to read file';
+            if (this.config.debug) {
+              console.log(`[Executor] ❌ Auto-read failed: ${errorMsg}`);
+            }
+            return {
+              pass: false,
+              results: [{
+                pass: false,
+                type: 'file_read_failed',
+                severity: 'block',
+                message: `Cannot apply patch: failed to auto-read file ${path}. Error: ${errorMsg}`
+              }],
+              blockedBy: [`Failed to auto-read file ${path}: ${errorMsg}`]
+            };
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.log(`[Executor] ❌ Auto-read exception: ${errorMsg}`);
+          return {
             pass: false,
-            type: 'file_not_in_context',
-            severity: 'block',
-            message: `Cannot apply patch: file ${path} has not been read into context. Please read the file first using read_file.`
-          }],
-          blockedBy: [`File ${path} not in context. Must read file before applying patch.`]
-        };
+            results: [{
+              pass: false,
+              type: 'file_read_error',
+              severity: 'block',
+              message: `Cannot apply patch: error reading file ${path}. Error: ${errorMsg}`
+            }],
+            blockedBy: [`Error auto-reading file ${path}: ${errorMsg}`]
+          };
+        }
       }
     }
 
@@ -812,7 +840,56 @@ export class Executor {
 
                 console.log(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
 
-                break;
+                // 🔧 优化：重新执行被跳过的步骤（如果它们的依赖现在已满足）
+                const skippedSteps = phaseSteps.filter(s => s.status === 'skipped');
+                if (skippedSteps.length > 0) {
+                  console.log(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
+
+                  for (const skippedStep of skippedSteps) {
+                    const dependenciesMet = skippedStep.dependencies.every(dep => completedStepIds.has(dep));
+
+                    if (dependenciesMet) {
+                      console.log(`[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`);
+                      console.log(`[Executor]    Step description: ${skippedStep.description}`);
+
+                      skippedStep.status = 'running';
+                      const output = await this.executeStep(skippedStep, context);
+                      skippedStep.result = output.stepResult;
+                      skippedStep.status = output.stepResult.success ? 'completed' : 'failed';
+
+                      allResults.push(output);
+
+                      if (output.stepResult.success) {
+                        completedStepIds.add(skippedStep.stepId);
+                        console.log(`[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`);
+                      } else {
+                        console.log(`[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`);
+                        // 将失败的步骤添加到错误列表，可能需要再次恢复
+                        phaseErrors.push({
+                          step: skippedStep,
+                          error: output.stepResult.error || 'Unknown error'
+                        });
+                      }
+
+                      if (onStepComplete) {
+                        onStepComplete(skippedStep, output);
+                      }
+                    } else {
+                      const missingDeps = skippedStep.dependencies.filter(dep => !completedStepIds.has(dep));
+                      console.log(`[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`);
+                    }
+                  }
+
+                  console.log(`[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`);
+                }
+
+                // 如果重新执行后还有错误，继续恢复循环；否则退出
+                if (phaseErrors.length === 0) {
+                  break;
+                } else {
+                  console.log(`[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`);
+                  continue;
+                }
               } else {
                 console.log(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
                 if (recoveryAttempt >= MAX_RECOVERY_ATTEMPTS) {
