@@ -216,6 +216,7 @@ export class FrontAgent {
 
       // 🔧 优化：规划前先获取项目文件结构，帮助 LLM 生成正确的文件路径
       let projectStructure: string | undefined;
+      const preScannedFiles = new Map<string, string>();  // 用于端口检测
       try {
         const listResult = await this.executor['callTool']('list_directory', {
           path: this.config.projectRoot,
@@ -232,10 +233,29 @@ export class FrontAgent {
             projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
             console.log(`[Agent] 📂 Pre-scanned project structure: ${files.length} files`);
           }
+
+          // 预读取关键配置文件用于端口检测
+          const configFiles = files.filter(f =>
+            f.endsWith('package.json') ||
+            f.includes('vite.config')
+          );
+          for (const configFile of configFiles) {
+            try {
+              const readResult = await this.executor['callTool']('read_file', { path: configFile }) as { success: boolean; content?: string };
+              if (readResult.success && readResult.content) {
+                preScannedFiles.set(configFile, readResult.content);
+              }
+            } catch (error) {
+              // 忽略读取失败
+            }
+          }
         }
       } catch (error) {
         console.warn('[Agent] Failed to pre-scan project structure:', error);
       }
+
+      // 🔧 检测开发服务器端口
+      const devServerPort = await this.detectDevServerPort(preScannedFiles);
 
       // 规划阶段
       this.emit({ type: 'planning_started' });
@@ -245,7 +265,8 @@ export class FrontAgent {
         {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
-          projectStructure  // 🔧 传递项目文件结构给 Planner
+          projectStructure,  // 🔧 传递项目文件结构给 Planner
+          devServerPort     // 🔧 传递检测到的端口给 Planner
         },
         this.contextManager.getMessages(task.id)
       );
@@ -706,6 +727,69 @@ export class FrontAgent {
       console.warn('[Agent] TypeScript check failed:', error);
       return [];
     }
+  }
+
+  /**
+   * 检测项目开发服务器端口
+   * 从 vite.config.ts, package.json scripts, 或使用默认值
+   */
+  private async detectDevServerPort(collectedFiles: Map<string, string>): Promise<number> {
+    // 1. 检查 vite.config.ts/js
+    for (const [filePath, content] of collectedFiles) {
+      if (filePath.includes('vite.config')) {
+        // 匹配 server: { port: 3000 } 或 server: { port: Number }
+        const portMatch = content.match(/server\s*:\s*\{[^}]*port\s*:\s*(\d+)/);
+        if (portMatch) {
+          console.log(`[Agent] 🔍 Detected port ${portMatch[1]} from ${filePath}`);
+          return parseInt(portMatch[1], 10);
+        }
+      }
+    }
+
+    // 2. 检查 package.json scripts
+    const packageJson = collectedFiles.get('package.json');
+    if (packageJson) {
+      try {
+        const pkg = JSON.parse(packageJson);
+        const devScript = pkg.scripts?.dev || pkg.scripts?.start || '';
+
+        // 匹配 --port 3000 或 -p 3000
+        const portMatch = devScript.match(/(?:--port|-p)\s+(\d+)/);
+        if (portMatch) {
+          console.log(`[Agent] 🔍 Detected port ${portMatch[1]} from package.json scripts`);
+          return parseInt(portMatch[1], 10);
+        }
+
+        // 检查是否使用特定框架（根据依赖推断默认端口）
+        const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+        if (deps['vite']) {
+          console.log(`[Agent] 🔍 Detected Vite project, using default port 5173`);
+          return 5173;  // Vite 默认
+        }
+        if (deps['next']) {
+          console.log(`[Agent] 🔍 Detected Next.js project, using default port 3000`);
+          return 3000;  // Next.js 默认
+        }
+        if (deps['react-scripts']) {
+          console.log(`[Agent] 🔍 Detected CRA project, using default port 3000`);
+          return 3000;  // Create React App 默认
+        }
+        if (deps['@angular/cli']) {
+          console.log(`[Agent] 🔍 Detected Angular project, using default port 4200`);
+          return 4200;  // Angular 默认
+        }
+        if (deps['vue']) {
+          console.log(`[Agent] 🔍 Detected Vue project, using default port 5173`);
+          return 5173;  // Vue CLI 默认
+        }
+      } catch (error) {
+        console.warn('[Agent] Failed to parse package.json for port detection:', error);
+      }
+    }
+
+    // 3. 默认使用 5173（Vite 默认）
+    console.log(`[Agent] 🔍 Using fallback port 5173`);
+    return 5173;
   }
 
   /**

@@ -54,7 +54,7 @@ export class Planner {
    */
   async plan(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string },
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string; devServerPort?: number },
     messages: Message[]
   ): Promise<PlannerOutput> {
     // 分析任务，确定需要的上下文
@@ -121,7 +121,7 @@ export class Planner {
    */
   private async generatePlan(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string },
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string; devServerPort?: number },
     _messages: Message[]
   ): Promise<ExecutionPlan | null> {
     let steps: ExecutionStep[];
@@ -161,7 +161,7 @@ export class Planner {
    */
   private async generatePlanWithLLM(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string }
+    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string; devServerPort?: number }
   ): Promise<GeneratedPlan> {
     // 构建上下文字符串
     const contextParts: string[] = [];
@@ -204,6 +204,12 @@ export class Planner {
     // 添加浏览器 URL
     if (task.context?.browserUrl) {
       contextParts.push(`\n浏览器 URL: ${task.context.browserUrl}`);
+    }
+
+    // 🔧 添加开发服务器端口信息
+    if (context.devServerPort) {
+      contextParts.push(`\n⚠️ 开发服务器端口: ${context.devServerPort}`);
+      contextParts.push(`   浏览器验证时请使用 http://localhost:${context.devServerPort}/`);
     }
 
     // 获取 SDD 约束

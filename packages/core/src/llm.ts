@@ -534,7 +534,7 @@ export class LLMService {
 - **阶段3-安装**: 安装依赖（run_command: npm/pnpm install）
 - **阶段4-验证**: 类型检查、构建验证（run_command: tsc --noEmit, npm run build）
 - **阶段5-启动**: 启动开发服务器（run_command: npm run dev）
-- **阶段6-浏览器验证**: 验证应用运行（browser_navigate, browser_screenshot）
+- **阶段6-浏览器验证**: 验证应用运行（browser_navigate 使用上下文中提供的端口, browser_screenshot）
 
 根据任务类型选择需要的阶段：
 - 分析类任务：只需阶段1
@@ -549,7 +549,7 @@ export class LLMService {
 - **run_command**: 执行终端命令
 - **search_code**: 搜索代码
 - **get_ast**: 获取代码AST
-- **browser_navigate**: 浏览器访问URL
+- **browser_navigate**: 浏览器访问URL（⚠️ 使用上下文中提供的"开发服务器端口"）
 - **browser_screenshot**: 页面截图
 - **get_page_structure**: 获取页面DOM结构
 
@@ -655,6 +655,8 @@ ${options.sddConstraints ?? '无特殊约束'}
 
 ## 浏览器操作
 - **browser_navigate**: params 需要 url
+  ⚠️ 重要：使用项目上下文中提供的"开发服务器端口"，不要猜测端口号！
+  如果上下文中提供了端口信息，使用 http://localhost:{端口}/
 - **browser_screenshot**: params 可选 fullPage: true
 - **get_page_structure**: params 可为空对象
 
