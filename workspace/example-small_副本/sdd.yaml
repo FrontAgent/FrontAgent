@@ -1,0 +1,312 @@
+version: "1.0"
+
+# =========================
+# 项目信息
+# =========================
+project:
+  name: "example-small"
+  type: "react-spa"
+  description: "组件迁移测试项目：将自定义组件替换为 ant-design 组件"
+  goals:
+    - "将所有自定义 UI 组件替换为 ant-design 组件"
+    - "保持原有功能和用户体验"
+    - "提升代码可维护性和一致性"
+    - "确保 TypeScript 类型安全"
+
+# =========================
+# 核心任务定义
+# =========================
+migration_requirements:
+  description: "组件迁移任务"
+
+  # 需要删除的自定义组件文件
+  components_to_remove:
+    - path: "src/components/Button.tsx"
+      reason: "使用 antd 的 Button 组件替代"
+    - path: "src/components/Card.tsx"
+      reason: "使用 antd 的 Card 组件替代"
+    - path: "src/components/Badge.tsx"
+      reason: "使用 antd 的 Badge 组件替代"
+    - path: "src/components/Tag.tsx"
+      reason: "使用 antd 的 Tag 组件替代"
+
+  # 需要重构的组件文件
+  components_to_refactor:
+    - path: "src/components/Header.tsx"
+      requirements:
+        - "使用 antd 的 Layout.Header 组件"
+        - "使用 antd 的 Menu 组件替代导航链接"
+        - "使用 antd 的 Badge 组件显示购物车数量"
+        - "使用 antd 的 Button 组件替代登录按钮"
+        - "保持原有布局和样式"
+
+    - path: "src/components/ProductCard.tsx"
+      requirements:
+        - "使用 antd 的 Card 组件作为容器"
+        - "使用 antd 的 Tag 组件显示标签"
+        - "使用 antd 的 Button 组件替代操作按钮"
+        - "使用 antd 的 Space 组件管理按钮间距"
+        - "保持商品卡片的布局和功能"
+
+    - path: "src/pages/HomePage.tsx"
+      requirements:
+        - "移除所有自定义组件的导入"
+        - "从 antd 导入需要的组件"
+        - "使用 antd 的 Card 组件替代自定义 Card"
+        - "使用 antd 的 Button 组件替代自定义 Button"
+        - "使用 antd 的 Tag 组件替代自定义 Tag"
+        - "使用 antd 的 Layout 和 Layout.Footer 组件优化页脚"
+        - "使用 antd 的 Grid (Row/Col) 组件优化布局"
+        - "保持原有的页面结构和功能"
+
+# =========================
+# 技术栈约束
+# =========================
+tech_stack:
+  framework: "react"
+  version: "^18.0.0"
+  language: "typescript"
+  ui_library: "antd"
+  ui_library_version: "^5.0.0"
+  styling: "tailwindcss"  # 可以保留 tailwindcss 用于自定义样式
+  build_tool: "vite"
+
+  required_packages:
+    - "antd"                    # Ant Design 组件库
+    - "@ant-design/icons"       # Ant Design 图标库
+    - "react"
+    - "react-dom"
+
+  forbidden_packages:
+    - "element-ui"              # 不使用其他 UI 库
+    - "material-ui"
+    - "@mui/material"
+
+# =========================
+# Ant Design 组件映射规则
+# =========================
+component_migration_rules:
+  # 自定义组件 → Ant Design 组件映射
+  component_mapping:
+    Button:
+      antd_component: "Button"
+      import_from: "antd"
+      props_mapping:
+        type: "type"             # primary/default/danger → primary/default/link/text/dashed
+        onClick: "onClick"
+        disabled: "disabled"
+        className: "className"
+      notes: "antd 的 Button 支持更多 type：primary, default, dashed, link, text"
+
+    Card:
+      antd_component: "Card"
+      import_from: "antd"
+      props_mapping:
+        title: "title"
+        children: "children"
+        hoverable: "hoverable"
+        className: "className"
+      notes: "antd 的 Card 支持更丰富的配置，如 bordered, loading 等"
+
+    Badge:
+      antd_component: "Badge"
+      import_from: "antd"
+      props_mapping:
+        count: "count"
+        children: "children"
+      notes: "antd 的 Badge 支持 dot, status, color 等属性"
+
+    Tag:
+      antd_component: "Tag"
+      import_from: "antd"
+      props_mapping:
+        color: "color"
+        children: "children"
+      notes: "antd 的 Tag color 支持预设色和自定义色值"
+
+    Header:
+      antd_component: "Layout.Header"
+      import_from: "antd"
+      additional_imports:
+        - "Menu"
+        - "Badge"
+        - "Button"
+      notes: "配合 Menu 组件实现导航"
+
+  # 布局组件建议
+  layout_components:
+    - component: "Layout"
+      usage: "页面整体布局容器"
+    - component: "Layout.Header"
+      usage: "页面头部"
+    - component: "Layout.Content"
+      usage: "页面主内容区域"
+    - component: "Layout.Footer"
+      usage: "页面底部"
+    - component: "Row / Col"
+      usage: "栅格布局系统"
+    - component: "Space"
+      usage: "间距管理（按钮组、标签组等）"
+
+  # 图标使用规则
+  icon_usage:
+    - "从 @ant-design/icons 导入图标"
+    - "使用语义化图标名称，如 ShoppingCartOutlined, UserOutlined"
+    - "图标可以作为 Button 的 icon 属性使用"
+
+# =========================
+# 代码质量要求
+# =========================
+code_quality:
+  max_function_lines: 80
+  max_file_lines: 300
+  max_parameters: 5
+  require_jsdoc: false
+
+  forbidden_patterns:
+    - "any"                    # 禁止使用 any 类型
+    - "// @ts-ignore"
+    - "console.log"            # 生产代码中禁止 console.log
+
+  typescript_rules:
+    - "所有组件必须有明确的类型定义"
+    - "Props 使用 interface 定义"
+    - "避免使用 any，使用具体类型"
+    - "导入的 antd 组件使用正确的类型"
+
+# =========================
+# 修改安全边界
+# =========================
+modification_rules:
+  protected_files:
+    - "tsconfig.json"          # 不修改
+    - "vite.config.ts"         # 不修改
+
+  required_changes:
+    - file: "package.json"
+      action: "add_dependencies"
+      dependencies:
+        antd: "^5.0.0"
+        "@ant-design/icons": "^5.0.0"
+
+    - file: "src/main.tsx"
+      action: "add_import"
+      import: "import 'antd/dist/reset.css';"
+      reason: "导入 antd 的重置样式"
+
+  files_to_delete:
+    - "src/components/Button.tsx"
+    - "src/components/Card.tsx"
+    - "src/components/Badge.tsx"
+    - "src/components/Tag.tsx"
+
+# =========================
+# 验收标准
+# =========================
+acceptance_criteria:
+  functional:
+    - "所有页面功能正常运行"
+    - "购物车徽章显示正确"
+    - "按钮点击事件正常"
+    - "商品卡片hover效果正常"
+    - "分类按钮切换正常"
+
+  technical:
+    - "TypeScript 编译通过（npm run typecheck）"
+    - "没有 eslint 错误"
+    - "所有自定义组件文件已删除"
+    - "所有导入改为从 antd 导入"
+    - "package.json 包含 antd 依赖"
+
+  visual:
+    - "页面布局保持一致"
+    - "样式接近原设计"
+    - "响应式布局正常"
+    - "色彩搭配合理"
+
+# =========================
+# Agent 执行指导
+# =========================
+agent_behavior:
+  - "严格按照 component_migration_rules 中的映射规则替换组件"
+  - "删除 components_to_remove 中列出的文件"
+  - "重构 components_to_refactor 中列出的文件"
+  - "确保所有导入语句正确"
+  - "保持原有的业务逻辑和功能"
+  - "修改后运行 npm run typecheck 验证"
+  - "如果遇到类型错误，参考 antd 的类型定义进行修复"
+  - "生成的代码必须符合 code_quality 中的质量要求"
+
+# =========================
+# 迁移步骤建议
+# =========================
+migration_steps:
+  - step: 1
+    description: "安装 antd 依赖"
+    action: "在 package.json 中添加 antd 和 @ant-design/icons"
+
+  - step: 2
+    description: "在入口文件导入 antd 样式"
+    action: "在 src/main.tsx 中添加 import 'antd/dist/reset.css'"
+
+  - step: 3
+    description: "重构 Header 组件"
+    action: "使用 Layout.Header, Menu, Badge, Button 重构"
+
+  - step: 4
+    description: "重构 ProductCard 组件"
+    action: "使用 Card, Tag, Button, Space 重构"
+
+  - step: 5
+    description: "重构 HomePage 组件"
+    action: "替换所有自定义组件为 antd 组件"
+
+  - step: 6
+    description: "删除自定义组件文件"
+    action: "删除 Button.tsx, Card.tsx, Badge.tsx, Tag.tsx"
+
+  - step: 7
+    description: "类型检查和测试"
+    action: "运行 npm run typecheck 确保没有类型错误"
+
+  - step: 8
+    description: "启动项目验证"
+    action: "运行 npm run dev 并在浏览器中验证功能"
+
+# =========================
+# 目录结构约束（可选）
+# =========================
+directory_structure:
+  src/components:
+    pattern: "PascalCase"
+    max_lines: 200
+    required_exports:
+      - "default"
+
+  src/pages:
+    pattern: "PascalCase"
+    max_lines: 300
+
+# =========================
+# 命名规范
+# =========================
+naming_conventions:
+  components: "PascalCase"
+  hooks: "camelCase with 'use' prefix"
+  utils: "camelCase"
+  constants: "SCREAMING_SNAKE_CASE"
+  types:
+    interface: "PascalCase with 'I' prefix"
+    type_alias: "PascalCase with 'T' prefix"
+
+# =========================
+# 模块边界约束
+# =========================
+module_boundaries:
+  - from: "src/components/*"
+    can_import:
+      - "react"
+      - "antd"
+      - "@ant-design/icons"
+    cannot_import:
+      - "src/pages/*"
