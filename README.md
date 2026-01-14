@@ -1,5 +1,9 @@
 # FrontAgent
 
+[![npm version](https://badge.fury.io/js/frontagent.svg)](https://www.npmjs.com/package/frontagent)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
+
 > Enterprise-grade AI Agent System - Constrained by SDD, Powered by MCP for Controlled Perception and Execution
 
 [中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md)
@@ -23,12 +27,12 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 ## TL;DR
 
 ```bash
-# 1. Install
-git clone <repo>
-cd frontagent
-pnpm install
-pnpm build
-npm link
+# 1. Install globally via npm
+npm install -g frontagent
+# or using pnpm
+pnpm add -g frontagent
+# or using yarn
+yarn global add frontagent
 
 # 2. Configure LLM (supports OpenAI and Anthropic)
 # OpenAI config

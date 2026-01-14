@@ -1,21 +1,53 @@
 {
   "name": "frontagent",
-  "version": "0.1.0",
-  "description": "工程级 Agent 系统 - 以 SDD 为约束，通过 MCP 实现可控感知与执行",
+  "version": "0.1.2",
+  "description": "Enterprise AI agent platform for frontend engineering with planning/execution architecture, SDD constraints, and MCP-controlled code generation",
   "type": "module",
   "bin": {
-    "frontagent": "./bin/frontagent"
+    "frontagent": "./dist/index.cjs"
   },
+  "files": [
+    "dist/index.cjs",
+    "dist/index.cjs.map",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "turbo build",
+    "build": "turbo build && node build.mjs",
+    "bundle": "node build.mjs",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules dist",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "ai-agent",
+    "frontend",
+    "code-generation",
+    "mcp",
+    "sdd",
+    "automation",
+    "cli",
+    "developer-tools"
+  ],
+  "author": "FrontAgent Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ceilf6/FrontAgent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ceilf6/FrontAgent/issues"
+  },
+  "homepage": "https://github.com/ceilf6/FrontAgent#readme",
+  "dependencies": {
+    "playwright": "^1.40.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "esbuild": "^0.27.2",
     "turbo": "^2.0.0",
     "typescript": "^5.3.0"
   },
@@ -24,4 +56,3 @@
     "node": ">=20.0.0"
   }
 }
-

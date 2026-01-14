@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * FrontAgent CLI
  * 命令行工具入口
