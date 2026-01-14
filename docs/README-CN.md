@@ -1,5 +1,9 @@
 # FrontAgent
 
+[![npm version](https://badge.fury.io/js/frontagent.svg)](https://www.npmjs.com/package/frontagent)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
+
 > 面向前端工程的企业级 AI Agent 系统 — 以 SDD 为约束、通过 MCP 控制感知与执行
 
 [English README](../README.md) | [快速开始](QUICKSTART.md) | [架构](architecture.md) | [设计文档](design.md)
@@ -23,12 +27,12 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在�
 ## TL;DR
 
 ```bash
-# 1. 安装
-git clone <repo>
-cd frontagent
-pnpm install
-pnpm build
-npm link
+# 1. 通过 npm 全局安装
+npm install -g frontagent
+# 或使用 pnpm
+pnpm add -g frontagent
+# 或使用 yarn
+yarn global add frontagent
 
 # 2. 配置 LLM（支持 OpenAI 与 Anthropic）
 # OpenAI 配置
@@ -48,9 +52,9 @@ cd your-project
 frontagent init
 
 # 4. 让 AI 帮你完成任务
-frontagent run "Create a user login page"
-frontagent run "Optimize homepage loading performance"
-frontagent run "Add dark mode support"
+frontagent run "创建用户登录页面"
+frontagent run "优化首页加载性能"
+frontagent run "添加深色模式支持"
 ```
 
 ## 架构概览
