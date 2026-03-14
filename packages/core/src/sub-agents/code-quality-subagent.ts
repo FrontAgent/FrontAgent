@@ -8,6 +8,10 @@ import type { SDDConfig } from "@frontagent/shared";
 import { generateId } from "@frontagent/shared";
 import type { A2AAgent, A2ARequest, A2AResponse } from "../a2a.js";
 import type { LLMService } from "../llm.js";
+import type {
+  ProjectFactsSnapshot,
+  ProjectFactsUpdate,
+} from "../types.js";
 import { z } from "zod";
 
 export interface CodeQualityReviewFile {
@@ -29,6 +33,7 @@ export interface CodeQualityReviewRequest {
   phase: string;
   files: CodeQualityReviewFile[];
   sddConfig?: SDDConfig;
+  sharedFacts?: ProjectFactsSnapshot;
 }
 
 export interface CodeQualityReviewResponse {
@@ -36,6 +41,7 @@ export interface CodeQualityReviewResponse {
   score: number;
   summary: string;
   issues: CodeQualityIssue[];
+  factUpdates?: ProjectFactsUpdate;
 }
 
 export interface CodeQualitySubAgentOptions {
@@ -133,6 +139,7 @@ export class CodeQualitySubAgent implements A2AAgent<
       score,
       summary,
       issues,
+      factUpdates: this.buildFactUpdates(payload, issues),
     };
 
     return {
@@ -179,6 +186,7 @@ export class CodeQualitySubAgent implements A2AAgent<
       }));
 
     const sddSummary = this.buildSddSummary(payload.sddConfig);
+    const sharedFactsSummary = this.summarizeSharedFacts(payload.sharedFacts);
 
     const userPrompt = [
       `Task ID: ${payload.taskId}`,
@@ -186,6 +194,9 @@ export class CodeQualitySubAgent implements A2AAgent<
       "",
       "SDD constraints summary:",
       sddSummary,
+      "",
+      "Shared project facts snapshot:",
+      sharedFactsSummary,
       "",
       "Files to review:",
       JSON.stringify(filesForLLM, null, 2),
@@ -305,6 +316,125 @@ export class CodeQualitySubAgent implements A2AAgent<
       `forbiddenPatterns=${sddConfig.codeQuality.forbiddenPatterns.join(", ") || "(none)"}`,
       `forbiddenPackages=${sddConfig.techStack.forbiddenPackages.join(", ") || "(none)"}`,
     ].join("\n");
+  }
+
+  private summarizeSharedFacts(sharedFacts?: ProjectFactsSnapshot): string {
+    if (!sharedFacts) {
+      return "No shared facts provided.";
+    }
+
+    const existingFiles = sharedFacts.filesystem.existingFiles.slice(0, 20);
+    const missingPackages = sharedFacts.dependencies.missingPackages.slice(0, 20);
+    const installedPackages = sharedFacts.dependencies.installedPackages.slice(0, 30);
+    const recentErrors = sharedFacts.errors.slice(-5);
+
+    return [
+      `revision=${sharedFacts.revision}`,
+      `existingFiles(${sharedFacts.filesystem.existingFiles.length})=${existingFiles.join(", ") || "(none)"}`,
+      `installedPackages(${sharedFacts.dependencies.installedPackages.length})=${installedPackages.join(", ") || "(none)"}`,
+      `missingPackages(${sharedFacts.dependencies.missingPackages.length})=${missingPackages.join(", ") || "(none)"}`,
+      `moduleCount=${Object.keys(sharedFacts.moduleDependencyGraph.modules).length}`,
+      `recentErrors=${recentErrors.map(err => `[${err.type}] ${err.message}`).join(" | ") || "(none)"}`,
+    ].join("\n");
+  }
+
+  private buildFactUpdates(
+    payload: CodeQualityReviewRequest,
+    issues: CodeQualityIssue[],
+  ): ProjectFactsUpdate | undefined {
+    const sharedFacts = payload.sharedFacts;
+    if (!sharedFacts) {
+      return undefined;
+    }
+
+    const installedPackages = new Set(sharedFacts.dependencies.installedPackages);
+    const knownMissingPackages = new Set(sharedFacts.dependencies.missingPackages);
+
+    const usedExternalPackages = this.collectExternalPackages(payload.files);
+    const detectedMissingPackages: string[] = [];
+
+    for (const pkg of usedExternalPackages) {
+      if (!installedPackages.has(pkg) && !knownMissingPackages.has(pkg)) {
+        detectedMissingPackages.push(pkg);
+      }
+    }
+
+    const blockingIssues = issues
+      .filter(issue => issue.severity === "error")
+      .slice(0, 10)
+      .map(issue => ({
+        stepId: `subagent-code-quality:${payload.phase}`,
+        type: "code_quality",
+        message: `${issue.filePath}${issue.line ? `:${issue.line}` : ""} [${issue.rule}] ${issue.message}`,
+        timestamp: Date.now(),
+      }));
+
+    const hasChanges =
+      detectedMissingPackages.length > 0 ||
+      blockingIssues.length > 0;
+
+    if (!hasChanges) {
+      return undefined;
+    }
+
+    return {
+      baseRevision: sharedFacts.revision,
+      source: this.agentId,
+      timestamp: Date.now(),
+      changes: {
+        addMissingPackages: detectedMissingPackages,
+        addErrors: blockingIssues,
+      },
+    };
+  }
+
+  private collectExternalPackages(files: CodeQualityReviewFile[]): string[] {
+    const packages = new Set<string>();
+    const importRegex = /import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+    const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+    for (const file of files) {
+      let match: RegExpExecArray | null;
+
+      while ((match = importRegex.exec(file.content)) !== null) {
+        const maybePackage = this.normalizeExternalPackageName(match[1]);
+        if (maybePackage) {
+          packages.add(maybePackage);
+        }
+      }
+      importRegex.lastIndex = 0;
+
+      while ((match = requireRegex.exec(file.content)) !== null) {
+        const maybePackage = this.normalizeExternalPackageName(match[1]);
+        if (maybePackage) {
+          packages.add(maybePackage);
+        }
+      }
+      requireRegex.lastIndex = 0;
+    }
+
+    return Array.from(packages);
+  }
+
+  private normalizeExternalPackageName(specifier: string): string | null {
+    if (
+      !specifier ||
+      specifier.startsWith(".") ||
+      specifier.startsWith("/") ||
+      specifier.startsWith("@/")
+    ) {
+      return null;
+    }
+
+    if (specifier.startsWith("@")) {
+      const parts = specifier.split("/");
+      if (parts.length >= 2) {
+        return `${parts[0]}/${parts[1]}`;
+      }
+      return specifier;
+    }
+
+    return specifier.split("/")[0];
   }
 
   private truncateFileContent(content: string): string {

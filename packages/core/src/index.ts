@@ -49,5 +49,10 @@ export type {
   ExecutorOutput,
   AgentExecutionResult,
   AgentEvent,
-  AgentEventListener
+  AgentEventListener,
+  ProjectFactError,
+  ProjectFacts,
+  ProjectFactsSnapshot,
+  ProjectFactsUpdate,
+  ProjectFactsMergeResult
 } from './types.js';

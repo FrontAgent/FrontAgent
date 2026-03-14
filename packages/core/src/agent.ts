@@ -24,7 +24,8 @@ import type {
   AgentConfig,
   AgentExecutionResult,
   AgentEvent,
-  AgentEventListener
+  AgentEventListener,
+  ProjectFactsUpdate,
 } from './types.js';
 
 /**
@@ -44,6 +45,8 @@ export class FrontAgent {
   private currentTaskId?: string;  // 🔧 修复问题1：追踪当前执行的任务ID
   private a2aBus: InMemoryA2ABus;
   private codeQualitySubAgent?: A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>;
+  private pendingFactsUpdates: ProjectFactsUpdate[] = [];
+  private factsUpdateFlushInProgress = false;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -225,6 +228,8 @@ export class FrontAgent {
     browserUrl?: string;
   }): Promise<AgentExecutionResult> {
     const startTime = Date.now();
+    this.pendingFactsUpdates = [];
+    this.factsUpdateFlushInProgress = false;
 
     // 创建任务
     const task: AgentTask = {
@@ -658,6 +663,8 @@ export class FrontAgent {
       };
     } finally {
       // 清理上下文
+      this.pendingFactsUpdates = [];
+      this.factsUpdateFlushInProgress = false;
       this.currentTaskId = undefined;  // 清理当前任务ID
       this.contextManager.clearContext(task.id);
     }
@@ -918,7 +925,8 @@ export class FrontAgent {
       taskId,
       phase,
       files: reviewFiles,
-      sddConfig: this.sddConfig
+      sddConfig: this.sddConfig,
+      sharedFacts: this.contextManager.exportFactsSnapshot(taskId),
     };
 
     const response = await this.a2aBus.request<CodeQualityReviewRequest, CodeQualityReviewResponse>({
@@ -933,11 +941,58 @@ export class FrontAgent {
       return [];
     }
 
+    if (response.payload.factUpdates) {
+      await this.enqueueFactsUpdate(taskId, response.payload.factUpdates);
+    }
+
     if (this.config.debug) {
       console.log(`[Agent] ${response.payload.summary}`);
     }
 
     return response.payload.issues;
+  }
+
+  /**
+   * 将子 Agent 返回的事实更新包排队，并串行合并到主事实库
+   */
+  private async enqueueFactsUpdate(taskId: string, update: ProjectFactsUpdate): Promise<void> {
+    this.pendingFactsUpdates.push(update);
+    await this.flushFactsUpdates(taskId);
+  }
+
+  private async flushFactsUpdates(taskId: string): Promise<void> {
+    if (this.factsUpdateFlushInProgress) {
+      return;
+    }
+
+    this.factsUpdateFlushInProgress = true;
+    while (true) {
+      try {
+        while (this.pendingFactsUpdates.length > 0) {
+          const nextUpdate = this.pendingFactsUpdates.shift();
+          if (!nextUpdate) {
+            continue;
+          }
+
+          const mergeResult = this.contextManager.mergeFactsUpdate(taskId, nextUpdate);
+          if (this.config.debug) {
+            const staleText = mergeResult.staleBaseRevision ? ' (stale base revision, rebased in main reducer)' : '';
+            console.log(
+              `[Agent] Merged facts update from ${mergeResult.source}: ` +
+              `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`
+            );
+          }
+        }
+      } finally {
+        this.factsUpdateFlushInProgress = false;
+      }
+
+      if (this.pendingFactsUpdates.length === 0) {
+        break;
+      }
+
+      this.factsUpdateFlushInProgress = true;
+    }
   }
 
   /**

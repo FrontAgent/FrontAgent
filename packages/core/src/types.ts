@@ -164,6 +164,8 @@ export interface ModuleDependencyGraph {
  * 项目事实 - 从工具执行中提取的结构化信息
  */
 export interface ProjectFacts {
+  /** 事实版本号（用于跨 Agent 合并时的冲突检测） */
+  revision: number;
   /** 文件系统状态 */
   filesystem: {
     /** 已确认存在的文件 */
@@ -194,16 +196,91 @@ export interface ProjectFacts {
   /** 模块依赖图 */
   moduleDependencyGraph: ModuleDependencyGraph;
   /** 错误历史 */
-  errors: Array<{
-    /** 步骤ID */
-    stepId: string;
-    /** 错误类型 */
-    type: string;
-    /** 错误消息 */
-    message: string;
-    /** 时间戳 */
-    timestamp: number;
-  }>;
+  errors: ProjectFactError[];
+}
+
+/**
+ * 事实错误记录
+ */
+export interface ProjectFactError {
+  /** 步骤ID */
+  stepId: string;
+  /** 错误类型 */
+  type: string;
+  /** 错误消息 */
+  message: string;
+  /** 时间戳 */
+  timestamp: number;
+}
+
+/**
+ * 可序列化的项目事实快照（用于 A2A 跨进程传输）
+ */
+export interface ProjectFactsSnapshot {
+  revision: number;
+  filesystem: {
+    existingFiles: string[];
+    existingDirectories: string[];
+    nonExistentPaths: string[];
+    directoryContents: Record<string, string[]>;
+  };
+  dependencies: {
+    installedPackages: string[];
+    missingPackages: string[];
+  };
+  project: {
+    devServerRunning: boolean;
+    runningPort?: number;
+    buildStatus?: 'success' | 'failed' | 'unknown';
+  };
+  moduleDependencyGraph: {
+    modules: Record<string, ModuleInfo>;
+    dependencies: Record<string, string[]>;
+    reverseDependencies: Record<string, string[]>;
+  };
+  errors: ProjectFactError[];
+}
+
+/**
+ * 子 Agent 返回给主 Agent 的事实增量包
+ */
+export interface ProjectFactsUpdate {
+  /** 子 Agent 生成增量时所基于的事实版本 */
+  baseRevision: number;
+  /** 更新来源（建议传 agentId） */
+  source: string;
+  /** 生成时间 */
+  timestamp: number;
+  changes: {
+    addExistingFiles?: string[];
+    addExistingDirectories?: string[];
+    addNonExistentPaths?: string[];
+    removeNonExistentPaths?: string[];
+    setDirectoryContents?: Array<{ path: string; entries: string[] }>;
+    addInstalledPackages?: string[];
+    addMissingPackages?: string[];
+    removeMissingPackages?: string[];
+    project?: {
+      devServerRunning?: boolean;
+      runningPort?: number;
+      buildStatus?: 'success' | 'failed' | 'unknown';
+    };
+    upsertModules?: ModuleInfo[];
+    setDependencies?: Array<{ path: string; dependencies: string[] }>;
+    setReverseDependencies?: Array<{ path: string; reverseDependencies: string[] }>;
+    addErrors?: ProjectFactError[];
+  };
+}
+
+/**
+ * 合并事实增量的结果
+ */
+export interface ProjectFactsMergeResult {
+  applied: boolean;
+  staleBaseRevision: boolean;
+  previousRevision: number;
+  nextRevision: number;
+  source: string;
 }
 
 /**
