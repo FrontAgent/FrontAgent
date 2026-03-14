@@ -46,17 +46,22 @@ export interface CodeQualitySubAgentOptions {
   debug?: boolean;
 }
 
-export class CodeQualitySubAgent
-  implements A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>
-{
+export class CodeQualitySubAgent implements A2AAgent<
+  CodeQualityReviewRequest,
+  CodeQualityReviewResponse
+> {
+  // a2a 协议中 Id
   readonly agentId = "subagent.code-quality";
+  // 角色扮演
   readonly capabilities = ["code_quality.review_generated_files"];
 
-  private readonly llmService?: LLMService;
-  private readonly enableRuleFallback: boolean;
-  private readonly maxFilesForLLM: number;
-  private readonly maxCharsPerFileForLLM: number;
-  private readonly debug: boolean;
+  // === 配置区
+  // TODO: 等未来token便宜之后取消规则函数与无关配置
+  private readonly llmService?: LLMService; // 启动LLM评估
+  private readonly enableRuleFallback: boolean; // 规则函数检查
+  private readonly maxFilesForLLM: number; // LLM评估最多文件数
+  private readonly maxCharsPerFileForLLM: number; // 上下文上限
+  private readonly debug: boolean; // 失败日志
 
   constructor(options: CodeQualitySubAgentOptions = {}) {
     this.llmService = options.llmService;
@@ -166,10 +171,12 @@ export class CodeQualitySubAgent
       ),
     });
 
-    const filesForLLM = payload.files.slice(0, this.maxFilesForLLM).map((file) => ({
-      path: file.path,
-      content: this.truncateFileContent(file.content),
-    }));
+    const filesForLLM = payload.files
+      .slice(0, this.maxFilesForLLM)
+      .map((file) => ({
+        path: file.path,
+        content: this.truncateFileContent(file.content),
+      }));
 
     const sddSummary = this.buildSddSummary(payload.sddConfig);
 
