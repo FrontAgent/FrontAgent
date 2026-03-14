@@ -11,9 +11,10 @@ import { ContextManager } from './context.js';
 import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
-import { InMemoryA2ABus } from './a2a.js';
+import { InMemoryA2ABus, type A2AAgent } from './a2a.js';
 import {
   CodeQualitySubAgent,
+  ProcessIsolatedCodeQualitySubAgent,
   type CodeQualityIssue,
   type CodeQualityReviewFile,
   type CodeQualityReviewRequest,
@@ -42,7 +43,7 @@ export class FrontAgent {
   private eventListeners: AgentEventListener[] = [];
   private currentTaskId?: string;  // 🔧 修复问题1：追踪当前执行的任务ID
   private a2aBus: InMemoryA2ABus;
-  private codeQualitySubAgent?: CodeQualitySubAgent;
+  private codeQualitySubAgent?: A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -93,14 +94,29 @@ export class FrontAgent {
     const codeQualityConfig = config.subAgents?.codeQualityEvaluator;
     const enableCodeQualitySubAgent = codeQualityConfig?.enabled ?? true;
     if (enableCodeQualitySubAgent) {
+      const isolationMode = codeQualityConfig?.isolationMode ?? 'process';
       const enableLLMReview = codeQualityConfig?.enableLLMReview ?? true;
-      this.codeQualitySubAgent = new CodeQualitySubAgent({
-        llmService: enableLLMReview ? this.llmService : undefined,
-        enableRuleFallback: codeQualityConfig?.enableRuleFallback ?? true,
-        maxFilesForLLM: codeQualityConfig?.maxFilesForLLM,
-        maxCharsPerFileForLLM: codeQualityConfig?.maxCharsPerFileForLLM,
-        debug: config.debug ?? false
-      });
+
+      if (isolationMode === 'process') {
+        this.codeQualitySubAgent = new ProcessIsolatedCodeQualitySubAgent({
+          llmConfig: config.llm,
+          enableLLMReview,
+          enableRuleFallback: codeQualityConfig?.enableRuleFallback ?? true,
+          maxFilesForLLM: codeQualityConfig?.maxFilesForLLM,
+          maxCharsPerFileForLLM: codeQualityConfig?.maxCharsPerFileForLLM,
+          timeoutMs: codeQualityConfig?.processTimeoutMs,
+          debug: config.debug ?? false
+        });
+      } else {
+        this.codeQualitySubAgent = new CodeQualitySubAgent({
+          llmService: enableLLMReview ? this.llmService : undefined,
+          enableRuleFallback: codeQualityConfig?.enableRuleFallback ?? true,
+          maxFilesForLLM: codeQualityConfig?.maxFilesForLLM,
+          maxCharsPerFileForLLM: codeQualityConfig?.maxCharsPerFileForLLM,
+          debug: config.debug ?? false
+        });
+      }
+
       this.a2aBus.registerAgent(this.codeQualitySubAgent);
     }
   }

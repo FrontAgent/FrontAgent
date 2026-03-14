@@ -18,6 +18,8 @@ export {
 export {
   CodeQualitySubAgent,
   type CodeQualitySubAgentOptions,
+  ProcessIsolatedCodeQualitySubAgent,
+  type ProcessIsolatedCodeQualitySubAgentOptions,
   type CodeQualityReviewFile,
   type CodeQualityIssue,
   type CodeQualityReviewRequest,

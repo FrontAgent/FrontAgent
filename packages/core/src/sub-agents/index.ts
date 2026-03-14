@@ -6,3 +6,8 @@ export {
   type CodeQualityReviewRequest,
   type CodeQualityReviewResponse,
 } from './code-quality-subagent.js';
+
+export {
+  ProcessIsolatedCodeQualitySubAgent,
+  type ProcessIsolatedCodeQualitySubAgentOptions,
+} from './process-isolated-code-quality-subagent.js';

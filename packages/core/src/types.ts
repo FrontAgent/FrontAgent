@@ -91,6 +91,10 @@ export interface SubAgentConfig {
   codeQualityEvaluator?: {
     /** 是否启用（默认 true） */
     enabled?: boolean;
+    /** 隔离模式：process 为真实上下文隔离（默认 process） */
+    isolationMode?: 'in_memory' | 'process';
+    /** process 模式下 worker 超时毫秒（默认 120000） */
+    processTimeoutMs?: number;
     /** 是否启用 LLM 评估（默认 true） */
     enableLLMReview?: boolean;
     /** LLM 评估失败时是否回退规则检查（默认 true） */
