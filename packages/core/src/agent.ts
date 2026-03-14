@@ -90,9 +90,17 @@ export class FrontAgent {
 
     // 初始化 A2A 总线和代码质量 SubAgent
     this.a2aBus = new InMemoryA2ABus();
-    const enableCodeQualitySubAgent = config.subAgents?.codeQualityEvaluator?.enabled ?? true;
+    const codeQualityConfig = config.subAgents?.codeQualityEvaluator;
+    const enableCodeQualitySubAgent = codeQualityConfig?.enabled ?? true;
     if (enableCodeQualitySubAgent) {
-      this.codeQualitySubAgent = new CodeQualitySubAgent();
+      const enableLLMReview = codeQualityConfig?.enableLLMReview ?? true;
+      this.codeQualitySubAgent = new CodeQualitySubAgent({
+        llmService: enableLLMReview ? this.llmService : undefined,
+        enableRuleFallback: codeQualityConfig?.enableRuleFallback ?? true,
+        maxFilesForLLM: codeQualityConfig?.maxFilesForLLM,
+        maxCharsPerFileForLLM: codeQualityConfig?.maxCharsPerFileForLLM,
+        debug: config.debug ?? false
+      });
       this.a2aBus.registerAgent(this.codeQualitySubAgent);
     }
   }

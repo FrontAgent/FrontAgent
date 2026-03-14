@@ -17,6 +17,7 @@ export {
 } from './a2a.js';
 export {
   CodeQualitySubAgent,
+  type CodeQualitySubAgentOptions,
   type CodeQualityReviewFile,
   type CodeQualityIssue,
   type CodeQualityReviewRequest,

@@ -91,10 +91,18 @@ export interface SubAgentConfig {
   codeQualityEvaluator?: {
     /** 是否启用（默认 true） */
     enabled?: boolean;
+    /** 是否启用 LLM 评估（默认 true） */
+    enableLLMReview?: boolean;
+    /** LLM 评估失败时是否回退规则检查（默认 true） */
+    enableRuleFallback?: boolean;
     /** 是否将 warning 作为失败处理（默认 false） */
     failOnWarnings?: boolean;
     /** 每个阶段最多评估文件数（默认 20） */
     maxFilesPerPhase?: number;
+    /** 单次 LLM 评估最多文件数（默认 6） */
+    maxFilesForLLM?: number;
+    /** 每个文件传给 LLM 的最大字符数（默认 12000） */
+    maxCharsPerFileForLLM?: number;
   };
 }
 
