@@ -25,6 +25,8 @@ export interface AgentConfig {
   mcp?: MCPConfig;
   /** 幻觉防控配置 */
   hallucinationGuard?: HallucinationGuardConfig;
+  /** SubAgent 配置 */
+  subAgents?: SubAgentConfig;
   /** 调试模式 */
   debug?: boolean;
 }
@@ -78,6 +80,21 @@ export interface HallucinationGuardConfig {
     importValidity?: boolean;
     syntaxValidity?: boolean;
     sddCompliance?: boolean;
+  };
+}
+
+/**
+ * SubAgent 配置
+ */
+export interface SubAgentConfig {
+  /** 代码质量评估子代理 */
+  codeQualityEvaluator?: {
+    /** 是否启用（默认 true） */
+    enabled?: boolean;
+    /** 是否将 warning 作为失败处理（默认 false） */
+    failOnWarnings?: boolean;
+    /** 每个阶段最多评估文件数（默认 20） */
+    maxFilesPerPhase?: number;
   };
 }
 
@@ -296,4 +313,3 @@ export type AgentEvent =
  * 事件监听器
  */
 export type AgentEventListener = (event: AgentEvent) => void;
-

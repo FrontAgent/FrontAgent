@@ -11,6 +11,14 @@ import { ContextManager } from './context.js';
 import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
+import { InMemoryA2ABus } from './a2a.js';
+import {
+  CodeQualitySubAgent,
+  type CodeQualityIssue,
+  type CodeQualityReviewFile,
+  type CodeQualityReviewRequest,
+  type CodeQualityReviewResponse
+} from './sub-agents/index.js';
 import type {
   AgentConfig,
   AgentExecutionResult,
@@ -33,6 +41,8 @@ export class FrontAgent {
   private promptGenerator?: SDDPromptGenerator;
   private eventListeners: AgentEventListener[] = [];
   private currentTaskId?: string;  // 🔧 修复问题1：追踪当前执行的任务ID
+  private a2aBus: InMemoryA2ABus;
+  private codeQualitySubAgent?: CodeQualitySubAgent;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -77,6 +87,14 @@ export class FrontAgent {
         return context?.facts.filesystem;
       }
     });
+
+    // 初始化 A2A 总线和代码质量 SubAgent
+    this.a2aBus = new InMemoryA2ABus();
+    const enableCodeQualitySubAgent = config.subAgents?.codeQualityEvaluator?.enabled ?? true;
+    if (enableCodeQualitySubAgent) {
+      this.codeQualitySubAgent = new CodeQualitySubAgent();
+      this.a2aBus.registerAgent(this.codeQualitySubAgent);
+    }
   }
 
   /**
@@ -296,8 +314,10 @@ export class FrontAgent {
         throw new Error(planResult.rejectionReason ?? '无法生成执行计划');
       }
 
-      this.contextManager.setPlan(task.id, planResult.plan);
-      this.emit({ type: 'planning_completed', plan: planResult.plan });
+      const executionPlan = planResult.plan;
+
+      this.contextManager.setPlan(task.id, executionPlan);
+      this.emit({ type: 'planning_completed', plan: executionPlan });
 
       // 执行阶段（两阶段架构 - 传递上下文给 Executor）
       const validations: ValidationResult[] = [];
@@ -311,7 +331,7 @@ export class FrontAgent {
       // Executor 只关注执行 Plan，不再传递 SDD 约束
       // SDD 已在 Planner 阶段约束，确保生成的 Plan 符合 SDD 规范
       await this.executor.executeStepsWithErrorFeedback(
-        planResult.plan.steps,
+        executionPlan.steps,
         {
           task,
           collectedContext: { files: executionContext.collectedContext.files },
@@ -449,8 +469,8 @@ export class FrontAgent {
         async (phase, _results) => {
           const errors: Array<{ step: ExecutionStep; error: string }> = [];
 
-          // 在创建阶段结束后进行多项检查
-          if (phase.includes('创建') || phase.includes('实现') || phase === '未分组') {
+          // 在代码实现阶段结束后进行多项检查
+          if (this.shouldRunPhaseChecks(phase)) {
             console.log(`[Agent] Running phase completion checks for: ${phase}`);
 
             // 1. 检查模块依赖
@@ -534,6 +554,49 @@ export class FrontAgent {
                 console.log(`[Agent] ✅ TypeScript check passed`);
               }
             }
+
+            // 4. 通过 A2A 调用代码质量 SubAgent 审核本阶段生成/修改的文件
+            const qualityIssues = await this.evaluateGeneratedCodeQualityViaSubAgent(
+              task.id,
+              phase,
+              executionPlan.steps,
+              executionContext.collectedContext.files
+            );
+            if (qualityIssues.length > 0) {
+              const errorCount = qualityIssues.filter(issue => issue.severity === 'error').length;
+              const warningCount = qualityIssues.filter(issue => issue.severity === 'warning').length;
+              console.log(`[Agent] CodeQualitySubAgent found ${errorCount} error(s), ${warningCount} warning(s)`);
+
+              const failOnWarnings = this.config.subAgents?.codeQualityEvaluator?.failOnWarnings ?? false;
+              const blockingIssues = qualityIssues.filter(
+                issue => issue.severity === 'error' || (failOnWarnings && issue.severity === 'warning')
+              );
+
+              if (blockingIssues.length > 0) {
+                const issueText = blockingIssues
+                  .slice(0, 10)
+                  .map(issue => {
+                    const lineText = issue.line ? `:${issue.line}` : '';
+                    return `- ${issue.filePath}${lineText} [${issue.rule}] ${issue.message}`;
+                  })
+                  .join('\n');
+
+                errors.push({
+                  step: {
+                    stepId: generateId('code-quality-review'),
+                    description: 'SubAgent 代码质量评估',
+                    action: 'run_command' as const,
+                    tool: 'run_command',
+                    params: { command: 'subagent:code-quality-review' },
+                    dependencies: [],
+                    validation: [],
+                    status: 'failed' as const,
+                    phase
+                  } as ExecutionStep,
+                  error: `Code quality review found ${blockingIssues.length} blocking issue(s):\n${issueText}`
+                });
+              }
+            }
           }
 
           return errors;
@@ -541,14 +604,14 @@ export class FrontAgent {
       );
 
       // 检查是否有失败的步骤
-      const failedSteps = planResult.plan.steps.filter(s => s.status === 'failed');
+      const failedSteps = executionPlan.steps.filter(s => s.status === 'failed');
       const success = failedSteps.length === 0;
 
       const result: AgentExecutionResult = {
         success,
         taskId: task.id,
-        executedSteps: planResult.plan.steps,
-        output: success ? this.generateOutput(planResult.plan.steps) : undefined,
+        executedSteps: executionPlan.steps,
+        output: success ? this.generateOutput(executionPlan.steps) : undefined,
         error: success ? undefined : failedSteps.map(s => s.result?.error).join('; '),
         duration: Date.now() - startTime,
         validations
@@ -730,6 +793,130 @@ export class FrontAgent {
   }
 
   /**
+   * 判断是否需要执行阶段完成检查
+   */
+  private shouldRunPhaseChecks(phase: string): boolean {
+    const normalized = phase.toLowerCase();
+    return (
+      phase.includes('创建') ||
+      phase.includes('实现') ||
+      phase === '未分组' ||
+      normalized.includes('create') ||
+      normalized.includes('implement')
+    );
+  }
+
+  /**
+   * 收集某阶段生成/修改过的代码文件
+   */
+  private collectGeneratedCodeFilesForPhase(phase: string, steps: ExecutionStep[]): string[] {
+    const maxFiles = this.config.subAgents?.codeQualityEvaluator?.maxFilesPerPhase ?? 20;
+    const codeFileRegex = /\.(tsx?|jsx?|mjs|cjs)$/;
+    const paths = new Set<string>();
+
+    for (const step of steps) {
+      const stepPhase = step.phase || '未分组';
+      if (stepPhase !== phase) continue;
+      if (step.status !== 'completed') continue;
+      if (step.action !== 'create_file' && step.action !== 'apply_patch') continue;
+
+      const path = step.params.path;
+      if (typeof path !== 'string') continue;
+      if (!codeFileRegex.test(path)) continue;
+
+      paths.add(path);
+      if (paths.size >= maxFiles) break;
+    }
+
+    return Array.from(paths);
+  }
+
+  /**
+   * 读取待评估文件内容（优先读取最新磁盘内容，失败时回退到上下文缓存）
+   */
+  private async readFilesForCodeQualityReview(
+    filePaths: string[],
+    collectedFiles: Map<string, string>
+  ): Promise<CodeQualityReviewFile[]> {
+    const files: CodeQualityReviewFile[] = [];
+
+    for (const path of filePaths) {
+      try {
+        const readResult = await this.executor['callTool']('read_file', { path }) as {
+          success: boolean;
+          content?: string;
+        };
+
+        if (readResult.success && typeof readResult.content === 'string') {
+          collectedFiles.set(path, readResult.content);
+          files.push({ path, content: readResult.content });
+          continue;
+        }
+      } catch (error) {
+        if (this.config.debug) {
+          console.warn(`[Agent] Failed to read file for code quality review: ${path}`, error);
+        }
+      }
+
+      const fallbackContent = collectedFiles.get(path);
+      if (fallbackContent !== undefined) {
+        files.push({ path, content: fallbackContent });
+      }
+    }
+
+    return files;
+  }
+
+  /**
+   * 通过 A2A 调用 CodeQualitySubAgent 评估代码质量
+   */
+  private async evaluateGeneratedCodeQualityViaSubAgent(
+    taskId: string,
+    phase: string,
+    steps: ExecutionStep[],
+    collectedFiles: Map<string, string>
+  ): Promise<CodeQualityIssue[]> {
+    if (!this.codeQualitySubAgent || !this.a2aBus.hasAgent(this.codeQualitySubAgent.agentId)) {
+      return [];
+    }
+
+    const filePaths = this.collectGeneratedCodeFilesForPhase(phase, steps);
+    if (filePaths.length === 0) {
+      return [];
+    }
+
+    const reviewFiles = await this.readFilesForCodeQualityReview(filePaths, collectedFiles);
+    if (reviewFiles.length === 0) {
+      return [];
+    }
+
+    const request: CodeQualityReviewRequest = {
+      taskId,
+      phase,
+      files: reviewFiles,
+      sddConfig: this.sddConfig
+    };
+
+    const response = await this.a2aBus.request<CodeQualityReviewRequest, CodeQualityReviewResponse>({
+      from: 'frontagent.main',
+      to: this.codeQualitySubAgent.agentId,
+      intent: 'code_quality.review_generated_files',
+      payload: request
+    });
+
+    if (!response.success || !response.payload) {
+      console.warn(`[Agent] CodeQualitySubAgent request failed: ${response.error ?? 'Unknown error'}`);
+      return [];
+    }
+
+    if (this.config.debug) {
+      console.log(`[Agent] ${response.payload.summary}`);
+    }
+
+    return response.payload.issues;
+  }
+
+  /**
    * 检测项目开发服务器端口
    * 从 vite.config.ts, package.json scripts, 或使用默认值
    */
@@ -831,4 +1018,3 @@ export class FrontAgent {
 export function createAgent(config: AgentConfig): FrontAgent {
   return new FrontAgent(config);
 }
-
