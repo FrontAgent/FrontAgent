@@ -38,6 +38,14 @@ export interface ExecutorConfig {
   } | undefined;
 }
 
+interface PhaseExecutionGroup {
+  phase: string;
+  steps: ExecutionStep[];
+  dependencies: Set<string>;
+  firstSeenIndex: number;
+  priority: number;
+}
+
 /**
  * Executor 类
  */
@@ -682,6 +690,135 @@ export class Executor {
   }
 
   /**
+   * 基于步骤依赖构建阶段依赖图，并返回可执行顺序。
+   * 先按依赖拓扑排序，无法排序时回退到优先级排序。
+   */
+  private buildOrderedPhaseGroups(steps: ExecutionStep[]): PhaseExecutionGroup[] {
+    const phaseGroups = new Map<string, PhaseExecutionGroup>();
+    const stepToPhase = new Map<string, string>();
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const phase = step.phase || '未分组';
+      stepToPhase.set(step.stepId, phase);
+
+      if (!phaseGroups.has(phase)) {
+        phaseGroups.set(phase, {
+          phase,
+          steps: [],
+          dependencies: new Set<string>(),
+          firstSeenIndex: i,
+          priority: this.getPhasePriority(phase)
+        });
+      }
+
+      phaseGroups.get(phase)!.steps.push(step);
+    }
+
+    for (const step of steps) {
+      const phase = step.phase || '未分组';
+      const group = phaseGroups.get(phase);
+      if (!group) continue;
+
+      for (const dep of step.dependencies) {
+        const depPhase = stepToPhase.get(dep);
+        if (!depPhase || depPhase === phase) continue;
+        group.dependencies.add(depPhase);
+      }
+    }
+
+    return this.topologicalSortPhaseGroups(Array.from(phaseGroups.values()));
+  }
+
+  /**
+   * 阶段拓扑排序（Kahn 算法），并保持稳定顺序。
+   */
+  private topologicalSortPhaseGroups(groups: PhaseExecutionGroup[]): PhaseExecutionGroup[] {
+    if (groups.length <= 1) {
+      return groups;
+    }
+
+    const groupMap = new Map(groups.map(group => [group.phase, group]));
+    const indegree = new Map<string, number>();
+    const outgoing = new Map<string, Set<string>>();
+
+    for (const group of groups) {
+      indegree.set(group.phase, 0);
+      outgoing.set(group.phase, new Set<string>());
+    }
+
+    for (const group of groups) {
+      for (const dep of group.dependencies) {
+        if (!groupMap.has(dep)) continue;
+        indegree.set(group.phase, (indegree.get(group.phase) ?? 0) + 1);
+        outgoing.get(dep)!.add(group.phase);
+      }
+    }
+
+    const ready = groups.filter(group => (indegree.get(group.phase) ?? 0) === 0);
+    ready.sort((a, b) => this.comparePhaseGroup(a, b));
+
+    const ordered: PhaseExecutionGroup[] = [];
+
+    while (ready.length > 0) {
+      const current = ready.shift()!;
+      ordered.push(current);
+
+      for (const nextPhase of outgoing.get(current.phase) ?? []) {
+        const nextDegree = (indegree.get(nextPhase) ?? 0) - 1;
+        indegree.set(nextPhase, nextDegree);
+
+        if (nextDegree === 0) {
+          const nextGroup = groupMap.get(nextPhase);
+          if (nextGroup) {
+            ready.push(nextGroup);
+          }
+        }
+      }
+
+      ready.sort((a, b) => this.comparePhaseGroup(a, b));
+    }
+
+    if (ordered.length !== groups.length) {
+      console.warn('[Executor] Detected phase dependency cycle, fallback to priority ordering');
+      return [...groups].sort((a, b) => this.comparePhaseGroup(a, b));
+    }
+
+    return ordered;
+  }
+
+  /**
+   * 阶段排序比较器：先按语义优先级，再按首次出现顺序。
+   */
+  private comparePhaseGroup(a: PhaseExecutionGroup, b: PhaseExecutionGroup): number {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    if (a.firstSeenIndex !== b.firstSeenIndex) {
+      return a.firstSeenIndex - b.firstSeenIndex;
+    }
+    return a.phase.localeCompare(b.phase);
+  }
+
+  /**
+   * 阶段语义优先级（越小越先执行）。
+   */
+  private getPhasePriority(phase: string): number {
+    const normalized = phase.toLowerCase();
+
+    if (normalized.includes('分析') || normalized.includes('analy')) return 10;
+    if (normalized.includes('创建') || normalized.includes('实现') || normalized.includes('create') || normalized.includes('implement')) return 20;
+    if (normalized.includes('安装') || normalized.includes('install')) return 30;
+    if (normalized.includes('验证') || normalized.includes('验收') || normalized.includes('valid') || normalized.includes('accept')) return 40;
+    if (normalized.includes('启动') || normalized.includes('start') || normalized.includes('serve')) return 50;
+    if (normalized.includes('浏览器') || normalized.includes('browser')) return 60;
+    if (normalized.includes('仓库') || normalized.includes('repo') || normalized.includes('repository')) return 70;
+    if (normalized.includes('未分组') || normalized.includes('ungroup')) return 90;
+
+    return 80;
+  }
+
+  /**
    * 按阶段执行步骤，支持错误反馈循环（Tool Error Feedback Loop）
    */
   async executeStepsWithErrorFeedback(
@@ -694,23 +831,19 @@ export class Executor {
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
     onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
   ): Promise<ExecutorOutput[]> {
-    // 按阶段分组
-    const phaseGroups = new Map<string, ExecutionStep[]>();
-    for (const step of steps) {
-      const phase = step.phase || '未分组';
-      if (!phaseGroups.has(phase)) {
-        phaseGroups.set(phase, []);
-      }
-      phaseGroups.get(phase)!.push(step);
-    }
+    const orderedPhaseGroups = this.buildOrderedPhaseGroups(steps);
 
     const allResults: ExecutorOutput[] = [];
     const completedStepIds = new Set<string>();
 
     // 按阶段顺序执行
-    for (const [phase, phaseSteps] of phaseGroups) {
+    for (const phaseGroup of orderedPhaseGroups) {
+      const phase = phaseGroup.phase;
+      const phaseSteps = phaseGroup.steps;
+
       console.log(`[Executor] ========================================`);
       console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
+      console.log(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
       console.log(`[Executor] 📋 Steps in this phase:`);
       for (const s of phaseSteps) {
         console.log(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
@@ -973,4 +1106,3 @@ export class Executor {
 export function createExecutor(config: ExecutorConfig): Executor {
   return new Executor(config);
 }
-
