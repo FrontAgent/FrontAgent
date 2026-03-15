@@ -5,6 +5,7 @@
 
 import type { ExecutionStep, StepResult, ValidationResult, AgentTask } from '@frontagent/shared';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
+import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import type { ExecutorOutput } from './types.js';
 import { LLMService } from './llm.js';
 
@@ -36,6 +37,15 @@ export interface ExecutorConfig {
     nonExistentPaths: Set<string>;
     directoryContents: Map<string, string[]>;
   } | undefined;
+  /** 执行流引擎（默认 native） */
+  executionEngine?: 'native' | 'langgraph';
+  /** LangGraph 相关配置 */
+  langGraph?: {
+    enabled?: boolean;
+    useCheckpoint?: boolean;
+    maxRecoveryAttempts?: number;
+    threadIdPrefix?: string;
+  };
 }
 
 interface PhaseExecutionGroup {
@@ -44,6 +54,21 @@ interface PhaseExecutionGroup {
   dependencies: Set<string>;
   firstSeenIndex: number;
   priority: number;
+}
+
+interface SerializablePhaseExecutionGroup {
+  phase: string;
+  steps: ExecutionStep[];
+  dependencies: string[];
+  firstSeenIndex: number;
+  priority: number;
+}
+
+interface LangGraphRuntimeState {
+  phaseGroups: SerializablePhaseExecutionGroup[];
+  phaseIndex: number;
+  completedStepIds: string[];
+  allResults: ExecutorOutput[];
 }
 
 /**
@@ -819,6 +844,354 @@ export class Executor {
   }
 
   /**
+   * 是否启用 LangGraph 执行流。
+   */
+  private shouldUseLangGraphEngine(): boolean {
+    if (this.config.executionEngine === 'langgraph') {
+      return true;
+    }
+    return this.config.langGraph?.enabled ?? false;
+  }
+
+  /**
+   * 获取阶段恢复最大重试次数。
+   */
+  private getMaxRecoveryAttempts(): number {
+    return this.config.langGraph?.maxRecoveryAttempts ?? 3;
+  }
+
+  /**
+   * 执行单个阶段（包含阶段内错误恢复）。
+   */
+  private async executeSinglePhaseWithRecovery(
+    phaseGroup: PhaseExecutionGroup,
+    context: {
+      task: AgentTask;
+      collectedContext: { files: Map<string, string> };
+    },
+    completedStepIds: Set<string>,
+    allResults: ExecutorOutput[],
+    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
+    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
+    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
+  ): Promise<void> {
+    const phase = phaseGroup.phase;
+    const phaseSteps = phaseGroup.steps;
+
+    console.log(`[Executor] ========================================`);
+    console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
+    console.log(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
+    console.log(`[Executor] 📋 Steps in this phase:`);
+    for (const s of phaseSteps) {
+      console.log(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
+    }
+    console.log(`[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`);
+    console.log(`[Executor] ----------------------------------------`);
+
+    const phaseResults: ExecutorOutput[] = [];
+    let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
+
+    for (const step of phaseSteps) {
+      const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
+      if (!dependenciesMet) {
+        const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
+        console.warn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
+        console.warn(`[Executor]    Step description: ${step.description}`);
+        console.warn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
+        console.warn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
+        console.warn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
+        step.status = 'skipped';
+        continue;
+      }
+
+      step.status = 'running';
+      const output = await this.executeStep(step, context);
+      step.result = output.stepResult;
+      step.status = output.stepResult.success ? 'completed' : 'failed';
+
+      phaseResults.push(output);
+      allResults.push(output);
+
+      if (output.stepResult.success) {
+        completedStepIds.add(step.stepId);
+      } else {
+        phaseErrors.push({
+          step,
+          error: output.stepResult.error || 'Unknown error'
+        });
+      }
+
+      if (onStepComplete) {
+        onStepComplete(step, output);
+      }
+    }
+
+    if (onPhaseComplete) {
+      try {
+        const additionalErrors = await onPhaseComplete(phase, phaseResults);
+        if (additionalErrors.length > 0) {
+          console.log(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
+          phaseErrors.push(...additionalErrors);
+        }
+      } catch (error) {
+        console.error(`[Executor] Phase complete validation failed:`, error);
+      }
+    }
+
+    const maxRecoveryAttempts = this.getMaxRecoveryAttempts();
+    let recoveryAttempt = 0;
+
+    while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < maxRecoveryAttempts) {
+      recoveryAttempt++;
+      console.log(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`);
+
+      try {
+        const recoverySteps = await onPhaseError(phase, phaseErrors);
+        if (recoverySteps.length === 0) {
+          console.log(`[Executor] No recovery steps generated, stopping recovery attempts`);
+          break;
+        }
+
+        console.log(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
+
+        for (const recoveryStep of recoverySteps) {
+          recoveryStep.phase = phase;
+          phaseSteps.push(recoveryStep);
+        }
+
+        const recoveryFailed = [];
+        for (const recoveryStep of recoverySteps) {
+          recoveryStep.status = 'running';
+          const output = await this.executeStep(recoveryStep, context);
+          recoveryStep.result = output.stepResult;
+          recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
+
+          allResults.push(output);
+
+          if (output.stepResult.success) {
+            completedStepIds.add(recoveryStep.stepId);
+          } else {
+            recoveryFailed.push({ step: recoveryStep, error: output.stepResult.error || 'Unknown error' });
+          }
+
+          if (onStepComplete) {
+            onStepComplete(recoveryStep, output);
+          }
+        }
+
+        if (onPhaseComplete) {
+          console.log(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
+          const previousPhaseErrors = phaseErrors;
+          phaseErrors = [];
+
+          try {
+            const verificationErrors = await onPhaseComplete(phase, allResults);
+            phaseErrors = verificationErrors;
+
+            if (phaseErrors.length === 0) {
+              console.log(`[Executor] ✅ Recovery successful! All errors fixed.`);
+
+              for (const errorInfo of previousPhaseErrors) {
+                if (errorInfo.step.status === 'failed') {
+                  console.log(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
+                  console.log(`[Executor]    Step description: ${errorInfo.step.description}`);
+                  errorInfo.step.status = 'completed';
+                  completedStepIds.add(errorInfo.step.stepId);
+                }
+              }
+
+              console.log(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
+
+              const skippedSteps = phaseSteps.filter(s => s.status === 'skipped');
+              if (skippedSteps.length > 0) {
+                console.log(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
+
+                for (const skippedStep of skippedSteps) {
+                  const dependenciesMet = skippedStep.dependencies.every(dep => completedStepIds.has(dep));
+
+                  if (dependenciesMet) {
+                    console.log(`[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`);
+                    console.log(`[Executor]    Step description: ${skippedStep.description}`);
+
+                    skippedStep.status = 'running';
+                    const output = await this.executeStep(skippedStep, context);
+                    skippedStep.result = output.stepResult;
+                    skippedStep.status = output.stepResult.success ? 'completed' : 'failed';
+
+                    allResults.push(output);
+
+                    if (output.stepResult.success) {
+                      completedStepIds.add(skippedStep.stepId);
+                      console.log(`[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`);
+                    } else {
+                      console.log(`[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`);
+                      phaseErrors.push({
+                        step: skippedStep,
+                        error: output.stepResult.error || 'Unknown error'
+                      });
+                    }
+
+                    if (onStepComplete) {
+                      onStepComplete(skippedStep, output);
+                    }
+                  } else {
+                    const missingDeps = skippedStep.dependencies.filter(dep => !completedStepIds.has(dep));
+                    console.log(`[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`);
+                  }
+                }
+
+                console.log(`[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`);
+              }
+
+              if (phaseErrors.length === 0) {
+                break;
+              } else {
+                console.log(`[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`);
+                continue;
+              }
+            } else {
+              console.log(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
+              if (recoveryAttempt >= maxRecoveryAttempts) {
+                console.warn(`[Executor] ❌ Max recovery attempts (${maxRecoveryAttempts}) reached. Stopping recovery.`);
+              }
+            }
+          } catch (error) {
+            console.error(`[Executor] Verification check failed:`, error);
+            break;
+          }
+        } else {
+          break;
+        }
+      } catch (error) {
+        console.error(`[Executor] Failed to generate/execute recovery plan:`, error);
+        break;
+      }
+    }
+
+    const phaseStats = {
+      total: phaseSteps.length,
+      completed: phaseSteps.filter(s => s.status === 'completed').length,
+      failed: phaseSteps.filter(s => s.status === 'failed').length,
+      skipped: phaseSteps.filter(s => s.status === 'skipped').length,
+    };
+    console.log(`[Executor] ----------------------------------------`);
+    console.log(`[Executor] Phase ${phase} completed`);
+    console.log(`[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`);
+    console.log(`[Executor] ========================================`);
+  }
+
+  /**
+   * 使用 LangGraph 执行阶段流。
+   */
+  private async executeStepsWithErrorFeedbackViaLangGraph(
+    steps: ExecutionStep[],
+    context: {
+      task: AgentTask;
+      collectedContext: { files: Map<string, string> };
+    },
+    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
+    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
+    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
+  ): Promise<ExecutorOutput[]> {
+    const orderedPhaseGroups = this.buildOrderedPhaseGroups(steps);
+    const serializablePhaseGroups: SerializablePhaseExecutionGroup[] = orderedPhaseGroups.map(group => ({
+      phase: group.phase,
+      steps: group.steps,
+      dependencies: Array.from(group.dependencies),
+      firstSeenIndex: group.firstSeenIndex,
+      priority: group.priority
+    }));
+
+    const RuntimeStateAnnotation = Annotation.Root({
+      runtime: Annotation<LangGraphRuntimeState>({
+        reducer: (_left, right) => right,
+        default: () => ({
+          phaseGroups: [],
+          phaseIndex: 0,
+          completedStepIds: [],
+          allResults: []
+        })
+      })
+    });
+
+    const graph = new StateGraph(RuntimeStateAnnotation)
+      .addNode('select_phase', () => ({}))
+      .addNode('execute_phase', async (state) => {
+        const runtime = state.runtime as LangGraphRuntimeState;
+        if (runtime.phaseIndex >= runtime.phaseGroups.length) {
+          return {};
+        }
+
+        const phaseGroupData = runtime.phaseGroups[runtime.phaseIndex];
+        const phaseGroup: PhaseExecutionGroup = {
+          ...phaseGroupData,
+          dependencies: new Set(phaseGroupData.dependencies)
+        };
+        const completedStepIds = new Set(runtime.completedStepIds);
+        const allResults = [...runtime.allResults];
+
+        await this.executeSinglePhaseWithRecovery(
+          phaseGroup,
+          context,
+          completedStepIds,
+          allResults,
+          onStepComplete,
+          onPhaseError,
+          onPhaseComplete
+        );
+
+        return {
+          runtime: {
+            ...runtime,
+            completedStepIds: Array.from(completedStepIds),
+            allResults
+          }
+        };
+      })
+      .addNode('advance_phase', (state) => {
+        const runtime = state.runtime as LangGraphRuntimeState;
+        return {
+          runtime: {
+            ...runtime,
+            phaseIndex: runtime.phaseIndex + 1
+          }
+        };
+      })
+      .addEdge(START, 'select_phase')
+      .addConditionalEdges('select_phase', (state) => {
+        const runtime = state.runtime as LangGraphRuntimeState;
+        return runtime.phaseIndex >= runtime.phaseGroups.length ? END : 'execute_phase';
+      })
+      .addEdge('execute_phase', 'advance_phase')
+      .addEdge('advance_phase', 'select_phase')
+      .compile({
+        checkpointer: this.config.langGraph?.useCheckpoint ? new MemorySaver() : undefined,
+        name: 'frontagent.phase.flow'
+      });
+
+    const initialState: LangGraphRuntimeState = {
+      phaseGroups: serializablePhaseGroups,
+      phaseIndex: 0,
+      completedStepIds: [],
+      allResults: []
+    };
+
+    const runnableConfig = this.config.langGraph?.useCheckpoint
+      ? {
+        configurable: {
+          thread_id: `${this.config.langGraph?.threadIdPrefix ?? 'frontagent'}-${Date.now()}`
+        }
+      }
+      : undefined;
+
+    const finalState = await graph.invoke({ runtime: initialState }, runnableConfig as any) as {
+      runtime?: LangGraphRuntimeState;
+    };
+
+    return finalState.runtime?.allResults ?? [];
+  }
+
+  /**
    * 按阶段执行步骤，支持错误反馈循环（Tool Error Feedback Loop）
    */
   async executeStepsWithErrorFeedback(
@@ -831,6 +1204,19 @@ export class Executor {
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
     onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
   ): Promise<ExecutorOutput[]> {
+    if (this.shouldUseLangGraphEngine()) {
+      if (this.config.debug) {
+        console.log('[Executor] Using LangGraph execution engine');
+      }
+      return this.executeStepsWithErrorFeedbackViaLangGraph(
+        steps,
+        context,
+        onStepComplete,
+        onPhaseError,
+        onPhaseComplete
+      );
+    }
+
     const orderedPhaseGroups = this.buildOrderedPhaseGroups(steps);
 
     const allResults: ExecutorOutput[] = [];
@@ -838,223 +1224,15 @@ export class Executor {
 
     // 按阶段顺序执行
     for (const phaseGroup of orderedPhaseGroups) {
-      const phase = phaseGroup.phase;
-      const phaseSteps = phaseGroup.steps;
-
-      console.log(`[Executor] ========================================`);
-      console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
-      console.log(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
-      console.log(`[Executor] 📋 Steps in this phase:`);
-      for (const s of phaseSteps) {
-        console.log(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
-      }
-      console.log(`[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`);
-      console.log(`[Executor] ----------------------------------------`);
-
-      // 执行该阶段的所有步骤
-      const phaseResults: ExecutorOutput[] = [];
-      let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
-
-      for (const step of phaseSteps) {
-        // 检查依赖是否都已完成
-        const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
-        if (!dependenciesMet) {
-          const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
-          console.warn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
-          console.warn(`[Executor]    Step description: ${step.description}`);
-          console.warn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
-          console.warn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
-          console.warn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
-          step.status = 'skipped';
-          continue;
-        }
-
-        step.status = 'running';
-        const output = await this.executeStep(step, context);
-        step.result = output.stepResult;
-        step.status = output.stepResult.success ? 'completed' : 'failed';
-
-        phaseResults.push(output);
-        allResults.push(output);
-
-        if (output.stepResult.success) {
-          completedStepIds.add(step.stepId);
-        } else {
-          // 收集错误
-          phaseErrors.push({
-            step,
-            error: output.stepResult.error || 'Unknown error'
-          });
-        }
-
-        if (onStepComplete) {
-          onStepComplete(step, output);
-        }
-      }
-
-      // 阶段结束后，调用 onPhaseComplete 进行额外验证（如模块依赖检查）
-      if (onPhaseComplete) {
-        try {
-          const additionalErrors = await onPhaseComplete(phase, phaseResults);
-          if (additionalErrors.length > 0) {
-            console.log(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
-            phaseErrors.push(...additionalErrors);
-          }
-        } catch (error) {
-          console.error(`[Executor] Phase complete validation failed:`, error);
-        }
-      }
-
-      // 阶段结束后，检查是否有错误需要修复（带重试限制）
-      const MAX_RECOVERY_ATTEMPTS = 3;
-      let recoveryAttempt = 0;
-
-      while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < MAX_RECOVERY_ATTEMPTS) {
-        recoveryAttempt++;
-        console.log(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${MAX_RECOVERY_ATTEMPTS}...`);
-
-        try {
-          const recoverySteps = await onPhaseError(phase, phaseErrors);
-          if (recoverySteps.length === 0) {
-            console.log(`[Executor] No recovery steps generated, stopping recovery attempts`);
-            break;
-          }
-
-          console.log(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
-
-          // 将修复步骤插入到当前阶段的步骤组中
-          for (const recoveryStep of recoverySteps) {
-            recoveryStep.phase = phase; // 确保属于同一阶段
-            phaseSteps.push(recoveryStep);
-          }
-
-          // 执行修复步骤
-          const recoveryFailed = [];
-          for (const recoveryStep of recoverySteps) {
-            recoveryStep.status = 'running';
-            const output = await this.executeStep(recoveryStep, context);
-            recoveryStep.result = output.stepResult;
-            recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
-
-            allResults.push(output);
-
-            if (output.stepResult.success) {
-              completedStepIds.add(recoveryStep.stepId);
-            } else {
-              recoveryFailed.push({ step: recoveryStep, error: output.stepResult.error || 'Unknown error' });
-            }
-
-            if (onStepComplete) {
-              onStepComplete(recoveryStep, output);
-            }
-          }
-
-          // 验证修复是否成功：重新运行阶段完成检查
-          if (onPhaseComplete) {
-            console.log(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
-            const previousPhaseErrors = phaseErrors;
-            phaseErrors = [];
-            try {
-              const verificationErrors = await onPhaseComplete(phase, allResults);
-              phaseErrors = verificationErrors;
-
-              if (phaseErrors.length === 0) {
-                console.log(`[Executor] ✅ Recovery successful! All errors fixed.`);
-
-                // 将原本失败的步骤标记为已修复（通过recovery）
-                for (const errorInfo of previousPhaseErrors) {
-                  if (errorInfo.step.status === 'failed') {
-                    console.log(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
-                    console.log(`[Executor]    Step description: ${errorInfo.step.description}`);
-                    errorInfo.step.status = 'completed';
-                    completedStepIds.add(errorInfo.step.stepId);
-                  }
-                }
-
-                console.log(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
-
-                // 🔧 优化：重新执行被跳过的步骤（如果它们的依赖现在已满足）
-                const skippedSteps = phaseSteps.filter(s => s.status === 'skipped');
-                if (skippedSteps.length > 0) {
-                  console.log(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
-
-                  for (const skippedStep of skippedSteps) {
-                    const dependenciesMet = skippedStep.dependencies.every(dep => completedStepIds.has(dep));
-
-                    if (dependenciesMet) {
-                      console.log(`[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`);
-                      console.log(`[Executor]    Step description: ${skippedStep.description}`);
-
-                      skippedStep.status = 'running';
-                      const output = await this.executeStep(skippedStep, context);
-                      skippedStep.result = output.stepResult;
-                      skippedStep.status = output.stepResult.success ? 'completed' : 'failed';
-
-                      allResults.push(output);
-
-                      if (output.stepResult.success) {
-                        completedStepIds.add(skippedStep.stepId);
-                        console.log(`[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`);
-                      } else {
-                        console.log(`[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`);
-                        // 将失败的步骤添加到错误列表，可能需要再次恢复
-                        phaseErrors.push({
-                          step: skippedStep,
-                          error: output.stepResult.error || 'Unknown error'
-                        });
-                      }
-
-                      if (onStepComplete) {
-                        onStepComplete(skippedStep, output);
-                      }
-                    } else {
-                      const missingDeps = skippedStep.dependencies.filter(dep => !completedStepIds.has(dep));
-                      console.log(`[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`);
-                    }
-                  }
-
-                  console.log(`[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`);
-                }
-
-                // 如果重新执行后还有错误，继续恢复循环；否则退出
-                if (phaseErrors.length === 0) {
-                  break;
-                } else {
-                  console.log(`[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`);
-                  continue;
-                }
-              } else {
-                console.log(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
-                if (recoveryAttempt >= MAX_RECOVERY_ATTEMPTS) {
-                  console.warn(`[Executor] ❌ Max recovery attempts (${MAX_RECOVERY_ATTEMPTS}) reached. Stopping recovery.`);
-                }
-              }
-            } catch (error) {
-              console.error(`[Executor] Verification check failed:`, error);
-              break;
-            }
-          } else {
-            // 如果没有验证回调，只执行一次修复
-            break;
-          }
-
-        } catch (error) {
-          console.error(`[Executor] Failed to generate/execute recovery plan:`, error);
-          break;
-        }
-      }
-
-      // 统计阶段执行结果
-      const phaseStats = {
-        total: phaseSteps.length,
-        completed: phaseSteps.filter(s => s.status === 'completed').length,
-        failed: phaseSteps.filter(s => s.status === 'failed').length,
-        skipped: phaseSteps.filter(s => s.status === 'skipped').length,
-      };
-      console.log(`[Executor] ----------------------------------------`);
-      console.log(`[Executor] Phase ${phase} completed`);
-      console.log(`[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`);
-      console.log(`[Executor] ========================================`);
+      await this.executeSinglePhaseWithRecovery(
+        phaseGroup,
+        context,
+        completedStepIds,
+        allResults,
+        onStepComplete,
+        onPhaseError,
+        onPhaseComplete
+      );
     }
 
     return allResults;
