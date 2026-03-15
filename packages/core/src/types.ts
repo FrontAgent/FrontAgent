@@ -21,10 +21,14 @@ export interface AgentConfig {
   sddPath?: string;
   /** LLM 配置 */
   llm: LLMConfig;
+  /** 执行引擎配置 */
+  execution?: AgentExecutionConfig;
   /** MCP 服务器配置 */
   mcp?: MCPConfig;
   /** 幻觉防控配置 */
   hallucinationGuard?: HallucinationGuardConfig;
+  /** SubAgent 配置 */
+  subAgents?: SubAgentConfig;
   /** 调试模式 */
   debug?: boolean;
 }
@@ -67,6 +71,23 @@ export interface MCPConfig {
 }
 
 /**
+ * 执行引擎配置
+ */
+export interface AgentExecutionConfig {
+  /** 执行引擎（默认 native） */
+  engine?: 'native' | 'langgraph';
+  /** LangGraph 专用配置 */
+  langGraph?: {
+    /** 是否启用 checkpoint（默认 false） */
+    useCheckpoint?: boolean;
+    /** 阶段错误恢复最大重试次数（默认 3） */
+    maxRecoveryAttempts?: number;
+    /** checkpoint thread_id 前缀 */
+    threadIdPrefix?: string;
+  };
+}
+
+/**
  * 幻觉防控配置
  */
 export interface HallucinationGuardConfig {
@@ -78,6 +99,33 @@ export interface HallucinationGuardConfig {
     importValidity?: boolean;
     syntaxValidity?: boolean;
     sddCompliance?: boolean;
+  };
+}
+
+/**
+ * SubAgent 配置
+ */
+export interface SubAgentConfig {
+  /** 代码质量评估子代理 */
+  codeQualityEvaluator?: {
+    /** 是否启用（默认 true） */
+    enabled?: boolean;
+    /** 隔离模式：process 为真实上下文隔离（默认 process） */
+    isolationMode?: 'in_memory' | 'process';
+    /** process 模式下 worker 超时毫秒（默认 120000） */
+    processTimeoutMs?: number;
+    /** 是否启用 LLM 评估（默认 true） */
+    enableLLMReview?: boolean;
+    /** LLM 评估失败时是否回退规则检查（默认 true） */
+    enableRuleFallback?: boolean;
+    /** 是否将 warning 作为失败处理（默认 false） */
+    failOnWarnings?: boolean;
+    /** 每个阶段最多评估文件数（默认 20） */
+    maxFilesPerPhase?: number;
+    /** 单次 LLM 评估最多文件数（默认 6） */
+    maxFilesForLLM?: number;
+    /** 每个文件传给 LLM 的最大字符数（默认 12000） */
+    maxCharsPerFileForLLM?: number;
   };
 }
 
@@ -135,6 +183,8 @@ export interface ModuleDependencyGraph {
  * 项目事实 - 从工具执行中提取的结构化信息
  */
 export interface ProjectFacts {
+  /** 事实版本号（用于跨 Agent 合并时的冲突检测） */
+  revision: number;
   /** 文件系统状态 */
   filesystem: {
     /** 已确认存在的文件 */
@@ -165,16 +215,91 @@ export interface ProjectFacts {
   /** 模块依赖图 */
   moduleDependencyGraph: ModuleDependencyGraph;
   /** 错误历史 */
-  errors: Array<{
-    /** 步骤ID */
-    stepId: string;
-    /** 错误类型 */
-    type: string;
-    /** 错误消息 */
-    message: string;
-    /** 时间戳 */
-    timestamp: number;
-  }>;
+  errors: ProjectFactError[];
+}
+
+/**
+ * 事实错误记录
+ */
+export interface ProjectFactError {
+  /** 步骤ID */
+  stepId: string;
+  /** 错误类型 */
+  type: string;
+  /** 错误消息 */
+  message: string;
+  /** 时间戳 */
+  timestamp: number;
+}
+
+/**
+ * 可序列化的项目事实快照（用于 A2A 跨进程传输）
+ */
+export interface ProjectFactsSnapshot {
+  revision: number;
+  filesystem: {
+    existingFiles: string[];
+    existingDirectories: string[];
+    nonExistentPaths: string[];
+    directoryContents: Record<string, string[]>;
+  };
+  dependencies: {
+    installedPackages: string[];
+    missingPackages: string[];
+  };
+  project: {
+    devServerRunning: boolean;
+    runningPort?: number;
+    buildStatus?: 'success' | 'failed' | 'unknown';
+  };
+  moduleDependencyGraph: {
+    modules: Record<string, ModuleInfo>;
+    dependencies: Record<string, string[]>;
+    reverseDependencies: Record<string, string[]>;
+  };
+  errors: ProjectFactError[];
+}
+
+/**
+ * 子 Agent 返回给主 Agent 的事实增量包
+ */
+export interface ProjectFactsUpdate {
+  /** 子 Agent 生成增量时所基于的事实版本 */
+  baseRevision: number;
+  /** 更新来源（建议传 agentId） */
+  source: string;
+  /** 生成时间 */
+  timestamp: number;
+  changes: {
+    addExistingFiles?: string[];
+    addExistingDirectories?: string[];
+    addNonExistentPaths?: string[];
+    removeNonExistentPaths?: string[];
+    setDirectoryContents?: Array<{ path: string; entries: string[] }>;
+    addInstalledPackages?: string[];
+    addMissingPackages?: string[];
+    removeMissingPackages?: string[];
+    project?: {
+      devServerRunning?: boolean;
+      runningPort?: number;
+      buildStatus?: 'success' | 'failed' | 'unknown';
+    };
+    upsertModules?: ModuleInfo[];
+    setDependencies?: Array<{ path: string; dependencies: string[] }>;
+    setReverseDependencies?: Array<{ path: string; reverseDependencies: string[] }>;
+    addErrors?: ProjectFactError[];
+  };
+}
+
+/**
+ * 合并事实增量的结果
+ */
+export interface ProjectFactsMergeResult {
+  applied: boolean;
+  staleBaseRevision: boolean;
+  previousRevision: number;
+  nextRevision: number;
+  source: string;
 }
 
 /**
@@ -296,4 +421,3 @@ export type AgentEvent =
  * 事件监听器
  */
 export type AgentEventListener = (event: AgentEvent) => void;
-

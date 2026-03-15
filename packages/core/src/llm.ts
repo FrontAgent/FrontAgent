@@ -535,11 +535,12 @@ export class LLMService {
 - **阶段4-验证**: 类型检查、构建验证（run_command: tsc --noEmit, npm run build）
 - **阶段5-启动**: 启动开发服务器（run_command: npm run dev）
 - **阶段6-浏览器验证**: 验证应用运行（browser_navigate 使用上下文中提供的端口, browser_screenshot）
+- **阶段7-仓库管理**: 在验收通过后执行仓库自动化（run_command: git/gh，如 commit/push/pr create）
 
 根据任务类型选择需要的阶段：
 - 分析类任务：只需阶段1
 - 修改类任务：阶段1 → 阶段2 → 阶段4
-- 创建类任务：完整的阶段1-6
+- 创建类任务：完整的阶段1-6，若有代码变更且验收通过则追加阶段7
 
 # 可用工具
 - **read_file**: 读取文件内容
@@ -563,7 +564,8 @@ ${options.sddConstraints ?? '无特殊约束'}
 - risks: 潜在风险列表
 - alternatives: 备选方案列表
 
-确保每个步骤都有明确的 phase 字段，用于分阶段执行。`;
+确保每个步骤都有明确的 phase 字段，用于分阶段执行。
+如果包含阶段7-仓库管理，必须放在所有验收阶段（验证/浏览器验证）之后。`;
 
     const outline = await this.generateObject({
       messages: [
@@ -607,11 +609,17 @@ ${options.sddConstraints ?? '无特殊约束'}
             } else if (step.description.includes('启动') || step.description.includes('dev') ||
                        step.description.includes('serve')) {
               step.phase = '阶段5-启动';
+            } else if (step.description.includes('仓库') || step.description.includes('repository') ||
+                       step.description.includes('repo') || step.description.includes('git') ||
+                       step.description.includes('gh') || step.description.includes('pull request') ||
+                       step.description.includes('pr')) {
+              step.phase = '阶段7-仓库管理';
             } else {
               step.phase = '阶段4-验证';
             }
           } else if (step.action === 'browser_navigate' || step.action === 'browser_screenshot' ||
-                     step.action === 'get_page_structure' || step.action === 'browser_click') {
+                     step.action === 'get_page_structure' || step.action === 'browser_click' ||
+                     step.action === 'browser_type') {
             step.phase = '阶段6-浏览器验证';
           } else if (step.action === 'apply_patch') {
             step.phase = '阶段2-创建';
@@ -652,6 +660,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 - 安装依赖: "npm install" 或 "pnpm install"
 - 类型检查: "npm run typecheck" 或 "tsc --noEmit"
 - 启动服务: "nohup npm run dev > /dev/null 2>&1 & sleep 3"
+- 仓库管理: "git add -A && git commit ... && git push && gh pr create ..."
 
 ## 浏览器操作
 - **browser_navigate**: params 需要 url
@@ -664,6 +673,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 - create_file 和 apply_patch 必须设置 needsCodeGeneration: true
 - 文件路径必须包含完整扩展名（如 .ts, .tsx, .json）
 - 保持 phase 字段与输入一致
+- 阶段7-仓库管理必须依赖验收阶段成功（例如放在阶段4/6之后）
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}`;
@@ -1382,7 +1392,7 @@ const PlanOutlineSchema = z.object({
       'browser_type',
       'browser_screenshot'
     ]).describe('执行动作类型'),
-    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证）'),
+    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段7-仓库管理）'),
   })).describe('步骤概要列表 - 只需简单描述每个步骤要做什么'),
   risks: z.array(z.string()).describe('潜在风险（可为空数组）'),
   alternatives: z.array(z.string()).describe('备选方案（可为空数组）'),
@@ -1450,7 +1460,7 @@ const GeneratedPlanSchema = z.object({
       'browser_screenshot'
     ]).describe('执行动作'),
     tool: z.string().describe('要调用的工具'),
-    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证）'),
+    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段7-仓库管理）'),
     // 参数说明：
     // - 对于 read_file: { path: string }
     // - 对于 list_directory: { path: string, recursive?: boolean }

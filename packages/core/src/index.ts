@@ -7,6 +7,25 @@ export { Planner, createPlanner, type PlannerConfig } from './planner.js';
 export { Executor, createExecutor, type ExecutorConfig, type MCPClient } from './executor.js';
 export { ContextManager, createContextManager } from './context.js';
 export {
+  A2A_PROTOCOL_NAME,
+  A2A_PROTOCOL_VERSION,
+  InMemoryA2ABus,
+  type A2AEnvelope,
+  type A2ARequest,
+  type A2AResponse,
+  type A2AAgent
+} from './a2a.js';
+export {
+  CodeQualitySubAgent,
+  type CodeQualitySubAgentOptions,
+  ProcessIsolatedCodeQualitySubAgent,
+  type ProcessIsolatedCodeQualitySubAgentOptions,
+  type CodeQualityReviewFile,
+  type CodeQualityIssue,
+  type CodeQualityReviewRequest,
+  type CodeQualityReviewResponse
+} from './sub-agents/index.js';
+export {
   LLMService,
   createLLMService,
   type GeneratedPlan,
@@ -16,9 +35,11 @@ export {
 
 export type {
   AgentConfig,
+  AgentExecutionConfig,
   LLMConfig,
   MCPConfig,
   HallucinationGuardConfig,
+  SubAgentConfig,
   AgentContext,
   ContextInfo,
   Message,
@@ -29,6 +50,10 @@ export type {
   ExecutorOutput,
   AgentExecutionResult,
   AgentEvent,
-  AgentEventListener
+  AgentEventListener,
+  ProjectFactError,
+  ProjectFacts,
+  ProjectFactsSnapshot,
+  ProjectFactsUpdate,
+  ProjectFactsMergeResult
 } from './types.js';
-

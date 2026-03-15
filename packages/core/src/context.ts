@@ -8,7 +8,15 @@ import type {
   ExecutionStep,
   SDDConfig
 } from '@frontagent/shared';
-import type { AgentContext, Message, ModuleInfo } from './types.js';
+import type {
+  AgentContext,
+  Message,
+  ModuleInfo,
+  ProjectFacts,
+  ProjectFactsMergeResult,
+  ProjectFactsSnapshot,
+  ProjectFactsUpdate,
+} from './types.js';
 
 /**
  * 解析代码中的导入语句
@@ -124,6 +132,29 @@ function normalizeModulePath(path: string): string {
   return path + '.tsx';
 }
 
+function mapToRecord<T>(
+  map: Map<string, T>,
+  cloneValue?: (value: T) => T
+): Record<string, T> {
+  const record: Record<string, T> = {};
+  for (const [key, value] of map.entries()) {
+    record[key] = cloneValue ? cloneValue(value) : value;
+  }
+  return record;
+}
+
+function cloneStringArray(input: string[]): string[] {
+  return [...input];
+}
+
+function recordToClonedStringArrayMap(record: Record<string, string[]>): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const [key, value] of Object.entries(record)) {
+    map.set(key, cloneStringArray(value));
+  }
+  return map;
+}
+
 /**
  * 上下文管理器
  */
@@ -144,6 +175,7 @@ export class ContextManager {
       },
       messages: [],
       facts: {
+        revision: 0,
         filesystem: {
           existingFiles: new Set(),
           existingDirectories: new Set(),
@@ -176,6 +208,33 @@ export class ContextManager {
    */
   getContext(taskId: string): AgentContext | undefined {
     return this.contexts.get(taskId);
+  }
+
+  private bumpFactsRevision(facts: ProjectFacts): void {
+    facts.revision += 1;
+  }
+
+  private addToSet(set: Set<string>, value: string): boolean {
+    const before = set.size;
+    set.add(value);
+    return set.size !== before;
+  }
+
+  private removeFromSet(set: Set<string>, value: string): boolean {
+    return set.delete(value);
+  }
+
+  private setStringArrayMap(map: Map<string, string[]>, key: string, value: string[]): boolean {
+    const previous = map.get(key);
+    if (
+      previous &&
+      previous.length === value.length &&
+      previous.every((item, idx) => item === value[idx])
+    ) {
+      return false;
+    }
+    map.set(key, value);
+    return true;
   }
 
   /**
@@ -334,16 +393,17 @@ export class ContextManager {
     if (!context) return;
 
     const { facts } = context;
+    let changed = false;
 
     switch (toolName) {
       case 'create_file':
       case 'apply_patch': {
         const path = params.path as string;
         if (result.success) {
-          facts.filesystem.existingFiles.add(path);
-          facts.filesystem.nonExistentPaths.delete(path);
+          changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
         } else if (result.error?.includes('not found')) {
-          facts.filesystem.nonExistentPaths.add(path);
+          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
         }
         break;
       }
@@ -352,16 +412,16 @@ export class ContextManager {
         // 🔧 修复：检查 skipped 和 exists 字段，正确记录不存在的文件
         if (result.success && !result.skipped) {
           // 真正成功读取了文件
-          facts.filesystem.existingFiles.add(path);
-          facts.filesystem.nonExistentPaths.delete(path);
+          changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
         } else if (result.skipped && result.exists === false) {
           // 步骤被跳过且文件不存在
-          facts.filesystem.nonExistentPaths.add(path);
-          facts.filesystem.existingFiles.delete(path);
+          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
+          changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
         } else if (result.error?.includes('not found') || result.error?.includes('does not exist')) {
           // 明确的文件不存在错误
-          facts.filesystem.nonExistentPaths.add(path);
-          facts.filesystem.existingFiles.delete(path);
+          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
+          changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
         }
         break;
       }
@@ -369,7 +429,7 @@ export class ContextManager {
         const path = params.path as string;
         // 🔧 修复：同样检查 skipped 字段
         if (result.success && !result.skipped && Array.isArray(result.entries)) {
-          facts.filesystem.existingDirectories.add(path);
+          changed = this.addToSet(facts.filesystem.existingDirectories, path) || changed;
 
           // 🔧 关键修复：从目录内容推断文件存在性
           // list_directory 返回的 entries 是 FileInfo[] 对象数组
@@ -377,23 +437,31 @@ export class ContextManager {
           const entries = result.entries as Array<{ name: string; path: string; type: string }>;
 
           // 存储路径字符串用于 directoryContents
-          facts.filesystem.directoryContents.set(path, entries.map(e => e.path));
+          changed = this.setStringArrayMap(
+            facts.filesystem.directoryContents,
+            path,
+            entries.map(e => e.path)
+          ) || changed;
 
           // 将目录中的文件/子目录添加到相应的集合
           for (const entry of entries) {
             if (entry.type === 'file') {
-              facts.filesystem.existingFiles.add(entry.path);
-              facts.filesystem.nonExistentPaths.delete(entry.path);
+              changed = this.addToSet(facts.filesystem.existingFiles, entry.path) || changed;
+              changed = this.removeFromSet(facts.filesystem.nonExistentPaths, entry.path) || changed;
             } else if (entry.type === 'directory') {
-              facts.filesystem.existingDirectories.add(entry.path);
-              facts.filesystem.nonExistentPaths.delete(entry.path);
+              changed = this.addToSet(facts.filesystem.existingDirectories, entry.path) || changed;
+              changed = this.removeFromSet(facts.filesystem.nonExistentPaths, entry.path) || changed;
             }
           }
         } else if (result.skipped || result.error?.includes('not found')) {
-          facts.filesystem.nonExistentPaths.add(path);
+          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
         }
         break;
       }
+    }
+
+    if (changed) {
+      this.bumpFactsRevision(facts);
     }
   }
 
@@ -410,6 +478,7 @@ export class ContextManager {
     if (!context) return;
 
     const { facts } = context;
+    let changed = false;
 
     if (toolName === 'run_command') {
       const command = params.command as string;
@@ -418,8 +487,8 @@ export class ContextManager {
       if (command.includes('npm install') || command.includes('pnpm install') || command.includes('yarn add')) {
         const packageMatch = command.match(/(?:install|add)\s+(@?[\w/-]+)/);
         if (packageMatch && result.success) {
-          facts.dependencies.installedPackages.add(packageMatch[1]);
-          facts.dependencies.missingPackages.delete(packageMatch[1]);
+          changed = this.addToSet(facts.dependencies.installedPackages, packageMatch[1]) || changed;
+          changed = this.removeFromSet(facts.dependencies.missingPackages, packageMatch[1]) || changed;
         }
       }
 
@@ -427,9 +496,13 @@ export class ContextManager {
       if (result.error) {
         const missingMatch = result.error.match(/Cannot find (?:module|package) ['"](@?[\w/-]+)['"]/);
         if (missingMatch) {
-          facts.dependencies.missingPackages.add(missingMatch[1]);
+          changed = this.addToSet(facts.dependencies.missingPackages, missingMatch[1]) || changed;
         }
       }
+    }
+
+    if (changed) {
+      this.bumpFactsRevision(facts);
     }
   }
 
@@ -446,6 +519,7 @@ export class ContextManager {
     if (!context) return;
 
     const { facts } = context;
+    let changed = false;
 
     if (toolName === 'run_command') {
       const command = params.command as string;
@@ -453,19 +527,34 @@ export class ContextManager {
       // 检测开发服务器启动
       if (command.includes('dev') || command.includes('start')) {
         if (result.success) {
-          facts.project.devServerRunning = true;
+          if (!facts.project.devServerRunning) {
+            facts.project.devServerRunning = true;
+            changed = true;
+          }
           // 尝试提取端口号
           const portMatch = result.output?.match(/(?:localhost|127\.0\.0\.1):(\d+)/);
           if (portMatch) {
-            facts.project.runningPort = parseInt(portMatch[1], 10);
+            const nextPort = parseInt(portMatch[1], 10);
+            if (facts.project.runningPort !== nextPort) {
+              facts.project.runningPort = nextPort;
+              changed = true;
+            }
           }
         }
       }
 
       // 检测构建命令
       if (command.includes('build')) {
-        facts.project.buildStatus = result.success ? 'success' : 'failed';
+        const nextStatus = result.success ? 'success' : 'failed';
+        if (facts.project.buildStatus !== nextStatus) {
+          facts.project.buildStatus = nextStatus;
+          changed = true;
+        }
       }
+    }
+
+    if (changed) {
+      this.bumpFactsRevision(facts);
     }
   }
 
@@ -520,6 +609,16 @@ export class ContextManager {
     }
     moduleDependencyGraph.dependencies.set(path, resolvedDeps);
 
+    // 清理旧的反向依赖（如果模块被重复更新）
+    for (const [depPath, reverseDeps] of moduleDependencyGraph.reverseDependencies.entries()) {
+      const nextReverseDeps = reverseDeps.filter(reversePath => reversePath !== path);
+      if (nextReverseDeps.length > 0) {
+        moduleDependencyGraph.reverseDependencies.set(depPath, nextReverseDeps);
+      } else {
+        moduleDependencyGraph.reverseDependencies.delete(depPath);
+      }
+    }
+
     // 更新反向依赖
     for (const dep of resolvedDeps) {
       const reverseDeps = moduleDependencyGraph.reverseDependencies.get(dep) || [];
@@ -528,6 +627,8 @@ export class ContextManager {
         moduleDependencyGraph.reverseDependencies.set(dep, reverseDeps);
       }
     }
+
+    this.bumpFactsRevision(context.facts);
   }
 
   /**
@@ -618,6 +719,214 @@ export class ContextManager {
       message: errorMessage,
       timestamp: Date.now()
     });
+    this.bumpFactsRevision(context.facts);
+  }
+
+  /**
+   * 导出可序列化的事实快照（用于 A2A 跨进程传输）
+   */
+  exportFactsSnapshot(taskId: string): ProjectFactsSnapshot | undefined {
+    const context = this.contexts.get(taskId);
+    if (!context) return undefined;
+
+    const { facts } = context;
+
+    const modulesRecord: Record<string, ModuleInfo> = {};
+    for (const [path, moduleInfo] of facts.moduleDependencyGraph.modules.entries()) {
+      modulesRecord[path] = {
+        ...moduleInfo,
+        exports: cloneStringArray(moduleInfo.exports),
+        imports: cloneStringArray(moduleInfo.imports),
+      };
+    }
+
+    return {
+      revision: facts.revision,
+      filesystem: {
+        existingFiles: Array.from(facts.filesystem.existingFiles),
+        existingDirectories: Array.from(facts.filesystem.existingDirectories),
+        nonExistentPaths: Array.from(facts.filesystem.nonExistentPaths),
+        directoryContents: mapToRecord(facts.filesystem.directoryContents, cloneStringArray),
+      },
+      dependencies: {
+        installedPackages: Array.from(facts.dependencies.installedPackages),
+        missingPackages: Array.from(facts.dependencies.missingPackages),
+      },
+      project: {
+        devServerRunning: facts.project.devServerRunning,
+        runningPort: facts.project.runningPort,
+        buildStatus: facts.project.buildStatus,
+      },
+      moduleDependencyGraph: {
+        modules: modulesRecord,
+        dependencies: mapToRecord(facts.moduleDependencyGraph.dependencies, cloneStringArray),
+        reverseDependencies: mapToRecord(facts.moduleDependencyGraph.reverseDependencies, cloneStringArray),
+      },
+      errors: facts.errors.map(error => ({ ...error })),
+    };
+  }
+
+  /**
+   * 合并子 Agent 反馈的事实增量包
+   */
+  mergeFactsUpdate(
+    taskId: string,
+    update: ProjectFactsUpdate
+  ): ProjectFactsMergeResult {
+    const context = this.contexts.get(taskId);
+    if (!context) {
+      return {
+        applied: false,
+        staleBaseRevision: false,
+        previousRevision: -1,
+        nextRevision: -1,
+        source: update.source
+      };
+    }
+
+    const { facts } = context;
+    const previousRevision = facts.revision;
+    const staleBaseRevision = update.baseRevision !== previousRevision;
+    let changed = false;
+    const { changes } = update;
+
+    for (const path of changes.addExistingFiles ?? []) {
+      changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
+      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
+    }
+
+    for (const path of changes.addExistingDirectories ?? []) {
+      changed = this.addToSet(facts.filesystem.existingDirectories, path) || changed;
+      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
+    }
+
+    for (const path of changes.addNonExistentPaths ?? []) {
+      changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
+      changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
+    }
+
+    for (const path of changes.removeNonExistentPaths ?? []) {
+      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
+    }
+
+    for (const entry of changes.setDirectoryContents ?? []) {
+      changed = this.setStringArrayMap(
+        facts.filesystem.directoryContents,
+        entry.path,
+        cloneStringArray(entry.entries)
+      ) || changed;
+    }
+
+    for (const pkg of changes.addInstalledPackages ?? []) {
+      changed = this.addToSet(facts.dependencies.installedPackages, pkg) || changed;
+      changed = this.removeFromSet(facts.dependencies.missingPackages, pkg) || changed;
+    }
+
+    for (const pkg of changes.addMissingPackages ?? []) {
+      changed = this.addToSet(facts.dependencies.missingPackages, pkg) || changed;
+    }
+
+    for (const pkg of changes.removeMissingPackages ?? []) {
+      changed = this.removeFromSet(facts.dependencies.missingPackages, pkg) || changed;
+    }
+
+    if (changes.project) {
+      const nextProject = changes.project;
+      if (nextProject.devServerRunning !== undefined && facts.project.devServerRunning !== nextProject.devServerRunning) {
+        facts.project.devServerRunning = nextProject.devServerRunning;
+        changed = true;
+      }
+      if (nextProject.runningPort !== undefined && facts.project.runningPort !== nextProject.runningPort) {
+        facts.project.runningPort = nextProject.runningPort;
+        changed = true;
+      }
+      if (nextProject.buildStatus !== undefined && facts.project.buildStatus !== nextProject.buildStatus) {
+        facts.project.buildStatus = nextProject.buildStatus;
+        changed = true;
+      }
+    }
+
+    for (const moduleInfo of changes.upsertModules ?? []) {
+      const normalized: ModuleInfo = {
+        ...moduleInfo,
+        exports: cloneStringArray(moduleInfo.exports),
+        imports: cloneStringArray(moduleInfo.imports),
+      };
+      facts.moduleDependencyGraph.modules.set(moduleInfo.path, normalized);
+      changed = true;
+    }
+
+    for (const depEntry of changes.setDependencies ?? []) {
+      facts.moduleDependencyGraph.dependencies.set(depEntry.path, cloneStringArray(depEntry.dependencies));
+      changed = true;
+    }
+
+    for (const reverseDepEntry of changes.setReverseDependencies ?? []) {
+      facts.moduleDependencyGraph.reverseDependencies.set(
+        reverseDepEntry.path,
+        cloneStringArray(reverseDepEntry.reverseDependencies)
+      );
+      changed = true;
+    }
+
+    for (const error of changes.addErrors ?? []) {
+      facts.errors.push({ ...error });
+      changed = true;
+    }
+
+    if (changed) {
+      this.bumpFactsRevision(facts);
+    }
+
+    return {
+      applied: changed,
+      staleBaseRevision,
+      previousRevision,
+      nextRevision: facts.revision,
+      source: update.source
+    };
+  }
+
+  /**
+   * 使用完整快照覆盖当前事实（用于跨 Agent 冷启动同步）
+   */
+  replaceFactsFromSnapshot(taskId: string, snapshot: ProjectFactsSnapshot): void {
+    const context = this.contexts.get(taskId);
+    if (!context) return;
+
+    const modulesMap = new Map<string, ModuleInfo>();
+    for (const [path, moduleInfo] of Object.entries(snapshot.moduleDependencyGraph.modules)) {
+      modulesMap.set(path, {
+        ...moduleInfo,
+        exports: cloneStringArray(moduleInfo.exports),
+        imports: cloneStringArray(moduleInfo.imports),
+      });
+    }
+
+    context.facts = {
+      revision: snapshot.revision,
+      filesystem: {
+        existingFiles: new Set(snapshot.filesystem.existingFiles),
+        existingDirectories: new Set(snapshot.filesystem.existingDirectories),
+        nonExistentPaths: new Set(snapshot.filesystem.nonExistentPaths),
+        directoryContents: recordToClonedStringArrayMap(snapshot.filesystem.directoryContents),
+      },
+      dependencies: {
+        installedPackages: new Set(snapshot.dependencies.installedPackages),
+        missingPackages: new Set(snapshot.dependencies.missingPackages),
+      },
+      project: {
+        devServerRunning: snapshot.project.devServerRunning,
+        runningPort: snapshot.project.runningPort,
+        buildStatus: snapshot.project.buildStatus ?? 'unknown',
+      },
+      moduleDependencyGraph: {
+        modules: modulesMap,
+        dependencies: recordToClonedStringArrayMap(snapshot.moduleDependencyGraph.dependencies),
+        reverseDependencies: recordToClonedStringArrayMap(snapshot.moduleDependencyGraph.reverseDependencies),
+      },
+      errors: snapshot.errors.map(error => ({ ...error })),
+    };
   }
 
   /**
@@ -629,6 +938,8 @@ export class ContextManager {
 
     const { facts } = context;
     const parts: string[] = [];
+
+    parts.push(`## 事实版本: ${facts.revision}`);
 
     // 文件系统事实
     parts.push('## 文件系统状态');
@@ -737,4 +1048,3 @@ export class ContextManager {
 export function createContextManager(): ContextManager {
   return new ContextManager();
 }
-

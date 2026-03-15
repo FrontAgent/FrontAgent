@@ -18,13 +18,15 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@frontagent/shared": "workspace:*",
-    "@frontagent/sdd": "workspace:*",
+    "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/openai": "^1.0.0",
     "@frontagent/hallucination-guard": "workspace:*",
+    "@frontagent/sdd": "workspace:*",
+    "@frontagent/shared": "workspace:*",
+    "@langchain/core": "^1.1.32",
+    "@langchain/langgraph": "^1.2.2",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "ai": "^4.0.0",
-    "@ai-sdk/openai": "^1.0.0",
-    "@ai-sdk/anthropic": "^1.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -32,4 +34,3 @@
     "typescript": "^5.3.0"
   }
 }
-
