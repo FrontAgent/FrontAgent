@@ -35,6 +35,7 @@ export {
 
 export type {
   AgentConfig,
+  AgentExecutionConfig,
   LLMConfig,
   MCPConfig,
   HallucinationGuardConfig,

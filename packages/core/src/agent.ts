@@ -83,6 +83,8 @@ export class FrontAgent {
       hallucinationGuard: this.hallucinationGuard,
       llmService: this.llmService,
       debug: config.debug,
+      executionEngine: config.execution?.engine,
+      langGraph: config.execution?.langGraph,
       getSddConstraints: () => this.promptGenerator?.generate(),
       // 🔧 修复问题1：传递文件系统事实，帮助 Executor 判断文件是否存在
       getFileSystemFacts: () => {

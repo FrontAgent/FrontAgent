@@ -211,6 +211,9 @@ program
   .option('--api-key <key>', 'LLM API Key (默认从环境变量读取)')
   .option('--max-tokens <tokens>', '最大 token 数', '4096')
   .option('--temperature <temp>', '温度参数', '0.7')
+  .option('--engine <engine>', '执行引擎 (native/langgraph)', process.env.EXECUTION_ENGINE || 'native')
+  .option('--langgraph-checkpoint', '启用 LangGraph checkpoint', false)
+  .option('--max-recovery-attempts <n>', '阶段恢复最大重试次数', process.env.MAX_RECOVERY_ATTEMPTS || '3')
   .option('--debug', '启用调试模式', false)
   .action(async (task, options) => {
     const projectRoot = process.cwd();
@@ -239,6 +242,14 @@ program
     };
 
     const model = options.model || process.env.MODEL || getDefaultModel(provider);
+    const executionEngineRaw = (options.engine || process.env.EXECUTION_ENGINE || 'native').toLowerCase();
+    const executionEngine = executionEngineRaw === 'langgraph' ? 'langgraph' : 'native';
+    const useLangGraphCheckpoint = Boolean(
+      options.langgraphCheckpoint ||
+      process.env.LANGGRAPH_CHECKPOINT === '1' ||
+      process.env.LANGGRAPH_CHECKPOINT === 'true'
+    );
+    const maxRecoveryAttempts = Number.parseInt(options.maxRecoveryAttempts, 10) || 3;
 
     // 显示 LLM 配置信息
     if (options.debug) {
@@ -246,6 +257,11 @@ program
       console.log(chalk.gray(`   Provider: ${provider}`));
       console.log(chalk.gray(`   Model: ${model}`));
       console.log(chalk.gray(`   Base URL: ${options.baseUrl || process.env[`${provider.toUpperCase()}_BASE_URL`] || process.env.BASE_URL || '(default)'}\n`));
+      console.log(chalk.gray(`   Execution Engine: ${executionEngine}`));
+      if (executionEngine === 'langgraph') {
+        console.log(chalk.gray(`   LangGraph Checkpoint: ${useLangGraphCheckpoint}`));
+        console.log(chalk.gray(`   Max Recovery Attempts: ${maxRecoveryAttempts}\n`));
+      }
     }
 
     const spinner = ora('正在初始化 Agent...').start();
@@ -260,6 +276,14 @@ program
         apiKey: options.apiKey,
         maxTokens: parseInt(options.maxTokens, 10),
         temperature: parseFloat(options.temperature),
+      },
+      execution: {
+        engine: executionEngine,
+        langGraph: {
+          useCheckpoint: useLangGraphCheckpoint,
+          maxRecoveryAttempts,
+          threadIdPrefix: 'frontagent'
+        }
       },
       debug: options.debug
     };
@@ -430,4 +454,3 @@ program
   });
 
 program.parse();
-

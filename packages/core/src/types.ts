@@ -21,6 +21,8 @@ export interface AgentConfig {
   sddPath?: string;
   /** LLM 配置 */
   llm: LLMConfig;
+  /** 执行引擎配置 */
+  execution?: AgentExecutionConfig;
   /** MCP 服务器配置 */
   mcp?: MCPConfig;
   /** 幻觉防控配置 */
@@ -65,6 +67,23 @@ export interface MCPConfig {
     command?: string;
     args?: string[];
     headless?: boolean;
+  };
+}
+
+/**
+ * 执行引擎配置
+ */
+export interface AgentExecutionConfig {
+  /** 执行引擎（默认 native） */
+  engine?: 'native' | 'langgraph';
+  /** LangGraph 专用配置 */
+  langGraph?: {
+    /** 是否启用 checkpoint（默认 false） */
+    useCheckpoint?: boolean;
+    /** 阶段错误恢复最大重试次数（默认 3） */
+    maxRecoveryAttempts?: number;
+    /** checkpoint thread_id 前缀 */
+    threadIdPrefix?: string;
   };
 }
 
