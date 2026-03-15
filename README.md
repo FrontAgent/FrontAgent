@@ -23,6 +23,8 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Shell Integration** - Terminal command execution (requires user approval)
 - ✅ **Pre-Planning Scan** - Scan project structure before planning to generate accurate file paths
 - ✅ **Auto Port Detection** - Automatically detect dev server ports from config files
+- ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
+- ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
 
 ## TL;DR
 
@@ -55,6 +57,8 @@ frontagent init
 frontagent run "Create a user login page"
 frontagent run "Optimize homepage loading performance"
 frontagent run "Add dark mode support"
+# Use LangGraph engine + checkpoint (optional)
+frontagent run "Add route guards and open a PR" --engine langgraph --langgraph-checkpoint
 ```
 
 ## Architecture Overview
@@ -141,6 +145,9 @@ User Task
          ▼
     Task Complete ✓
 ```
+
+Default phase taxonomy:
+`Phase 1 Analysis -> Phase 2 Creation -> Phase 3 Installation -> Phase 4 Validation/Acceptance -> Phase 5 Startup -> Phase 6 Browser Validation -> Phase 7 Repository Management (git/gh)`
 
 ## Key Features
 
@@ -258,6 +265,12 @@ The execution plan is automatically divided into multiple phases, each focused o
       "phase": "Validation Phase",
       "description": "Run tests to verify functionality",
       "action": "run_command"
+    },
+    {
+      "stepId": "step-5",
+      "phase": "Repository Management Phase",
+      "description": "Commit changes, push branch, and create/update PR with gh",
+      "action": "run_command"
     }
   ]
 }
@@ -267,6 +280,8 @@ The execution plan is automatically divided into multiple phases, each focused o
 - 🎯 **Clear Execution Flow** - Each phase has a clear objective
 - 🔄 **Intra-Phase Error Recovery** - Errors automatically fixed within phases
 - 📊 **Better Progress Tracking** - Users see which phase is currently executing
+- 🔀 **Dependency-Aware Phase Ordering** - Phase DAG scheduling reduces out-of-order skips
+- 🚀 **Post-Acceptance Automation** - Optional repository management phase can handle git/gh flow
 
 #### Tool Error Feedback Loop
 
@@ -306,7 +321,27 @@ Error: Cannot apply patch: file not found in context: src/App.tsx
 - 📝 **Common Error Patterns** - Built-in handling for common errors
 - ♻️ **Phase-Level Recovery** - Errors fixed within phases without blocking overall flow
 
-### 5. Facts-Based Context System
+### 5. LangGraph Execution Engine (NEW!)
+
+FrontAgent now supports a switchable execution engine:
+
+- `native` (default): Existing executor flow with phase DAG scheduling
+- `langgraph`: Runs phase flow through `StateGraph` with optional `MemorySaver` checkpoint
+
+CLI options:
+
+```bash
+# Use native engine (default)
+frontagent run "Add login page" --engine native
+
+# Use LangGraph engine
+frontagent run "Add login page" --engine langgraph
+
+# LangGraph + checkpoint + custom recovery attempts
+frontagent run "Add login page" --engine langgraph --langgraph-checkpoint --max-recovery-attempts 5
+```
+
+### 6. Facts-Based Context System
 
 Traditional agents use logs as context, leading to information redundancy and inaccuracy. FrontAgent uses a structured "facts" system:
 
@@ -568,6 +603,21 @@ Phase 3: Validation Phase
 - 📊 **Facts Tracking** - System knows which files are read/unread
 - ⚡ **No Retry Needed** - One-shot completion, no manual re-runs needed
 
+### Example 6: Enable LangGraph Engine
+
+```bash
+frontagent run "Implement user profile page and open PR" \
+  --type create \
+  --engine langgraph \
+  --langgraph-checkpoint \
+  --max-recovery-attempts 5
+```
+
+Notes:
+- `--engine langgraph` enables graph-based phase orchestration
+- `--langgraph-checkpoint` enables in-memory checkpointing for the run
+- After acceptance passes, repository management phase can run `git/gh` actions
+
 ## Environment Variables
 
 ### Required Configuration
@@ -578,6 +628,9 @@ Phase 3: Validation Phase
 | `API_KEY` | API key | `sk-...` |
 | `MODEL` | Model name | `gpt-4` or `claude-sonnet-4-20250514` |
 | `BASE_URL` | API endpoint | `https://api.openai.com/v1` |
+| `EXECUTION_ENGINE` | Execution engine | `native` or `langgraph` |
+| `LANGGRAPH_CHECKPOINT` | Enable LangGraph checkpoint | `true` / `false` |
+| `MAX_RECOVERY_ATTEMPTS` | Max recovery attempts per phase | `3` |
 
 ### OpenAI Configuration Example
 
@@ -632,6 +685,9 @@ pnpm clean
 - [x] LLM schema constraint optimization (multi-strategy auto-fix, smart retry)
 - [x] **Pre-planning file scan** (NEW!)
 - [x] **Auto dev server port detection** (NEW!)
+- [x] **Dependency-aware phase DAG scheduling** (NEW!)
+- [x] **LangGraph execution engine (optional)** (NEW!)
+- [x] **Repository management phase (git/gh automation)** (NEW!)
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)
