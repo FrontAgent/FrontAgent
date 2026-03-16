@@ -477,7 +477,7 @@ modification_rules:
 
 提供浏览器交互工具：
 
-- `navigate`, `get_page_structure`, `get_accessibility_tree`, `get_interactive_elements`, `click`, `type`, `scroll`, `screenshot`
+- `browser_navigate`, `get_page_structure`, `get_accessibility_tree`, `get_interactive_elements`, `browser_click`, `browser_type`, `browser_scroll`, `browser_screenshot`, `browser_wait_for_selector`
 
 ### @frontagent/hallucination-guard — 幻觉防护
 

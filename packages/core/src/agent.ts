@@ -212,11 +212,16 @@ export class FrontAgent {
       'get_interactive_elements',
       'browser_click',
       'browser_type',
-      'scroll',
+      'browser_scroll',
       'browser_screenshot',
-      'wait_for_selector',
-      'evaluate',
-      'close_browser'
+      'browser_wait_for_selector',
+      // Backward-compatible aliases for historical plans/prompts.
+      'navigate',
+      'click',
+      'type',
+      'scroll',
+      'screenshot',
+      'wait_for_selector'
     ];
     for (const tool of tools) {
       this.executor.registerToolMapping(tool, 'web');
@@ -738,7 +743,7 @@ export class FrontAgent {
           }
           case 'get_page': {
             const url = request.params.url as string;
-            await this.executor['callTool']('navigate', { url });
+            await this.executor['callTool']('browser_navigate', { url });
             const result = await this.executor['callTool']('get_page_structure', {});
             this.contextManager.setPageStructure(taskId, result);
             break;

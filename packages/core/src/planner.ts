@@ -662,7 +662,7 @@ export class Planner {
       steps.push(this.createStep({
         description: '导航到测试页面',
         action: 'browser_navigate',
-        tool: 'navigate',
+        tool: 'browser_navigate',
         params: { url: task.context.browserUrl }
       }));
 
@@ -677,7 +677,7 @@ export class Planner {
       steps.push(this.createStep({
         description: '截取页面截图',
         action: 'browser_screenshot',
-        tool: 'screenshot',
+        tool: 'browser_screenshot',
         params: {},
         dependencies: [steps[1].stepId]
       }));

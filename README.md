@@ -517,12 +517,13 @@ Provides terminal command execution (requires user approval):
 
 Provides browser interaction MCP tools:
 
-- `navigate` - Navigate to URL
+- `browser_navigate` - Navigate to URL
 - `get_page_structure` - Get page DOM structure
 - `get_accessibility_tree` - Get accessibility tree
 - `get_interactive_elements` - Get interactive elements
-- `click` / `type` / `scroll` - Page interactions
-- `screenshot` - Page screenshot
+- `browser_click` / `browser_type` / `browser_scroll` - Page interactions
+- `browser_screenshot` - Page screenshot
+- `browser_wait_for_selector` - Wait for element availability
 
 ### @frontagent/hallucination-guard - Hallucination Prevention
 

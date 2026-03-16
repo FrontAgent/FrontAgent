@@ -92,7 +92,8 @@ export class WebMCPClient implements MCPClient {
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
-      case 'browser_navigate': {
+      case 'browser_navigate':
+      case 'navigate': {
         const { url } = args as { url: string };
         return await this.browserManager.navigate(url);
       }
@@ -102,17 +103,20 @@ export class WebMCPClient implements MCPClient {
         return await this.browserManager.getPageStructure(selector);
       }
 
-      case 'browser_click': {
+      case 'browser_click':
+      case 'click': {
         const { selector } = args as { selector: string };
         return await this.browserManager.click(selector);
       }
 
-      case 'browser_type': {
+      case 'browser_type':
+      case 'type': {
         const { selector, text } = args as { selector: string; text: string };
         return await this.browserManager.type(selector, text);
       }
 
-      case 'browser_screenshot': {
+      case 'browser_screenshot':
+      case 'screenshot': {
         const { fullPage, selector } = args as { fullPage?: boolean; selector?: string };
         return await this.browserManager.screenshot({ fullPage, selector });
       }
@@ -126,12 +130,14 @@ export class WebMCPClient implements MCPClient {
         return await this.browserManager.getInteractiveElements(filter);
       }
 
-      case 'browser_scroll': {
+      case 'browser_scroll':
+      case 'scroll': {
         const { direction, amount } = args as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number };
         return await this.browserManager.scroll(direction, amount);
       }
 
-      case 'browser_wait_for_selector': {
+      case 'browser_wait_for_selector':
+      case 'wait_for_selector': {
         const { selector, timeout } = args as { selector: string; timeout?: number };
         return await this.browserManager.waitForSelector(selector, timeout);
       }
