@@ -13,6 +13,10 @@ import {
   getAST,
   SnapshotManager,
 } from '@frontagent/mcp-file';
+import {
+  ragQuery,
+  type KnowledgeBaseConfig,
+} from '@frontagent/mcp-memory';
 import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 /**
@@ -166,5 +170,31 @@ export class WebMCPClient implements MCPClient {
    */
   async close(): Promise<void> {
     await this.browserManager.close();
+  }
+}
+
+/**
+ * Memory / RAG MCP 客户端
+ */
+export class MemoryMCPClient implements MCPClient {
+  private readonly knowledgeBaseConfig: KnowledgeBaseConfig;
+
+  constructor(config: KnowledgeBaseConfig) {
+    this.knowledgeBaseConfig = config;
+  }
+
+  async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    switch (name) {
+      case 'rag_query':
+        return ragQuery(args as any, this.knowledgeBaseConfig);
+      default:
+        throw new Error(`Unknown memory tool: ${name}`);
+    }
+  }
+
+  async listTools() {
+    return [
+      { name: 'rag_query', description: '查询远程知识库索引' },
+    ];
   }
 }

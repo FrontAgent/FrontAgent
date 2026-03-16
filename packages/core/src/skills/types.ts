@@ -3,6 +3,7 @@ import type { AgentTask, ExecutionStep, ValidationRule } from '@frontagent/share
 export interface PlannerContextSnapshot {
   readonly files: ReadonlyMap<string, string>;
   readonly pageStructure?: unknown;
+  readonly ragResults?: readonly string[];
   readonly projectStructure?: string;
   readonly devServerPort?: number;
 }

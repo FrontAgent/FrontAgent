@@ -19,6 +19,7 @@
     "@frontagent/shared": "workspace:*",
     "@frontagent/sdd": "workspace:*",
     "@frontagent/mcp-file": "workspace:*",
+    "@frontagent/mcp-memory": "workspace:*",
     "@frontagent/mcp-web": "workspace:*",
     "@frontagent/mcp-shell": "workspace:*",
     "commander": "^11.1.0",
@@ -32,4 +33,3 @@
     "typescript": "^5.3.0"
   }
 }
-

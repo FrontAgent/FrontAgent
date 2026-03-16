@@ -11,7 +11,7 @@ import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { FileMCPClient, WebMCPClient } from './mcp-client.js';
+import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-client.js';
 import { createShellMCPClient } from '@frontagent/mcp-shell';
 
 const program = new Command();
@@ -214,6 +214,11 @@ program
   .option('--engine <engine>', '执行引擎 (native/langgraph)', process.env.EXECUTION_ENGINE || 'native')
   .option('--langgraph-checkpoint', '启用 LangGraph checkpoint', false)
   .option('--max-recovery-attempts <n>', '阶段恢复最大重试次数', process.env.MAX_RECOVERY_ATTEMPTS || '3')
+  .option('--disable-rag', '禁用远程知识库 RAG', false)
+  .option('--rag-repo <url>', '远程知识库 Git 仓库地址', process.env.FRONTAGENT_RAG_REPO || 'https://github.com/ceilf6/Lab.git')
+  .option('--rag-branch <branch>', '远程知识库分支', process.env.FRONTAGENT_RAG_BRANCH || 'main')
+  .option('--rag-seed <path>', '知识库种子 README 路径', process.env.FRONTAGENT_RAG_SEED_PATH || 'README.md')
+  .option('--rag-max-results <n>', '规划前 RAG 返回条数', process.env.FRONTAGENT_RAG_MAX_RESULTS || '5')
   .option('--debug', '启用调试模式', false)
   .action(async (task, options) => {
     const projectRoot = process.cwd();
@@ -250,6 +255,8 @@ program
       process.env.LANGGRAPH_CHECKPOINT === 'true'
     );
     const maxRecoveryAttempts = Number.parseInt(options.maxRecoveryAttempts, 10) || 3;
+    const ragEnabled = !options.disableRag;
+    const ragCacheDir = resolve(projectRoot, '.frontagent', 'rag-cache');
 
     // 显示 LLM 配置信息
     if (options.debug) {
@@ -261,6 +268,13 @@ program
       if (executionEngine === 'langgraph') {
         console.log(chalk.gray(`   LangGraph Checkpoint: ${useLangGraphCheckpoint}`));
         console.log(chalk.gray(`   Max Recovery Attempts: ${maxRecoveryAttempts}\n`));
+      }
+      console.log(chalk.gray(`   RAG Enabled: ${ragEnabled}`));
+      if (ragEnabled) {
+        console.log(chalk.gray(`   RAG Repo: ${options.ragRepo}`));
+        console.log(chalk.gray(`   RAG Branch: ${options.ragBranch}`));
+        console.log(chalk.gray(`   RAG Seed: ${options.ragSeed}`));
+        console.log(chalk.gray(`   RAG Cache: ${ragCacheDir}\n`));
       }
     }
 
@@ -285,6 +299,15 @@ program
           threadIdPrefix: 'frontagent'
         }
       },
+      rag: {
+        enabled: ragEnabled,
+        repoUrl: options.ragRepo,
+        branch: options.ragBranch,
+        seedPath: options.ragSeed,
+        maxResults: Number.parseInt(options.ragMaxResults, 10) || 5,
+        cacheDir: ragCacheDir,
+        syncOnQuery: true,
+      },
       debug: options.debug
     };
 
@@ -294,6 +317,18 @@ program
     const fileClient = new FileMCPClient(projectRoot);
     agent.registerMCPClient('file', fileClient);
     agent.registerFileTools();
+
+    if (ragEnabled) {
+      const memoryClient = new MemoryMCPClient({
+        repoUrl: options.ragRepo,
+        branch: options.ragBranch,
+        seedPath: options.ragSeed,
+        cacheDir: ragCacheDir,
+        syncOnQuery: true,
+      });
+      agent.registerMCPClient('memory', memoryClient);
+      agent.registerMemoryTools();
+    }
 
     // 注册 Shell 客户端（带命令批准）
     const shellClient = createShellMCPClient(

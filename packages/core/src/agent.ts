@@ -239,6 +239,16 @@ export class FrontAgent {
   }
 
   /**
+   * 批量注册 Memory / RAG 工具
+   */
+  registerMemoryTools(): void {
+    const tools = ['rag_query'];
+    for (const tool of tools) {
+      this.executor.registerToolMapping(tool, 'memory');
+    }
+  }
+
+  /**
    * 添加事件监听器
    */
   addEventListener(listener: AgentEventListener): void {
@@ -353,6 +363,9 @@ export class FrontAgent {
       // 🔧 检测开发服务器端口
       const devServerPort = await this.detectDevServerPort(preScannedFiles);
 
+      // RAG 预检索：在规划前注入远程知识库结果
+      const ragResults = await this.retrieveRagContext(task.id, task.description);
+
       // 规划阶段
       this.emit({ type: 'planning_started' });
 
@@ -361,6 +374,7 @@ export class FrontAgent {
         {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
+          ragResults,
           projectStructure,  // 🔧 传递项目文件结构给 Planner
           devServerPort     // 🔧 传递检测到的端口给 Planner
         },
@@ -376,7 +390,8 @@ export class FrontAgent {
           task,
           {
             files: context.collectedContext.files,
-            pageStructure: context.collectedContext.pageStructure
+            pageStructure: context.collectedContext.pageStructure,
+            ragResults: context.collectedContext.ragResults,
           },
           this.contextManager.getMessages(task.id)
         );
@@ -412,7 +427,10 @@ export class FrontAgent {
         executionPlan.steps,
         {
           task,
-          collectedContext: { files: executionContext.collectedContext.files },
+          collectedContext: {
+            files: executionContext.collectedContext.files,
+            ragResults: executionContext.collectedContext.ragResults,
+          },
         },
         // onStepComplete
         (step, output) => {
@@ -746,6 +764,28 @@ export class FrontAgent {
             await this.executor['callTool']('browser_navigate', { url });
             const result = await this.executor['callTool']('get_page_structure', {});
             this.contextManager.setPageStructure(taskId, result);
+            break;
+          }
+          case 'rag_query': {
+            const query = request.params.query as string;
+            const maxResults = request.params.maxResults as number | undefined;
+            const result = await this.executor['callTool']('rag_query', { query, maxResults }) as {
+              success?: boolean;
+              results?: Array<{
+                type: string;
+                title: string;
+                sourceUrl: string;
+                snippet: string;
+                path?: string;
+              }>;
+            };
+
+            if (result.success && result.results?.length) {
+              this.contextManager.addRagResults(
+                taskId,
+                result.results.map((item) => this.formatRagResult(item))
+              );
+            }
             break;
           }
         }
@@ -1105,6 +1145,52 @@ export class FrontAgent {
     // 3. 默认使用 5173（Vite 默认）
     console.log(`[Agent] 🔍 Using fallback port 5173`);
     return 5173;
+  }
+
+  private async retrieveRagContext(taskId: string, query: string): Promise<string[] | undefined> {
+    if (this.config.rag?.enabled === false) {
+      return undefined;
+    }
+
+    try {
+      const result = await this.executor['callTool']('rag_query', {
+        query,
+        maxResults: this.config.rag?.maxResults ?? 5,
+      }) as {
+        success?: boolean;
+        results?: Array<{
+          type: string;
+          title: string;
+          sourceUrl: string;
+          snippet: string;
+          path?: string;
+        }>;
+      };
+
+      if (!result.success || !result.results?.length) {
+        return undefined;
+      }
+
+      const formattedResults = result.results.map((item) => this.formatRagResult(item));
+      this.contextManager.addRagResults(taskId, formattedResults);
+      return formattedResults;
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn('[Agent] Failed to retrieve RAG context:', error);
+      }
+      return undefined;
+    }
+  }
+
+  private formatRagResult(result: {
+    type: string;
+    title: string;
+    sourceUrl: string;
+    snippet: string;
+    path?: string;
+  }): string {
+    const location = result.path ? ` path=${result.path}` : '';
+    return `[${result.type}] ${result.title}${location} source=${result.sourceUrl}\n${result.snippet}`;
   }
 
   /**

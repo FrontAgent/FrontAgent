@@ -132,7 +132,7 @@ export class Executor {
     step: ExecutionStep,
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string> };
+      collectedContext: { files: Map<string, string>; ragResults?: string[] };
     }
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
@@ -332,7 +332,9 @@ export class Executor {
   /**
    * 构建上下文字符串
    */
-  private buildContextString(collectedContext: { files: Map<string, string> }): string {
+  private buildContextString(
+    collectedContext: { files: Map<string, string>; ragResults?: string[] }
+  ): string {
     const parts: string[] = [];
 
     if (collectedContext.files.size > 0) {
@@ -345,6 +347,13 @@ export class Executor {
       }
     }
 
+    if (collectedContext.ragResults && collectedContext.ragResults.length > 0) {
+      parts.push('\n知识库参考:');
+      for (const result of collectedContext.ragResults) {
+        parts.push(`- ${result}`);
+      }
+    }
+
     return parts.join('\n');
   }
 
@@ -353,7 +362,7 @@ export class Executor {
    */
   private async validateBeforeExecution(
     step: ExecutionStep,
-    context: { task: AgentTask; collectedContext: { files: Map<string, string> } }
+    context: { task: AgentTask; collectedContext: { files: Map<string, string>; ragResults?: string[] } }
   ): Promise<ValidationResult> {
     const results: ValidationResult['results'] = [];
 
@@ -532,7 +541,7 @@ export class Executor {
     steps: ExecutionStep[],
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string> };
+      collectedContext: { files: Map<string, string>; ragResults?: string[] };
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void
   ): Promise<ExecutorOutput[]> {
@@ -733,7 +742,7 @@ export class Executor {
     phaseGroup: PhaseExecutionGroup,
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string> };
+      collectedContext: { files: Map<string, string>; ragResults?: string[] };
     },
     completedStepIds: Set<string>,
     allResults: ExecutorOutput[],
@@ -953,7 +962,7 @@ export class Executor {
     steps: ExecutionStep[],
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string> };
+      collectedContext: { files: Map<string, string>; ragResults?: string[] };
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
@@ -1064,7 +1073,7 @@ export class Executor {
     steps: ExecutionStep[],
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string> };
+      collectedContext: { files: Map<string, string>; ragResults?: string[] };
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,

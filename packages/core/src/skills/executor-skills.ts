@@ -1,11 +1,14 @@
 import type { AgentTask, ExecutionStep } from '@frontagent/shared';
 import type { LLMService } from '../llm.js';
 
-type ExecutorContextFiles = { files: Map<string, string> };
+type ExecutorCollectedContext = {
+  files: Map<string, string>;
+  ragResults?: string[];
+};
 
 export interface ExecutorStepContextSnapshot {
   task: AgentTask;
-  collectedContext: ExecutorContextFiles;
+  collectedContext: ExecutorCollectedContext;
 }
 
 export interface ExecutorSkillRuntime {
@@ -13,7 +16,7 @@ export interface ExecutorSkillRuntime {
   debug?: boolean;
   getCreatedModules?: () => string[];
   getSddConstraints?: () => string | undefined;
-  buildContextString: (collectedContext: ExecutorContextFiles) => string;
+  buildContextString: (collectedContext: ExecutorCollectedContext) => string;
   detectLanguage: (path: string) => 'typescript' | 'javascript' | 'json' | 'yaml' | null;
 }
 

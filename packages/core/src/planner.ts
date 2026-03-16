@@ -223,6 +223,15 @@ export class Planner {
       contextParts.push(`\n页面结构: ${JSON.stringify(context.pageStructure, null, 2)}`);
     }
 
+    // 添加 RAG 检索结果
+    if (context.ragResults && context.ragResults.length > 0) {
+      contextParts.push('\n知识库检索结果:');
+      for (const result of context.ragResults) {
+        contextParts.push(`\n- ${result}`);
+      }
+      contextParts.push('\n⚠️ 重要提示：优先参考上述知识库结果中的路径、提交和经验总结。');
+    }
+
     // 添加浏览器 URL
     if (task.context?.browserUrl) {
       contextParts.push(`\n浏览器 URL: ${task.context.browserUrl}`);

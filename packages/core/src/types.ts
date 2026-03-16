@@ -29,8 +29,30 @@ export interface AgentConfig {
   hallucinationGuard?: HallucinationGuardConfig;
   /** SubAgent 配置 */
   subAgents?: SubAgentConfig;
+  /** RAG 配置 */
+  rag?: RagConfig;
   /** 调试模式 */
   debug?: boolean;
+}
+
+/**
+ * RAG 配置
+ */
+export interface RagConfig {
+  /** 是否启用（默认 true） */
+  enabled?: boolean;
+  /** 远程知识库 Git 仓库地址 */
+  repoUrl: string;
+  /** 分支名 */
+  branch?: string;
+  /** 种子 README 路径 */
+  seedPath?: string;
+  /** 查询时默认返回条数 */
+  maxResults?: number;
+  /** 缓存目录（默认 projectRoot/.frontagent/rag-cache） */
+  cacheDir?: string;
+  /** 是否在查询时尝试同步远程仓库（默认 true） */
+  syncOnQuery?: boolean;
 }
 
 /**
