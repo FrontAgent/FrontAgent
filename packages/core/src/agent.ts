@@ -21,6 +21,11 @@ import {
   type CodeQualityReviewResponse
 } from './sub-agents/index.js';
 import type {
+  PhaseInjectionSkill,
+  PlannerSkillsLayerSnapshot,
+  TaskPlanningSkill,
+} from './skills/index.js';
+import type {
   AgentConfig,
   AgentExecutionResult,
   AgentEvent,
@@ -138,6 +143,27 @@ export class FrontAgent {
    */
   registerToolMapping(toolName: string, clientName: string): void {
     this.executor.registerToolMapping(toolName, clientName);
+  }
+
+  /**
+   * 注册任务级 planning skill
+   */
+  registerTaskSkill(skill: TaskPlanningSkill): void {
+    this.planner.registerTaskSkill(skill);
+  }
+
+  /**
+   * 注册阶段注入 skill
+   */
+  registerPhaseSkill(skill: PhaseInjectionSkill): void {
+    this.planner.registerPhaseSkill(skill);
+  }
+
+  /**
+   * 获取 Planner 的 skills 层快照
+   */
+  getPlannerSkillSnapshot(): PlannerSkillsLayerSnapshot {
+    return this.planner.getSkillLayerSnapshot();
   }
 
   /**

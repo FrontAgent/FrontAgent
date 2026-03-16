@@ -32,6 +32,18 @@ export {
   type GeneratedCode,
   type GeneratedPatch
 } from './llm.js';
+export {
+  PlannerSkillRegistry,
+  createDefaultPlannerSkillRegistry,
+  type DefaultPlannerSkillCallbacks,
+} from './skills/index.js';
+export type {
+  PlannerContextSnapshot,
+  PlannerStepFactory,
+  TaskPlanningSkill,
+  PhaseInjectionSkill,
+  PlannerSkillsLayerSnapshot,
+} from './skills/index.js';
 
 export type {
   AgentConfig,
