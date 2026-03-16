@@ -15,6 +15,13 @@ import { generateId } from '@frontagent/shared';
 import { SDDPromptGenerator } from '@frontagent/sdd';
 import type { PlannerOutput, ContextRequest, LLMConfig, Message } from './types.js';
 import { LLMService, type GeneratedPlan } from './llm.js';
+import {
+  createDefaultPlannerSkillRegistry,
+  type PhaseInjectionSkill,
+  type PlannerContextSnapshot,
+  type PlannerSkillsLayerSnapshot,
+  type TaskPlanningSkill,
+} from './skills/index.js';
 
 /**
  * Planner 配置
@@ -34,6 +41,16 @@ export class Planner {
   private config: PlannerConfig;
   private llmService: LLMService;
   private promptGenerator?: SDDPromptGenerator;
+  private skills = createDefaultPlannerSkillRegistry({
+    generateCreateSteps: (task) => this.generateCreateSteps(task),
+    generateModifySteps: (task, context) => this.generateModifySteps(task, context),
+    generateQuerySteps: (task) => this.generateQuerySteps(task),
+    generateDebugSteps: (task, context) => this.generateDebugSteps(task, context),
+    generateRefactorSteps: (task, context) => this.generateRefactorSteps(task, context),
+    generateTestSteps: (task) => this.generateTestSteps(task),
+    injectRepositoryManagementPhase: (task, steps) =>
+      this.injectRepositoryManagementPhase(task, steps),
+  });
 
   constructor(config: PlannerConfig) {
     this.config = {
@@ -54,7 +71,7 @@ export class Planner {
    */
   async plan(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string; devServerPort?: number },
+    context: PlannerContextSnapshot,
     messages: Message[]
   ): Promise<PlannerOutput> {
     // 分析任务，确定需要的上下文
@@ -88,7 +105,7 @@ export class Planner {
    */
   private analyzeContextNeeds(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string }
+    context: PlannerContextSnapshot
   ): ContextRequest[] {
     const requests: ContextRequest[] = [];
 
@@ -121,7 +138,7 @@ export class Planner {
    */
   private async generatePlan(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string; devServerPort?: number },
+    context: PlannerContextSnapshot,
     _messages: Message[]
   ): Promise<ExecutionPlan | null> {
     let steps: ExecutionStep[];
@@ -142,7 +159,9 @@ export class Planner {
     }
 
     // 在验收阶段之后追加仓库管理阶段（仅在有代码变更步骤时启用）
-    steps = this.injectRepositoryManagementPhase(task, steps);
+    steps = this.skills.injectPhaseSteps(task, steps, {
+      createStep: (options) => this.createStep(options),
+    });
 
     if (steps.length === 0) {
       return null;
@@ -164,7 +183,7 @@ export class Planner {
    */
   private async generatePlanWithLLM(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown; projectStructure?: string; devServerPort?: number }
+    context: PlannerContextSnapshot
   ): Promise<GeneratedPlan> {
     // 构建上下文字符串
     const contextParts: string[] = [];
@@ -484,32 +503,11 @@ export class Planner {
    */
   private generateStepsForTask(
     task: AgentTask,
-    context: { files: Map<string, string>; pageStructure?: unknown }
+    context: PlannerContextSnapshot
   ): ExecutionStep[] {
-    const steps: ExecutionStep[] = [];
-
-    switch (task.type) {
-      case 'create':
-        steps.push(...this.generateCreateSteps(task));
-        break;
-      case 'modify':
-        steps.push(...this.generateModifySteps(task, context));
-        break;
-      case 'query':
-        steps.push(...this.generateQuerySteps(task));
-        break;
-      case 'debug':
-        steps.push(...this.generateDebugSteps(task, context));
-        break;
-      case 'refactor':
-        steps.push(...this.generateRefactorSteps(task, context));
-        break;
-      case 'test':
-        steps.push(...this.generateTestSteps(task));
-        break;
-    }
-
-    return steps;
+    return this.skills.generateTaskSteps(task, context, {
+      createStep: (options) => this.createStep(options),
+    });
   }
 
   /**
@@ -549,7 +547,7 @@ export class Planner {
    */
   private generateModifySteps(
     task: AgentTask,
-    context: { files: Map<string, string> }
+    context: PlannerContextSnapshot
   ): ExecutionStep[] {
     const steps: ExecutionStep[] = [];
     const targetFiles = task.context?.relevantFiles ?? [];
@@ -614,7 +612,7 @@ export class Planner {
    */
   private generateDebugSteps(
     task: AgentTask,
-    context: { files: Map<string, string> }
+    context: PlannerContextSnapshot
   ): ExecutionStep[] {
     const steps: ExecutionStep[] = [];
     const relevantFiles = task.context?.relevantFiles ?? [];
@@ -647,7 +645,7 @@ export class Planner {
    */
   private generateRefactorSteps(
     task: AgentTask,
-    context: { files: Map<string, string> }
+    context: PlannerContextSnapshot
   ): ExecutionStep[] {
     // 重构步骤类似修改，但可能涉及多个文件
     return this.generateModifySteps(task, context);
@@ -750,6 +748,27 @@ export class Planner {
   private estimateDuration(steps: ExecutionStep[]): number {
     // 简单估算：每个步骤 2 秒
     return steps.length * 2000;
+  }
+
+  /**
+   * 注册任务级 planning skill
+   */
+  registerTaskSkill(skill: TaskPlanningSkill): void {
+    this.skills.registerTaskSkill(skill);
+  }
+
+  /**
+   * 注册阶段注入 skill
+   */
+  registerPhaseSkill(skill: PhaseInjectionSkill): void {
+    this.skills.registerPhaseSkill(skill);
+  }
+
+  /**
+   * 获取当前 skills 层快照
+   */
+  getSkillLayerSnapshot(): PlannerSkillsLayerSnapshot {
+    return this.skills.snapshot();
   }
 
   /**

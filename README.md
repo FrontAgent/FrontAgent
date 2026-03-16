@@ -24,6 +24,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Pre-Planning Scan** - Scan project structure before planning to generate accurate file paths
 - ✅ **Auto Port Detection** - Automatically detect dev server ports from config files
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
+- ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
 
 ## TL;DR
@@ -341,7 +342,38 @@ frontagent run "Add login page" --engine langgraph
 frontagent run "Add login page" --engine langgraph --langgraph-checkpoint --max-recovery-attempts 5
 ```
 
-### 6. Facts-Based Context System
+### 6. Planner Skills Layer (NEW!)
+
+FrontAgent adds a dedicated `skills` layer in Planner to encapsulate reusable planning logic.
+
+- Built-in task skills: `task.create`, `task.modify`, `task.query`, `task.debug`, `task.refactor`, `task.test`
+- Built-in phase skill: `phase.repository-management` (injects git/gh workflow after acceptance)
+- Custom task skills with the same match condition override built-ins (latest registered wins)
+- Supports runtime extension via API:
+
+```typescript
+import { createAgent, type TaskPlanningSkill } from '@frontagent/core';
+
+const agent = createAgent(config);
+
+const customSkill: TaskPlanningSkill = {
+  name: 'task.security-audit',
+  supports: (task) => task.type === 'debug' && task.description.includes('security'),
+  plan: ({ stepFactory }) => [
+    stepFactory.createStep({
+      description: 'Scan for security-sensitive patterns',
+      action: 'search_code',
+      tool: 'search_code',
+      params: { pattern: 'eval|innerHTML|dangerouslySetInnerHTML', directory: 'src' },
+    }),
+  ],
+};
+
+agent.registerTaskSkill(customSkill);
+console.log(agent.getPlannerSkillSnapshot());
+```
+
+### 7. Facts-Based Context System
 
 Traditional agents use logs as context, leading to information redundancy and inaccuracy. FrontAgent uses a structured "facts" system:
 
