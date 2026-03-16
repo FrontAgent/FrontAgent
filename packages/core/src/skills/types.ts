@@ -1,10 +1,10 @@
 import type { AgentTask, ExecutionStep, ValidationRule } from '@frontagent/shared';
 
 export interface PlannerContextSnapshot {
-  files: Map<string, string>;
-  pageStructure?: unknown;
-  projectStructure?: string;
-  devServerPort?: number;
+  readonly files: ReadonlyMap<string, string>;
+  readonly pageStructure?: unknown;
+  readonly projectStructure?: string;
+  readonly devServerPort?: number;
 }
 
 export interface PlannerStepFactory {

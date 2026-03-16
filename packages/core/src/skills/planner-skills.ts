@@ -127,7 +127,12 @@ export function createDefaultPlannerSkillRegistry(
   const phaseSkills: PhaseInjectionSkill[] = [
     {
       name: 'phase.repository-management',
-      shouldInject: () => true,
+      shouldInject: ({ task, steps }) => {
+        if (task.type === 'query') {
+          return false;
+        }
+        return steps.some((step) => step.action === 'create_file' || step.action === 'apply_patch');
+      },
       apply: ({ task, steps }) => callbacks.injectRepositoryManagementPhase(task, steps),
     },
   ];

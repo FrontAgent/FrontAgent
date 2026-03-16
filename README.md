@@ -365,7 +365,10 @@ const customSkill: TaskPlanningSkill = {
       description: 'Scan for security-sensitive patterns',
       action: 'search_code',
       tool: 'search_code',
-      params: { pattern: 'eval|innerHTML|dangerouslySetInnerHTML', directory: 'src' },
+      params: {
+        pattern: 'eval|innerHTML|dangerouslySetInnerHTML',
+        filePattern: 'src/**/*.{ts,tsx,js,jsx}',
+      },
     }),
   ],
 };
