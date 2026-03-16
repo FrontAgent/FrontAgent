@@ -21,6 +21,8 @@ import {
   type CodeQualityReviewResponse
 } from './sub-agents/index.js';
 import type {
+  ExecutorActionSkill,
+  ExecutorSkillsLayerSnapshot,
   PhaseInjectionSkill,
   PlannerSkillsLayerSnapshot,
   TaskPlanningSkill,
@@ -164,6 +166,20 @@ export class FrontAgent {
    */
   getPlannerSkillSnapshot(): PlannerSkillsLayerSnapshot {
     return this.planner.getSkillLayerSnapshot();
+  }
+
+  /**
+   * 注册 Executor action skill
+   */
+  registerExecutorActionSkill(skill: ExecutorActionSkill): void {
+    this.executor.registerActionSkill(skill);
+  }
+
+  /**
+   * 获取 Executor 的 action skills 快照
+   */
+  getExecutorSkillSnapshot(): ExecutorSkillsLayerSnapshot {
+    return this.executor.getActionSkillSnapshot();
   }
 
   /**

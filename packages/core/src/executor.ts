@@ -8,6 +8,11 @@ import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import type { ExecutorOutput } from './types.js';
 import { LLMService } from './llm.js';
+import {
+  createDefaultExecutorSkillRegistry,
+  type ExecutorActionSkill,
+  type ExecutorSkillsLayerSnapshot,
+} from './skills/index.js';
 
 /**
  * MCP 客户端接口
@@ -78,9 +83,18 @@ export class Executor {
   private config: ExecutorConfig;
   private mcpClients: Map<string, MCPClient> = new Map();
   private toolToClient: Map<string, string> = new Map();
+  private actionSkills: ReturnType<typeof createDefaultExecutorSkillRegistry>;
 
   constructor(config: ExecutorConfig) {
     this.config = config;
+    this.actionSkills = createDefaultExecutorSkillRegistry({
+      llmService: this.config.llmService,
+      debug: this.config.debug,
+      getCreatedModules: this.config.getCreatedModules,
+      getSddConstraints: this.config.getSddConstraints,
+      buildContextString: (collectedContext) => this.buildContextString(collectedContext),
+      detectLanguage: (path) => this.detectLanguage(path),
+    });
   }
 
   /**
@@ -95,6 +109,20 @@ export class Executor {
    */
   registerToolMapping(toolName: string, clientName: string): void {
     this.toolToClient.set(toolName, clientName);
+  }
+
+  /**
+   * 注册步骤 action skill
+   */
+  registerActionSkill(skill: ExecutorActionSkill): void {
+    this.actionSkills.registerActionSkill(skill);
+  }
+
+  /**
+   * 获取 Executor skills 层快照
+   */
+  getActionSkillSnapshot(): ExecutorSkillsLayerSnapshot {
+    return this.actionSkills.snapshot();
   }
 
   /**
@@ -165,108 +193,22 @@ export class Executor {
         };
       }
 
-      // 2. 动态代码生成（如果需要）
+      // 2. 通过 action skills 生成/调整工具参数（含动态代码生成）
       let toolParams = { ...step.params };
-      const stepAny = step as any;
 
       if (this.config.debug) {
-        console.log(`[Executor] Step action: ${step.action}, needsCodeGeneration: ${stepAny.needsCodeGeneration}`);
+        const stepAny = step as { needsCodeGeneration?: boolean };
+        console.log(
+          `[Executor] Step action: ${step.action}, needsCodeGeneration: ${Boolean(stepAny.needsCodeGeneration)}`,
+        );
         console.log(`[Executor] Step params:`, toolParams);
       }
 
-      // 检查是否需要代码生成：
-      // 1. 明确设置了 needsCodeGeneration: true
-      // 2. 或者是 create_file 操作但没有提供 content
-      // 3. 或者是 apply_patch 操作但没有提供 patches
-      const shouldGenerateCode =
-        stepAny.needsCodeGeneration ||
-        (step.action === 'create_file' && !toolParams.content) ||
-        (step.action === 'apply_patch' && !toolParams.patches);
-
-      if (shouldGenerateCode && (step.action === 'create_file' || step.action === 'apply_patch')) {
-        const filePath = toolParams.path as string;
-        const language = this.detectLanguage(filePath);
-
-        if (step.action === 'create_file') {
-          // 生成新文件代码
-          const codeDescription = (toolParams.codeDescription as string) || step.description;
-          const contextStr = this.buildContextString(context.collectedContext);
-
-          // 获取已创建的模块列表（用于防止路径幻觉）
-          const existingModules = this.config.getCreatedModules?.() ??
-            Array.from(context.collectedContext.files.keys()).filter(f => /\.(tsx?|jsx?|mjs|cjs)$/.test(f));
-
-          if (this.config.debug) {
-            console.log(`[Executor] Generating code for new file: ${filePath}`);
-            console.log(`[Executor] Code description: ${codeDescription}`);
-            console.log(`[Executor] Existing modules: ${existingModules.length}`);
-          }
-
-          // Executor 执行时传递 SDD 约束，确保生成的代码符合 SDD 规范
-          const sddConstraints = this.config.getSddConstraints?.();
-
-          const code = await this.config.llmService.generateCodeForFile({
-            task: context.task.description,
-            filePath,
-            codeDescription,
-            context: contextStr,
-            language: language || 'typescript',
-            existingModules,
-            sddConstraints,
-          });
-
-          if (this.config.debug) {
-            console.log(`[Executor] Generated code length: ${code.length} characters`);
-          }
-
-          // 将生成的代码添加到参数中
-          toolParams = {
-            ...toolParams,
-            content: code,
-          };
-
-        } else if (step.action === 'apply_patch') {
-          // 修改现有文件
-          const changeDescription = (toolParams.changeDescription as string) || step.description;
-          const originalCode = context.collectedContext.files.get(filePath) || '';
-
-          if (!originalCode) {
-            throw new Error(`Cannot apply patch: file not found in context: ${filePath}`);
-          }
-
-          if (this.config.debug) {
-            console.log(`[Executor] Generating modified code for: ${filePath}`);
-            console.log(`[Executor] Change description: ${changeDescription}`);
-          }
-
-          // Executor 只按照 Planner 的规划执行，不再关注 SDD（SDD 已在 Planner 阶段约束）
-          const modifiedCode = await this.config.llmService.generateModifiedCode({
-            originalCode,
-            changeDescription,
-            filePath,
-            language: language || 'typescript',
-          });
-
-          if (this.config.debug) {
-            console.log(`[Executor] Generated modified code length: ${modifiedCode.length} characters`);
-          }
-
-          // 将修改后的完整代码转换为 patch 格式
-          // 使用一个完整替换的 patch（替换整个文件）
-          const originalLines = originalCode.split('\n').length;
-          const patch = {
-            operation: 'replace' as const,
-            startLine: 1,
-            endLine: originalLines,
-            content: modifiedCode
-          };
-
-          toolParams = {
-            ...toolParams,
-            patches: [patch],
-          };
-        }
-      }
+      toolParams = await this.actionSkills.prepareToolParams({
+        step,
+        params: toolParams,
+        context,
+      });
 
       // 3. 调用 MCP 工具
       const toolResult = await this.callTool(step.tool, toolParams);
@@ -277,7 +219,7 @@ export class Executor {
         if (resultObj.success === false && resultObj.error) {
           const errorMsg = resultObj.error;
           // 检查是否是可跳过的错误类型
-          const isSkippableError = this.isSkippableError(errorMsg, step.action, toolParams);
+          const isSkippableError = this.isSkippableError(errorMsg, step, toolParams);
 
           if (isSkippableError) {
             if (this.config.debug) {
@@ -334,54 +276,27 @@ export class Executor {
    * 验证步骤参数的有效性
    */
   private validateStepParams(step: ExecutionStep): { valid: boolean; reason?: string } {
-    const params = step.params as any;
+    const params = step.params as Record<string, unknown>;
+    const customValidation = this.actionSkills.validateStepParams(step, params);
+    if (customValidation && !customValidation.valid) {
+      return customValidation;
+    }
 
-    // 检查不同 action 类型的必需参数
-    switch (step.action) {
-      case 'read_file':
-      case 'create_file':
-      case 'apply_patch':
-        if (!params.path || params.path.trim() === '') {
-          return { valid: false, reason: `${step.action} requires non-empty path parameter` };
-        }
-        break;
+    const requiredParams = this.actionSkills.resolveRequiredParams(step.action);
 
-      case 'list_directory':
-        if (!params.path || params.path.trim() === '') {
-          return { valid: false, reason: 'list_directory requires non-empty path parameter' };
-        }
-        break;
+    for (const paramName of requiredParams) {
+      const value = params[paramName];
+      const missing =
+        value === undefined ||
+        value === null ||
+        (typeof value === 'string' && value.trim() === '');
 
-      case 'search_code':
-        if (!params.pattern || params.pattern.trim() === '') {
-          return { valid: false, reason: 'search_code requires non-empty pattern parameter' };
-        }
-        break;
-
-      case 'run_command':
-        if (!params.command || params.command.trim() === '') {
-          return { valid: false, reason: 'run_command requires non-empty command parameter' };
-        }
-        break;
-
-      case 'browser_navigate':
-        if (!params.url || params.url.trim() === '') {
-          return { valid: false, reason: 'browser_navigate requires non-empty url parameter' };
-        }
-        break;
-
-      case 'browser_click':
-      case 'browser_type':
-        if (!params.selector || params.selector.trim() === '') {
-          return { valid: false, reason: `${step.action} requires non-empty selector parameter` };
-        }
-        break;
-
-      case 'get_ast':
-        if (!params.path || params.path.trim() === '') {
-          return { valid: false, reason: 'get_ast requires non-empty path parameter' };
-        }
-        break;
+      if (missing) {
+        return {
+          valid: false,
+          reason: `${step.action} requires non-empty ${paramName} parameter`,
+        };
+      }
     }
 
     return { valid: true };
@@ -390,73 +305,24 @@ export class Executor {
   /**
    * 判断错误是否可以跳过（不中断整个任务）
    */
-  private isSkippableError(errorMsg: string, action: string, params?: Record<string, unknown>): boolean {
-    // 目录不存在的错误（list_directory）
-    if (errorMsg.includes('Directory not found') || errorMsg.includes('目录不存在')) {
-      return true;
-    }
-
-    // 文件不存在的错误（read_file）
-    if ((errorMsg.includes('File not found') ||
-         errorMsg.includes('does not exist') ||
-         errorMsg.includes('文件不存在')) &&
-        action === 'read_file') {
-      return true;
+  private isSkippableError(
+    errorMsg: string,
+    step: ExecutionStep,
+    params?: Record<string, unknown>,
+  ): boolean {
+    const skillDecision = this.actionSkills.shouldSkipToolError({
+      errorMsg,
+      step,
+      params: params ?? {},
+    });
+    if (typeof skillDecision === 'boolean') {
+      return skillDecision;
     }
 
     // 尝试读取目录而不是文件的错误
     if (errorMsg.includes('Not a directory') ||
         errorMsg.includes('is not a file') ||
         errorMsg.includes('Not a file')) {
-      return true;
-    }
-
-    // apply_patch 的文件路径错误（路径是目录或文件不在上下文中）
-    if ((errorMsg.includes('file not found in context') ||
-         errorMsg.includes('Cannot apply patch')) &&
-        action === 'apply_patch') {
-      return true;
-    }
-
-    // run_command 的错误处理 - 需要区分关键命令和非关键命令
-    if (action === 'run_command' && params?.command) {
-      const command = (params.command as string).toLowerCase();
-
-      // 关键命令（安装、构建、验证）失败不能跳过
-      // 这些命令的失败会影响后续步骤，需要触发错误恢复
-      const criticalCommandPatterns = [
-        'npm install', 'pnpm install', 'yarn install', 'yarn add',
-        'npm run build', 'pnpm build', 'yarn build',
-        'npm run typecheck', 'tsc', 'tsc --noEmit',
-        'npm run dev', 'pnpm dev', 'yarn dev',
-        'npm run start', 'pnpm start'
-      ];
-
-      // 检查命令是否是关键命令
-      const isCriticalCommand = criticalCommandPatterns.some(pattern =>
-        command.includes(pattern.toLowerCase())
-      );
-
-      // 关键命令失败不跳过，触发错误恢复
-      if (isCriticalCommand) {
-        if (this.config.debug) {
-          console.log(`[Executor] Critical command failed, triggering error recovery: ${command}`);
-        }
-        return false;
-      }
-
-      // 非关键命令的某些错误可以跳过（如 mkdir 已存在等）
-      if (errorMsg.includes('already exists') ||
-          errorMsg.includes('File exists')) {
-        return true;
-      }
-    }
-
-    // get_ast 的文件错误（文件不存在、路径是目录等）
-    if ((errorMsg.includes('File not found') ||
-         errorMsg.includes('does not exist') ||
-         errorMsg.includes('Not a file')) &&
-        action === 'get_ast') {
       return true;
     }
 

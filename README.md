@@ -349,6 +349,7 @@ FrontAgent adds a dedicated `skills` layer in Planner to encapsulate reusable pl
 - Built-in task skills: `task.create`, `task.modify`, `task.query`, `task.debug`, `task.refactor`, `task.test`
 - Built-in phase skill: `phase.repository-management` (injects git/gh workflow after acceptance)
 - Custom task skills with the same match condition override built-ins (latest registered wins)
+- Executor also supports action-level skills (for params/codegen/error policy)
 - Supports runtime extension via API:
 
 ```typescript
@@ -371,6 +372,18 @@ const customSkill: TaskPlanningSkill = {
 
 agent.registerTaskSkill(customSkill);
 console.log(agent.getPlannerSkillSnapshot());
+
+agent.registerExecutorActionSkill({
+  name: 'action.run-command.noncritical-policy',
+  action: 'run_command',
+  shouldSkipToolError: ({ errorMsg, params }) => {
+    if (typeof params.command === 'string' && params.command.includes('echo')) {
+      return true;
+    }
+    return errorMsg.includes('already exists');
+  },
+});
+console.log(agent.getExecutorSkillSnapshot());
 ```
 
 ### 7. Facts-Based Context System

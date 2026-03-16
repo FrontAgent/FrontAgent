@@ -35,6 +35,8 @@ export {
 export {
   PlannerSkillRegistry,
   createDefaultPlannerSkillRegistry,
+  ExecutorSkillRegistry,
+  createDefaultExecutorSkillRegistry,
   type DefaultPlannerSkillCallbacks,
 } from './skills/index.js';
 export type {
@@ -43,6 +45,10 @@ export type {
   TaskPlanningSkill,
   PhaseInjectionSkill,
   PlannerSkillsLayerSnapshot,
+  ExecutorActionSkill,
+  ExecutorSkillRuntime,
+  ExecutorSkillsLayerSnapshot,
+  ExecutorStepContextSnapshot,
 } from './skills/index.js';
 
 export type {
