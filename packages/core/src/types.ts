@@ -367,8 +367,23 @@ export interface ContextInfo {
   pageStructure?: unknown;
   /** RAG 检索结果 */
   ragResults?: string[];
+  /** 结构化 RAG 命中 */
+  ragMatches?: RagContextMatch[];
+  /** RAG 检索模式 */
+  ragSearchMode?: 'hybrid' | 'keyword_only';
+  /** RAG 告警 */
+  ragWarnings?: string[];
   /** 其他元数据 */
   metadata: Record<string, unknown>;
+}
+
+export interface RagContextMatch {
+  type: string;
+  title: string;
+  sourceUrl: string;
+  snippet: string;
+  path?: string;
+  score?: number;
 }
 
 /**
@@ -462,6 +477,12 @@ export interface AgentExecutionResult {
 export type AgentEvent =
   | { type: 'task_started'; task: AgentTask }
   | { type: 'planning_started' }
+  | {
+      type: 'rag_retrieved';
+      searchMode?: 'hybrid' | 'keyword_only';
+      warnings?: string[];
+      matches: RagContextMatch[];
+    }
   | { type: 'planning_completed'; plan: ExecutionPlan }
   | { type: 'step_started'; step: ExecutionStep }
   | { type: 'step_completed'; step: ExecutionStep; result: StepResult }

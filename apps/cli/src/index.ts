@@ -503,6 +503,24 @@ program
         case 'planning_started':
           spinner.text = '正在规划...';
           break;
+        case 'rag_retrieved':
+          spinner.stop();
+          console.log(chalk.cyan(`\n📚 RAG 检索 (${event.searchMode || 'no_results'})`));
+          if (event.warnings && event.warnings.length > 0) {
+            for (const warning of event.warnings) {
+              console.log(chalk.yellow(`   ⚠️ ${warning}`));
+            }
+          }
+          if (event.matches.length === 0) {
+            console.log(chalk.gray('   未命中知识库条目'));
+          } else {
+            for (const match of event.matches.slice(0, 5)) {
+              const location = match.path ? ` (${match.path})` : '';
+              console.log(chalk.gray(`   - ${match.title}${location}`));
+            }
+          }
+          spinner.start('正在规划...');
+          break;
         case 'planning_completed':
           spinner.succeed(`计划生成完成 (${event.plan.steps.length} 步骤)`);
           console.log(chalk.gray(`\n📋 ${event.plan.summary}\n`));
@@ -549,7 +567,14 @@ program
 
       if (result.success) {
         spinner.succeed('任务完成');
-        console.log(chalk.green(`\n✅ ${result.output}`));
+        if (options.type === 'query') {
+          console.log(chalk.green('\n✅ 回答已生成\n'));
+          if (result.output) {
+            console.log(result.output);
+          }
+        } else {
+          console.log(chalk.green(`\n✅ ${result.output}`));
+        }
       } else {
         spinner.fail('任务失败');
         console.log(chalk.red(`\n❌ ${result.error}`));

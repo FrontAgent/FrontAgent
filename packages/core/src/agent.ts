@@ -33,7 +33,22 @@ import type {
   AgentEvent,
   AgentEventListener,
   ProjectFactsUpdate,
+  RagContextMatch,
 } from './types.js';
+
+interface RetrievedRagContext {
+  formattedResults: string[];
+  matches: RagContextMatch[];
+  searchMode?: 'hybrid' | 'keyword_only';
+  warnings?: string[];
+}
+
+function truncateForPrompt(input: string, maxLength: number): string {
+  if (input.length <= maxLength) {
+    return input;
+  }
+  return `${input.slice(0, maxLength)}\n...`;
+}
 
 /**
  * FrontAgent 主类
@@ -364,7 +379,17 @@ export class FrontAgent {
       const devServerPort = await this.detectDevServerPort(preScannedFiles);
 
       // RAG 预检索：在规划前注入远程知识库结果
-      const ragResults = await this.retrieveRagContext(task.id, task.description);
+      const ragContext = await this.retrieveRagContext(task.id, task.description);
+      const ragResults = ragContext?.formattedResults;
+
+      if (this.config.rag?.enabled !== false) {
+        this.emit({
+          type: 'rag_retrieved',
+          searchMode: ragContext?.searchMode,
+          warnings: ragContext?.warnings,
+          matches: ragContext?.matches ?? [],
+        });
+      }
 
       // 规划阶段
       this.emit({ type: 'planning_started' });
@@ -702,12 +727,15 @@ export class FrontAgent {
       // 检查是否有失败的步骤
       const failedSteps = executionPlan.steps.filter(s => s.status === 'failed');
       const success = failedSteps.length === 0;
+      const finalOutput = success
+        ? await this.buildFinalOutput(task, executionPlan.steps, executionContext)
+        : undefined;
 
       const result: AgentExecutionResult = {
         success,
         taskId: task.id,
         executedSteps: executionPlan.steps,
-        output: success ? this.generateOutput(executionPlan.steps) : undefined,
+        output: finalOutput,
         error: success ? undefined : failedSteps.map(s => s.result?.error).join('; '),
         duration: Date.now() - startTime,
         validations
@@ -804,6 +832,106 @@ export class FrontAgent {
     const completedSteps = steps.filter(s => s.status === 'completed');
     const summary = completedSteps.map(s => `✅ ${s.description}`).join('\n');
     return `执行完成 (${completedSteps.length}/${steps.length} 步骤成功)\n\n${summary}`;
+  }
+
+  private async buildFinalOutput(
+    task: AgentTask,
+    steps: ExecutionPlan['steps'],
+    executionContext: NonNullable<ReturnType<ContextManager['getContext']>>,
+  ): Promise<string> {
+    if (task.type !== 'query') {
+      return this.generateOutput(steps);
+    }
+
+    try {
+      return await this.generateQueryAnswer(task, executionContext, steps);
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn('[Agent] Failed to synthesize query answer:', error);
+      }
+      return this.generateOutput(steps);
+    }
+  }
+
+  private async generateQueryAnswer(
+    task: AgentTask,
+    executionContext: NonNullable<ReturnType<ContextManager['getContext']>>,
+    steps: ExecutionPlan['steps'],
+  ): Promise<string> {
+    const ragMatches = executionContext.collectedContext.ragMatches ?? [];
+    const ragWarnings = executionContext.collectedContext.ragWarnings ?? [];
+    const files = Array.from(executionContext.collectedContext.files.entries());
+
+    const searchEvidence = steps
+      .filter((step) => step.action === 'search_code' && step.result?.success)
+      .flatMap((step) => {
+        const output = step.result?.output as {
+          matches?: Array<{ file: string; line: number; content: string }>;
+        } | undefined;
+        return (output?.matches ?? []).slice(0, 5).map((match) =>
+          `${match.file}:${match.line} ${match.content}`
+        );
+      })
+      .slice(0, 10);
+
+    const evidenceParts: string[] = [];
+
+    if (ragMatches.length > 0) {
+      evidenceParts.push('## 知识库检索结果');
+      for (const match of ragMatches.slice(0, 5)) {
+        const location = match.path ? ` path=${match.path}` : '';
+        evidenceParts.push(
+          `- ${match.title}${location} source=${match.sourceUrl}\n${truncateForPrompt(match.snippet, 320)}`
+        );
+      }
+    }
+
+    if (searchEvidence.length > 0) {
+      evidenceParts.push('\n## 代码搜索命中');
+      for (const item of searchEvidence) {
+        evidenceParts.push(`- ${item}`);
+      }
+    }
+
+    if (files.length > 0) {
+      evidenceParts.push('\n## 已读取文件');
+      let remainingBudget = 16000;
+      for (const [path, content] of files) {
+        if (remainingBudget <= 0) {
+          break;
+        }
+        const snippet = truncateForPrompt(content, Math.min(remainingBudget, 5000));
+        remainingBudget -= snippet.length;
+        evidenceParts.push(`\n### ${path}\n${snippet}`);
+      }
+    }
+
+    if (evidenceParts.length === 0) {
+      return this.generateOutput(steps);
+    }
+
+    const warningText = ragWarnings.length > 0
+      ? `\n已知检索告警：\n${ragWarnings.map((warning) => `- ${warning}`).join('\n')}\n`
+      : '';
+
+    return this.llmService.generateText({
+      system: `你是 FrontAgent 的查询问答总结器。
+你必须基于提供的仓库证据直接回答用户问题，而不是汇报执行步骤。
+要求：
+1. 先直接给出结论。
+2. 用简洁语言解释原理。
+3. 如果引用到仓库证据，尽量点出文件路径或知识库条目。
+4. 如果证据不足，明确说明不确定点。
+5. 不要编造未出现在证据里的细节。${warningText}`,
+      messages: [
+        {
+          role: 'user',
+          content: `用户问题：${task.description}\n\n以下是可用证据：\n${evidenceParts.join('\n')}`,
+        },
+      ],
+      temperature: 0.2,
+      maxTokens: 1800,
+    });
   }
 
   /**
@@ -1147,7 +1275,7 @@ export class FrontAgent {
     return 5173;
   }
 
-  private async retrieveRagContext(taskId: string, query: string): Promise<string[] | undefined> {
+  private async retrieveRagContext(taskId: string, query: string): Promise<RetrievedRagContext | undefined> {
     if (this.config.rag?.enabled === false) {
       return undefined;
     }
@@ -1158,22 +1286,45 @@ export class FrontAgent {
         maxResults: this.config.rag?.maxResults ?? 5,
       }) as {
         success?: boolean;
+        searchMode?: 'hybrid' | 'keyword_only';
+        warnings?: string[];
         results?: Array<{
           type: string;
           title: string;
           sourceUrl: string;
           snippet: string;
           path?: string;
+          score?: number;
         }>;
       };
 
-      if (!result.success || !result.results?.length) {
+      if (!result.success) {
         return undefined;
       }
 
-      const formattedResults = result.results.map((item) => this.formatRagResult(item));
-      this.contextManager.addRagResults(taskId, formattedResults);
-      return formattedResults;
+      const matches = (result.results ?? []).map((item) => ({
+        type: item.type,
+        title: item.title,
+        sourceUrl: item.sourceUrl,
+        snippet: item.snippet,
+        path: item.path,
+        score: item.score,
+      }));
+      const formattedResults = matches.map((item) => this.formatRagResult(item));
+      if (formattedResults.length > 0) {
+        this.contextManager.addRagResults(taskId, formattedResults);
+      }
+      this.contextManager.setRagMetadata(taskId, {
+        matches,
+        searchMode: result.searchMode,
+        warnings: result.warnings,
+      });
+      return {
+        formattedResults,
+        matches,
+        searchMode: result.searchMode,
+        warnings: result.warnings,
+      };
     } catch (error) {
       if (this.config.debug) {
         console.warn('[Agent] Failed to retrieve RAG context:', error);

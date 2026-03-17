@@ -16,6 +16,7 @@ import type {
   ProjectFactsMergeResult,
   ProjectFactsSnapshot,
   ProjectFactsUpdate,
+  RagContextMatch,
 } from './types.js';
 
 /**
@@ -287,6 +288,22 @@ export class ContextManager {
         ...(context.collectedContext.ragResults ?? []),
         ...results
       ];
+    }
+  }
+
+  setRagMetadata(
+    taskId: string,
+    input: {
+      matches?: RagContextMatch[];
+      searchMode?: 'hybrid' | 'keyword_only';
+      warnings?: string[];
+    }
+  ): void {
+    const context = this.contexts.get(taskId);
+    if (context) {
+      context.collectedContext.ragMatches = input.matches;
+      context.collectedContext.ragSearchMode = input.searchMode;
+      context.collectedContext.ragWarnings = input.warnings;
     }
   }
 
