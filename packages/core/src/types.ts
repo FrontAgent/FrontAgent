@@ -45,14 +45,47 @@ export interface RagConfig {
   repoUrl: string;
   /** 分支名 */
   branch?: string;
-  /** 种子 README 路径 */
-  seedPath?: string;
   /** 查询时默认返回条数 */
   maxResults?: number;
   /** 缓存目录（默认 projectRoot/.frontagent/rag-cache） */
   cacheDir?: string;
   /** 是否在查询时尝试同步远程仓库（默认 true） */
   syncOnQuery?: boolean;
+  /** 额外排除的路径前缀；子模块路径会自动排除 */
+  excludedPathPrefixes?: string[];
+  /** 关键词检索候选数 */
+  keywordCandidateCount?: number;
+  /** 语义检索候选数 */
+  semanticCandidateCount?: number;
+  /** 关键词检索权重 */
+  keywordWeight?: number;
+  /** 语义检索权重 */
+  semanticWeight?: number;
+  /** 文本分块大小（字符） */
+  chunkSize?: number;
+  /** 分块重叠（字符） */
+  chunkOverlap?: number;
+  /** 单文件最大索引体积（字节） */
+  maxFileSizeBytes?: number;
+  /** 语义检索配置 */
+  embedding?: {
+    /** 是否启用语义检索（默认 true） */
+    enabled?: boolean;
+    /** 嵌入接口提供方 */
+    provider?: 'openai-compatible';
+    /** 嵌入模型 */
+    model?: string;
+    /** 嵌入接口 Base URL */
+    baseURL?: string;
+    /** 嵌入接口 API Key */
+    apiKey?: string;
+    /** 向量维度 */
+    dimensions?: number;
+    /** 批量嵌入大小 */
+    batchSize?: number;
+    /** 单次请求超时毫秒 */
+    requestTimeoutMs?: number;
+  };
 }
 
 /**

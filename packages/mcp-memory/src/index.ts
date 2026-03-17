@@ -3,6 +3,8 @@ export {
   ragQuery,
   ragQuerySchema,
   type KnowledgeBaseConfig,
+  type EmbeddingConfig,
+  type RagMetadataFilter,
   type RagQueryParams,
   type RagQueryResult,
   type RagQueryMatch,

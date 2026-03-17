@@ -23,7 +23,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Shell Integration** - Terminal command execution (requires user approval)
 - ✅ **Pre-Planning Scan** - Scan project structure before planning to generate accurate file paths
 - ✅ **Auto Port Detection** - Automatically detect dev server ports from config files
-- ✅ **Remote README-First RAG** - Seed retrieval from a remote repository README and lazily fetch linked files/commits on demand
+- ✅ **Remote Hybrid RAG** - Full-repository indexing with submodule exclusion, combining BM25 keyword search and embedding-based semantic search
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
@@ -65,17 +65,17 @@ frontagent run "Add route guards and open a PR" --engine langgraph --langgraph-c
 
 ## Remote RAG
 
-FrontAgent now supports a lightweight remote knowledge base flow for planning and code generation:
+FrontAgent now supports a full remote repository knowledge base flow for planning and code generation:
 
-- It uses a remote repository README as the seed index
-- It does **not** clone the whole knowledge repository
-- It parses links from the README and lazily fetches linked files / commits only when a query actually hits them
-- Retrieved documents are cached under `.frontagent/rag-cache`
+- It syncs the remote repository into `.frontagent/rag-cache/repo`
+- It indexes the full repository by chunk, and automatically excludes Git submodule paths
+- It runs BM25 keyword retrieval and embedding-based semantic retrieval in parallel
+- It applies metadata filters to each candidate list, then fuses the ranked results
+- Built indexes and embedding vectors are cached under `.frontagent/rag-cache`
 
-Default seed source:
+Default knowledge source:
 
 - Repository: `https://github.com/ceilf6/Lab.git`
-- Seed README: `README.md`
 
 CLI options:
 
@@ -83,7 +83,14 @@ CLI options:
 frontagent run "Explain React setState behavior" \
   --rag-repo https://github.com/ceilf6/Lab.git \
   --rag-branch main \
-  --rag-seed README.md
+  --rag-keyword-candidates 40 \
+  --rag-semantic-candidates 40 \
+  --rag-keyword-weight 0.45 \
+  --rag-semantic-weight 0.55
+
+# Disable semantic retrieval and use BM25 only
+frontagent run "Explain React setState behavior" \
+  --disable-rag-semantic
 
 # Disable remote RAG for a run
 frontagent run "Create a page" --disable-rag
@@ -94,8 +101,14 @@ Environment variables:
 ```bash
 export FRONTAGENT_RAG_REPO="https://github.com/ceilf6/Lab.git"
 export FRONTAGENT_RAG_BRANCH="main"
-export FRONTAGENT_RAG_SEED_PATH="README.md"
 export FRONTAGENT_RAG_MAX_RESULTS="5"
+export FRONTAGENT_RAG_KEYWORD_CANDIDATES="40"
+export FRONTAGENT_RAG_SEMANTIC_CANDIDATES="40"
+export FRONTAGENT_RAG_KEYWORD_WEIGHT="0.45"
+export FRONTAGENT_RAG_SEMANTIC_WEIGHT="0.55"
+export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
+export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
+export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
 ```
 
 ## Architecture Overview

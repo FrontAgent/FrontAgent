@@ -16,6 +16,35 @@ import { createShellMCPClient } from '@frontagent/mcp-shell';
 
 const program = new Command();
 
+function parseOptionalInt(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseOptionalFloat(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parsePathList(values: string[] | undefined, fallback?: string): string[] | undefined {
+  if (values && values.length > 0) {
+    return values.map((value) => value.trim()).filter(Boolean);
+  }
+  if (!fallback?.trim()) {
+    return undefined;
+  }
+  return fallback
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 program
   .name('frontagent')
   .description('FrontAgent - 工程级 AI Agent 系统')
@@ -217,8 +246,22 @@ program
   .option('--disable-rag', '禁用远程知识库 RAG', false)
   .option('--rag-repo <url>', '远程知识库 Git 仓库地址', process.env.FRONTAGENT_RAG_REPO || 'https://github.com/ceilf6/Lab.git')
   .option('--rag-branch <branch>', '远程知识库分支', process.env.FRONTAGENT_RAG_BRANCH || 'main')
-  .option('--rag-seed <path>', '知识库种子 README 路径', process.env.FRONTAGENT_RAG_SEED_PATH || 'README.md')
   .option('--rag-max-results <n>', '规划前 RAG 返回条数', process.env.FRONTAGENT_RAG_MAX_RESULTS || '5')
+  .option('--rag-keyword-candidates <n>', 'BM25 候选文档数', process.env.FRONTAGENT_RAG_KEYWORD_CANDIDATES || '40')
+  .option('--rag-semantic-candidates <n>', '语义检索候选文档数', process.env.FRONTAGENT_RAG_SEMANTIC_CANDIDATES || '40')
+  .option('--rag-keyword-weight <n>', 'BM25 权重', process.env.FRONTAGENT_RAG_KEYWORD_WEIGHT || '0.45')
+  .option('--rag-semantic-weight <n>', '语义检索权重', process.env.FRONTAGENT_RAG_SEMANTIC_WEIGHT || '0.55')
+  .option('--rag-chunk-size <n>', '索引分块大小（字符）', process.env.FRONTAGENT_RAG_CHUNK_SIZE || '1200')
+  .option('--rag-chunk-overlap <n>', '索引分块重叠（字符）', process.env.FRONTAGENT_RAG_CHUNK_OVERLAP || '200')
+  .option('--rag-max-file-size-kb <n>', '单文件最大索引大小（KB）', process.env.FRONTAGENT_RAG_MAX_FILE_SIZE_KB || '256')
+  .option('--rag-exclude-path <prefixes...>', '额外排除的仓库路径前缀（子模块会自动排除）')
+  .option('--disable-rag-semantic', '禁用 embedding 语义检索，仅保留 BM25', false)
+  .option('--rag-embedding-model <model>', 'Embedding 模型', process.env.FRONTAGENT_RAG_EMBEDDING_MODEL)
+  .option('--rag-embedding-base-url <url>', 'Embedding API Base URL', process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL || process.env.OPENAI_BASE_URL || process.env.BASE_URL)
+  .option('--rag-embedding-api-key <key>', 'Embedding API Key (默认从环境变量读取)')
+  .option('--rag-embedding-dimensions <n>', 'Embedding 维度', process.env.FRONTAGENT_RAG_EMBEDDING_DIMENSIONS)
+  .option('--rag-embedding-batch-size <n>', 'Embedding 批量大小', process.env.FRONTAGENT_RAG_EMBEDDING_BATCH_SIZE)
+  .option('--rag-embedding-timeout-ms <n>', 'Embedding 请求超时毫秒', process.env.FRONTAGENT_RAG_EMBEDDING_TIMEOUT_MS)
   .option('--debug', '启用调试模式', false)
   .action(async (task, options) => {
     const projectRoot = process.cwd();
@@ -257,6 +300,38 @@ program
     const maxRecoveryAttempts = Number.parseInt(options.maxRecoveryAttempts, 10) || 3;
     const ragEnabled = !options.disableRag;
     const ragCacheDir = resolve(projectRoot, '.frontagent', 'rag-cache');
+    const ragExcludedPathPrefixes = parsePathList(
+      options.ragExcludePath,
+      process.env.FRONTAGENT_RAG_EXCLUDE_PATHS,
+    );
+    const ragConfig = {
+      enabled: ragEnabled,
+      repoUrl: options.ragRepo,
+      branch: options.ragBranch,
+      maxResults: parseOptionalInt(options.ragMaxResults) || 5,
+      cacheDir: ragCacheDir,
+      syncOnQuery: true,
+      excludedPathPrefixes: ragExcludedPathPrefixes,
+      keywordCandidateCount: parseOptionalInt(options.ragKeywordCandidates),
+      semanticCandidateCount: parseOptionalInt(options.ragSemanticCandidates),
+      keywordWeight: parseOptionalFloat(options.ragKeywordWeight),
+      semanticWeight: parseOptionalFloat(options.ragSemanticWeight),
+      chunkSize: parseOptionalInt(options.ragChunkSize),
+      chunkOverlap: parseOptionalInt(options.ragChunkOverlap),
+      maxFileSizeBytes: (() => {
+        const sizeKb = parseOptionalInt(options.ragMaxFileSizeKb);
+        return sizeKb ? sizeKb * 1024 : undefined;
+      })(),
+      embedding: {
+        enabled: !options.disableRagSemantic,
+        model: options.ragEmbeddingModel,
+        baseURL: options.ragEmbeddingBaseUrl,
+        apiKey: options.ragEmbeddingApiKey || process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY || process.env.OPENAI_API_KEY || process.env.API_KEY,
+        dimensions: parseOptionalInt(options.ragEmbeddingDimensions),
+        batchSize: parseOptionalInt(options.ragEmbeddingBatchSize),
+        requestTimeoutMs: parseOptionalInt(options.ragEmbeddingTimeoutMs),
+      },
+    } satisfies NonNullable<AgentConfig['rag']>;
 
     // 显示 LLM 配置信息
     if (options.debug) {
@@ -271,9 +346,14 @@ program
       }
       console.log(chalk.gray(`   RAG Enabled: ${ragEnabled}`));
       if (ragEnabled) {
-        console.log(chalk.gray(`   RAG Repo: ${options.ragRepo}`));
-        console.log(chalk.gray(`   RAG Branch: ${options.ragBranch}`));
-        console.log(chalk.gray(`   RAG Seed: ${options.ragSeed}`));
+        console.log(chalk.gray(`   RAG Repo: ${ragConfig.repoUrl}`));
+        console.log(chalk.gray(`   RAG Branch: ${ragConfig.branch}`));
+        console.log(chalk.gray(`   RAG Search: BM25 + ${ragConfig.embedding?.enabled ? 'Embedding' : 'disabled semantic'}`));
+        console.log(chalk.gray(`   RAG Candidates: keyword=${ragConfig.keywordCandidateCount ?? 40}, semantic=${ragConfig.semanticCandidateCount ?? 40}`));
+        console.log(chalk.gray(`   RAG Weights: keyword=${ragConfig.keywordWeight ?? 0.45}, semantic=${ragConfig.semanticWeight ?? 0.55}`));
+        if (ragConfig.excludedPathPrefixes?.length) {
+          console.log(chalk.gray(`   RAG Exclude Paths: ${ragConfig.excludedPathPrefixes.join(', ')}`));
+        }
         console.log(chalk.gray(`   RAG Cache: ${ragCacheDir}\n`));
       }
     }
@@ -299,15 +379,7 @@ program
           threadIdPrefix: 'frontagent'
         }
       },
-      rag: {
-        enabled: ragEnabled,
-        repoUrl: options.ragRepo,
-        branch: options.ragBranch,
-        seedPath: options.ragSeed,
-        maxResults: Number.parseInt(options.ragMaxResults, 10) || 5,
-        cacheDir: ragCacheDir,
-        syncOnQuery: true,
-      },
+      rag: ragConfig,
       debug: options.debug
     };
 
@@ -320,11 +392,20 @@ program
 
     if (ragEnabled) {
       const memoryClient = new MemoryMCPClient({
-        repoUrl: options.ragRepo,
-        branch: options.ragBranch,
-        seedPath: options.ragSeed,
-        cacheDir: ragCacheDir,
-        syncOnQuery: true,
+        repoUrl: ragConfig.repoUrl,
+        branch: ragConfig.branch ?? 'main',
+        cacheDir: ragConfig.cacheDir ?? ragCacheDir,
+        syncOnQuery: ragConfig.syncOnQuery,
+        maxResults: ragConfig.maxResults,
+        excludedPathPrefixes: ragConfig.excludedPathPrefixes,
+        keywordCandidateCount: ragConfig.keywordCandidateCount,
+        semanticCandidateCount: ragConfig.semanticCandidateCount,
+        keywordWeight: ragConfig.keywordWeight,
+        semanticWeight: ragConfig.semanticWeight,
+        chunkSize: ragConfig.chunkSize,
+        chunkOverlap: ragConfig.chunkOverlap,
+        maxFileSizeBytes: ragConfig.maxFileSizeBytes,
+        embedding: ragConfig.embedding,
       });
       agent.registerMCPClient('memory', memoryClient);
       agent.registerMemoryTools();

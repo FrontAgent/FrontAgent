@@ -194,7 +194,7 @@ export class MemoryMCPClient implements MCPClient {
 
   async listTools() {
     return [
-      { name: 'rag_query', description: '查询远程知识库索引' },
+      { name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' },
     ];
   }
 }

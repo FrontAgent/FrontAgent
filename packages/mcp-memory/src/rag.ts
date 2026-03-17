@@ -1,37 +1,108 @@
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, resolve, extname, basename } from 'node:path';
+import { promisify } from 'node:util';
 
+const execFileAsync = promisify(execFile);
+
+const INDEX_VERSION = 4;
+const EMBEDDING_STORE_VERSION = 2;
 const DEFAULT_MAX_RESULTS = 5;
-const DEFAULT_ENTRY_HYDRATION_LIMIT = 3;
-const SEED_FETCH_TIMEOUT_MS = 20000;
-const ENTRY_FETCH_TIMEOUT_MS = 8000;
-const DEFAULT_EXCLUDED_PATH_PREFIXES = [
-  'AI/3-Application/FrontAgent-app',
-];
+const DEFAULT_KEYWORD_CANDIDATES = 40;
+const DEFAULT_SEMANTIC_CANDIDATES = 40;
+const DEFAULT_CHUNK_SIZE = 1200;
+const DEFAULT_CHUNK_OVERLAP = 200;
+const DEFAULT_MAX_FILE_SIZE_BYTES = 256 * 1024;
+const DEFAULT_FETCH_TIMEOUT_MS = 30000;
+const DEFAULT_EMBEDDING_BATCH_SIZE = 32;
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
+const DEFAULT_EMBEDDING_DIMENSIONS = 512;
+const DEFAULT_EXCLUDED_PATH_PREFIXES: string[] = [];
+const IGNORED_DIR_NAMES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.next',
+  '.nuxt',
+]);
+const BINARY_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff',
+  '.pdf', '.zip', '.gz', '.tgz', '.7z', '.rar', '.mp3', '.mp4', '.mov',
+  '.avi', '.mkv', '.woff', '.woff2', '.ttf', '.eot', '.otf', '.class',
+  '.jar', '.exe', '.dll', '.so', '.dylib', '.bin', '.wasm', '.psd',
+  '.drawio', '.sqlite', '.db', '.lock',
+]);
 
 export interface KnowledgeBaseConfig {
   repoUrl: string;
   branch: string;
-  seedPath: string;
   cacheDir: string;
   syncOnQuery?: boolean;
+  maxResults?: number;
+  excludedPathPrefixes?: string[];
+  keywordCandidateCount?: number;
+  semanticCandidateCount?: number;
+  keywordWeight?: number;
+  semanticWeight?: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  maxFileSizeBytes?: number;
+  embedding?: EmbeddingConfig;
+}
+
+export interface EmbeddingConfig {
+  enabled?: boolean;
+  provider?: 'openai-compatible';
+  model?: string;
+  baseURL?: string;
+  apiKey?: string;
+  dimensions?: number;
+  batchSize?: number;
+  requestTimeoutMs?: number;
+}
+
+export interface RagMetadataFilter {
+  topLevelDirs?: string[];
+  extensions?: string[];
+  pathPrefixes?: string[];
+  excludePathPrefixes?: string[];
 }
 
 export interface RagQueryParams {
   query: string;
   maxResults?: number;
   refresh?: boolean;
+  filters?: RagMetadataFilter;
 }
 
 export interface RagQueryMatch {
   id: string;
-  type: KnowledgeNodeType;
+  type: 'file';
   title: string;
   sourceUrl: string;
   snippet: string;
   score: number;
-  path?: string;
+  path: string;
+  keywordScore?: number;
+  semanticScore?: number;
+  metadata: {
+    topLevelDir: string;
+    extension: string;
+    chunkIndex: number;
+    lineStart: number;
+    lineEnd: number;
+  };
 }
 
 export interface RagQueryResult {
@@ -39,64 +110,97 @@ export interface RagQueryResult {
   syncedAt?: string;
   sourceRevision?: string;
   results?: RagQueryMatch[];
+  warnings?: string[];
+  searchMode?: 'hybrid' | 'keyword_only';
   error?: string;
 }
 
-type KnowledgeNodeType = 'readme' | 'file' | 'commit' | 'issue' | 'discussion' | 'external';
-
-interface KnowledgeIndex {
-  version: 2;
+interface RepositoryIndex {
+  version: typeof INDEX_VERSION;
   source: {
     repoUrl: string;
     branch: string;
-    seedPath: string;
-    seedUrl: string;
-    remoteRevision: string;
     syncedAt: string;
+    revision: string;
+    repoDir: string;
+    indexedFiles: number;
+    indexedChunks: number;
+    excludedPathPrefixes: string[];
+    excludedSubmodulePaths: string[];
   };
-  entries: KnowledgeEntry[];
+  build: {
+    chunkSize: number;
+    chunkOverlap: number;
+    maxFileSizeBytes: number;
+  };
+  bm25: {
+    documentCount: number;
+    averageDocumentLength: number;
+    documentFrequency: Record<string, number>;
+  };
+  documents: RepositoryDocument[];
+  chunks: RepositoryChunk[];
 }
 
-interface KnowledgeEntry {
+interface RepositoryDocument {
   id: string;
-  type: KnowledgeNodeType;
+  path: string;
   title: string;
   sourceUrl: string;
-  path?: string;
-  annotations: string[];
-  body: string;
-  fetchUrl?: string;
-  cacheKey?: string;
-  hydratedAt?: string;
-  hydrateError?: string;
+  extension: string;
+  topLevelDir: string;
+  sizeBytes: number;
+  contentHash: string;
+  chunkIds: string[];
 }
 
-interface SeedLink {
-  title: string;
-  href: string;
-  annotations: string[];
-}
-
-interface ResolvedLink {
-  type: KnowledgeNodeType;
+interface RepositoryChunk {
+  id: string;
+  documentId: string;
+  path: string;
   sourceUrl: string;
-  fetchUrl?: string;
-  path?: string;
-  commitSha?: string;
+  title: string;
+  text: string;
+  keywordText: string;
+  contentHash: string;
+  tokenCount: number;
+  termFrequency: Record<string, number>;
+  metadata: {
+    extension: string;
+    topLevelDir: string;
+    chunkIndex: number;
+    totalChunks: number;
+    lineStart: number;
+    lineEnd: number;
+  };
 }
 
-interface QueryScoredMatch {
-  entry: KnowledgeEntry;
+interface EmbeddingStore {
+  version: typeof EMBEDDING_STORE_VERSION;
+  model: string;
+  baseURL: string;
+  dimensions?: number;
+  updatedAt: string;
+  vectors: Record<string, {
+    contentHash: string;
+    vector: number[];
+  }>;
+}
+
+interface ChunkCandidate {
+  chunk: RepositoryChunk;
   score: number;
 }
 
-interface RemoteTextDocument {
-  text: string;
-  revision: string;
+interface DocumentCandidate {
+  document: RepositoryDocument;
+  chunk: RepositoryChunk;
+  score: number;
+  rank: number;
 }
 
 export function createKnowledgeBase(config: KnowledgeBaseConfig) {
-  return new ReadmeSeedKnowledgeBase(config);
+  return new HybridRepositoryKnowledgeBase(config);
 }
 
 export async function ragQuery(
@@ -109,7 +213,7 @@ export async function ragQuery(
 
 export const ragQuerySchema = {
   name: 'rag_query',
-  description: 'Query a remote knowledge base seeded by a README and lazily fetch linked documents.',
+  description: 'Query the full repository knowledge base using BM25 + semantic hybrid search with metadata filters.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -124,22 +228,41 @@ export const ragQuerySchema = {
       },
       refresh: {
         type: 'boolean',
-        description: 'Force a README refresh before querying',
+        description: 'Force a repository sync and re-index before querying',
         default: false,
+      },
+      filters: {
+        type: 'object',
+        description: 'Optional metadata filters applied after keyword and semantic candidate retrieval',
+        properties: {
+          topLevelDirs: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          extensions: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          pathPrefixes: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          excludePathPrefixes: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+        },
       },
     },
     required: ['query'],
   },
 };
 
-class ReadmeSeedKnowledgeBase {
-  private readonly config: KnowledgeBaseConfig;
+class HybridRepositoryKnowledgeBase {
+  private readonly config: RequiredHybridConfig;
 
   constructor(config: KnowledgeBaseConfig) {
-    this.config = {
-      ...config,
-      cacheDir: resolve(config.cacheDir),
-    };
+    this.config = normalizeConfig(config);
   }
 
   async query(params: RagQueryParams): Promise<RagQueryResult> {
@@ -151,38 +274,88 @@ class ReadmeSeedKnowledgeBase {
     }
 
     try {
+      const warnings: string[] = [];
       const index = await this.ensureIndex(Boolean(params.refresh));
-      const query = params.query.trim();
-      const maxResults = params.maxResults ?? DEFAULT_MAX_RESULTS;
-      const initialMatches = this.search(
-        index.entries,
-        query,
-        Math.max(maxResults, DEFAULT_ENTRY_HYDRATION_LIMIT),
+      const queryText = params.query.trim();
+      const maxResults = params.maxResults ?? this.config.maxResults;
+      const filters = params.filters;
+
+      const keywordChunkCandidates = searchBm25(
+        index,
+        queryText,
+        this.config.keywordCandidateCount,
+      );
+      const keywordDocumentCandidates = aggregateChunkCandidates(
+        keywordChunkCandidates,
+        index,
+        filters,
       );
 
-      const hydrationResults = await Promise.all(
-        initialMatches.map((match) => this.hydrateEntry(match.entry))
-      );
-      const indexChanged = hydrationResults.some(Boolean);
+      let semanticDocumentCandidates: DocumentCandidate[] = [];
+      let searchMode: RagQueryResult['searchMode'] = 'keyword_only';
 
-      if (indexChanged) {
-        this.writeIndex(index);
+      if (this.config.embedding.enabled) {
+        if (this.config.embedding.apiKey) {
+          try {
+            const embeddingStore = await this.ensureEmbeddings(index);
+            const semanticChunkCandidates = await searchSemantic(
+              queryText,
+              index,
+              embeddingStore,
+              this.config.embedding,
+              this.config.semanticCandidateCount,
+            );
+            semanticDocumentCandidates = aggregateChunkCandidates(
+              semanticChunkCandidates,
+              index,
+              filters,
+            );
+            if (semanticDocumentCandidates.length > 0) {
+              searchMode = 'hybrid';
+            } else {
+              warnings.push('Semantic search returned no candidates; keyword results were used.');
+            }
+          } catch (error) {
+            warnings.push(
+              `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        } else {
+          warnings.push('Embedding API key is not configured; keyword-only search was used.');
+        }
       }
 
-      const reranked = this.search(index.entries, query, maxResults);
+      const fusedResults = fuseDocumentCandidates({
+        keywordCandidates: keywordDocumentCandidates,
+        semanticCandidates: semanticDocumentCandidates,
+        maxResults,
+        keywordWeight: this.config.keywordWeight,
+        semanticWeight: this.config.semanticWeight,
+      });
 
       return {
         success: true,
         syncedAt: index.source.syncedAt,
-        sourceRevision: index.source.remoteRevision,
-        results: reranked.map(({ entry, score }) => ({
-          id: entry.id,
-          type: entry.type,
-          title: entry.title,
-          sourceUrl: entry.sourceUrl,
-          path: entry.path,
-          score,
-          snippet: buildSnippet(entry, query),
+        sourceRevision: index.source.revision,
+        searchMode,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        results: fusedResults.map((result) => ({
+          id: result.document.id,
+          type: 'file',
+          title: result.document.title,
+          sourceUrl: result.document.sourceUrl,
+          path: result.document.path,
+          score: result.score,
+          keywordScore: result.keywordScore,
+          semanticScore: result.semanticScore,
+          snippet: buildSnippet(result.chunk.text, queryText),
+          metadata: {
+            topLevelDir: result.chunk.metadata.topLevelDir,
+            extension: result.chunk.metadata.extension,
+            chunkIndex: result.chunk.metadata.chunkIndex,
+            lineStart: result.chunk.metadata.lineStart,
+            lineEnd: result.chunk.metadata.lineEnd,
+          },
         })),
       };
     } catch (error) {
@@ -193,33 +366,65 @@ class ReadmeSeedKnowledgeBase {
     }
   }
 
-  private async ensureIndex(forceRefresh: boolean): Promise<KnowledgeIndex> {
+  private async ensureIndex(forceRefresh: boolean): Promise<RepositoryIndex> {
     mkdirSync(this.config.cacheDir, { recursive: true });
-
     const existing = this.readIndex();
-    if (!forceRefresh && existing) {
+    const targetRepoDir = this.getRepoDir();
+    const shouldSyncRepository =
+      forceRefresh || this.config.syncOnQuery || !existing || !existsSync(targetRepoDir);
+    const repoDir = await ensureRepositoryCheckout({
+      repoUrl: this.config.repoUrl,
+      branch: this.config.branch,
+      repoDir: targetRepoDir,
+      sync: shouldSyncRepository,
+    });
+    const revision = await getRepositoryHead(repoDir);
+    const submodulePaths = getSubmodulePaths(repoDir);
+    const excludedPathPrefixes = [
+      ...new Set([...this.config.excludedPathPrefixes, ...submodulePaths].map(normalizeRepoPath)),
+    ];
+
+    if (
+      existing &&
+      canReuseIndex(existing, {
+        repoUrl: this.config.repoUrl,
+        branch: this.config.branch,
+        revision,
+        repoDir,
+        excludedPathPrefixes,
+        excludedSubmodulePaths: submodulePaths,
+        chunkSize: this.config.chunkSize,
+        chunkOverlap: this.config.chunkOverlap,
+        maxFileSizeBytes: this.config.maxFileSizeBytes,
+      })
+    ) {
       return existing;
     }
 
-    const seedDocument = await this.fetchSeedDocument();
-    if (existing && existing.source.remoteRevision === seedDocument.revision) {
-      return existing;
-    }
-
-    const index = this.buildIndex(seedDocument);
+    const index = buildRepositoryIndex({
+      repoDir,
+      repoUrl: this.config.repoUrl,
+      branch: this.config.branch,
+      revision,
+      excludedPathPrefixes,
+      excludedSubmodulePaths: submodulePaths,
+      chunkSize: this.config.chunkSize,
+      chunkOverlap: this.config.chunkOverlap,
+      maxFileSizeBytes: this.config.maxFileSizeBytes,
+    });
     this.writeIndex(index);
     return index;
   }
 
-  private readIndex(): KnowledgeIndex | null {
+  private readIndex(): RepositoryIndex | null {
     const indexPath = this.getIndexPath();
     if (!existsSync(indexPath)) {
       return null;
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(indexPath, 'utf-8')) as KnowledgeIndex;
-      if (parsed.version !== 2) {
+      const parsed = JSON.parse(readFileSync(indexPath, 'utf-8')) as RepositoryIndex;
+      if (parsed.version !== INDEX_VERSION) {
         return null;
       }
       return parsed;
@@ -228,431 +433,886 @@ class ReadmeSeedKnowledgeBase {
     }
   }
 
-  private writeIndex(index: KnowledgeIndex): void {
+  private writeIndex(index: RepositoryIndex): void {
     writeFileSync(this.getIndexPath(), JSON.stringify(index, null, 2), 'utf-8');
   }
 
-  private buildIndex(seedDocument: RemoteTextDocument): KnowledgeIndex {
-    const seedUrl = toRawUrl(this.config.repoUrl, this.config.branch, this.config.seedPath);
-    const entries = new Map<string, KnowledgeEntry>();
+  private async ensureEmbeddings(index: RepositoryIndex): Promise<EmbeddingStore> {
+    const current = this.readEmbeddingStore();
+    const compatible =
+      current &&
+      current.model === this.config.embedding.model &&
+      current.baseURL === this.config.embedding.baseURL &&
+      current.dimensions === this.config.embedding.dimensions;
 
-    entries.set('readme:root', {
-      id: 'readme:root',
-      type: 'readme',
-      title: this.config.seedPath,
-      sourceUrl: toBlobUrl(this.config.repoUrl, this.config.branch, this.config.seedPath),
-      fetchUrl: seedUrl,
-      cacheKey: 'seed-readme',
-      path: this.config.seedPath,
-      annotations: ['Seed README index for the knowledge base.'],
-      body: truncate(seedDocument.text, 20000),
-      hydratedAt: new Date().toISOString(),
+    const store: EmbeddingStore = compatible
+      ? current
+      : {
+          version: EMBEDDING_STORE_VERSION,
+          model: this.config.embedding.model,
+          baseURL: this.config.embedding.baseURL,
+          dimensions: this.config.embedding.dimensions,
+          updatedAt: new Date().toISOString(),
+          vectors: {},
+        };
+
+    const validChunkIds = new Set(index.chunks.map((chunk) => chunk.id));
+    for (const chunkId of Object.keys(store.vectors)) {
+      if (!validChunkIds.has(chunkId)) {
+        delete store.vectors[chunkId];
+      }
+    }
+
+    const missingChunks = index.chunks.filter((chunk) => {
+      const existingVector = store.vectors[chunk.id];
+      return !existingVector || existingVector.contentHash !== chunk.contentHash;
     });
-
-    const seedLinks = parseSeedLinks(seedDocument.text);
-    for (const seedLink of seedLinks) {
-      const resolved = resolveSeedLink(seedLink.href, this.config.repoUrl, this.config.branch);
-      if (!resolved) {
-        continue;
-      }
-
-      if (resolved.path && isExcludedKnowledgePath(resolved.path)) {
-        continue;
-      }
-
-      const entry = this.buildSeedEntry(resolved, seedLink);
-      const existing = entries.get(entry.id);
-      if (existing) {
-        existing.annotations.push(...entry.annotations);
-        continue;
-      }
-      entries.set(entry.id, entry);
+    if (missingChunks.length === 0) {
+      return store;
     }
 
-    return {
-      version: 2,
-      source: {
-        repoUrl: this.config.repoUrl,
-        branch: this.config.branch,
-        seedPath: this.config.seedPath,
-        seedUrl,
-        remoteRevision: seedDocument.revision,
-        syncedAt: new Date().toISOString(),
-      },
-      entries: Array.from(entries.values()),
-    };
-  }
-
-  private buildSeedEntry(resolved: ResolvedLink, seedLink: SeedLink): KnowledgeEntry {
-    return {
-      id: buildEntryId(resolved),
-      type: resolved.type,
-      title: seedLink.title,
-      sourceUrl: resolved.sourceUrl,
-      fetchUrl: resolved.fetchUrl,
-      cacheKey: buildCacheKey(resolved),
-      path: resolved.path,
-      annotations: seedLink.annotations,
-      body: [
-        resolved.path ? `path=${resolved.path}` : '',
-        resolved.commitSha ? `commit=${resolved.commitSha}` : '',
-        seedLink.annotations.join('\n'),
-      ].filter(Boolean).join('\n'),
-    };
-  }
-
-  private async fetchSeedDocument(): Promise<RemoteTextDocument> {
-    const seedUrl = toRawUrl(this.config.repoUrl, this.config.branch, this.config.seedPath);
-    return fetchTextDocument(seedUrl, SEED_FETCH_TIMEOUT_MS);
-  }
-
-  private async hydrateEntry(entry: KnowledgeEntry): Promise<boolean> {
-    if (!entry.fetchUrl || entry.hydratedAt) {
-      return false;
+    const batches = chunkArray(missingChunks, this.config.embedding.batchSize);
+    for (const batch of batches) {
+      const vectors = await fetchEmbeddings({
+        texts: batch.map((chunk) => buildEmbeddingInput(chunk)),
+        config: this.config.embedding,
+      });
+      for (let i = 0; i < batch.length; i++) {
+        store.vectors[batch[i].id] = {
+          contentHash: batch[i].contentHash,
+          vector: normalizeVector(vectors[i]),
+        };
+      }
     }
 
-    const cachePath = this.getDocumentCachePath(entry);
-    if (existsSync(cachePath)) {
-      entry.body = readFileSync(cachePath, 'utf-8');
-      entry.hydratedAt = new Date().toISOString();
-      return true;
+    store.updatedAt = new Date().toISOString();
+    this.writeEmbeddingStore(store);
+    return store;
+  }
+
+  private readEmbeddingStore(): EmbeddingStore | null {
+    const path = this.getEmbeddingStorePath();
+    if (!existsSync(path)) {
+      return null;
     }
 
     try {
-      const text = await fetchEntryDocument(entry);
-      if (!text) {
-        entry.hydratedAt = new Date().toISOString();
-        entry.hydrateError = 'Empty document response';
-        return true;
+      const parsed = JSON.parse(readFileSync(path, 'utf-8')) as EmbeddingStore;
+      if (parsed.version !== EMBEDDING_STORE_VERSION) {
+        return null;
       }
-
-      mkdirSync(this.getDocumentsDir(), { recursive: true });
-      writeFileSync(cachePath, text, 'utf-8');
-      entry.body = text;
-      entry.hydratedAt = new Date().toISOString();
-      entry.hydrateError = undefined;
-      return true;
-    } catch (error) {
-      entry.hydratedAt = new Date().toISOString();
-      entry.hydrateError = error instanceof Error ? error.message : String(error);
-      return true;
+      return parsed;
+    } catch {
+      return null;
     }
   }
 
-  private search(entries: KnowledgeEntry[], query: string, maxResults: number): QueryScoredMatch[] {
-    const queryTokens = tokenize(query);
-    const scored: QueryScoredMatch[] = [];
+  private writeEmbeddingStore(store: EmbeddingStore): void {
+    writeFileSync(this.getEmbeddingStorePath(), JSON.stringify(store), 'utf-8');
+  }
 
-    for (const entry of entries) {
-      const score = scoreEntry(entry, query, queryTokens);
-      if (score <= 0) {
-        continue;
-      }
-      scored.push({ entry, score });
-    }
-
-    scored.sort((left, right) => right.score - left.score);
-    return scored.slice(0, maxResults);
+  private getRepoDir(): string {
+    return join(this.config.cacheDir, 'repo');
   }
 
   private getIndexPath(): string {
     return join(this.config.cacheDir, 'index.json');
   }
 
-  private getDocumentsDir(): string {
-    return join(this.config.cacheDir, 'documents');
-  }
-
-  private getDocumentCachePath(entry: KnowledgeEntry): string {
-    return join(this.getDocumentsDir(), `${entry.cacheKey ?? safeHash(entry.id)}.txt`);
+  private getEmbeddingStorePath(): string {
+    return join(this.config.cacheDir, 'embeddings.json');
   }
 }
 
-async function fetchEntryDocument(entry: KnowledgeEntry): Promise<string> {
-  if (!entry.fetchUrl) {
-    return '';
-  }
+type RequiredHybridConfig = {
+  repoUrl: string;
+  branch: string;
+  cacheDir: string;
+  syncOnQuery: boolean;
+  maxResults: number;
+  excludedPathPrefixes: string[];
+  keywordCandidateCount: number;
+  semanticCandidateCount: number;
+  keywordWeight: number;
+  semanticWeight: number;
+  chunkSize: number;
+  chunkOverlap: number;
+  maxFileSizeBytes: number;
+  embedding: Required<EmbeddingConfig>;
+};
 
-  if ((entry.type === 'file' || entry.type === 'readme') && entry.path && !isTextLikePath(entry.path)) {
-    return `Binary or non-text document: ${entry.sourceUrl}`;
-  }
+function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
+  const embeddingProvider = config.embedding?.provider ?? 'openai-compatible';
+  const embeddingBaseURL = normalizeBaseUrl(
+    config.embedding?.baseURL ??
+      process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL ??
+      process.env.OPENAI_BASE_URL ??
+      process.env.BASE_URL ??
+      'https://api.openai.com/v1'
+  );
+  const embeddingApiKey =
+    config.embedding?.apiKey ??
+    process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY ??
+    process.env.OPENAI_API_KEY ??
+    process.env.API_KEY ??
+    '';
 
-  const document = await fetchTextDocument(entry.fetchUrl, ENTRY_FETCH_TIMEOUT_MS);
-
-  if (entry.type === 'issue' || entry.type === 'discussion' || entry.type === 'external') {
-    return truncate(extractHtmlText(document.text, entry.sourceUrl), 12000);
-  }
-
-  return truncate(document.text, entry.type === 'commit' ? 12000 : 16000);
-}
-
-async function fetchTextDocument(url: string, timeoutMs: number): Promise<RemoteTextDocument> {
-  const response = await fetch(url, {
-    headers: {
-      'user-agent': 'FrontAgent/0.1',
-      'accept': 'text/plain, text/html;q=0.9, */*;q=0.8',
+  return {
+    repoUrl: config.repoUrl,
+    branch: config.branch,
+    cacheDir: resolve(config.cacheDir),
+    syncOnQuery: config.syncOnQuery ?? true,
+    maxResults: config.maxResults ?? DEFAULT_MAX_RESULTS,
+    excludedPathPrefixes:
+      config.excludedPathPrefixes ??
+      parseStringList(process.env.FRONTAGENT_RAG_EXCLUDE_PATHS) ??
+      DEFAULT_EXCLUDED_PATH_PREFIXES,
+    keywordCandidateCount: config.keywordCandidateCount ?? DEFAULT_KEYWORD_CANDIDATES,
+    semanticCandidateCount: config.semanticCandidateCount ?? DEFAULT_SEMANTIC_CANDIDATES,
+    keywordWeight: config.keywordWeight ?? 0.45,
+    semanticWeight: config.semanticWeight ?? 0.55,
+    chunkSize: config.chunkSize ?? DEFAULT_CHUNK_SIZE,
+    chunkOverlap: config.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP,
+    maxFileSizeBytes: config.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES,
+    embedding: {
+      enabled: config.embedding?.enabled ?? true,
+      provider: embeddingProvider,
+      model: config.embedding?.model ?? process.env.FRONTAGENT_RAG_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
+      baseURL: embeddingBaseURL,
+      apiKey: embeddingApiKey,
+      dimensions:
+        config.embedding?.dimensions ??
+        parseOptionalInt(process.env.FRONTAGENT_RAG_EMBEDDING_DIMENSIONS) ??
+        DEFAULT_EMBEDDING_DIMENSIONS,
+      batchSize:
+        config.embedding?.batchSize ??
+        parseOptionalInt(process.env.FRONTAGENT_RAG_EMBEDDING_BATCH_SIZE) ??
+        DEFAULT_EMBEDDING_BATCH_SIZE,
+      requestTimeoutMs:
+        config.embedding?.requestTimeoutMs ??
+        parseOptionalInt(process.env.FRONTAGENT_RAG_EMBEDDING_TIMEOUT_MS) ??
+        DEFAULT_FETCH_TIMEOUT_MS,
     },
-    signal: AbortSignal.timeout(timeoutMs),
+  };
+}
+
+async function ensureRepositoryCheckout(input: {
+  repoUrl: string;
+  branch: string;
+  repoDir: string;
+  sync: boolean;
+}): Promise<string> {
+  const parentDir = resolve(input.repoDir, '..');
+  mkdirSync(parentDir, { recursive: true });
+
+  if (!existsSync(input.repoDir)) {
+    await runGit(
+      [
+        'clone',
+        '--depth',
+        '1',
+        '--single-branch',
+        '--branch',
+        input.branch,
+        input.repoUrl,
+        input.repoDir,
+      ],
+      parentDir,
+    );
+    return input.repoDir;
+  }
+
+  if (!input.sync) {
+    return input.repoDir;
+  }
+
+  try {
+    await runGit(['pull', '--ff-only', 'origin', input.branch], input.repoDir);
+    return input.repoDir;
+  } catch {
+    rmSync(input.repoDir, { recursive: true, force: true });
+    await runGit(
+      [
+        'clone',
+        '--depth',
+        '1',
+        '--single-branch',
+        '--branch',
+        input.branch,
+        input.repoUrl,
+        input.repoDir,
+      ],
+      parentDir,
+    );
+    return input.repoDir;
+  }
+}
+
+async function getRepositoryHead(repoDir: string): Promise<string> {
+  const result = await runGit(['rev-parse', 'HEAD'], repoDir);
+  return result.stdout.trim();
+}
+
+function getSubmodulePaths(repoDir: string): string[] {
+  const gitmodulesPath = join(repoDir, '.gitmodules');
+  if (!existsSync(gitmodulesPath)) {
+    return [];
+  }
+
+  const content = readFileSync(gitmodulesPath, 'utf-8');
+  const pattern = /^\s*path\s*=\s*(.+)\s*$/gm;
+  const paths: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content)) !== null) {
+    paths.push(normalizeRepoPath(match[1]));
+  }
+  return paths;
+}
+
+async function runGit(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync('git', args, {
+    cwd,
+    maxBuffer: 1024 * 1024 * 64,
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-  }
-
-  const text = await response.text();
-  const revisionHeader = response.headers.get('etag') ?? response.headers.get('last-modified');
-  return {
-    text,
-    revision: normalizeRevision(revisionHeader, text),
-  };
 }
 
-function parseSeedLinks(markdown: string): SeedLink[] {
-  const lines = markdown.split(/\r?\n/);
-  const links: SeedLink[] = [];
-  let current: SeedLink | null = null;
-  let currentIndent = 0;
+function canReuseIndex(
+  index: RepositoryIndex,
+  expected: {
+    repoUrl: string;
+    branch: string;
+    revision: string;
+    repoDir: string;
+    excludedPathPrefixes: string[];
+    excludedSubmodulePaths: string[];
+    chunkSize: number;
+    chunkOverlap: number;
+    maxFileSizeBytes: number;
+  },
+): boolean {
+  return (
+    index.version === INDEX_VERSION &&
+    index.source.repoUrl === expected.repoUrl &&
+    index.source.branch === expected.branch &&
+    index.source.revision === expected.revision &&
+    index.source.repoDir === expected.repoDir &&
+    sameStringSet(index.source.excludedPathPrefixes, expected.excludedPathPrefixes) &&
+    sameStringSet(index.source.excludedSubmodulePaths, expected.excludedSubmodulePaths) &&
+    index.build.chunkSize === expected.chunkSize &&
+    index.build.chunkOverlap === expected.chunkOverlap &&
+    index.build.maxFileSizeBytes === expected.maxFileSizeBytes
+  );
+}
 
-  for (const line of lines) {
-    const bulletMatch = /^(\s*)-\s+(.*)$/.exec(line);
-    if (!bulletMatch) {
-      if (current && line.trim() && /^\s+/.test(line)) {
-        current.annotations.push(stripMarkdown(line.trim()));
+function buildRepositoryIndex(input: {
+  repoDir: string;
+  repoUrl: string;
+  branch: string;
+  revision: string;
+  excludedPathPrefixes: string[];
+  excludedSubmodulePaths: string[];
+  chunkSize: number;
+  chunkOverlap: number;
+  maxFileSizeBytes: number;
+}): RepositoryIndex {
+  const files = listRepositoryFiles(input.repoDir, input.excludedPathPrefixes, input.maxFileSizeBytes);
+  const documents: RepositoryDocument[] = [];
+  const chunks: RepositoryChunk[] = [];
+  const documentFrequency: Record<string, number> = {};
+  let totalDocumentLength = 0;
+
+  for (const file of files) {
+    const fileBuffer = readFileSync(join(input.repoDir, file.path));
+    if (looksBinary(fileBuffer, file.path)) {
+      continue;
+    }
+
+    const content = fileBuffer.toString('utf-8');
+    if (!content.trim()) {
+      continue;
+    }
+
+    const documentId = `doc:${file.path}`;
+    const documentChunks = chunkText(content, input.chunkSize, input.chunkOverlap);
+    if (documentChunks.length === 0) {
+      continue;
+    }
+
+    const topLevelDir = getTopLevelDir(file.path);
+    const extension = extname(file.path).toLowerCase();
+    const sourceUrl = toBlobUrl(input.repoUrl, input.branch, file.path);
+    const contentHash = hashText(content);
+    const documentChunkIds: string[] = [];
+
+    const processedChunks: RepositoryChunk[] = documentChunks.map((chunk, index) => {
+      const keywordText = `${file.path}\n${chunk.text}`;
+      const tokens = tokenize(keywordText);
+      const termFrequency = countTerms(tokens);
+      const tokenCount = tokens.length;
+      const uniqueTokens = Object.keys(termFrequency);
+      for (const token of uniqueTokens) {
+        documentFrequency[token] = (documentFrequency[token] ?? 0) + 1;
       }
-      continue;
-    }
+      totalDocumentLength += tokenCount;
 
-    const indent = bulletMatch[1].length;
-    const content = bulletMatch[2].trim();
+      const chunkId = `chunk:${file.path}:${index}`;
+      documentChunkIds.push(chunkId);
+      return {
+        id: chunkId,
+        documentId,
+        path: file.path,
+        sourceUrl,
+        title: basename(file.path),
+        text: chunk.text,
+        keywordText,
+        contentHash: hashText(`${file.path}:${index}:${chunk.text}`),
+        tokenCount,
+        termFrequency,
+        metadata: {
+          extension,
+          topLevelDir,
+          chunkIndex: index,
+          totalChunks: documentChunks.length,
+          lineStart: chunk.lineStart,
+          lineEnd: chunk.lineEnd,
+        },
+      };
+    });
 
-    if (current && indent > currentIndent) {
-      current.annotations.push(stripMarkdown(content));
-      continue;
-    }
-
-    const parsed = extractPrimaryLink(content);
-    if (!parsed) {
-      current = null;
-      currentIndent = indent;
-      continue;
-    }
-
-    current = {
-      title: parsed.title,
-      href: parsed.href,
-      annotations: parsed.annotation ? [parsed.annotation] : [],
-    };
-    currentIndent = indent;
-    links.push(current);
-  }
-
-  return links;
-}
-
-function extractPrimaryLink(content: string): { title: string; href: string; annotation?: string } | null {
-  const linkFirst = /^\[([^\]]+)\]\(([^)]+)\)(.*)$/.exec(content);
-  if (linkFirst) {
-    const annotation = stripMarkdown(linkFirst[3].trim());
-    return {
-      title: stripMarkdown(linkFirst[1].trim()),
-      href: linkFirst[2].trim(),
-      annotation: annotation || undefined,
-    };
-  }
-
-  const allLinks = Array.from(content.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g));
-  if (allLinks.length === 0) {
-    return null;
-  }
-
-  const lastLink = allLinks[allLinks.length - 1];
-  const titleText = stripMarkdown(content.replace(lastLink[0], '').trim());
-  return {
-    title: titleText || stripMarkdown(lastLink[1].trim()),
-    href: lastLink[2].trim(),
-  };
-}
-
-function resolveSeedLink(href: string, repoUrl: string, branch: string): ResolvedLink | null {
-  if (!href) {
-    return null;
-  }
-
-  if (!href.startsWith('http://') && !href.startsWith('https://')) {
-    const normalizedPath = normalizeRepoPath(removeAnchor(href));
-    return {
-      type: guessFileNodeType(normalizedPath),
-      sourceUrl: toBlobUrl(repoUrl, branch, normalizedPath),
-      fetchUrl: toRawUrl(repoUrl, branch, normalizedPath),
-      path: normalizedPath,
-    };
-  }
-
-  const repoBase = repoUrl.replace(/\.git$/, '');
-  const githubRepoMatch = /^https:\/\/github\.com\/([^/]+)\/([^/]+)/.exec(repoBase);
-  if (!githubRepoMatch) {
-    return {
-      type: 'external',
-      sourceUrl: href,
-      fetchUrl: href,
-    };
-  }
-
-  const owner = githubRepoMatch[1];
-  const repo = githubRepoMatch[2];
-  const normalizedRepoBase = `https://github.com/${owner}/${repo}`;
-
-  const commitMatch = new RegExp(`^${escapeRegExp(normalizedRepoBase)}/commit/([0-9a-f]{7,40})`).exec(href);
-  if (commitMatch) {
-    const commitSha = commitMatch[1];
-    return {
-      type: 'commit',
-      sourceUrl: href,
-      fetchUrl: `${removeAnchor(href)}.patch`,
-      commitSha,
-    };
-  }
-
-  const blobMatch = new RegExp(`^${escapeRegExp(normalizedRepoBase)}/blob/([^/]+)/(.+?)(?:#.*)?$`).exec(href);
-  if (blobMatch) {
-    const targetBranch = decodeURIComponent(blobMatch[1]);
-    const normalizedPath = normalizeRepoPath(decodeURIComponent(blobMatch[2]));
-    return {
-      type: guessFileNodeType(normalizedPath),
-      sourceUrl: href,
-      fetchUrl: toRawUrl(repoUrl, targetBranch, normalizedPath),
-      path: normalizedPath,
-    };
-  }
-
-  const issueMatch = new RegExp(`^${escapeRegExp(normalizedRepoBase)}/issues/(\\d+)`).exec(href);
-  if (issueMatch) {
-    return {
-      type: 'issue',
-      sourceUrl: href,
-      fetchUrl: href,
-    };
-  }
-
-  const discussionMatch = new RegExp(`^${escapeRegExp(normalizedRepoBase)}/discussions/(\\d+)`).exec(href);
-  if (discussionMatch) {
-    return {
-      type: 'discussion',
-      sourceUrl: href,
-      fetchUrl: href,
-    };
+    documents.push({
+      id: documentId,
+      path: file.path,
+      title: basename(file.path),
+      sourceUrl,
+      extension,
+      topLevelDir,
+      sizeBytes: file.sizeBytes,
+      contentHash,
+      chunkIds: documentChunkIds,
+    });
+    chunks.push(...processedChunks);
   }
 
   return {
-    type: 'external',
-    sourceUrl: href,
-    fetchUrl: href,
+    version: INDEX_VERSION,
+    source: {
+      repoUrl: input.repoUrl,
+      branch: input.branch,
+      syncedAt: new Date().toISOString(),
+      revision: input.revision,
+      repoDir: input.repoDir,
+      indexedFiles: documents.length,
+      indexedChunks: chunks.length,
+      excludedPathPrefixes: input.excludedPathPrefixes,
+      excludedSubmodulePaths: input.excludedSubmodulePaths,
+    },
+    build: {
+      chunkSize: input.chunkSize,
+      chunkOverlap: input.chunkOverlap,
+      maxFileSizeBytes: input.maxFileSizeBytes,
+    },
+    bm25: {
+      documentCount: chunks.length,
+      averageDocumentLength: chunks.length > 0 ? totalDocumentLength / chunks.length : 0,
+      documentFrequency,
+    },
+    documents,
+    chunks,
   };
 }
 
-function isExcludedKnowledgePath(path: string): boolean {
-  return DEFAULT_EXCLUDED_PATH_PREFIXES.some(
+function listRepositoryFiles(
+  repoDir: string,
+  excludedPathPrefixes: string[],
+  maxFileSizeBytes: number,
+): Array<{ path: string; sizeBytes: number }> {
+  const results: Array<{ path: string; sizeBytes: number }> = [];
+  const stack = [''];
+
+  while (stack.length > 0) {
+    const relativeDir = stack.pop()!;
+    const absoluteDir = join(repoDir, relativeDir);
+    const entries = readdirSync(absoluteDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') && entry.name !== '.gitmodules') {
+        if (entry.isDirectory()) {
+          continue;
+        }
+      }
+
+      const relativePath = relativeDir ? join(relativeDir, entry.name) : entry.name;
+      const normalizedPath = normalizeRepoPath(relativePath);
+
+      if (isExcludedPath(normalizedPath, excludedPathPrefixes)) {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        if (IGNORED_DIR_NAMES.has(entry.name)) {
+          continue;
+        }
+        stack.push(normalizedPath);
+        continue;
+      }
+
+      const stats = statSync(join(repoDir, normalizedPath));
+      if (!stats.isFile() || stats.size > maxFileSizeBytes) {
+        continue;
+      }
+
+      results.push({
+        path: normalizedPath,
+        sizeBytes: stats.size,
+      });
+    }
+  }
+
+  results.sort((left, right) => left.path.localeCompare(right.path));
+  return results;
+}
+
+function isExcludedPath(path: string, excludedPathPrefixes: string[]): boolean {
+  return excludedPathPrefixes.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`)
   );
 }
 
-function scoreEntry(entry: KnowledgeEntry, query: string, queryTokens: string[]): number {
-  const title = entry.title.toLowerCase();
-  const annotations = entry.annotations.join(' ').toLowerCase();
-  const body = entry.body.toLowerCase();
-  const path = (entry.path ?? '').toLowerCase();
-  const queryLower = query.toLowerCase();
-  let score = 0;
-
-  if (title.includes(queryLower)) score += 40;
-  if (annotations.includes(queryLower)) score += 25;
-  if (body.includes(queryLower)) score += 14;
-  if (path.includes(queryLower)) score += 20;
-
-  for (const token of queryTokens) {
-    if (title.includes(token)) score += 10;
-    if (annotations.includes(token)) score += 7;
-    if (path.includes(token)) score += 5;
-    if (body.includes(token)) score += 4;
+function looksBinary(buffer: Buffer, path: string): boolean {
+  const extension = extname(path).toLowerCase();
+  if (BINARY_EXTENSIONS.has(extension)) {
+    return true;
   }
 
-  if (entry.type === 'readme') score += 2;
-  if (entry.type === 'commit') score += 3;
+  const sample = buffer.subarray(0, Math.min(buffer.length, 1024));
+  let suspicious = 0;
+  for (const byte of sample) {
+    if (byte === 0) {
+      return true;
+    }
+    if (byte < 7 || (byte > 14 && byte < 32)) {
+      suspicious++;
+    }
+  }
+  return sample.length > 0 && suspicious / sample.length > 0.2;
+}
+
+function chunkText(
+  content: string,
+  chunkSize: number,
+  chunkOverlap: number,
+): Array<{ text: string; lineStart: number; lineEnd: number }> {
+  const lines = content.split(/\r?\n/);
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const chunks: Array<{ text: string; lineStart: number; lineEnd: number }> = [];
+  let startLine = 0;
+
+  while (startLine < lines.length) {
+    let endLine = startLine;
+    let currentLength = 0;
+
+    while (endLine < lines.length) {
+      const candidateLength = currentLength + lines[endLine].length + 1;
+      if (candidateLength > chunkSize && endLine > startLine) {
+        break;
+      }
+      currentLength = candidateLength;
+      endLine++;
+    }
+
+    const text = lines.slice(startLine, endLine).join('\n').trim();
+    if (text) {
+      chunks.push({
+        text,
+        lineStart: startLine + 1,
+        lineEnd: endLine,
+      });
+    }
+
+    if (endLine >= lines.length) {
+      break;
+    }
+
+    let overlapChars = 0;
+    let nextStart = endLine;
+    while (nextStart > startLine + 1 && overlapChars < chunkOverlap) {
+      nextStart--;
+      overlapChars += lines[nextStart].length + 1;
+    }
+
+    startLine = Math.max(nextStart, startLine + 1);
+  }
+
+  return chunks;
+}
+
+function searchBm25(
+  index: RepositoryIndex,
+  query: string,
+  limit: number,
+): ChunkCandidate[] {
+  const queryTerms = countTerms(tokenize(query));
+  if (Object.keys(queryTerms).length === 0) {
+    return [];
+  }
+
+  const scores: ChunkCandidate[] = [];
+  for (const chunk of index.chunks) {
+    const score = computeBm25Score(chunk, queryTerms, index.bm25);
+    if (score > 0) {
+      scores.push({ chunk, score });
+    }
+  }
+
+  scores.sort((left, right) => right.score - left.score);
+  return scores.slice(0, limit);
+}
+
+function computeBm25Score(
+  chunk: RepositoryChunk,
+  queryTerms: Record<string, number>,
+  bm25: RepositoryIndex['bm25'],
+): number {
+  const k1 = 1.5;
+  const b = 0.75;
+  const averageDocLength = bm25.averageDocumentLength || 1;
+  let score = 0;
+
+  for (const [term, queryFrequency] of Object.entries(queryTerms)) {
+    const termFrequency = chunk.termFrequency[term] ?? 0;
+    if (termFrequency === 0) {
+      continue;
+    }
+    const documentFrequency = bm25.documentFrequency[term] ?? 0;
+    const idf = Math.log(1 + (bm25.documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5));
+    const numerator = termFrequency * (k1 + 1);
+    const denominator =
+      termFrequency +
+      k1 * (1 - b + b * (chunk.tokenCount / averageDocLength));
+    score += idf * (numerator / denominator) * queryFrequency;
+  }
 
   return score;
 }
 
-function buildSnippet(entry: KnowledgeEntry, query: string): string {
-  const combined = [entry.annotations.join('\n'), entry.body].filter(Boolean).join('\n\n');
-  if (!combined) {
-    return entry.sourceUrl;
+function aggregateChunkCandidates(
+  chunkCandidates: ChunkCandidate[],
+  index: RepositoryIndex,
+  filters?: RagMetadataFilter,
+): DocumentCandidate[] {
+  const documentsById = new Map(index.documents.map((document) => [document.id, document]));
+  const bestByDocument = new Map<string, DocumentCandidate>();
+
+  for (let rank = 0; rank < chunkCandidates.length; rank++) {
+    const candidate = chunkCandidates[rank];
+    if (!matchesMetadataFilter(candidate.chunk, filters)) {
+      continue;
+    }
+    const document = documentsById.get(candidate.chunk.documentId);
+    if (!document) {
+      continue;
+    }
+    const existing = bestByDocument.get(document.id);
+    if (!existing || candidate.score > existing.score) {
+      bestByDocument.set(document.id, {
+        document,
+        chunk: candidate.chunk,
+        score: candidate.score,
+        rank: rank + 1,
+      });
+    }
   }
 
-  const lower = combined.toLowerCase();
-  const queryTokens = tokenize(query);
+  return Array.from(bestByDocument.values()).sort((left, right) => right.score - left.score);
+}
 
+async function searchSemantic(
+  query: string,
+  index: RepositoryIndex,
+  embeddingStore: EmbeddingStore,
+  config: Required<EmbeddingConfig>,
+  limit: number,
+): Promise<ChunkCandidate[]> {
+  const [queryVector] = await fetchEmbeddings({
+    texts: [query],
+    config,
+  });
+  const normalizedQuery = normalizeVector(queryVector);
+  const scores: ChunkCandidate[] = [];
+
+  for (const chunk of index.chunks) {
+    const entry = embeddingStore.vectors[chunk.id];
+    if (!entry || entry.contentHash !== chunk.contentHash) {
+      continue;
+    }
+    const score = dotProduct(normalizedQuery, entry.vector);
+    if (score > 0) {
+      scores.push({ chunk, score });
+    }
+  }
+
+  scores.sort((left, right) => right.score - left.score);
+  return scores.slice(0, limit);
+}
+
+async function fetchEmbeddings(input: {
+  texts: string[];
+  config: Required<EmbeddingConfig>;
+}): Promise<number[][]> {
+  if (!input.config.apiKey) {
+    throw new Error('missing embedding api key');
+  }
+
+  const endpoint = `${normalizeBaseUrl(input.config.baseURL)}/embeddings`;
+  const body: Record<string, unknown> = {
+    model: input.config.model,
+    input: input.texts,
+    encoding_format: 'float',
+  };
+  if (input.config.dimensions) {
+    body.dimensions = input.config.dimensions;
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${input.config.apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(input.config.requestTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`embedding request failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+  }
+
+  const payload = await response.json() as {
+    data?: Array<{ embedding?: number[] }>;
+  };
+  const vectors = payload.data?.map((item) => item.embedding ?? []);
+  if (!vectors || vectors.length !== input.texts.length) {
+    throw new Error('embedding response did not contain the expected number of vectors');
+  }
+
+  return vectors;
+}
+
+function fuseDocumentCandidates(input: {
+  keywordCandidates: DocumentCandidate[];
+  semanticCandidates: DocumentCandidate[];
+  maxResults: number;
+  keywordWeight: number;
+  semanticWeight: number;
+}): Array<DocumentCandidate & { keywordScore?: number; semanticScore?: number }> {
+  const keywordMax = input.keywordCandidates[0]?.score ?? 0;
+  const semanticMax = input.semanticCandidates[0]?.score ?? 0;
+  const fused = new Map<string, DocumentCandidate & { keywordScore?: number; semanticScore?: number }>();
+
+  const effectiveKeywordWeight =
+    input.semanticCandidates.length > 0 ? input.keywordWeight : 1;
+  const effectiveSemanticWeight =
+    input.semanticCandidates.length > 0 ? input.semanticWeight : 0;
+
+  for (const candidate of input.keywordCandidates) {
+    fused.set(candidate.document.id, {
+      ...candidate,
+      score: 0,
+      keywordScore: candidate.score,
+      semanticScore: undefined,
+    });
+  }
+
+  for (const candidate of input.semanticCandidates) {
+    const existing = fused.get(candidate.document.id);
+    if (existing) {
+      if (candidate.score > (existing.semanticScore ?? 0)) {
+        existing.semanticScore = candidate.score;
+        if (candidate.score > (existing.keywordScore ?? 0)) {
+          existing.chunk = candidate.chunk;
+        }
+      }
+    } else {
+      fused.set(candidate.document.id, {
+        ...candidate,
+        score: 0,
+        keywordScore: undefined,
+        semanticScore: candidate.score,
+      });
+    }
+  }
+
+  const ranked = Array.from(fused.values()).map((candidate) => {
+    const keywordScore = candidate.keywordScore ?? 0;
+    const semanticScore = candidate.semanticScore ?? 0;
+    const keywordNormalized = keywordMax > 0 ? keywordScore / keywordMax : 0;
+    const semanticNormalized = semanticMax > 0 ? semanticScore / semanticMax : 0;
+    const keywordRank = reciprocalRank(findRank(input.keywordCandidates, candidate.document.id));
+    const semanticRank = reciprocalRank(findRank(input.semanticCandidates, candidate.document.id));
+
+    candidate.score =
+      effectiveKeywordWeight * keywordNormalized +
+      effectiveSemanticWeight * semanticNormalized +
+      0.1 * keywordRank +
+      0.1 * semanticRank;
+    return candidate;
+  });
+
+  ranked.sort((left, right) => right.score - left.score);
+  return ranked.slice(0, input.maxResults);
+}
+
+function findRank(candidates: DocumentCandidate[], documentId: string): number | undefined {
+  const candidate = candidates.find((item) => item.document.id === documentId);
+  return candidate?.rank;
+}
+
+function reciprocalRank(rank?: number): number {
+  if (!rank) {
+    return 0;
+  }
+  return 1 / (rank + 50);
+}
+
+function matchesMetadataFilter(
+  chunk: RepositoryChunk,
+  filters?: RagMetadataFilter,
+): boolean {
+  if (!filters) {
+    return true;
+  }
+
+  if (
+    filters.topLevelDirs &&
+    filters.topLevelDirs.length > 0 &&
+    !filters.topLevelDirs.includes(chunk.metadata.topLevelDir)
+  ) {
+    return false;
+  }
+
+  if (
+    filters.extensions &&
+    filters.extensions.length > 0 &&
+    !filters.extensions.includes(chunk.metadata.extension)
+  ) {
+    return false;
+  }
+
+  if (
+    filters.pathPrefixes &&
+    filters.pathPrefixes.length > 0 &&
+    !filters.pathPrefixes.some((prefix) => chunk.path.startsWith(prefix))
+  ) {
+    return false;
+  }
+
+  if (
+    filters.excludePathPrefixes &&
+    filters.excludePathPrefixes.some((prefix) => chunk.path.startsWith(prefix))
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function tokenize(input: string): string[] {
+  const tokens: string[] = [];
+  const normalized = input.toLowerCase();
+  const latinMatches = normalized.match(/[a-z0-9_@./:-]+/g) ?? [];
+  for (const match of latinMatches) {
+    if (match.length >= 2) {
+      tokens.push(match);
+    }
+  }
+
+  const cjkMatches = normalized.match(/[\u4e00-\u9fff]+/g) ?? [];
+  for (const match of cjkMatches) {
+    if (match.length === 1) {
+      tokens.push(match);
+      continue;
+    }
+    for (let i = 0; i < match.length - 1; i++) {
+      tokens.push(match.slice(i, i + 2));
+    }
+  }
+
+  return tokens;
+}
+
+function countTerms(tokens: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const token of tokens) {
+    counts[token] = (counts[token] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function buildSnippet(text: string, query: string): string {
+  const normalizedText = text.toLowerCase();
+  const queryTokens = tokenize(query);
   for (const token of [query.toLowerCase(), ...queryTokens]) {
     if (!token) {
       continue;
     }
-    const index = lower.indexOf(token);
+    const index = normalizedText.indexOf(token);
     if (index >= 0) {
       const start = Math.max(0, index - 120);
-      const end = Math.min(combined.length, index + 220);
-      return combined.slice(start, end).trim();
+      const end = Math.min(text.length, index + 220);
+      return text.slice(start, end).trim();
     }
   }
-
-  return combined.slice(0, 320).trim();
+  return text.slice(0, 320).trim();
 }
 
-function tokenize(input: string): string[] {
-  return Array.from(
-    new Set(
-      input
-        .toLowerCase()
-        .split(/[^a-z0-9\u4e00-\u9fff]+/i)
-        .map((token) => token.trim())
-        .filter((token) => token.length >= 2)
-    )
-  );
+function buildEmbeddingInput(chunk: RepositoryChunk): string {
+  return [
+    `path: ${chunk.path}`,
+    `top-level: ${chunk.metadata.topLevelDir}`,
+    chunk.text,
+  ].join('\n');
 }
 
-function buildEntryId(resolved: ResolvedLink): string {
-  if (resolved.type === 'commit' && resolved.commitSha) {
-    return `commit:${resolved.commitSha}`;
+function normalizeVector(vector: number[]): number[] {
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+  if (!Number.isFinite(norm) || norm === 0) {
+    return vector;
   }
-  if (resolved.path) {
-    return `${resolved.type}:${resolved.path}`;
-  }
-  return `${resolved.type}:${resolved.sourceUrl}`;
+  return vector.map((value) => value / norm);
 }
 
-function buildCacheKey(resolved: ResolvedLink): string {
-  if (resolved.type === 'commit' && resolved.commitSha) {
-    return `commit-${resolved.commitSha}`;
+function dotProduct(left: number[], right: number[]): number {
+  const length = Math.min(left.length, right.length);
+  let sum = 0;
+  for (let i = 0; i < length; i++) {
+    sum += left[i] * right[i];
   }
-  if (resolved.path) {
-    return safeHash(`${resolved.type}:${resolved.path}`);
-  }
-  return safeHash(`${resolved.type}:${resolved.sourceUrl}`);
+  return sum;
 }
 
-function safeHash(input: string): string {
-  return createHash('sha256').update(input).digest('hex');
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
-function normalizeRevision(revisionHeader: string | null, text: string): string {
-  if (revisionHeader) {
-    return revisionHeader.replace(/^W\//, '').replace(/"/g, '');
-  }
-  return safeHash(text);
+function getTopLevelDir(path: string): string {
+  const firstSegment = normalizeRepoPath(path).split('/')[0];
+  return firstSegment || 'root';
 }
 
 function normalizeRepoPath(path: string): string {
-  return decodeURIComponent(path)
-    .replace(/^\.?\//, '')
-    .replace(/^\/+/, '');
+  return path.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^\/+/, '');
+}
+
+function normalizeBaseUrl(baseURL: string): string {
+  return baseURL.replace(/\/+$/, '');
 }
 
 function toBlobUrl(repoUrl: string, branch: string, path: string): string {
@@ -661,75 +1321,34 @@ function toBlobUrl(repoUrl: string, branch: string, path: string): string {
   return `${repoBase}/blob/${encodeURIComponent(branch)}/${encodedPath}`;
 }
 
-function toRawUrl(repoUrl: string, branch: string, path: string): string {
-  const githubMatch = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/.exec(repoUrl);
-  if (!githubMatch) {
-    throw new Error(`Unsupported GitHub repository URL: ${repoUrl}`);
+function hashText(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+function parseOptionalInt(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
   }
-  const owner = githubMatch[1];
-  const repo = githubMatch[2];
-  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${encodedPath}`;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function removeAnchor(input: string): string {
-  return input.replace(/#.*$/, '');
-}
-
-function extractHtmlText(html: string, sourceUrl: string): string {
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-  const title = titleMatch ? decodeHtml(stripWhitespace(titleMatch[1])) : '';
-
-  const stripped = html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ');
-
-  const text = decodeHtml(stripWhitespace(stripped));
-  return [title, text, sourceUrl].filter(Boolean).join('\n\n');
-}
-
-function decodeHtml(input: string): string {
-  return input
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function stripWhitespace(input: string): string {
-  return input.replace(/\s+/g, ' ').trim();
-}
-
-function stripMarkdown(input: string): string {
-  return input
-    .replace(/!\[[^\]]*]\(([^)]+)\)/g, '$1')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function truncate(input: string, maxLength: number): string {
-  if (input.length <= maxLength) {
-    return input;
+function parseStringList(value: string | undefined): string[] | undefined {
+  if (!value?.trim()) {
+    return undefined;
   }
-  return `${input.slice(0, maxLength)}\n...`;
+  const items = value
+    .split(',')
+    .map((item) => normalizeRepoPath(item.trim()))
+    .filter(Boolean);
+  return items.length > 0 ? items : undefined;
 }
 
-function guessFileNodeType(path: string): KnowledgeNodeType {
-  return normalizeRepoPath(path).toLowerCase() === 'readme.md' ? 'readme' : 'file';
-}
-
-function isTextLikePath(path: string): boolean {
-  return /\.(md|txt|ts|tsx|js|jsx|json|yaml|yml|css|scss|html|vue|svelte|cjs|mjs|sh|py|java|kt|go|rs|c|cc|cpp|h)$/i.test(path);
-}
-
-function escapeRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function sameStringSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  const normalizedLeft = [...left].sort();
+  const normalizedRight = [...right].sort();
+  return normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
