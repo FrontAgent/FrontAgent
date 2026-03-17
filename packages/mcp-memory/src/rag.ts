@@ -23,7 +23,11 @@ const DEFAULT_CHUNK_SIZE = 1200;
 const DEFAULT_CHUNK_OVERLAP = 200;
 const DEFAULT_MAX_FILE_SIZE_BYTES = 256 * 1024;
 const DEFAULT_FETCH_TIMEOUT_MS = 30000;
-const DEFAULT_EMBEDDING_BATCH_SIZE = 32;
+const DEFAULT_EMBEDDING_BATCH_SIZE = 4;
+const DEFAULT_EMBEDDING_MAX_BATCH_TOKENS = 6000;
+const DEFAULT_EMBEDDING_MAX_RETRIES = 6;
+const DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS = 1500;
+const DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS = 250;
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 const DEFAULT_EMBEDDING_DIMENSIONS = 512;
 const DEFAULT_EXCLUDED_PATH_PREFIXES: string[] = [];
@@ -113,6 +117,18 @@ export interface RagQueryResult {
   warnings?: string[];
   searchMode?: 'hybrid' | 'keyword_only';
   error?: string;
+}
+
+class EmbeddingRequestError extends Error {
+  readonly status: number;
+  readonly retryAfterMs?: number;
+
+  constructor(message: string, status: number, retryAfterMs?: number) {
+    super(message);
+    this.name = 'EmbeddingRequestError';
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
+  }
 }
 
 interface RepositoryIndex {
@@ -296,29 +312,53 @@ class HybridRepositoryKnowledgeBase {
 
       if (this.config.embedding.enabled) {
         if (this.config.embedding.apiKey) {
+          let embeddingStore: EmbeddingStore | null = null;
+          let usedPartialEmbeddingCache = false;
+
           try {
-            const embeddingStore = await this.ensureEmbeddings(index);
-            const semanticChunkCandidates = await searchSemantic(
-              queryText,
-              index,
-              embeddingStore,
-              this.config.embedding,
-              this.config.semanticCandidateCount,
-            );
-            semanticDocumentCandidates = aggregateChunkCandidates(
-              semanticChunkCandidates,
-              index,
-              filters,
-            );
-            if (semanticDocumentCandidates.length > 0) {
-              searchMode = 'hybrid';
-            } else {
-              warnings.push('Semantic search returned no candidates; keyword results were used.');
-            }
+            embeddingStore = await this.ensureEmbeddings(index);
           } catch (error) {
-            warnings.push(
-              `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
-            );
+            const cachedStore = this.readEmbeddingStore();
+            if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
+              embeddingStore = cachedStore;
+              usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
+            }
+
+            if (!embeddingStore || !usedPartialEmbeddingCache) {
+              warnings.push(
+                `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+              );
+            } else {
+              warnings.push(
+                `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`
+              );
+            }
+          }
+
+          if (embeddingStore) {
+            try {
+              const semanticChunkCandidates = await searchSemantic(
+                queryText,
+                index,
+                embeddingStore,
+                this.config.embedding,
+                this.config.semanticCandidateCount,
+              );
+              semanticDocumentCandidates = aggregateChunkCandidates(
+                semanticChunkCandidates,
+                index,
+                filters,
+              );
+              if (semanticDocumentCandidates.length > 0) {
+                searchMode = 'hybrid';
+              } else {
+                warnings.push('Semantic search returned no candidates; keyword results were used.');
+              }
+            } catch (error) {
+              warnings.push(
+                `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
           }
         } else {
           warnings.push('Embedding API key is not configured; keyword-only search was used.');
@@ -471,17 +511,34 @@ class HybridRepositoryKnowledgeBase {
       return store;
     }
 
-    const batches = chunkArray(missingChunks, this.config.embedding.batchSize);
+    const embeddingInputs = missingChunks.map((chunk) => ({
+      chunk,
+      inputText: buildEmbeddingInput(chunk),
+      estimatedTokens: estimateEmbeddingTokens(buildEmbeddingInput(chunk)),
+    }));
+    const batches = createEmbeddingBatches(
+      embeddingInputs,
+      this.config.embedding.batchSize,
+      DEFAULT_EMBEDDING_MAX_BATCH_TOKENS,
+    );
+
     for (const batch of batches) {
       const vectors = await fetchEmbeddings({
-        texts: batch.map((chunk) => buildEmbeddingInput(chunk)),
+        texts: batch.map((item) => item.inputText),
         config: this.config.embedding,
       });
       for (let i = 0; i < batch.length; i++) {
-        store.vectors[batch[i].id] = {
-          contentHash: batch[i].contentHash,
+        store.vectors[batch[i].chunk.id] = {
+          contentHash: batch[i].chunk.contentHash,
           vector: normalizeVector(vectors[i]),
         };
+      }
+
+      store.updatedAt = new Date().toISOString();
+      this.writeEmbeddingStore(store);
+
+      if (batches.length > 1) {
+        await sleep(DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS);
       }
     }
 
@@ -1066,22 +1123,34 @@ async function fetchEmbeddings(input: {
     return [];
   }
 
-  try {
-    return await requestEmbeddings(input);
-  } catch (error) {
-    if (shouldSplitEmbeddingBatch(error) && input.texts.length > 1) {
-      const midpoint = Math.ceil(input.texts.length / 2);
-      const left = await fetchEmbeddings({
-        texts: input.texts.slice(0, midpoint),
-        config: input.config,
-      });
-      const right = await fetchEmbeddings({
-        texts: input.texts.slice(midpoint),
-        config: input.config,
-      });
-      return [...left, ...right];
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await requestEmbeddings(input);
+    } catch (error) {
+      if (shouldSplitEmbeddingBatch(error) && input.texts.length > 1) {
+        const midpoint = Math.ceil(input.texts.length / 2);
+        const left = await fetchEmbeddings({
+          texts: input.texts.slice(0, midpoint),
+          config: input.config,
+        });
+        const right = await fetchEmbeddings({
+          texts: input.texts.slice(midpoint),
+          config: input.config,
+        });
+        return [...left, ...right];
+      }
+
+      if (shouldRetryEmbeddingRequest(error) && attempt < DEFAULT_EMBEDDING_MAX_RETRIES) {
+        const delayMs = getEmbeddingRetryDelayMs(error, attempt);
+        await sleep(delayMs);
+        attempt += 1;
+        continue;
+      }
+
+      throw error;
     }
-    throw error;
   }
 }
 
@@ -1115,7 +1184,11 @@ async function requestEmbeddings(input: {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`embedding request failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+    throw new EmbeddingRequestError(
+      `embedding request failed: ${response.status} ${response.statusText} ${errorText}`.trim(),
+      response.status,
+      parseRetryAfterHeader(response.headers.get('retry-after')),
+    );
   }
 
   const payload = await response.json() as {
@@ -1138,6 +1211,54 @@ function shouldSplitEmbeddingBatch(error: unknown): boolean {
     message.includes('context length') ||
     message.includes('maximum input length')
   );
+}
+
+function shouldRetryEmbeddingRequest(error: unknown): boolean {
+  if (error instanceof EmbeddingRequestError) {
+    return error.status === 429 || error.status >= 500;
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes('429') ||
+    message.includes('too many requests') ||
+    message.includes('rate limit') ||
+    message.includes('etimedout') ||
+    message.includes('timeout') ||
+    message.includes('econnreset') ||
+    message.includes('socket hang up')
+  );
+}
+
+function getEmbeddingRetryDelayMs(error: unknown, attempt: number): number {
+  if (error instanceof EmbeddingRequestError && error.retryAfterMs) {
+    return error.retryAfterMs;
+  }
+
+  const multiplier = 2 ** attempt;
+  return DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS * multiplier;
+}
+
+function parseRetryAfterHeader(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const seconds = Number(value);
+  if (!Number.isNaN(seconds) && seconds >= 0) {
+    return seconds * 1000;
+  }
+
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) {
+    return undefined;
+  }
+
+  return Math.max(0, date - Date.now());
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function fuseDocumentCandidates(input: {
@@ -1332,12 +1453,46 @@ function dotProduct(left: number[], right: number[]): number {
   return sum;
 }
 
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+function createEmbeddingBatches<T extends { estimatedTokens: number }>(
+  items: T[],
+  maxItems: number,
+  maxEstimatedTokens: number,
+): T[][] {
+  if (items.length === 0) {
+    return [];
   }
-  return chunks;
+
+  const batches: T[][] = [];
+  let currentBatch: T[] = [];
+  let currentTokens = 0;
+
+  for (const item of items) {
+    const wouldOverflowByCount = currentBatch.length >= maxItems;
+    const wouldOverflowByTokens =
+      currentBatch.length > 0 &&
+      currentTokens + item.estimatedTokens > maxEstimatedTokens;
+
+    if (wouldOverflowByCount || wouldOverflowByTokens) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentTokens = 0;
+    }
+
+    currentBatch.push(item);
+    currentTokens += item.estimatedTokens;
+  }
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+}
+
+function estimateEmbeddingTokens(input: string): number {
+  // Use a conservative heuristic because some gateways enforce a strict total-token
+  // budget across the entire embedding batch, not per individual input.
+  return Math.max(1, input.length);
 }
 
 function getTopLevelDir(path: string): string {
@@ -1356,6 +1511,18 @@ function normalizeBaseUrl(baseURL: string): string {
 function normalizeEmbeddingBaseUrl(baseURL: string): string {
   const normalized = normalizeBaseUrl(baseURL);
   return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
+}
+
+function isCompatibleEmbeddingStore(
+  store: EmbeddingStore | null,
+  config: Required<EmbeddingConfig>,
+): store is EmbeddingStore {
+  return Boolean(
+    store &&
+      store.model === config.model &&
+      store.baseURL === config.baseURL &&
+      store.dimensions === config.dimensions
+  );
 }
 
 function toBlobUrl(repoUrl: string, branch: string, path: string): string {
