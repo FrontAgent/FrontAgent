@@ -15,7 +15,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 const INDEX_VERSION = 4;
-const EMBEDDING_STORE_VERSION = 2;
+const EMBEDDING_STORE_VERSION = 3;
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_KEYWORD_CANDIDATES = 40;
 const DEFAULT_SEMANTIC_CANDIDATES = 40;
@@ -25,6 +25,7 @@ const DEFAULT_MAX_FILE_SIZE_BYTES = 256 * 1024;
 const DEFAULT_FETCH_TIMEOUT_MS = 30000;
 const DEFAULT_EMBEDDING_BATCH_SIZE = 4;
 const DEFAULT_EMBEDDING_MAX_BATCH_TOKENS = 6000;
+const DEFAULT_EMBEDDING_MAX_INPUT_CHARS = 4000;
 const DEFAULT_EMBEDDING_MAX_RETRIES = 6;
 const DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS = 1500;
 const DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS = 250;
@@ -1432,8 +1433,24 @@ function buildEmbeddingInput(chunk: RepositoryChunk): string {
   return [
     `path: ${chunk.path}`,
     `top-level: ${chunk.metadata.topLevelDir}`,
-    chunk.text,
+    truncateEmbeddingText(chunk.text, DEFAULT_EMBEDDING_MAX_INPUT_CHARS),
   ].join('\n');
+}
+
+function truncateEmbeddingText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  const marker = '\n...[truncated for embedding]...\n';
+  if (maxChars <= marker.length + 32) {
+    return text.slice(0, maxChars);
+  }
+
+  const remaining = maxChars - marker.length;
+  const headChars = Math.ceil(remaining * 0.75);
+  const tailChars = remaining - headChars;
+  return `${text.slice(0, headChars)}${marker}${text.slice(-tailChars)}`;
 }
 
 function normalizeVector(vector: number[]): number[] {
