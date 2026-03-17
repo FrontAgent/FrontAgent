@@ -124,6 +124,26 @@ export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
 
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
 
+Prebuilt cache bundle workflow:
+
+- Do not commit `.frontagent/rag-cache` into Git
+- Export a prebuilt cache bundle and upload it to GitHub Releases or object storage
+- Other users can import the bundle locally before their first query
+
+```bash
+# Export the current cache directory as a distributable tar.gz bundle
+frontagent rag export
+
+# Export to a custom path
+frontagent rag export --output ./artifacts/frontagent-rag-cache.tar.gz
+
+# Import from a local file
+frontagent rag import ./artifacts/frontagent-rag-cache.tar.gz --force
+
+# Import from a remote URL
+frontagent rag import https://example.com/frontagent-rag-cache.tar.gz --force
+```
+
 ## Architecture Overview
 
 ### System Architecture

@@ -39,6 +39,7 @@ temp/
 
 # FrontAgent specific
 .frontagent/
+artifacts/
 
 # claude code
 .claude/

@@ -124,6 +124,26 @@ export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
 
 如果 `provider=openai`，并且没有单独设置 `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY`，FrontAgent 会自动复用智能体 LLM 的 `base-url` 和 `api-key`。
 
+预构建缓存包分发流程：
+
+- 不要把 `.frontagent/rag-cache` 直接提交到 Git
+- 先导出一个预构建缓存包，再上传到 GitHub Releases 或对象存储
+- 其他使用者在第一次 query 前先导入这个缓存包即可
+
+```bash
+# 导出当前缓存目录为可分发 tar.gz 包
+frontagent rag export
+
+# 导出到指定路径
+frontagent rag export --output ./artifacts/frontagent-rag-cache.tar.gz
+
+# 从本地文件导入
+frontagent rag import ./artifacts/frontagent-rag-cache.tar.gz --force
+
+# 从远程 URL 导入
+frontagent rag import https://example.com/frontagent-rag-cache.tar.gz --force
+```
+
 ## 架构概览
 
 ### 系统架构
