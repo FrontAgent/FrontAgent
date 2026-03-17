@@ -81,12 +81,23 @@ CLI options:
 
 ```bash
 frontagent run "Explain React setState behavior" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
   --rag-repo https://github.com/ceilf6/Lab.git \
   --rag-branch main \
   --rag-keyword-candidates 40 \
   --rag-semantic-candidates 40 \
   --rag-keyword-weight 0.45 \
   --rag-semantic-weight 0.55
+
+# When provider=openai, RAG embeddings inherit the same base-url/api-key by default.
+# Override them only if your embedding endpoint is different.
+frontagent run "Explain React setState behavior" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
+  --rag-embedding-model text-embedding-3-small
 
 # Disable semantic retrieval and use BM25 only
 frontagent run "Explain React setState behavior" \
@@ -110,6 +121,8 @@ export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
 ```
+
+If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
 
 ## Architecture Overview
 

@@ -81,12 +81,23 @@ CLI 参数：
 
 ```bash
 frontagent run "解释 React setState 的行为" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
   --rag-repo https://github.com/ceilf6/Lab.git \
   --rag-branch main \
   --rag-keyword-candidates 40 \
   --rag-semantic-candidates 40 \
   --rag-keyword-weight 0.45 \
   --rag-semantic-weight 0.55
+
+# 当 provider=openai 时，RAG embedding 默认继承同一套 base-url/api-key
+# 只有 embedding 端点与大模型端点不同的时候，才需要单独覆盖
+frontagent run "解释 React setState 的行为" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
+  --rag-embedding-model text-embedding-3-small
 
 # 禁用语义检索，仅使用 BM25
 frontagent run "解释 React setState 的行为" \
@@ -110,6 +121,8 @@ export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
 ```
+
+如果 `provider=openai`，并且没有单独设置 `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY`，FrontAgent 会自动复用智能体 LLM 的 `base-url` 和 `api-key`。
 
 ## 架构概览
 

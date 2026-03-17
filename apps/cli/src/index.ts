@@ -45,6 +45,20 @@ function parsePathList(values: string[] | undefined, fallback?: string): string[
     .filter(Boolean);
 }
 
+function resolveProviderApiKey(
+  provider: 'openai' | 'anthropic',
+  cliValue?: string,
+): string | undefined {
+  return cliValue ?? process.env[`${provider.toUpperCase()}_API_KEY`] ?? process.env.API_KEY;
+}
+
+function resolveProviderBaseURL(
+  provider: 'openai' | 'anthropic',
+  cliValue?: string,
+): string | undefined {
+  return cliValue ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
+}
+
 program
   .name('frontagent')
   .description('FrontAgent - 工程级 AI Agent 系统')
@@ -290,6 +304,8 @@ program
     };
 
     const model = options.model || process.env.MODEL || getDefaultModel(provider);
+    const resolvedLlmApiKey = resolveProviderApiKey(provider, options.apiKey);
+    const resolvedLlmBaseURL = resolveProviderBaseURL(provider, options.baseUrl);
     const executionEngineRaw = (options.engine || process.env.EXECUTION_ENGINE || 'native').toLowerCase();
     const executionEngine = executionEngineRaw === 'langgraph' ? 'langgraph' : 'native';
     const useLangGraphCheckpoint = Boolean(
@@ -325,8 +341,14 @@ program
       embedding: {
         enabled: !options.disableRagSemantic,
         model: options.ragEmbeddingModel,
-        baseURL: options.ragEmbeddingBaseUrl,
-        apiKey: options.ragEmbeddingApiKey || process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY || process.env.OPENAI_API_KEY || process.env.API_KEY,
+        baseURL:
+          options.ragEmbeddingBaseUrl ??
+          process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL ??
+          (provider === 'openai' ? resolvedLlmBaseURL : undefined),
+        apiKey:
+          options.ragEmbeddingApiKey ??
+          process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY ??
+          (provider === 'openai' ? resolvedLlmApiKey : undefined),
         dimensions: parseOptionalInt(options.ragEmbeddingDimensions),
         batchSize: parseOptionalInt(options.ragEmbeddingBatchSize),
         requestTimeoutMs: parseOptionalInt(options.ragEmbeddingTimeoutMs),
@@ -338,7 +360,7 @@ program
       console.log(chalk.gray(`\n🔧 LLM 配置:`));
       console.log(chalk.gray(`   Provider: ${provider}`));
       console.log(chalk.gray(`   Model: ${model}`));
-      console.log(chalk.gray(`   Base URL: ${options.baseUrl || process.env[`${provider.toUpperCase()}_BASE_URL`] || process.env.BASE_URL || '(default)'}\n`));
+      console.log(chalk.gray(`   Base URL: ${resolvedLlmBaseURL || '(default)'}\n`));
       console.log(chalk.gray(`   Execution Engine: ${executionEngine}`));
       if (executionEngine === 'langgraph') {
         console.log(chalk.gray(`   LangGraph Checkpoint: ${useLangGraphCheckpoint}`));
@@ -351,6 +373,19 @@ program
         console.log(chalk.gray(`   RAG Search: BM25 + ${ragConfig.embedding?.enabled ? 'Embedding' : 'disabled semantic'}`));
         console.log(chalk.gray(`   RAG Candidates: keyword=${ragConfig.keywordCandidateCount ?? 40}, semantic=${ragConfig.semanticCandidateCount ?? 40}`));
         console.log(chalk.gray(`   RAG Weights: keyword=${ragConfig.keywordWeight ?? 0.45}, semantic=${ragConfig.semanticWeight ?? 0.55}`));
+        if (ragConfig.embedding?.enabled) {
+          console.log(chalk.gray(`   RAG Embedding Base URL: ${ragConfig.embedding.baseURL || '(default)'}`));
+          if (
+            !options.ragEmbeddingBaseUrl &&
+            !process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL &&
+            !options.ragEmbeddingApiKey &&
+            !process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY &&
+            provider === 'openai' &&
+            ragConfig.embedding.baseURL === resolvedLlmBaseURL
+          ) {
+            console.log(chalk.gray('   RAG Embedding Source: inherited from LLM base-url/api-key'));
+          }
+        }
         if (ragConfig.excludedPathPrefixes?.length) {
           console.log(chalk.gray(`   RAG Exclude Paths: ${ragConfig.excludedPathPrefixes.join(', ')}`));
         }
@@ -366,8 +401,8 @@ program
       llm: {
         provider,
         model,
-        baseURL: options.baseUrl,
-        apiKey: options.apiKey,
+        baseURL: resolvedLlmBaseURL,
+        apiKey: resolvedLlmApiKey,
         maxTokens: parseInt(options.maxTokens, 10),
         temperature: parseFloat(options.temperature),
       },
