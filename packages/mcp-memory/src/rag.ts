@@ -543,7 +543,7 @@ type RequiredHybridConfig = {
 
 function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
   const embeddingProvider = config.embedding?.provider ?? 'openai-compatible';
-  const embeddingBaseURL = normalizeBaseUrl(
+  const embeddingBaseURL = normalizeEmbeddingBaseUrl(
     config.embedding?.baseURL ??
       process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL ??
       process.env.OPENAI_BASE_URL ??
@@ -1062,11 +1062,38 @@ async function fetchEmbeddings(input: {
   texts: string[];
   config: Required<EmbeddingConfig>;
 }): Promise<number[][]> {
+  if (input.texts.length === 0) {
+    return [];
+  }
+
+  try {
+    return await requestEmbeddings(input);
+  } catch (error) {
+    if (shouldSplitEmbeddingBatch(error) && input.texts.length > 1) {
+      const midpoint = Math.ceil(input.texts.length / 2);
+      const left = await fetchEmbeddings({
+        texts: input.texts.slice(0, midpoint),
+        config: input.config,
+      });
+      const right = await fetchEmbeddings({
+        texts: input.texts.slice(midpoint),
+        config: input.config,
+      });
+      return [...left, ...right];
+    }
+    throw error;
+  }
+}
+
+async function requestEmbeddings(input: {
+  texts: string[];
+  config: Required<EmbeddingConfig>;
+}): Promise<number[][]> {
   if (!input.config.apiKey) {
     throw new Error('missing embedding api key');
   }
 
-  const endpoint = `${normalizeBaseUrl(input.config.baseURL)}/embeddings`;
+  const endpoint = normalizeEmbeddingBaseUrl(input.config.baseURL);
   const body: Record<string, unknown> = {
     model: input.config.model,
     input: input.texts,
@@ -1100,6 +1127,17 @@ async function fetchEmbeddings(input: {
   }
 
   return vectors;
+}
+
+function shouldSplitEmbeddingBatch(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes('maximum context length') ||
+    message.includes('please reduce your prompt') ||
+    message.includes('too many tokens') ||
+    message.includes('context length') ||
+    message.includes('maximum input length')
+  );
 }
 
 function fuseDocumentCandidates(input: {
@@ -1313,6 +1351,11 @@ function normalizeRepoPath(path: string): string {
 
 function normalizeBaseUrl(baseURL: string): string {
   return baseURL.replace(/\/+$/, '');
+}
+
+function normalizeEmbeddingBaseUrl(baseURL: string): string {
+  const normalized = normalizeBaseUrl(baseURL);
+  return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
 }
 
 function toBlobUrl(repoUrl: string, branch: string, path: string): string {

@@ -59,6 +59,14 @@ function resolveProviderBaseURL(
   return cliValue ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
 }
 
+function resolveEmbeddingBaseURL(baseURL?: string): string | undefined {
+  if (!baseURL) {
+    return undefined;
+  }
+  const normalized = baseURL.replace(/\/+$/, '');
+  return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
+}
+
 program
   .name('frontagent')
   .description('FrontAgent - 工程级 AI Agent 系统')
@@ -344,7 +352,7 @@ program
         baseURL:
           options.ragEmbeddingBaseUrl ??
           process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL ??
-          (provider === 'openai' ? resolvedLlmBaseURL : undefined),
+          (provider === 'openai' ? resolveEmbeddingBaseURL(resolvedLlmBaseURL) : undefined),
         apiKey:
           options.ragEmbeddingApiKey ??
           process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY ??
@@ -381,9 +389,9 @@ program
             !options.ragEmbeddingApiKey &&
             !process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY &&
             provider === 'openai' &&
-            ragConfig.embedding.baseURL === resolvedLlmBaseURL
+            ragConfig.embedding.baseURL === resolveEmbeddingBaseURL(resolvedLlmBaseURL)
           ) {
-            console.log(chalk.gray('   RAG Embedding Source: inherited from LLM base-url/api-key'));
+            console.log(chalk.gray('   RAG Embedding Source: inherited from LLM base-url/api-key (+ /embeddings)'));
           }
         }
         if (ragConfig.excludedPathPrefixes?.length) {
