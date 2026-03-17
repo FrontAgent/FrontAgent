@@ -9,6 +9,8 @@
   "files": [
     "dist/index.cjs",
     "dist/index.cjs.map",
+    "dist/code-quality-subagent-worker.cjs",
+    "dist/code-quality-subagent-worker.cjs.map",
     "README.md",
     "LICENSE"
   ],

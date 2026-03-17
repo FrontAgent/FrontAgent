@@ -22,4 +22,14 @@ await build({
   sourcemap: true,
 });
 
+await build({
+  entryPoints: [resolve(__dirname, 'packages/core/src/sub-agents/code-quality-subagent-worker.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'cjs',
+  outfile: resolve(__dirname, 'dist/code-quality-subagent-worker.cjs'),
+  sourcemap: true,
+});
+
 console.log('✅ CLI bundled successfully');

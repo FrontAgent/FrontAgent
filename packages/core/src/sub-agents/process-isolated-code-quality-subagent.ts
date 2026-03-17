@@ -4,6 +4,8 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateId } from "@frontagent/shared";
 import {
@@ -29,6 +31,29 @@ interface WorkerInput {
     maxCharsPerFileForLLM?: number;
     debug: boolean;
   };
+}
+
+function resolveDefaultWorkerPath(): string {
+  // When the CLI is bundled to dist/index.cjs, the worker is emitted next to it.
+  if (typeof __dirname !== "undefined") {
+    const bundledCandidate = join(__dirname, "code-quality-subagent-worker.cjs");
+    if (existsSync(bundledCandidate)) {
+      return bundledCandidate;
+    }
+  }
+
+  const moduleUrl = import.meta.url;
+  const moduleDir = dirname(fileURLToPath(moduleUrl));
+  const esmCandidate = join(moduleDir, "code-quality-subagent-worker.js");
+  if (existsSync(esmCandidate)) {
+    return esmCandidate;
+  }
+
+  if (typeof __dirname !== "undefined") {
+    return join(__dirname, "code-quality-subagent-worker.cjs");
+  }
+
+  return esmCandidate;
 }
 
 export interface ProcessIsolatedCodeQualitySubAgentOptions {
@@ -65,9 +90,7 @@ export class ProcessIsolatedCodeQualitySubAgent
     this.maxCharsPerFileForLLM = options.maxCharsPerFileForLLM;
     this.timeoutMs = options.timeoutMs ?? 120000;
     this.debug = options.debug ?? false;
-    this.workerPath =
-      options.workerPath ??
-      fileURLToPath(new URL("./code-quality-subagent-worker.js", import.meta.url));
+    this.workerPath = options.workerPath ?? resolveDefaultWorkerPath();
   }
 
   async handleRequest(
