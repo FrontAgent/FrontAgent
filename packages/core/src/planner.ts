@@ -230,6 +230,9 @@ export class Planner {
         contextParts.push(`\n- ${result}`);
       }
       contextParts.push('\n⚠️ 重要提示：优先参考上述知识库结果中的路径、提交和经验总结。');
+      contextParts.push('⚠️ 上述知识库结果来自远程 RAG，不等同于当前工作区里的本地文件。');
+      contextParts.push('⚠️ 不要为知识库结果生成 read_file/list_directory 步骤，也不要把其中的 path 当作当前仓库可直接读取的文件路径。');
+      contextParts.push('⚠️ 对知识库结果的使用方式是：将其作为回答证据或实现参考，而不是再次读取本地文件。');
     }
 
     // 添加浏览器 URL
