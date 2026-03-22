@@ -99,6 +99,16 @@ frontagent run "Explain React setState behavior" \
   --api-key YOUR_TOKEN \
   --rag-embedding-model text-embedding-3-small
 
+# Use Weaviate as the semantic vector store (BM25 stays local)
+frontagent run "Explain React setState behavior" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
+  --rag-embedding-model text-embedding-3-small \
+  --rag-vector-store-provider weaviate \
+  --rag-weaviate-url http://127.0.0.1:8080 \
+  --rag-weaviate-collection-prefix FrontAgentRagChunk
+
 # Disable semantic retrieval and use BM25 only
 frontagent run "Explain React setState behavior" \
   --disable-rag-semantic
@@ -120,9 +130,15 @@ export FRONTAGENT_RAG_SEMANTIC_WEIGHT="0.55"
 export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
+export FRONTAGENT_RAG_VECTOR_STORE_PROVIDER="weaviate"
+export FRONTAGENT_RAG_WEAVIATE_URL="http://127.0.0.1:8080"
+export FRONTAGENT_RAG_WEAVIATE_API_KEY=""
+export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 ```
 
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
+
+When `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate`, FrontAgent keeps BM25 in the local `index.json`, but semantic vectors are written to and queried from Weaviate instead of `embeddings.json`.
 
 Prebuilt cache bundle workflow:
 

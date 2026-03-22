@@ -57,3 +57,6 @@ artifacts/
 # **/example-large_*/
 
 reference/
+
+# 向量数据库相关
+data/

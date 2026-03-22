@@ -4,6 +4,8 @@ export {
   ragQuerySchema,
   type KnowledgeBaseConfig,
   type EmbeddingConfig,
+  type VectorStoreConfig,
+  type WeaviateVectorStoreConfig,
   type RagMetadataFilter,
   type RagQueryParams,
   type RagQueryResult,

@@ -86,6 +86,24 @@ export interface RagConfig {
     /** 单次请求超时毫秒 */
     requestTimeoutMs?: number;
   };
+  /** 向量存储配置 */
+  vectorStore?: {
+    /** 向量存储提供方 */
+    provider?: 'local' | 'weaviate';
+    /** Weaviate 配置 */
+    weaviate?: {
+      /** Weaviate REST Base URL */
+      baseURL?: string;
+      /** Weaviate API Key */
+      apiKey?: string;
+      /** Collection 前缀 */
+      collectionPrefix?: string;
+      /** 批量写入大小 */
+      batchSize?: number;
+      /** 单次请求超时毫秒 */
+      requestTimeoutMs?: number;
+    };
+  };
 }
 
 /**

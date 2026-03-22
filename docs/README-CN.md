@@ -99,6 +99,16 @@ frontagent run "解释 React setState 的行为" \
   --api-key YOUR_TOKEN \
   --rag-embedding-model text-embedding-3-small
 
+# 使用 Weaviate 作为语义向量库（BM25 仍保留本地索引）
+frontagent run "解释 React setState 的行为" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
+  --rag-embedding-model text-embedding-3-small \
+  --rag-vector-store-provider weaviate \
+  --rag-weaviate-url http://127.0.0.1:8080 \
+  --rag-weaviate-collection-prefix FrontAgentRagChunk
+
 # 禁用语义检索，仅使用 BM25
 frontagent run "解释 React setState 的行为" \
   --disable-rag-semantic
@@ -120,9 +130,15 @@ export FRONTAGENT_RAG_SEMANTIC_WEIGHT="0.55"
 export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
+export FRONTAGENT_RAG_VECTOR_STORE_PROVIDER="weaviate"
+export FRONTAGENT_RAG_WEAVIATE_URL="http://127.0.0.1:8080"
+export FRONTAGENT_RAG_WEAVIATE_API_KEY=""
+export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 ```
 
 如果 `provider=openai`，并且没有单独设置 `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY`，FrontAgent 会自动复用智能体 LLM 的 `base-url` 和 `api-key`。
+
+当 `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate` 时，FrontAgent 会继续把 BM25 保存在本地 `index.json`，但语义向量会写入并查询 Weaviate，而不是本地 `embeddings.json`。
 
 预构建缓存包分发流程：
 

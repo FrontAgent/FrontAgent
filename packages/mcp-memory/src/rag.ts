@@ -16,6 +16,7 @@ const execFileAsync = promisify(execFile);
 
 const INDEX_VERSION = 4;
 const EMBEDDING_STORE_VERSION = 3;
+const VECTOR_STORE_STATE_VERSION = 1;
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_KEYWORD_CANDIDATES = 40;
 const DEFAULT_SEMANTIC_CANDIDATES = 40;
@@ -31,6 +32,9 @@ const DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS = 1500;
 const DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS = 250;
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 const DEFAULT_EMBEDDING_DIMENSIONS = 512;
+const DEFAULT_VECTOR_STORE_PROVIDER = 'local';
+const DEFAULT_WEAVIATE_COLLECTION_PREFIX = 'FrontAgentRagChunk';
+const DEFAULT_WEAVIATE_BATCH_SIZE = 64;
 const DEFAULT_EXCLUDED_PATH_PREFIXES: string[] = [];
 const IGNORED_DIR_NAMES = new Set([
   '.git',
@@ -64,6 +68,7 @@ export interface KnowledgeBaseConfig {
   chunkOverlap?: number;
   maxFileSizeBytes?: number;
   embedding?: EmbeddingConfig;
+  vectorStore?: VectorStoreConfig;
 }
 
 export interface EmbeddingConfig {
@@ -73,6 +78,19 @@ export interface EmbeddingConfig {
   baseURL?: string;
   apiKey?: string;
   dimensions?: number;
+  batchSize?: number;
+  requestTimeoutMs?: number;
+}
+
+export interface VectorStoreConfig {
+  provider?: 'local' | 'weaviate';
+  weaviate?: WeaviateVectorStoreConfig;
+}
+
+export interface WeaviateVectorStoreConfig {
+  baseURL?: string;
+  apiKey?: string;
+  collectionPrefix?: string;
   batchSize?: number;
   requestTimeoutMs?: number;
 }
@@ -204,6 +222,20 @@ interface EmbeddingStore {
   }>;
 }
 
+interface WeaviateVectorStoreState {
+  version: typeof VECTOR_STORE_STATE_VERSION;
+  provider: 'weaviate';
+  collectionName: string;
+  repoUrl: string;
+  branch: string;
+  revision: string;
+  embeddingModel: string;
+  embeddingBaseURL: string;
+  dimensions?: number;
+  indexedChunks: number;
+  updatedAt: string;
+}
+
 interface ChunkCandidate {
   chunk: RepositoryChunk;
   score: number;
@@ -313,52 +345,84 @@ class HybridRepositoryKnowledgeBase {
 
       if (this.config.embedding.enabled) {
         if (this.config.embedding.apiKey) {
-          let embeddingStore: EmbeddingStore | null = null;
-          let usedPartialEmbeddingCache = false;
-
-          try {
-            embeddingStore = await this.ensureEmbeddings(index);
-          } catch (error) {
-            const cachedStore = this.readEmbeddingStore();
-            if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
-              embeddingStore = cachedStore;
-              usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
-            }
-
-            if (!embeddingStore || !usedPartialEmbeddingCache) {
-              warnings.push(
-                `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
-              );
+          if (this.config.vectorStore.provider === 'weaviate') {
+            if (!this.config.vectorStore.weaviate.baseURL) {
+              warnings.push('Weaviate base URL is not configured; keyword-only search was used.');
             } else {
-              warnings.push(
-                `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`
-              );
-            }
-          }
-
-          if (embeddingStore) {
-            try {
-              const semanticChunkCandidates = await searchSemantic(
-                queryText,
-                index,
-                embeddingStore,
-                this.config.embedding,
-                this.config.semanticCandidateCount,
-              );
-              semanticDocumentCandidates = aggregateChunkCandidates(
-                semanticChunkCandidates,
-                index,
-                filters,
-              );
-              if (semanticDocumentCandidates.length > 0) {
-                searchMode = 'hybrid';
-              } else {
-                warnings.push('Semantic search returned no candidates; keyword results were used.');
+              try {
+                await this.ensureWeaviateSemanticIndex(index);
+                const semanticChunkCandidates = await searchSemanticWithWeaviate(
+                  queryText,
+                  index,
+                  this.config.embedding,
+                  this.config.vectorStore.weaviate,
+                  getWeaviateCollectionName(this.config),
+                  this.config.semanticCandidateCount,
+                );
+                semanticDocumentCandidates = aggregateChunkCandidates(
+                  semanticChunkCandidates,
+                  index,
+                  filters,
+                );
+                if (semanticDocumentCandidates.length > 0) {
+                  searchMode = 'hybrid';
+                } else {
+                  warnings.push('Semantic search returned no candidates; keyword results were used.');
+                }
+              } catch (error) {
+                warnings.push(
+                  `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                );
               }
+            }
+          } else {
+            let embeddingStore: EmbeddingStore | null = null;
+            let usedPartialEmbeddingCache = false;
+
+            try {
+              embeddingStore = await this.ensureEmbeddings(index);
             } catch (error) {
-              warnings.push(
-                `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
-              );
+              const cachedStore = this.readEmbeddingStore();
+              if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
+                embeddingStore = cachedStore;
+                usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
+              }
+
+              if (!embeddingStore || !usedPartialEmbeddingCache) {
+                warnings.push(
+                  `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                );
+              } else {
+                warnings.push(
+                  `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`
+                );
+              }
+            }
+
+            if (embeddingStore) {
+              try {
+                const semanticChunkCandidates = await searchSemantic(
+                  queryText,
+                  index,
+                  embeddingStore,
+                  this.config.embedding,
+                  this.config.semanticCandidateCount,
+                );
+                semanticDocumentCandidates = aggregateChunkCandidates(
+                  semanticChunkCandidates,
+                  index,
+                  filters,
+                );
+                if (semanticDocumentCandidates.length > 0) {
+                  searchMode = 'hybrid';
+                } else {
+                  warnings.push('Semantic search returned no candidates; keyword results were used.');
+                }
+              } catch (error) {
+                warnings.push(
+                  `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                );
+              }
             }
           }
         } else {
@@ -569,6 +633,95 @@ class HybridRepositoryKnowledgeBase {
     writeFileSync(this.getEmbeddingStorePath(), JSON.stringify(store), 'utf-8');
   }
 
+  private async ensureWeaviateSemanticIndex(index: RepositoryIndex): Promise<WeaviateVectorStoreState> {
+    const collectionName = getWeaviateCollectionName(this.config);
+    const current = this.readWeaviateVectorStoreState();
+    const collectionStatus = await ensureWeaviateCollection(this.config.vectorStore.weaviate, collectionName);
+    const compatible =
+      current &&
+      current.collectionName === collectionName &&
+      current.repoUrl === this.config.repoUrl &&
+      current.branch === this.config.branch &&
+      current.revision === index.source.revision &&
+      current.embeddingModel === this.config.embedding.model &&
+      current.embeddingBaseURL === this.config.embedding.baseURL &&
+      current.dimensions === this.config.embedding.dimensions &&
+      current.indexedChunks === index.chunks.length;
+
+    if (compatible && collectionStatus === 'exists') {
+      return current;
+    }
+
+    await deleteWeaviateCollection(this.config.vectorStore.weaviate, collectionName);
+    await ensureWeaviateCollection(this.config.vectorStore.weaviate, collectionName);
+
+    const embeddingInputs = index.chunks.map((chunk) => ({
+      chunk,
+      inputText: buildEmbeddingInput(chunk),
+      estimatedTokens: estimateEmbeddingTokens(buildEmbeddingInput(chunk)),
+    }));
+    const batches = createEmbeddingBatches(
+      embeddingInputs,
+      Math.max(1, Math.min(this.config.embedding.batchSize, this.config.vectorStore.weaviate.batchSize)),
+      DEFAULT_EMBEDDING_MAX_BATCH_TOKENS,
+    );
+
+    for (const batch of batches) {
+      const vectors = await fetchEmbeddings({
+        texts: batch.map((item) => item.inputText),
+        config: this.config.embedding,
+      });
+      await upsertWeaviateObjects({
+        config: this.config.vectorStore.weaviate,
+        collectionName,
+        objects: batch.map((item, indexInBatch) => ({
+          chunk: item.chunk,
+          vector: normalizeVector(vectors[indexInBatch]),
+        })),
+      });
+      if (batches.length > 1) {
+        await sleep(DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS);
+      }
+    }
+
+    const state: WeaviateVectorStoreState = {
+      version: VECTOR_STORE_STATE_VERSION,
+      provider: 'weaviate',
+      collectionName,
+      repoUrl: this.config.repoUrl,
+      branch: this.config.branch,
+      revision: index.source.revision,
+      embeddingModel: this.config.embedding.model,
+      embeddingBaseURL: this.config.embedding.baseURL,
+      dimensions: this.config.embedding.dimensions,
+      indexedChunks: index.chunks.length,
+      updatedAt: new Date().toISOString(),
+    };
+    this.writeWeaviateVectorStoreState(state);
+    return state;
+  }
+
+  private readWeaviateVectorStoreState(): WeaviateVectorStoreState | null {
+    const path = this.getVectorStoreStatePath();
+    if (!existsSync(path)) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf-8')) as WeaviateVectorStoreState;
+      if (parsed.version !== VECTOR_STORE_STATE_VERSION) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeWeaviateVectorStoreState(state: WeaviateVectorStoreState): void {
+    writeFileSync(this.getVectorStoreStatePath(), JSON.stringify(state, null, 2), 'utf-8');
+  }
+
   private getRepoDir(): string {
     return join(this.config.cacheDir, 'repo');
   }
@@ -579,6 +732,10 @@ class HybridRepositoryKnowledgeBase {
 
   private getEmbeddingStorePath(): string {
     return join(this.config.cacheDir, 'embeddings.json');
+  }
+
+  private getVectorStoreStatePath(): string {
+    return join(this.config.cacheDir, 'vector-store-state.json');
   }
 }
 
@@ -597,6 +754,10 @@ type RequiredHybridConfig = {
   chunkOverlap: number;
   maxFileSizeBytes: number;
   embedding: Required<EmbeddingConfig>;
+  vectorStore: {
+    provider: 'local' | 'weaviate';
+    weaviate: Required<WeaviateVectorStoreConfig>;
+  };
 };
 
 function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
@@ -613,6 +774,19 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
     process.env.FRONTAGENT_RAG_EMBEDDING_API_KEY ??
     process.env.OPENAI_API_KEY ??
     process.env.API_KEY ??
+    '';
+  const vectorStoreProvider =
+    config.vectorStore?.provider ??
+    (process.env.FRONTAGENT_RAG_VECTOR_STORE_PROVIDER as 'local' | 'weaviate' | undefined) ??
+    (process.env.FRONTAGENT_RAG_WEAVIATE_URL ? 'weaviate' : undefined) ??
+    DEFAULT_VECTOR_STORE_PROVIDER;
+  const weaviateBaseURL =
+    config.vectorStore?.weaviate?.baseURL ??
+    process.env.FRONTAGENT_RAG_WEAVIATE_URL ??
+    '';
+  const weaviateApiKey =
+    config.vectorStore?.weaviate?.apiKey ??
+    process.env.FRONTAGENT_RAG_WEAVIATE_API_KEY ??
     '';
 
   return {
@@ -650,6 +824,25 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
         config.embedding?.requestTimeoutMs ??
         parseOptionalInt(process.env.FRONTAGENT_RAG_EMBEDDING_TIMEOUT_MS) ??
         DEFAULT_FETCH_TIMEOUT_MS,
+    },
+    vectorStore: {
+      provider: vectorStoreProvider,
+      weaviate: {
+        baseURL: normalizeOptionalBaseUrl(weaviateBaseURL) ?? '',
+        apiKey: weaviateApiKey,
+        collectionPrefix:
+          config.vectorStore?.weaviate?.collectionPrefix ??
+          process.env.FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX ??
+          DEFAULT_WEAVIATE_COLLECTION_PREFIX,
+        batchSize:
+          config.vectorStore?.weaviate?.batchSize ??
+          parseOptionalInt(process.env.FRONTAGENT_RAG_WEAVIATE_BATCH_SIZE) ??
+          DEFAULT_WEAVIATE_BATCH_SIZE,
+        requestTimeoutMs:
+          config.vectorStore?.weaviate?.requestTimeoutMs ??
+          parseOptionalInt(process.env.FRONTAGENT_RAG_WEAVIATE_TIMEOUT_MS) ??
+          DEFAULT_FETCH_TIMEOUT_MS,
+      },
     },
   };
 }
@@ -1116,6 +1309,265 @@ async function searchSemantic(
   return scores.slice(0, limit);
 }
 
+async function searchSemanticWithWeaviate(
+  query: string,
+  index: RepositoryIndex,
+  embeddingConfig: Required<EmbeddingConfig>,
+  weaviateConfig: Required<WeaviateVectorStoreConfig>,
+  collectionName: string,
+  limit: number,
+): Promise<ChunkCandidate[]> {
+  const [queryVector] = await fetchEmbeddings({
+    texts: [query],
+    config: embeddingConfig,
+  });
+  const normalizedQuery = normalizeVector(queryVector);
+  const vectorLiteral = JSON.stringify(Array.from(normalizedQuery));
+  const graphqlQuery = `{
+    Get {
+      ${collectionName}(nearVector: { vector: ${vectorLiteral} }, limit: ${Math.max(limit, 1)}) {
+        chunkId
+        contentHash
+        _additional {
+          id
+          distance
+          certainty
+        }
+      }
+    }
+  }`;
+  const payload = await requestWeaviateGraphQL<{
+    Get?: Record<string, Array<{
+      chunkId?: string;
+      contentHash?: string;
+      _additional?: {
+        id?: string;
+        distance?: number;
+        certainty?: number;
+      };
+    }>>;
+  }>(weaviateConfig, graphqlQuery);
+
+  const results = payload.Get?.[collectionName] ?? [];
+  const chunksById = new Map(index.chunks.map((chunk) => [chunk.id, chunk]));
+  const candidates: ChunkCandidate[] = [];
+  const seenChunkIds = new Set<string>();
+
+  for (const item of results) {
+    if (!item.chunkId || seenChunkIds.has(item.chunkId)) {
+      continue;
+    }
+    const chunk = chunksById.get(item.chunkId);
+    if (!chunk) {
+      continue;
+    }
+    if (item.contentHash && item.contentHash !== chunk.contentHash) {
+      continue;
+    }
+
+    const certainty = item._additional?.certainty;
+    const distance = item._additional?.distance;
+    const score =
+      typeof certainty === 'number'
+        ? certainty
+        : typeof distance === 'number'
+          ? Math.max(0, 1 - distance)
+          : 0;
+
+    seenChunkIds.add(item.chunkId);
+    candidates.push({ chunk, score });
+  }
+
+  candidates.sort((left, right) => right.score - left.score);
+  return candidates.slice(0, limit);
+}
+
+async function ensureWeaviateCollection(
+  config: Required<WeaviateVectorStoreConfig>,
+  collectionName: string,
+): Promise<'exists' | 'created'> {
+  const baseURL = normalizeBaseUrl(config.baseURL);
+  const getResponse = await fetch(`${baseURL}/v1/schema/${collectionName}`, {
+    method: 'GET',
+    headers: buildWeaviateHeaders(config),
+    signal: AbortSignal.timeout(config.requestTimeoutMs),
+  });
+
+  if (getResponse.ok) {
+    return 'exists';
+  }
+
+  if (getResponse.status !== 404) {
+    const errorText = await getResponse.text();
+    throw new Error(`weaviate schema check failed: ${getResponse.status} ${getResponse.statusText} ${errorText}`.trim());
+  }
+
+  const response = await fetch(`${baseURL}/v1/schema`, {
+    method: 'POST',
+    headers: buildWeaviateHeaders(config),
+    body: JSON.stringify({
+      class: collectionName,
+      vectorizer: 'none',
+      vectorIndexConfig: {
+        distance: 'cosine',
+      },
+      properties: [
+        { name: 'chunkId', dataType: ['text'] },
+        { name: 'documentId', dataType: ['text'] },
+        { name: 'path', dataType: ['text'] },
+        { name: 'title', dataType: ['text'] },
+        { name: 'sourceUrl', dataType: ['text'] },
+        { name: 'contentHash', dataType: ['text'] },
+        { name: 'topLevelDir', dataType: ['text'] },
+        { name: 'extension', dataType: ['text'] },
+        { name: 'chunkIndex', dataType: ['int'] },
+        { name: 'totalChunks', dataType: ['int'] },
+        { name: 'lineStart', dataType: ['int'] },
+        { name: 'lineEnd', dataType: ['int'] },
+        { name: 'text', dataType: ['text'] },
+      ],
+    }),
+    signal: AbortSignal.timeout(config.requestTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`weaviate schema create failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+  }
+
+  return 'created';
+}
+
+async function deleteWeaviateCollection(
+  config: Required<WeaviateVectorStoreConfig>,
+  collectionName: string,
+): Promise<void> {
+  const baseURL = normalizeBaseUrl(config.baseURL);
+  const response = await fetch(`${baseURL}/v1/schema/${collectionName}`, {
+    method: 'DELETE',
+    headers: buildWeaviateHeaders(config),
+    signal: AbortSignal.timeout(config.requestTimeoutMs),
+  });
+
+  if (response.ok || response.status === 404) {
+    return;
+  }
+
+  const errorText = await response.text();
+  throw new Error(`weaviate schema delete failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+}
+
+async function upsertWeaviateObjects(input: {
+  config: Required<WeaviateVectorStoreConfig>;
+  collectionName: string;
+  objects: Array<{ chunk: RepositoryChunk; vector: number[] }>;
+}): Promise<void> {
+  if (input.objects.length === 0) {
+    return;
+  }
+
+  const baseURL = normalizeBaseUrl(input.config.baseURL);
+  const response = await fetch(`${baseURL}/v1/batch/objects`, {
+    method: 'POST',
+    headers: buildWeaviateHeaders(input.config),
+    body: JSON.stringify({
+      objects: input.objects.map((item) => ({
+        class: input.collectionName,
+        id: buildWeaviateObjectId(item.chunk.id),
+        properties: {
+          chunkId: item.chunk.id,
+          documentId: item.chunk.documentId,
+          path: item.chunk.path,
+          title: item.chunk.title,
+          sourceUrl: item.chunk.sourceUrl,
+          contentHash: item.chunk.contentHash,
+          topLevelDir: item.chunk.metadata.topLevelDir,
+          extension: item.chunk.metadata.extension,
+          chunkIndex: item.chunk.metadata.chunkIndex,
+          totalChunks: item.chunk.metadata.totalChunks,
+          lineStart: item.chunk.metadata.lineStart,
+          lineEnd: item.chunk.metadata.lineEnd,
+          text: item.chunk.text,
+        },
+        vector: item.vector,
+      })),
+    }),
+    signal: AbortSignal.timeout(input.config.requestTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`weaviate batch import failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+  }
+
+  const payload = await response.json() as Array<{
+    result?: {
+      errors?: {
+        error?: Array<{ message?: string }>;
+      };
+    };
+  }> | { errors?: Array<{ message?: string }> };
+
+  const topLevelErrors =
+    !Array.isArray(payload) && payload.errors?.map((item) => item.message).filter(Boolean);
+  if (topLevelErrors && topLevelErrors.length > 0) {
+    throw new Error(`weaviate batch import failed: ${topLevelErrors.join('; ')}`);
+  }
+
+  if (Array.isArray(payload)) {
+    const itemErrors = payload
+      .flatMap((item) => item.result?.errors?.error ?? [])
+      .map((item) => item.message)
+      .filter((message): message is string => Boolean(message));
+    if (itemErrors.length > 0) {
+      throw new Error(`weaviate batch import failed: ${itemErrors.join('; ')}`);
+    }
+  }
+}
+
+async function requestWeaviateGraphQL<T>(
+  config: Required<WeaviateVectorStoreConfig>,
+  query: string,
+): Promise<T> {
+  const baseURL = normalizeBaseUrl(config.baseURL);
+  const response = await fetch(`${baseURL}/v1/graphql`, {
+    method: 'POST',
+    headers: buildWeaviateHeaders(config),
+    body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(config.requestTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`weaviate graphql request failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+  }
+
+  const payload = await response.json() as {
+    data?: T;
+    errors?: Array<{ message?: string }>;
+  };
+  if (payload.errors && payload.errors.length > 0) {
+    throw new Error(
+      `weaviate graphql request failed: ${payload.errors.map((item) => item.message).filter(Boolean).join('; ')}`
+    );
+  }
+  if (!payload.data) {
+    throw new Error('weaviate graphql response did not contain data');
+  }
+
+  return payload.data;
+}
+
+function buildWeaviateHeaders(config: Required<WeaviateVectorStoreConfig>): Record<string, string> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  if (config.apiKey) {
+    headers.authorization = `Bearer ${config.apiKey}`;
+  }
+  return headers;
+}
+
 async function fetchEmbeddings(input: {
   texts: string[];
   config: Required<EmbeddingConfig>;
@@ -1517,12 +1969,49 @@ function getTopLevelDir(path: string): string {
   return firstSegment || 'root';
 }
 
+function getWeaviateCollectionName(config: RequiredHybridConfig): string {
+  const prefix = sanitizeWeaviateCollectionPrefix(config.vectorStore.weaviate.collectionPrefix);
+  const identity = hashText(
+    `${config.repoUrl}:${config.branch}:${config.embedding.model}:${config.embedding.dimensions ?? 'default'}`
+  ).slice(0, 12);
+  return `${prefix}${identity}`;
+}
+
+function sanitizeWeaviateCollectionPrefix(prefix: string): string {
+  const normalized = prefix.replace(/[^a-z0-9]/gi, '');
+  const fallback = DEFAULT_WEAVIATE_COLLECTION_PREFIX;
+  const candidate = normalized.length > 0 ? normalized : fallback;
+  const capitalized = `${candidate.charAt(0).toUpperCase()}${candidate.slice(1)}`;
+  return /^[A-Z]/.test(capitalized) ? capitalized : fallback;
+}
+
+function buildWeaviateObjectId(chunkId: string): string {
+  const hash = hashText(chunkId);
+  const segment4 = ((Number.parseInt(hash.slice(16, 18), 16) & 0x3f) | 0x80)
+    .toString(16)
+    .padStart(2, '0');
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    `4${hash.slice(13, 16)}`,
+    `${segment4}${hash.slice(18, 20)}`,
+    hash.slice(20, 32),
+  ].join('-');
+}
+
 function normalizeRepoPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^\/+/, '');
 }
 
 function normalizeBaseUrl(baseURL: string): string {
   return baseURL.replace(/\/+$/, '');
+}
+
+function normalizeOptionalBaseUrl(baseURL: string | undefined): string | undefined {
+  if (!baseURL?.trim()) {
+    return undefined;
+  }
+  return normalizeBaseUrl(baseURL.trim());
 }
 
 function normalizeEmbeddingBaseUrl(baseURL: string): string {

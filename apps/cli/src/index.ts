@@ -481,6 +481,12 @@ program
   .option('--rag-embedding-dimensions <n>', 'Embedding 维度', process.env.FRONTAGENT_RAG_EMBEDDING_DIMENSIONS)
   .option('--rag-embedding-batch-size <n>', 'Embedding 批量大小', process.env.FRONTAGENT_RAG_EMBEDDING_BATCH_SIZE)
   .option('--rag-embedding-timeout-ms <n>', 'Embedding 请求超时毫秒', process.env.FRONTAGENT_RAG_EMBEDDING_TIMEOUT_MS)
+  .option('--rag-vector-store-provider <provider>', '向量存储提供方 (local/weaviate)', process.env.FRONTAGENT_RAG_VECTOR_STORE_PROVIDER)
+  .option('--rag-weaviate-url <url>', 'Weaviate REST Base URL', process.env.FRONTAGENT_RAG_WEAVIATE_URL)
+  .option('--rag-weaviate-api-key <key>', 'Weaviate API Key (默认从环境变量读取)')
+  .option('--rag-weaviate-collection-prefix <prefix>', 'Weaviate Collection 前缀', process.env.FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX)
+  .option('--rag-weaviate-batch-size <n>', 'Weaviate 批量写入大小', process.env.FRONTAGENT_RAG_WEAVIATE_BATCH_SIZE)
+  .option('--rag-weaviate-timeout-ms <n>', 'Weaviate 请求超时毫秒', process.env.FRONTAGENT_RAG_WEAVIATE_TIMEOUT_MS)
   .option('--debug', '启用调试模式', false)
   .action(async (task, options) => {
     const projectRoot = process.cwd();
@@ -558,6 +564,25 @@ program
         batchSize: parseOptionalInt(options.ragEmbeddingBatchSize),
         requestTimeoutMs: parseOptionalInt(options.ragEmbeddingTimeoutMs),
       },
+      vectorStore: {
+        provider:
+          options.ragVectorStoreProvider ??
+          process.env.FRONTAGENT_RAG_VECTOR_STORE_PROVIDER ??
+          ((options.ragWeaviateUrl ?? process.env.FRONTAGENT_RAG_WEAVIATE_URL) ? 'weaviate' : undefined),
+        weaviate: {
+          baseURL:
+            options.ragWeaviateUrl ??
+            process.env.FRONTAGENT_RAG_WEAVIATE_URL,
+          apiKey:
+            options.ragWeaviateApiKey ??
+            process.env.FRONTAGENT_RAG_WEAVIATE_API_KEY,
+          collectionPrefix:
+            options.ragWeaviateCollectionPrefix ??
+            process.env.FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX,
+          batchSize: parseOptionalInt(options.ragWeaviateBatchSize),
+          requestTimeoutMs: parseOptionalInt(options.ragWeaviateTimeoutMs),
+        },
+      },
     } satisfies NonNullable<AgentConfig['rag']>;
 
     // 显示 LLM 配置信息
@@ -578,6 +603,7 @@ program
         console.log(chalk.gray(`   RAG Search: BM25 + ${ragConfig.embedding?.enabled ? 'Embedding' : 'disabled semantic'}`));
         console.log(chalk.gray(`   RAG Candidates: keyword=${ragConfig.keywordCandidateCount ?? 40}, semantic=${ragConfig.semanticCandidateCount ?? 40}`));
         console.log(chalk.gray(`   RAG Weights: keyword=${ragConfig.keywordWeight ?? 0.45}, semantic=${ragConfig.semanticWeight ?? 0.55}`));
+        console.log(chalk.gray(`   RAG Vector Store: ${ragConfig.vectorStore?.provider || 'local'}`));
         if (ragConfig.embedding?.enabled) {
           console.log(chalk.gray(`   RAG Embedding Base URL: ${ragConfig.embedding.baseURL || '(default)'}`));
           if (
@@ -590,6 +616,10 @@ program
           ) {
             console.log(chalk.gray('   RAG Embedding Source: inherited from LLM base-url/api-key (+ /embeddings)'));
           }
+        }
+        if (ragConfig.vectorStore?.provider === 'weaviate') {
+          console.log(chalk.gray(`   RAG Weaviate URL: ${ragConfig.vectorStore.weaviate?.baseURL || '(missing)'}`));
+          console.log(chalk.gray(`   RAG Weaviate Collection Prefix: ${ragConfig.vectorStore.weaviate?.collectionPrefix || '(default)'}`));
         }
         if (ragConfig.excludedPathPrefixes?.length) {
           console.log(chalk.gray(`   RAG Exclude Paths: ${ragConfig.excludedPathPrefixes.join(', ')}`));
@@ -646,6 +676,7 @@ program
         chunkOverlap: ragConfig.chunkOverlap,
         maxFileSizeBytes: ragConfig.maxFileSizeBytes,
         embedding: ragConfig.embedding,
+        vectorStore: ragConfig.vectorStore,
       });
       agent.registerMCPClient('memory', memoryClient);
       agent.registerMemoryTools();
