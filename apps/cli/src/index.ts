@@ -474,6 +474,9 @@ program
   .option('--rag-chunk-overlap <n>', '索引分块重叠（字符）', process.env.FRONTAGENT_RAG_CHUNK_OVERLAP || '200')
   .option('--rag-max-file-size-kb <n>', '单文件最大索引大小（KB）', process.env.FRONTAGENT_RAG_MAX_FILE_SIZE_KB || '256')
   .option('--rag-exclude-path <prefixes...>', '额外排除的仓库路径前缀（子模块会自动排除）')
+  .option('--disable-rag-query-rewrite', '禁用检索前的 LLM 查询优化', false)
+  .option('--rag-query-rewrite-max-tokens <n>', '检索前查询优化最大输出 token', process.env.FRONTAGENT_RAG_QUERY_REWRITE_MAX_TOKENS || '160')
+  .option('--rag-query-rewrite-temperature <n>', '检索前查询优化温度', process.env.FRONTAGENT_RAG_QUERY_REWRITE_TEMPERATURE || '0.1')
   .option('--disable-rag-semantic', '禁用 embedding 语义检索，仅保留 BM25', false)
   .option('--rag-embedding-model <model>', 'Embedding 模型', process.env.FRONTAGENT_RAG_EMBEDDING_MODEL)
   .option('--rag-embedding-base-url <url>', 'Embedding API Base URL', process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL || process.env.OPENAI_BASE_URL || process.env.BASE_URL)
@@ -549,6 +552,11 @@ program
         const sizeKb = parseOptionalInt(options.ragMaxFileSizeKb);
         return sizeKb ? sizeKb * 1024 : undefined;
       })(),
+      queryRewrite: {
+        enabled: !options.disableRagQueryRewrite,
+        maxTokens: parseOptionalInt(options.ragQueryRewriteMaxTokens),
+        temperature: parseOptionalFloat(options.ragQueryRewriteTemperature),
+      },
       embedding: {
         enabled: !options.disableRagSemantic,
         model: options.ragEmbeddingModel,
@@ -603,6 +611,7 @@ program
         console.log(chalk.gray(`   RAG Search: BM25 + ${ragConfig.embedding?.enabled ? 'Embedding' : 'disabled semantic'}`));
         console.log(chalk.gray(`   RAG Candidates: keyword=${ragConfig.keywordCandidateCount ?? 40}, semantic=${ragConfig.semanticCandidateCount ?? 40}`));
         console.log(chalk.gray(`   RAG Weights: keyword=${ragConfig.keywordWeight ?? 0.45}, semantic=${ragConfig.semanticWeight ?? 0.55}`));
+        console.log(chalk.gray(`   RAG Query Rewrite: ${ragConfig.queryRewrite?.enabled === false ? 'disabled' : 'enabled (uses main LLM)'}`));
         console.log(chalk.gray(`   RAG Vector Store: ${ragConfig.vectorStore?.provider || 'local'}`));
         if (ragConfig.embedding?.enabled) {
           console.log(chalk.gray(`   RAG Embedding Base URL: ${ragConfig.embedding.baseURL || '(default)'}`));

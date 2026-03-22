@@ -109,6 +109,10 @@ frontagent run "Explain React setState behavior" \
   --rag-weaviate-url http://127.0.0.1:8080 \
   --rag-weaviate-collection-prefix FrontAgentRagChunk
 
+# Disable LLM query rewrite before retrieval
+frontagent run "How to build a custom selector" \
+  --disable-rag-query-rewrite
+
 # Disable semantic retrieval and use BM25 only
 frontagent run "Explain React setState behavior" \
   --disable-rag-semantic
@@ -127,6 +131,8 @@ export FRONTAGENT_RAG_KEYWORD_CANDIDATES="40"
 export FRONTAGENT_RAG_SEMANTIC_CANDIDATES="40"
 export FRONTAGENT_RAG_KEYWORD_WEIGHT="0.45"
 export FRONTAGENT_RAG_SEMANTIC_WEIGHT="0.55"
+export FRONTAGENT_RAG_QUERY_REWRITE_MAX_TOKENS="160"
+export FRONTAGENT_RAG_QUERY_REWRITE_TEMPERATURE="0.1"
 export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
@@ -137,6 +143,8 @@ export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 ```
 
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
+
+Before retrieval, FrontAgent now sends the user's original request through a separate LLM rewrite step to generate a more retrieval-friendly frontend search query. This rewrite uses the same `provider/base-url/model/api-key` as the main agent, but the rewritten query is only used for RAG and does not replace the user's original task.
 
 When `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate`, FrontAgent keeps BM25 in the local `index.json`, but semantic vectors are written to and queried from Weaviate instead of `embeddings.json`.
 

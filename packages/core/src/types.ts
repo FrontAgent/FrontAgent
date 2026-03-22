@@ -67,6 +67,15 @@ export interface RagConfig {
   chunkOverlap?: number;
   /** 单文件最大索引体积（字节） */
   maxFileSizeBytes?: number;
+  /** 查询改写配置 */
+  queryRewrite?: {
+    /** 是否在检索前用主 LLM 优化用户查询（默认 true） */
+    enabled?: boolean;
+    /** 查询改写最大输出 token */
+    maxTokens?: number;
+    /** 查询改写温度 */
+    temperature?: number;
+  };
   /** 语义检索配置 */
   embedding?: {
     /** 是否启用语义检索（默认 true） */

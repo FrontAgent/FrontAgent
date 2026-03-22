@@ -7,6 +7,7 @@ import type { AgentTask, ExecutionPlan, ExecutionStep, SDDConfig, ValidationResu
 import { generateId } from '@frontagent/shared';
 import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
+import { z } from 'zod';
 import { ContextManager } from './context.js';
 import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
@@ -43,11 +44,48 @@ interface RetrievedRagContext {
   warnings?: string[];
 }
 
+const ragQueryRewriteSchema = z.object({
+  searchQuery: z.string().min(1),
+});
+
 function truncateForPrompt(input: string, maxLength: number): string {
   if (input.length <= maxLength) {
     return input;
   }
   return `${input.slice(0, maxLength)}\n...`;
+}
+
+function normalizeSearchQuery(input: string): string {
+  return input
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^["'`“”]+|["'`“”]+$/g, '')
+    .trim();
+}
+
+function mergeRetrievalQuery(originalQuery: string, rewrittenQuery: string): string {
+  const original = normalizeSearchQuery(originalQuery);
+  const rewritten = normalizeSearchQuery(rewrittenQuery);
+
+  if (!rewritten) {
+    return original;
+  }
+
+  if (!original) {
+    return rewritten;
+  }
+
+  if (rewritten.includes(original)) {
+    return rewritten;
+  }
+
+  if (original.includes(rewritten)) {
+    return original;
+  }
+
+  const merged = `${original} ${rewritten}`.trim();
+  return merged.length > 320 ? merged.slice(0, 320).trim() : merged;
 }
 
 /**
@@ -797,7 +835,11 @@ export class FrontAgent {
           case 'rag_query': {
             const query = request.params.query as string;
             const maxResults = request.params.maxResults as number | undefined;
-            const result = await this.executor['callTool']('rag_query', { query, maxResults }) as {
+            const rewrittenQuery = await this.rewriteRagQueryForRetrieval(query);
+            const retrievalQuery = rewrittenQuery
+              ? mergeRetrievalQuery(query, rewrittenQuery)
+              : normalizeSearchQuery(query);
+            const result = await this.executor['callTool']('rag_query', { query: retrievalQuery, maxResults }) as {
               success?: boolean;
               results?: Array<{
                 type: string;
@@ -1286,8 +1328,21 @@ export class FrontAgent {
     }
 
     try {
+      const rewrittenQuery = await this.rewriteRagQueryForRetrieval(query);
+      const retrievalQuery = rewrittenQuery
+        ? mergeRetrievalQuery(query, rewrittenQuery)
+        : normalizeSearchQuery(query);
+
+      if (this.config.debug && rewrittenQuery) {
+        console.log('[Agent] RAG query rewrite applied:', {
+          originalQuery: query,
+          rewrittenQuery,
+          retrievalQuery,
+        });
+      }
+
       const result = await this.executor['callTool']('rag_query', {
-        query,
+        query: retrievalQuery,
         maxResults: this.config.rag?.maxResults ?? 5,
       }) as {
         success?: boolean;
@@ -1333,6 +1388,50 @@ export class FrontAgent {
     } catch (error) {
       if (this.config.debug) {
         console.warn('[Agent] Failed to retrieve RAG context:', error);
+      }
+      return undefined;
+    }
+  }
+
+  private async rewriteRagQueryForRetrieval(query: string): Promise<string | undefined> {
+    if (this.config.rag?.queryRewrite?.enabled === false) {
+      return undefined;
+    }
+
+    const normalizedQuery = normalizeSearchQuery(query);
+    if (!normalizedQuery) {
+      return undefined;
+    }
+
+    try {
+      const rewritten = await this.llmService.generateObject({
+        system: `你是前端领域知识库的检索查询优化器。
+你的任务不是回答问题，而是把用户原始需求改写成更适合知识库检索的专业查询。
+要求：
+1. 保留用户原始意图和核心词，不要改变需求。
+2. 如果用户说法口语化、不专业或过于模糊，补充前端领域常用术语、英文关键词、同义词和相关实现概念。
+3. 如果问题涉及具体框架或技术方向，补充可能的专业表达，例如 React、Vue、DOM、CSS、表单控件、listbox、combobox、dropdown 等。
+4. 只输出一个用于检索的查询字符串，不要输出解释、前缀、编号或 Markdown。`,
+        messages: [
+          {
+            role: 'user',
+            content: `请把下面的用户需求改写为适合前端知识库检索的查询：\n${normalizedQuery}`,
+          },
+        ],
+        schema: ragQueryRewriteSchema,
+        maxTokens: this.config.rag?.queryRewrite?.maxTokens ?? 160,
+        temperature: this.config.rag?.queryRewrite?.temperature ?? 0.1,
+      });
+
+      const rewrittenQuery = normalizeSearchQuery(rewritten.searchQuery);
+      if (!rewrittenQuery || rewrittenQuery === normalizedQuery) {
+        return undefined;
+      }
+
+      return rewrittenQuery;
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn('[Agent] Failed to rewrite RAG query, falling back to original query:', error);
       }
       return undefined;
     }
