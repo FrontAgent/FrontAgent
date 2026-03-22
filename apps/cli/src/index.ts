@@ -459,6 +459,8 @@ program
   .option('--api-key <key>', 'LLM API Key (默认从环境变量读取)')
   .option('--max-tokens <tokens>', '最大 token 数', '4096')
   .option('--temperature <temp>', '温度参数', '0.7') // 控制大模型温度-随机性，注意过高温度可能会导致鲁棒性下降
+  .option('--top-p <n>', 'Nucleus sampling (top_p)', process.env.TOP_P)
+  .option('--top-k <n>', 'Top-k sampling（仅部分 provider 支持）', process.env.TOP_K)
   .option('--engine <engine>', '执行引擎 (native/langgraph)', process.env.EXECUTION_ENGINE || 'native')
   .option('--langgraph-checkpoint', '启用 LangGraph checkpoint', false)
   .option('--max-recovery-attempts <n>', '阶段恢复最大重试次数', process.env.MAX_RECOVERY_ATTEMPTS || '3')
@@ -621,10 +623,20 @@ program
 
     // 显示 LLM 配置信息
     if (options.debug) {
+      const llmTopP = parseOptionalFloat(options.topP) ?? parseOptionalFloat(process.env.TOP_P);
+      const llmTopK = parseOptionalInt(options.topK) ?? parseOptionalInt(process.env.TOP_K);
       console.log(chalk.gray(`\n🔧 LLM 配置:`));
       console.log(chalk.gray(`   Provider: ${provider}`));
       console.log(chalk.gray(`   Model: ${model}`));
-      console.log(chalk.gray(`   Base URL: ${resolvedLlmBaseURL || '(default)'}\n`));
+      console.log(chalk.gray(`   Base URL: ${resolvedLlmBaseURL || '(default)'}`));
+      console.log(chalk.gray(`   Temperature: ${parseFloat(options.temperature)}`));
+      if (llmTopP != null) {
+        console.log(chalk.gray(`   Top P: ${llmTopP}`));
+      }
+      if (llmTopK != null) {
+        console.log(chalk.gray(`   Top K: ${llmTopK}`));
+      }
+      console.log('');
       console.log(chalk.gray(`   Execution Engine: ${executionEngine}`));
       if (executionEngine === 'langgraph') {
         console.log(chalk.gray(`   LangGraph Checkpoint: ${useLangGraphCheckpoint}`));
@@ -680,6 +692,8 @@ program
         apiKey: resolvedLlmApiKey,
         maxTokens: parseInt(options.maxTokens, 10),
         temperature: parseFloat(options.temperature), // 注入温度
+        topP: parseOptionalFloat(options.topP) ?? parseOptionalFloat(process.env.TOP_P),
+        topK: parseOptionalInt(options.topK) ?? parseOptionalInt(process.env.TOP_K),
       },
       execution: {
         engine: executionEngine,

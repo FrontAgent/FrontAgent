@@ -162,6 +162,19 @@ export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
 
+Main LLM sampling controls:
+
+```bash
+frontagent run "Explain React createElement" \
+  --temperature 0.2 \
+  --top-p 0.9
+```
+
+- `--temperature` is supported.
+- `--top-p` is supported through the AI SDK call settings.
+- `--top-k` is exposed, but only some providers/models support it. For example, Anthropic models can use it, while OpenAI-compatible chat models may ignore it as unsupported.
+- `repetition_penalty` is not exposed yet in FrontAgent because the current AI SDK/provider stack does not provide a stable cross-provider path for it.
+
 Before retrieval, FrontAgent now sends the user's original request through a separate LLM rewrite step to generate a more retrieval-friendly frontend search query. This rewrite uses the same `provider/base-url/model/api-key` as the main agent, but the rewritten query is only used for RAG and does not replace the user's original task.
 
 After BM25 + embedding recall, FrontAgent will by default send the top candidate chunks to a reranker endpoint (`/rerank`, Jina/Cohere-compatible) for cross-encoder-style final ordering when reranker model/base-url/api-key are available. Use `--disable-rag-reranker` to turn it off for a run.

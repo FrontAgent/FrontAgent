@@ -133,6 +133,23 @@ export class LLMService {
   }
 
   /**
+   * 构建通用采样参数
+   */
+  private buildCallSettings(options: {
+    maxTokens?: number;
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+  }) {
+    return {
+      maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
+      temperature: options.temperature ?? this.config.temperature ?? 0.7,
+      topP: options.topP ?? this.config.topP,
+      topK: options.topK ?? this.config.topK,
+    };
+  }
+
+  /**
    * 生成文本
    */
   async generateText(options: {
@@ -140,13 +157,14 @@ export class LLMService {
     system?: string;
     maxTokens?: number;
     temperature?: number;
+    topP?: number;
+    topK?: number;
   }): Promise<string> {
     const result = await generateText({
       model: this.model,
       messages: this.convertMessages(options.messages),
       system: options.system,
-      maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
-      temperature: options.temperature ?? this.config.temperature ?? 0.7,
+      ...this.buildCallSettings(options),
     });
 
     return result.text;
@@ -160,13 +178,14 @@ export class LLMService {
     system?: string;
     maxTokens?: number;
     temperature?: number;
+    topP?: number;
+    topK?: number;
   }): AsyncGenerator<string> {
     const result = streamText({
       model: this.model,
       messages: this.convertMessages(options.messages),
       system: options.system,
-      maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
-      temperature: options.temperature ?? this.config.temperature ?? 0.7,
+      ...this.buildCallSettings(options),
     });
 
     for await (const chunk of result.textStream) {
@@ -183,6 +202,8 @@ export class LLMService {
     schema: z.ZodType<T>; // Zod 做 强Schema 约束
     maxTokens?: number;
     temperature?: number;
+    topP?: number;
+    topK?: number;
     maxRetries?: number; // 最大重试次数
   }): Promise<T> {
     const maxRetries = options.maxRetries ?? 2;
@@ -203,8 +224,12 @@ export class LLMService {
           messages: this.convertMessages(options.messages),
           system: options.system,
           schema: options.schema,
-          maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
-          temperature,
+          ...this.buildCallSettings({
+            maxTokens: options.maxTokens,
+            temperature,
+            topP: options.topP,
+            topK: options.topK,
+          }),
         });
 
         if (attempt > 0) {

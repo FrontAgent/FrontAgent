@@ -150,6 +150,10 @@ export interface LLMConfig {
   maxTokens?: number;
   /** 温度 */
   temperature?: number;
+  /** Nucleus sampling，建议与 temperature 二选一使用 */
+  topP?: number;
+  /** 仅从 top-k 候选中采样；并非所有 provider 都支持 */
+  topK?: number;
 }
 
 /**

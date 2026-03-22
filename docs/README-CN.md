@@ -162,6 +162,19 @@ export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 
 如果 `provider=openai`，并且没有单独设置 `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY`，FrontAgent 会自动复用智能体 LLM 的 `base-url` 和 `api-key`。
 
+主模型采样参数：
+
+```bash
+frontagent run "解释 React createElement" \
+  --temperature 0.2 \
+  --top-p 0.9
+```
+
+- `--temperature` 已支持。
+- `--top-p` 已支持，会通过 AI SDK 通用采样参数传递。
+- `--top-k` 已暴露，但是否生效取决于 provider/model。比如 Anthropic 支持，OpenAI 兼容 chat 模型通常会把它视为 unsupported。
+- `repetition_penalty` 目前还没有在 FrontAgent 中暴露，因为当前 AI SDK/provider 栈没有稳定的跨 provider 通用透传路径。
+
 在发起检索前，FrontAgent 现在会先用一条独立的大模型请求，把用户原始问题改写成更适合前端知识库检索的查询语句。这一步复用主智能体的 `provider/base-url/model/api-key`，但改写后的查询只用于 RAG，不会替换用户原始任务，也不会污染后续 Agent。
 
 在 BM25 + embedding 初筛之后，FrontAgent 现在会默认把 Top-N 候选文档块再送到一个 `/rerank` 兼容端点做交叉编码器式重排序，进一步提升最终排序精度。只要 reranker 的 model/base-url/api-key 可用，就会自动执行；如果你要关闭，可使用 `--disable-rag-reranker`。
