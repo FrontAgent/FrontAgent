@@ -360,7 +360,7 @@ modification_rules:
 `;
 
     const outputPath = resolve(process.cwd(), options.output);
-    
+
     if (existsSync(outputPath)) {
       spinner.fail(`文件已存在: ${outputPath}`);
       return;
@@ -386,7 +386,7 @@ program
     // 默认检查当前目录的 sdd.yaml
     const targetPath = sddPath || 'sdd.yaml';
     const fullPath = resolve(process.cwd(), targetPath);
-    
+
     if (!existsSync(fullPath)) {
       spinner.fail(`文件不存在: ${fullPath}`);
       return;
@@ -420,7 +420,7 @@ program
   .option('-l, --language <lang>', '语言 (zh/en)', 'zh')
   .action(async (sddPath, options) => {
     const fullPath = resolve(process.cwd(), sddPath);
-    
+
     if (!existsSync(fullPath)) {
       console.log(chalk.red(`文件不存在: ${fullPath}`));
       return;
@@ -458,7 +458,7 @@ program
   .option('--base-url <url>', 'LLM API 基础 URL (用于代理或兼容 API)')
   .option('--api-key <key>', 'LLM API Key (默认从环境变量读取)')
   .option('--max-tokens <tokens>', '最大 token 数', '4096')
-  .option('--temperature <temp>', '温度参数', '0.7')
+  .option('--temperature <temp>', '温度参数', '0.7') // 控制大模型温度-随机性，注意过高温度可能会导致鲁棒性下降
   .option('--engine <engine>', '执行引擎 (native/langgraph)', process.env.EXECUTION_ENGINE || 'native')
   .option('--langgraph-checkpoint', '启用 LangGraph checkpoint', false)
   .option('--max-recovery-attempts <n>', '阶段恢复最大重试次数', process.env.MAX_RECOVERY_ATTEMPTS || '3')
@@ -679,7 +679,7 @@ program
         baseURL: resolvedLlmBaseURL,
         apiKey: resolvedLlmApiKey,
         maxTokens: parseInt(options.maxTokens, 10),
-        temperature: parseFloat(options.temperature),
+        temperature: parseFloat(options.temperature), // 注入温度
       },
       execution: {
         engine: executionEngine,
