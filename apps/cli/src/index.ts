@@ -267,7 +267,7 @@ async function importRagCacheBundle(input: {
 program
   .name('frontagent')
   .description('FrontAgent - 工程级 AI Agent 系统')
-  .version('0.1.0');
+  .version('0.1.6');
 
 /**
  * init 命令 - 初始化项目 SDD 配置

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6] - 2026-03-22
+
+### Added
+- Added Weaviate-backed semantic vector storage for RAG while keeping BM25 local.
+- Added RAG cache bundle export/import workflow for distributing prebuilt knowledge-base indexes.
+- Added a retrieval-only LLM query rewrite step that rewrites user input into frontend-oriented search queries before RAG.
+
+### Changed
+- Clarified all RAG-facing terminology so remote RAG evidence is referred to as "knowledge base" instead of the current workspace repository.
+- Updated English and Chinese documentation with Weaviate, query rewrite, and cache bundle usage examples.
+
+### Fixed
+- Prevented the planner from treating remote RAG hits as local workspace files during query tasks.
+- Improved semantic index resilience for Weaviate-backed retrieval and related RAG execution flow.
+
 ## [0.1.5] - 2026-03-16
 
 ### Fixed

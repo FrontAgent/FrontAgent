@@ -1,6 +1,6 @@
 {
   "name": "frontagent",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Enterprise AI agent platform for frontend engineering with planning/execution architecture, SDD constraints, and MCP-controlled code generation",
   "type": "module",
   "bin": {
