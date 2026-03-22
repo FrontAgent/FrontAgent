@@ -14,9 +14,9 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-const INDEX_VERSION = 4;
+const INDEX_VERSION = 5;
 const EMBEDDING_STORE_VERSION = 3;
-const VECTOR_STORE_STATE_VERSION = 1;
+const VECTOR_STORE_STATE_VERSION = 2;
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_KEYWORD_CANDIDATES = 40;
 const DEFAULT_SEMANTIC_CANDIDATES = 40;
@@ -167,6 +167,8 @@ interface RepositoryIndex {
     chunkSize: number;
     chunkOverlap: number;
     maxFileSizeBytes: number;
+    chunkingStrategy: string;
+    chunkSignature: string;
   };
   bm25: {
     documentCount: number;
@@ -233,6 +235,7 @@ interface WeaviateVectorStoreState {
   embeddingBaseURL: string;
   dimensions?: number;
   indexedChunks: number;
+  chunkSignature: string;
   updatedAt: string;
 }
 
@@ -646,7 +649,8 @@ class HybridRepositoryKnowledgeBase {
       current.embeddingModel === this.config.embedding.model &&
       current.embeddingBaseURL === this.config.embedding.baseURL &&
       current.dimensions === this.config.embedding.dimensions &&
-      current.indexedChunks === index.chunks.length;
+      current.indexedChunks === index.chunks.length &&
+      current.chunkSignature === index.build.chunkSignature;
 
     if (compatible && collectionStatus === 'exists') {
       return current;
@@ -695,6 +699,7 @@ class HybridRepositoryKnowledgeBase {
       embeddingBaseURL: this.config.embedding.baseURL,
       dimensions: this.config.embedding.dimensions,
       indexedChunks: index.chunks.length,
+      chunkSignature: index.build.chunkSignature,
       updatedAt: new Date().toISOString(),
     };
     this.writeWeaviateVectorStoreState(state);
@@ -951,7 +956,8 @@ function canReuseIndex(
     sameStringSet(index.source.excludedSubmodulePaths, expected.excludedSubmodulePaths) &&
     index.build.chunkSize === expected.chunkSize &&
     index.build.chunkOverlap === expected.chunkOverlap &&
-    index.build.maxFileSizeBytes === expected.maxFileSizeBytes
+    index.build.maxFileSizeBytes === expected.maxFileSizeBytes &&
+    index.build.chunkingStrategy === 'semantic-v2'
   );
 }
 
@@ -984,7 +990,7 @@ function buildRepositoryIndex(input: {
     }
 
     const documentId = `doc:${file.path}`;
-    const documentChunks = chunkText(content, input.chunkSize, input.chunkOverlap);
+    const documentChunks = chunkText(content, file.path, input.chunkSize, input.chunkOverlap);
     if (documentChunks.length === 0) {
       continue;
     }
@@ -1061,6 +1067,8 @@ function buildRepositoryIndex(input: {
       chunkSize: input.chunkSize,
       chunkOverlap: input.chunkOverlap,
       maxFileSizeBytes: input.maxFileSizeBytes,
+      chunkingStrategy: 'semantic-v2',
+      chunkSignature: buildChunkSignature(chunks),
     },
     bm25: {
       documentCount: chunks.length,
@@ -1150,54 +1158,263 @@ function looksBinary(buffer: Buffer, path: string): boolean {
 
 function chunkText(
   content: string,
+  path: string,
   chunkSize: number,
   chunkOverlap: number,
 ): Array<{ text: string; lineStart: number; lineEnd: number }> {
-  const lines = content.split(/\r?\n/);
-  if (lines.length === 0) {
+  if (!content.trim()) {
+    return [];
+  }
+
+  const semanticBlocks = createSemanticBlocks(content, path)
+    .flatMap((block) => splitOversizedBlock(block, chunkSize))
+    .filter((block) => block.text.trim().length > 0);
+
+  if (semanticBlocks.length === 0) {
     return [];
   }
 
   const chunks: Array<{ text: string; lineStart: number; lineEnd: number }> = [];
-  let startLine = 0;
+  let startIndex = 0;
 
-  while (startLine < lines.length) {
-    let endLine = startLine;
+  while (startIndex < semanticBlocks.length) {
+    let endIndex = startIndex;
     let currentLength = 0;
 
-    while (endLine < lines.length) {
-      const candidateLength = currentLength + lines[endLine].length + 1;
-      if (candidateLength > chunkSize && endLine > startLine) {
+    while (endIndex < semanticBlocks.length) {
+      const separatorLength = endIndex > startIndex ? 2 : 0;
+      const candidateLength = currentLength + separatorLength + semanticBlocks[endIndex].text.length;
+      if (candidateLength > chunkSize && endIndex > startIndex) {
         break;
       }
       currentLength = candidateLength;
-      endLine++;
+      endIndex++;
     }
 
-    const text = lines.slice(startLine, endLine).join('\n').trim();
+    const selectedBlocks = semanticBlocks.slice(startIndex, endIndex);
+    const text = selectedBlocks.map((block) => block.text).join('\n\n').trim();
     if (text) {
       chunks.push({
         text,
-        lineStart: startLine + 1,
-        lineEnd: endLine,
+        lineStart: selectedBlocks[0].lineStart,
+        lineEnd: selectedBlocks[selectedBlocks.length - 1].lineEnd,
       });
     }
 
-    if (endLine >= lines.length) {
+    if (endIndex >= semanticBlocks.length) {
       break;
     }
 
     let overlapChars = 0;
-    let nextStart = endLine;
-    while (nextStart > startLine + 1 && overlapChars < chunkOverlap) {
+    let nextStart = endIndex;
+    while (nextStart > startIndex + 1 && overlapChars < chunkOverlap) {
       nextStart--;
-      overlapChars += lines[nextStart].length + 1;
+      overlapChars += semanticBlocks[nextStart].text.length + 2;
     }
 
-    startLine = Math.max(nextStart, startLine + 1);
+    startIndex = Math.max(nextStart, startIndex + 1);
   }
 
   return chunks;
+}
+
+function createSemanticBlocks(
+  content: string,
+  path: string,
+): Array<{ text: string; lineStart: number; lineEnd: number }> {
+  const lines = content.split(/\r?\n/);
+  const blocks: Array<{ text: string; lineStart: number; lineEnd: number }> = [];
+  const extension = extname(path).toLowerCase();
+  let currentLines: string[] = [];
+  let currentStartLine = 1;
+  let inFence = false;
+
+  const flush = (endLine: number) => {
+    const text = currentLines.join('\n').trim();
+    if (!text) {
+      currentLines = [];
+      return;
+    }
+
+    blocks.push({
+      text,
+      lineStart: currentStartLine,
+      lineEnd: endLine,
+    });
+    currentLines = [];
+  };
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const lineNumber = index + 1;
+    const trimmed = line.trim();
+
+    if (!inFence && trimmed === '') {
+      if (currentLines.length > 0) {
+        flush(lineNumber - 1);
+      }
+      currentStartLine = lineNumber + 1;
+      continue;
+    }
+
+    const isFenceBoundary = /^(```|~~~)/.test(trimmed);
+    if (isFenceBoundary && !inFence) {
+      if (currentLines.length > 0) {
+        flush(lineNumber - 1);
+      }
+      currentStartLine = lineNumber;
+    }
+
+    if (!inFence && currentLines.length > 0 && isSemanticBoundaryLine(trimmed, extension)) {
+      flush(lineNumber - 1);
+      currentStartLine = lineNumber;
+    }
+
+    if (currentLines.length === 0) {
+      currentStartLine = lineNumber;
+    }
+    currentLines.push(line);
+
+    if (isFenceBoundary) {
+      inFence = !inFence;
+      if (!inFence) {
+        flush(lineNumber);
+        currentStartLine = lineNumber + 1;
+      }
+    }
+  }
+
+  if (currentLines.length > 0) {
+    flush(lines.length);
+  }
+
+  return blocks;
+}
+
+function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean {
+  if (!trimmedLine) {
+    return false;
+  }
+
+  if (/^#{1,6}\s+/.test(trimmedLine)) {
+    return true;
+  }
+
+  if (/^[-*]\s+/.test(trimmedLine) || /^\d+\.\s+/.test(trimmedLine)) {
+    return true;
+  }
+
+  if (/^<\/?(template|script|style|main|section|article|header|footer|aside|nav)\b/i.test(trimmedLine)) {
+    return true;
+  }
+
+  if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(extension)) {
+    return (
+      /^(export\s+)?(default\s+)?(async\s+)?function\s+[A-Za-z0-9_$]+/.test(trimmedLine) ||
+      /^(export\s+)?class\s+[A-Za-z0-9_$]+/.test(trimmedLine) ||
+      /^(export\s+)?(interface|type|enum)\s+[A-Za-z0-9_$]+/.test(trimmedLine) ||
+      /^(export\s+)?(const|let|var)\s+[A-Za-z0-9_$]+\s*=/.test(trimmedLine)
+    );
+  }
+
+  if (['.css', '.scss', '.sass', '.less'].includes(extension)) {
+    return /^(@media|@supports|@keyframes|:root\b|[.#a-zA-Z\[\]][^{}]*\{)\s*$/.test(trimmedLine);
+  }
+
+  if (['.html', '.vue', '.md'].includes(extension)) {
+    return /^<[^/!][^>]*>$/.test(trimmedLine);
+  }
+
+  return false;
+}
+
+function splitOversizedBlock(
+  block: { text: string; lineStart: number; lineEnd: number },
+  maxLength: number,
+): Array<{ text: string; lineStart: number; lineEnd: number }> {
+  if (block.text.length <= maxLength) {
+    return [block];
+  }
+
+  const pieces: Array<{ text: string; lineStart: number; lineEnd: number }> = [];
+  let startOffset = 0;
+
+  while (startOffset < block.text.length) {
+    while (startOffset < block.text.length && /\s/.test(block.text[startOffset])) {
+      startOffset++;
+    }
+    if (startOffset >= block.text.length) {
+      break;
+    }
+
+    const endOffset = findPreferredSplitOffset(block.text, startOffset, maxLength);
+    const raw = block.text.slice(startOffset, endOffset);
+    const text = raw.trim();
+    if (text) {
+      pieces.push({
+        text,
+        lineStart: getLineNumberAtOffset(block.text, block.lineStart, startOffset),
+        lineEnd: getLineNumberAtOffset(block.text, block.lineStart, Math.max(startOffset, endOffset - 1)),
+      });
+    }
+
+    startOffset = endOffset;
+  }
+
+  return pieces.length > 0 ? pieces : [block];
+}
+
+function findPreferredSplitOffset(text: string, startOffset: number, maxLength: number): number {
+  const remaining = text.length - startOffset;
+  if (remaining <= maxLength) {
+    return text.length;
+  }
+
+  const window = text.slice(startOffset, startOffset + maxLength);
+  const minimumPreferredOffset = Math.floor(maxLength * 0.45);
+  const boundaryPatterns = [
+    /\n\s*\n/g,
+    /\n/g,
+    /[。！？!?；;]\s+/g,
+    /[{};>]\s*/g,
+    /[,，]\s+/g,
+  ];
+
+  for (const pattern of boundaryPatterns) {
+    const relative = findLastBoundary(window, pattern);
+    if (relative >= minimumPreferredOffset) {
+      return startOffset + relative;
+    }
+  }
+
+  return startOffset + maxLength;
+}
+
+function findLastBoundary(window: string, pattern: RegExp): number {
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+  const matcher = new RegExp(pattern.source, flags);
+  let match: RegExpExecArray | null;
+  let lastIndex = -1;
+
+  while ((match = matcher.exec(window)) !== null) {
+    lastIndex = match.index + match[0].length;
+  }
+
+  return lastIndex;
+}
+
+function getLineNumberAtOffset(text: string, baseLine: number, offset: number): number {
+  if (offset <= 0) {
+    return baseLine;
+  }
+
+  let line = baseLine;
+  for (let i = 0; i < Math.min(offset, text.length); i++) {
+    if (text[i] === '\n') {
+      line++;
+    }
+  }
+  return line;
 }
 
 function searchBm25(
@@ -1862,6 +2079,17 @@ function countTerms(tokens: string[]): Record<string, number> {
     counts[token] = (counts[token] ?? 0) + 1;
   }
   return counts;
+}
+
+function buildChunkSignature(chunks: RepositoryChunk[]): string {
+  const hash = createHash('sha256');
+  for (const chunk of chunks) {
+    hash.update(chunk.id);
+    hash.update(':');
+    hash.update(chunk.contentHash);
+    hash.update('\n');
+  }
+  return hash.digest('hex');
 }
 
 function buildSnippet(text: string, query: string): string {
