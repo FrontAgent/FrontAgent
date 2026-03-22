@@ -113,6 +113,19 @@ frontagent run "Explain React setState behavior" \
 frontagent run "How to build a custom selector" \
   --disable-rag-query-rewrite
 
+# Cross-encoder reranking is enabled by default after BM25 + embedding candidate retrieval
+frontagent run "Explain React setState behavior" \
+  --provider openai \
+  --base-url https://yunwu.ai/v1 \
+  --api-key YOUR_TOKEN \
+  --rag-embedding-model text-embedding-3-small \
+  --rag-reranker-model jina-reranker-v2-base-multilingual \
+  --rag-reranker-base-url https://your-reranker-endpoint/v1
+
+# Disable reranking for a run
+frontagent run "Explain React setState behavior" \
+  --disable-rag-reranker
+
 # Disable semantic retrieval and use BM25 only
 frontagent run "Explain React setState behavior" \
   --disable-rag-semantic
@@ -133,6 +146,11 @@ export FRONTAGENT_RAG_KEYWORD_WEIGHT="0.45"
 export FRONTAGENT_RAG_SEMANTIC_WEIGHT="0.55"
 export FRONTAGENT_RAG_QUERY_REWRITE_MAX_TOKENS="160"
 export FRONTAGENT_RAG_QUERY_REWRITE_TEMPERATURE="0.1"
+export FRONTAGENT_RAG_RERANKER_MODEL="jina-reranker-v2-base-multilingual"
+export FRONTAGENT_RAG_RERANKER_BASE_URL="https://your-reranker-endpoint/v1"
+export FRONTAGENT_RAG_RERANKER_API_KEY="sk-..."
+export FRONTAGENT_RAG_RERANKER_CANDIDATE_COUNT="20"
+export FRONTAGENT_RAG_RERANKER_MAX_DOCUMENT_CHARS="1800"
 export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
@@ -145,6 +163,8 @@ export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
 
 Before retrieval, FrontAgent now sends the user's original request through a separate LLM rewrite step to generate a more retrieval-friendly frontend search query. This rewrite uses the same `provider/base-url/model/api-key` as the main agent, but the rewritten query is only used for RAG and does not replace the user's original task.
+
+After BM25 + embedding recall, FrontAgent will by default send the top candidate chunks to a reranker endpoint (`/rerank`, Jina/Cohere-compatible) for cross-encoder-style final ordering when reranker model/base-url/api-key are available. Use `--disable-rag-reranker` to turn it off for a run.
 
 When `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate`, FrontAgent keeps BM25 in the local `index.json`, but semantic vectors are written to and queried from Weaviate instead of `embeddings.json`.
 

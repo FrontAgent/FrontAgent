@@ -76,6 +76,25 @@ export interface RagConfig {
     /** 查询改写温度 */
     temperature?: number;
   };
+  /** 重排序器配置 */
+  reranker?: {
+    /** 是否启用重排序（默认 false） */
+    enabled?: boolean;
+    /** 重排序接口提供方 */
+    provider?: 'jina-compatible';
+    /** 重排序模型 */
+    model?: string;
+    /** 重排序接口 Base URL */
+    baseURL?: string;
+    /** 重排序接口 API Key */
+    apiKey?: string;
+    /** 送入重排序器的候选文档数 */
+    candidateCount?: number;
+    /** 每个候选文档送入重排序器的最大字符数 */
+    maxDocumentChars?: number;
+    /** 单次请求超时毫秒 */
+    requestTimeoutMs?: number;
+  };
   /** 语义检索配置 */
   embedding?: {
     /** 是否启用语义检索（默认 true） */
@@ -411,6 +430,7 @@ export interface RagContextMatch {
   snippet: string;
   path?: string;
   score?: number;
+  rerankScore?: number;
 }
 
 /**
@@ -507,6 +527,7 @@ export type AgentEvent =
   | {
       type: 'rag_retrieved';
       searchMode?: 'hybrid' | 'keyword_only';
+      reranked?: boolean;
       warnings?: string[];
       matches: RagContextMatch[];
     }

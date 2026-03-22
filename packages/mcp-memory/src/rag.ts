@@ -27,6 +27,8 @@ const DEFAULT_FETCH_TIMEOUT_MS = 30000;
 const DEFAULT_EMBEDDING_BATCH_SIZE = 4;
 const DEFAULT_EMBEDDING_MAX_BATCH_TOKENS = 6000;
 const DEFAULT_EMBEDDING_MAX_INPUT_CHARS = 4000;
+const DEFAULT_RERANKER_CANDIDATE_COUNT = 20;
+const DEFAULT_RERANKER_MAX_DOCUMENT_CHARS = 1800;
 const DEFAULT_EMBEDDING_MAX_RETRIES = 6;
 const DEFAULT_EMBEDDING_RETRY_BASE_DELAY_MS = 1500;
 const DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS = 250;
@@ -67,6 +69,7 @@ export interface KnowledgeBaseConfig {
   chunkSize?: number;
   chunkOverlap?: number;
   maxFileSizeBytes?: number;
+  reranker?: RerankerConfig;
   embedding?: EmbeddingConfig;
   vectorStore?: VectorStoreConfig;
 }
@@ -79,6 +82,17 @@ export interface EmbeddingConfig {
   apiKey?: string;
   dimensions?: number;
   batchSize?: number;
+  requestTimeoutMs?: number;
+}
+
+export interface RerankerConfig {
+  enabled?: boolean;
+  provider?: 'jina-compatible';
+  model?: string;
+  baseURL?: string;
+  apiKey?: string;
+  candidateCount?: number;
+  maxDocumentChars?: number;
   requestTimeoutMs?: number;
 }
 
@@ -119,6 +133,7 @@ export interface RagQueryMatch {
   path: string;
   keywordScore?: number;
   semanticScore?: number;
+  rerankScore?: number;
   metadata: {
     topLevelDir: string;
     extension: string;
@@ -135,6 +150,7 @@ export interface RagQueryResult {
   results?: RagQueryMatch[];
   warnings?: string[];
   searchMode?: 'hybrid' | 'keyword_only';
+  reranked?: boolean;
   error?: string;
 }
 
@@ -249,6 +265,9 @@ interface DocumentCandidate {
   chunk: RepositoryChunk;
   score: number;
   rank: number;
+  keywordScore?: number;
+  semanticScore?: number;
+  rerankScore?: number;
 }
 
 export function createKnowledgeBase(config: KnowledgeBaseConfig) {
@@ -436,18 +455,39 @@ class HybridRepositoryKnowledgeBase {
       const fusedResults = fuseDocumentCandidates({
         keywordCandidates: keywordDocumentCandidates,
         semanticCandidates: semanticDocumentCandidates,
-        maxResults,
+        maxResults: Math.max(maxResults, this.config.reranker.candidateCount),
         keywordWeight: this.config.keywordWeight,
         semanticWeight: this.config.semanticWeight,
       });
+
+      let reranked = false;
+      let finalResults = fusedResults.slice(0, maxResults);
+      if (this.config.reranker.enabled) {
+        if (this.config.reranker.model && this.config.reranker.baseURL && this.config.reranker.apiKey) {
+          try {
+            finalResults = await rerankDocumentCandidates({
+              query: queryText,
+              candidates: fusedResults,
+              maxResults,
+              config: this.config.reranker,
+            });
+            reranked = true;
+          } catch (error) {
+            warnings.push(
+              `Reranking unavailable: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        }
+      }
 
       return {
         success: true,
         syncedAt: index.source.syncedAt,
         sourceRevision: index.source.revision,
         searchMode,
+        reranked,
         warnings: warnings.length > 0 ? warnings : undefined,
-        results: fusedResults.map((result) => ({
+        results: finalResults.map((result) => ({
           id: result.document.id,
           type: 'file',
           title: result.document.title,
@@ -456,6 +496,7 @@ class HybridRepositoryKnowledgeBase {
           score: result.score,
           keywordScore: result.keywordScore,
           semanticScore: result.semanticScore,
+          rerankScore: result.rerankScore,
           snippet: buildSnippet(result.chunk.text, queryText),
           metadata: {
             topLevelDir: result.chunk.metadata.topLevelDir,
@@ -758,6 +799,7 @@ type RequiredHybridConfig = {
   chunkSize: number;
   chunkOverlap: number;
   maxFileSizeBytes: number;
+  reranker: Required<RerankerConfig>;
   embedding: Required<EmbeddingConfig>;
   vectorStore: {
     provider: 'local' | 'weaviate';
@@ -793,6 +835,14 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
     config.vectorStore?.weaviate?.apiKey ??
     process.env.FRONTAGENT_RAG_WEAVIATE_API_KEY ??
     '';
+  const rerankerBaseURL =
+    config.reranker?.baseURL ??
+    process.env.FRONTAGENT_RAG_RERANKER_BASE_URL ??
+    '';
+  const rerankerApiKey =
+    config.reranker?.apiKey ??
+    process.env.FRONTAGENT_RAG_RERANKER_API_KEY ??
+    '';
 
   return {
     repoUrl: config.repoUrl,
@@ -811,6 +861,25 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
     chunkSize: config.chunkSize ?? DEFAULT_CHUNK_SIZE,
     chunkOverlap: config.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP,
     maxFileSizeBytes: config.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES,
+    reranker: {
+      enabled: config.reranker?.enabled ?? false,
+      provider: config.reranker?.provider ?? 'jina-compatible',
+      model: config.reranker?.model ?? process.env.FRONTAGENT_RAG_RERANKER_MODEL ?? '',
+      baseURL: normalizeOptionalBaseUrl(rerankerBaseURL) ?? '',
+      apiKey: rerankerApiKey,
+      candidateCount:
+        config.reranker?.candidateCount ??
+        parseOptionalInt(process.env.FRONTAGENT_RAG_RERANKER_CANDIDATE_COUNT) ??
+        DEFAULT_RERANKER_CANDIDATE_COUNT,
+      maxDocumentChars:
+        config.reranker?.maxDocumentChars ??
+        parseOptionalInt(process.env.FRONTAGENT_RAG_RERANKER_MAX_DOCUMENT_CHARS) ??
+        DEFAULT_RERANKER_MAX_DOCUMENT_CHARS,
+      requestTimeoutMs:
+        config.reranker?.requestTimeoutMs ??
+        parseOptionalInt(process.env.FRONTAGENT_RAG_RERANKER_TIMEOUT_MS) ??
+        DEFAULT_FETCH_TIMEOUT_MS,
+    },
     embedding: {
       enabled: config.embedding?.enabled ?? true,
       provider: embeddingProvider,
@@ -1937,10 +2006,10 @@ function fuseDocumentCandidates(input: {
   maxResults: number;
   keywordWeight: number;
   semanticWeight: number;
-}): Array<DocumentCandidate & { keywordScore?: number; semanticScore?: number }> {
+}): DocumentCandidate[] {
   const keywordMax = input.keywordCandidates[0]?.score ?? 0;
   const semanticMax = input.semanticCandidates[0]?.score ?? 0;
-  const fused = new Map<string, DocumentCandidate & { keywordScore?: number; semanticScore?: number }>();
+  const fused = new Map<string, DocumentCandidate>();
 
   const effectiveKeywordWeight =
     input.semanticCandidates.length > 0 ? input.keywordWeight : 1;
@@ -1993,6 +2062,125 @@ function fuseDocumentCandidates(input: {
 
   ranked.sort((left, right) => right.score - left.score);
   return ranked.slice(0, input.maxResults);
+}
+
+async function rerankDocumentCandidates(input: {
+  query: string;
+  candidates: DocumentCandidate[];
+  maxResults: number;
+  config: Required<RerankerConfig>;
+}): Promise<DocumentCandidate[]> {
+  const rerankPool = input.candidates.slice(0, Math.max(input.maxResults, input.config.candidateCount));
+  if (rerankPool.length === 0) {
+    return [];
+  }
+
+  if (input.config.provider !== 'jina-compatible') {
+    throw new Error(`unsupported reranker provider: ${input.config.provider}`);
+  }
+
+  const documents = rerankPool.map((candidate) =>
+    buildRerankerDocument(candidate, input.config.maxDocumentChars)
+  );
+  const rerankedItems = await requestJinaCompatibleRerank({
+    config: input.config,
+    query: input.query,
+    documents,
+    topN: Math.min(Math.max(input.maxResults, 1), rerankPool.length),
+  });
+
+  const byIndex = new Map(rerankedItems.map((item) => [item.index, item.score]));
+  const reranked = rerankPool
+    .flatMap((candidate, index) => {
+      const score = byIndex.get(index);
+      if (score === undefined) {
+        return [];
+      }
+      return [{
+        ...candidate,
+        rerankScore: score,
+        score,
+      }];
+    })
+    .sort((left, right) => (right.rerankScore ?? 0) - (left.rerankScore ?? 0));
+
+  if (reranked.length >= input.maxResults) {
+    return reranked.slice(0, input.maxResults);
+  }
+
+  const rerankedDocIds = new Set(reranked.map((candidate) => candidate.document.id));
+  const fallback = rerankPool.filter((candidate) => !rerankedDocIds.has(candidate.document.id));
+  return [...reranked, ...fallback].slice(0, input.maxResults);
+}
+
+function buildRerankerDocument(candidate: DocumentCandidate, maxChars: number): string {
+  return truncateRerankerDocument(
+    [
+      `path: ${candidate.document.path}`,
+      `title: ${candidate.document.title}`,
+      candidate.chunk.text,
+    ].join('\n'),
+    maxChars,
+  );
+}
+
+function truncateRerankerDocument(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  const marker = '\n...[truncated for rerank]...\n';
+  if (maxChars <= marker.length + 32) {
+    return text.slice(0, maxChars);
+  }
+
+  const remaining = maxChars - marker.length;
+  const headChars = Math.ceil(remaining * 0.8);
+  const tailChars = remaining - headChars;
+  return `${text.slice(0, headChars)}${marker}${text.slice(-tailChars)}`;
+}
+
+async function requestJinaCompatibleRerank(input: {
+  config: Required<RerankerConfig>;
+  query: string;
+  documents: string[];
+  topN: number;
+}): Promise<Array<{ index: number; score: number }>> {
+  const endpoint = normalizeRerankerBaseUrl(input.config.baseURL);
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${input.config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: input.config.model,
+      query: input.query,
+      documents: input.documents,
+      top_n: input.topN,
+      return_documents: false,
+    }),
+    signal: AbortSignal.timeout(input.config.requestTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`rerank request failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+  }
+
+  const payload = await response.json() as {
+    results?: Array<{ index?: number; relevance_score?: number; score?: number }>;
+    data?: Array<{ index?: number; relevance_score?: number; score?: number }>;
+  };
+  const items = payload.results ?? payload.data ?? [];
+
+  return items
+    .map((item) => ({
+      index: item.index ?? -1,
+      score: item.relevance_score ?? item.score ?? 0,
+    }))
+    .filter((item) => item.index >= 0)
+    .sort((left, right) => right.score - left.score);
 }
 
 function findRank(candidates: DocumentCandidate[], documentId: string): number | undefined {
@@ -2245,6 +2433,11 @@ function normalizeOptionalBaseUrl(baseURL: string | undefined): string | undefin
 function normalizeEmbeddingBaseUrl(baseURL: string): string {
   const normalized = normalizeBaseUrl(baseURL);
   return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
+}
+
+function normalizeRerankerBaseUrl(baseURL: string): string {
+  const normalized = normalizeBaseUrl(baseURL);
+  return normalized.endsWith('/rerank') ? normalized : `${normalized}/rerank`;
 }
 
 function isCompatibleEmbeddingStore(

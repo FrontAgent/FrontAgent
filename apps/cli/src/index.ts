@@ -477,6 +477,13 @@ program
   .option('--disable-rag-query-rewrite', '禁用检索前的 LLM 查询优化', false)
   .option('--rag-query-rewrite-max-tokens <n>', '检索前查询优化最大输出 token', process.env.FRONTAGENT_RAG_QUERY_REWRITE_MAX_TOKENS || '160')
   .option('--rag-query-rewrite-temperature <n>', '检索前查询优化温度', process.env.FRONTAGENT_RAG_QUERY_REWRITE_TEMPERATURE || '0.1')
+  .option('--disable-rag-reranker', '禁用交叉编码器重排序', false)
+  .option('--rag-reranker-model <model>', '重排序模型（Jina/Cohere 兼容 /rerank）', process.env.FRONTAGENT_RAG_RERANKER_MODEL)
+  .option('--rag-reranker-base-url <url>', '重排序 API Base URL', process.env.FRONTAGENT_RAG_RERANKER_BASE_URL || process.env.OPENAI_BASE_URL || process.env.BASE_URL)
+  .option('--rag-reranker-api-key <key>', '重排序 API Key (默认从环境变量读取)')
+  .option('--rag-reranker-candidate-count <n>', '送入重排序器的候选文档数', process.env.FRONTAGENT_RAG_RERANKER_CANDIDATE_COUNT || '20')
+  .option('--rag-reranker-max-document-chars <n>', '单个候选文档送入重排序器的最大字符数', process.env.FRONTAGENT_RAG_RERANKER_MAX_DOCUMENT_CHARS || '1800')
+  .option('--rag-reranker-timeout-ms <n>', '重排序请求超时毫秒', process.env.FRONTAGENT_RAG_RERANKER_TIMEOUT_MS)
   .option('--disable-rag-semantic', '禁用 embedding 语义检索，仅保留 BM25', false)
   .option('--rag-embedding-model <model>', 'Embedding 模型', process.env.FRONTAGENT_RAG_EMBEDDING_MODEL)
   .option('--rag-embedding-base-url <url>', 'Embedding API Base URL', process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL || process.env.OPENAI_BASE_URL || process.env.BASE_URL)
@@ -557,6 +564,25 @@ program
         maxTokens: parseOptionalInt(options.ragQueryRewriteMaxTokens),
         temperature: parseOptionalFloat(options.ragQueryRewriteTemperature),
       },
+      reranker: {
+        enabled: !(
+          options.disableRagReranker ||
+          process.env.FRONTAGENT_RAG_RERANKER_ENABLED === '0' ||
+          process.env.FRONTAGENT_RAG_RERANKER_ENABLED === 'false'
+        ),
+        model: options.ragRerankerModel ?? process.env.FRONTAGENT_RAG_RERANKER_MODEL,
+        baseURL:
+          options.ragRerankerBaseUrl ??
+          process.env.FRONTAGENT_RAG_RERANKER_BASE_URL ??
+          resolvedLlmBaseURL,
+        apiKey:
+          options.ragRerankerApiKey ??
+          process.env.FRONTAGENT_RAG_RERANKER_API_KEY ??
+          resolvedLlmApiKey,
+        candidateCount: parseOptionalInt(options.ragRerankerCandidateCount),
+        maxDocumentChars: parseOptionalInt(options.ragRerankerMaxDocumentChars),
+        requestTimeoutMs: parseOptionalInt(options.ragRerankerTimeoutMs),
+      },
       embedding: {
         enabled: !options.disableRagSemantic,
         model: options.ragEmbeddingModel,
@@ -612,6 +638,7 @@ program
         console.log(chalk.gray(`   RAG Candidates: keyword=${ragConfig.keywordCandidateCount ?? 40}, semantic=${ragConfig.semanticCandidateCount ?? 40}`));
         console.log(chalk.gray(`   RAG Weights: keyword=${ragConfig.keywordWeight ?? 0.45}, semantic=${ragConfig.semanticWeight ?? 0.55}`));
         console.log(chalk.gray(`   RAG Query Rewrite: ${ragConfig.queryRewrite?.enabled === false ? 'disabled' : 'enabled (uses main LLM)'}`));
+        console.log(chalk.gray(`   RAG Reranker: ${ragConfig.reranker?.enabled ? 'enabled by default' : 'disabled'}`));
         console.log(chalk.gray(`   RAG Vector Store: ${ragConfig.vectorStore?.provider || 'local'}`));
         if (ragConfig.embedding?.enabled) {
           console.log(chalk.gray(`   RAG Embedding Base URL: ${ragConfig.embedding.baseURL || '(default)'}`));
@@ -629,6 +656,10 @@ program
         if (ragConfig.vectorStore?.provider === 'weaviate') {
           console.log(chalk.gray(`   RAG Weaviate URL: ${ragConfig.vectorStore.weaviate?.baseURL || '(missing)'}`));
           console.log(chalk.gray(`   RAG Weaviate Collection Prefix: ${ragConfig.vectorStore.weaviate?.collectionPrefix || '(default)'}`));
+        }
+        if (ragConfig.reranker?.enabled) {
+          console.log(chalk.gray(`   RAG Reranker Model: ${ragConfig.reranker.model || '(missing)'}`));
+          console.log(chalk.gray(`   RAG Reranker Base URL: ${ragConfig.reranker.baseURL || '(missing)'}`));
         }
         if (ragConfig.excludedPathPrefixes?.length) {
           console.log(chalk.gray(`   RAG Exclude Paths: ${ragConfig.excludedPathPrefixes.join(', ')}`));
@@ -750,7 +781,7 @@ program
           break;
         case 'rag_retrieved':
           spinner.stop();
-          console.log(chalk.cyan(`\n📚 RAG 检索 (${event.searchMode || 'no_results'})`));
+          console.log(chalk.cyan(`\n📚 RAG 检索 (${event.searchMode || 'no_results'}${event.reranked ? ' + rerank' : ''})`));
           if (event.warnings && event.warnings.length > 0) {
             for (const warning of event.warnings) {
               console.log(chalk.yellow(`   ⚠️ ${warning}`));

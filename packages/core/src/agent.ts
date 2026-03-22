@@ -41,6 +41,7 @@ interface RetrievedRagContext {
   formattedResults: string[];
   matches: RagContextMatch[];
   searchMode?: 'hybrid' | 'keyword_only';
+  reranked?: boolean;
   warnings?: string[];
 }
 
@@ -424,6 +425,7 @@ export class FrontAgent {
         this.emit({
           type: 'rag_retrieved',
           searchMode: ragContext?.searchMode,
+          reranked: ragContext?.reranked,
           warnings: ragContext?.warnings,
           matches: ragContext?.matches ?? [],
         });
@@ -1347,6 +1349,7 @@ export class FrontAgent {
       }) as {
         success?: boolean;
         searchMode?: 'hybrid' | 'keyword_only';
+        reranked?: boolean;
         warnings?: string[];
         results?: Array<{
           type: string;
@@ -1355,6 +1358,7 @@ export class FrontAgent {
           snippet: string;
           path?: string;
           score?: number;
+          rerankScore?: number;
         }>;
       };
 
@@ -1369,6 +1373,7 @@ export class FrontAgent {
         snippet: item.snippet,
         path: item.path,
         score: item.score,
+        rerankScore: item.rerankScore,
       }));
       const formattedResults = matches.map((item) => this.formatRagResult(item));
       if (formattedResults.length > 0) {
@@ -1383,6 +1388,7 @@ export class FrontAgent {
         formattedResults,
         matches,
         searchMode: result.searchMode,
+        reranked: result.reranked,
         warnings: result.warnings,
       };
     } catch (error) {
