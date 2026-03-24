@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirement Interviewer"
+  short_description: "Clarify requirements before implementation"
+  default_prompt: "Use $requirement-interviewer to collect missing requirements before planning or coding."

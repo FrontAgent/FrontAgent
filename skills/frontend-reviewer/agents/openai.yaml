@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Reviewer"
+  short_description: "Severity-based frontend code review"
+  default_prompt: "Use $frontend-reviewer to review these frontend changes and report blocking issues by severity."
