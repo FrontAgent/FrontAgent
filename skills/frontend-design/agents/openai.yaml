@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Design"
+  short_description: "Distinctive UI design with FrontAgent guardrails"
+  default_prompt: "Use $frontend-design to design or restyle this frontend surface with a clear visual direction while respecting the existing stack, design system, and SDD constraints."
