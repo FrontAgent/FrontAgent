@@ -13,6 +13,8 @@ import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
 import { InMemoryA2ABus, type A2AAgent } from './a2a.js';
+import { SkillContentLoader } from './skill-content/loader.js';
+import { SkillContentResolver } from './skill-content/resolver.js';
 import {
   CodeQualitySubAgent,
   ProcessIsolatedCodeQualitySubAgent,
@@ -106,6 +108,7 @@ export class FrontAgent {
   private currentTaskId?: string;  // 🔧 修复问题1：追踪当前执行的任务ID
   private a2aBus: InMemoryA2ABus;
   private codeQualitySubAgent?: A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>;
+  private skillContentResolver?: SkillContentResolver;
   private pendingFactsUpdates: ProjectFactsUpdate[] = [];
   private factsUpdateFlushInProgress = false;
 
@@ -147,6 +150,10 @@ export class FrontAgent {
       executionEngine: config.execution?.engine,
       langGraph: config.execution?.langGraph,
       getSddConstraints: () => this.promptGenerator?.generate(),
+      getSkillContext: () => {
+        if (!this.currentTaskId) return undefined;
+        return this.contextManager.getContext(this.currentTaskId)?.collectedContext.skillContext;
+      },
       // 🔧 修复问题1：传递文件系统事实，帮助 Executor 判断文件是否存在
       getFileSystemFacts: () => {
         if (!this.currentTaskId) return undefined;
@@ -154,6 +161,20 @@ export class FrontAgent {
         return context?.facts.filesystem;
       }
     });
+
+    if (config.skillContent?.enabled !== false) {
+      const loader = new SkillContentLoader({
+        projectRoot: config.projectRoot,
+        builtInSkillRoots: config.skillContent?.builtInSkillRoots,
+        userSkillRoots: config.skillContent?.userSkillRoots,
+      });
+      this.skillContentResolver = new SkillContentResolver(loader, {
+        maxImplicitMatches: config.skillContent?.maxImplicitMatches,
+        maxExplicitMatches: config.skillContent?.maxExplicitMatches,
+        maxReferenceFiles: config.skillContent?.maxReferenceFiles,
+        maxCharsPerFile: config.skillContent?.maxCharsPerFile,
+      });
+    }
 
     // 初始化 A2A 总线和代码质量 SubAgent
     this.a2aBus = new InMemoryA2ABus();
@@ -343,12 +364,20 @@ export class FrontAgent {
     const startTime = Date.now();
     this.pendingFactsUpdates = [];
     this.factsUpdateFlushInProgress = false;
+    const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
+    const resolvedTaskDescription = skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
+    const skillContext = skillResolution?.promptContext;
+    const matchedSkillNames = skillResolution?.matchedSkills.map((skill) => skill.name) ?? [];
+
+    if (this.config.debug && matchedSkillNames.length > 0) {
+      console.log(`[Agent] 🎯 Matched content skills: ${matchedSkillNames.join(', ')}`);
+    }
 
     // 创建任务
     const task: AgentTask = {
       id: generateId('task'),
       type: options?.type ?? 'query',
-      description: taskDescription,
+      description: resolvedTaskDescription,
       context: {
         workingDirectory: this.config.projectRoot,
         relevantFiles: options?.relevantFiles,
@@ -364,6 +393,9 @@ export class FrontAgent {
 
       // 创建上下文
       const context = this.contextManager.createContext(task, this.sddConfig);
+      context.collectedContext.skillContext = skillContext;
+      context.collectedContext.matchedSkillNames = matchedSkillNames;
+      context.collectedContext.metadata.originalTaskDescription = taskDescription;
 
       // 添加 SDD 约束到系统提示
       if (this.promptGenerator) {
@@ -441,7 +473,9 @@ export class FrontAgent {
           pageStructure: context.collectedContext.pageStructure,
           ragResults,
           projectStructure,  // 🔧 传递项目文件结构给 Planner
-          devServerPort     // 🔧 传递检测到的端口给 Planner
+          devServerPort,    // 🔧 传递检测到的端口给 Planner
+          skillContext,
+          matchedSkillNames,
         },
         this.contextManager.getMessages(task.id)
       );
@@ -457,6 +491,8 @@ export class FrontAgent {
             files: context.collectedContext.files,
             pageStructure: context.collectedContext.pageStructure,
             ragResults: context.collectedContext.ragResults,
+            skillContext: context.collectedContext.skillContext,
+            matchedSkillNames: context.collectedContext.matchedSkillNames,
           },
           this.contextManager.getMessages(task.id)
         );
@@ -495,6 +531,8 @@ export class FrontAgent {
           collectedContext: {
             files: executionContext.collectedContext.files,
             ragResults: executionContext.collectedContext.ragResults,
+            matchedSkillNames: executionContext.collectedContext.matchedSkillNames,
+            skillContext: executionContext.collectedContext.skillContext,
           },
         },
         // onStepComplete

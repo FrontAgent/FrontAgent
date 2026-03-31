@@ -20,6 +20,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-client.js';
@@ -28,6 +29,17 @@ import { createShellMCPClient } from '@frontagent/mcp-shell';
 const program = new Command();
 const execFileAsync = promisify(execFile);
 const RAG_BUNDLE_VERSION = 1;
+const currentModuleDir = dirname(fileURLToPath(import.meta.url));
+
+function resolveBuiltInSkillRoots(): string[] {
+  const candidates = [
+    resolve(currentModuleDir, '..', 'skills'),
+    resolve(currentModuleDir, '..', '..', 'skills'),
+    resolve(currentModuleDir, '..', '..', '..', 'skills'),
+  ];
+
+  return [...new Set(candidates.filter((candidate) => existsSync(candidate)))];
+}
 
 type RagCacheBundleManifest = {
   version: number;
@@ -704,6 +716,9 @@ program
         }
       },
       rag: ragConfig,
+      skillContent: {
+        builtInSkillRoots: resolveBuiltInSkillRoots(),
+      },
       debug: options.debug
     };
 

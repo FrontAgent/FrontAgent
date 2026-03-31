@@ -4,6 +4,7 @@ import type { LLMService } from '../llm.js';
 type ExecutorCollectedContext = {
   files: Map<string, string>;
   ragResults?: string[];
+  matchedSkillNames?: string[];
 };
 
 export interface ExecutorStepContextSnapshot {
@@ -16,6 +17,7 @@ export interface ExecutorSkillRuntime {
   debug?: boolean;
   getCreatedModules?: () => string[];
   getSddConstraints?: () => string | undefined;
+  getSkillContext?: () => string | undefined;
   buildContextString: (collectedContext: ExecutorCollectedContext) => string;
   detectLanguage: (path: string) => 'typescript' | 'javascript' | 'json' | 'yaml' | null;
 }
@@ -153,6 +155,7 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         language: language || 'typescript',
         existingModules,
         sddConstraints: runtime.getSddConstraints?.(),
+        skillContext: runtime.getSkillContext?.(),
       });
 
       if (runtime.debug) {
@@ -197,6 +200,7 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         changeDescription,
         filePath,
         language: language || 'typescript',
+        skillContext: runtime.getSkillContext?.(),
       });
 
       if (runtime.debug) {

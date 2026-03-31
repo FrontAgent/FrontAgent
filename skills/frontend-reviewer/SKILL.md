@@ -1,6 +1,21 @@
 ---
 name: frontend-reviewer
 description: Review frontend code, UI changes, generated implementations, and pull requests with severity-based findings and checklist-driven analysis. Use when auditing React/TypeScript/CSS code, validating AI-generated frontend output, performing acceptance review before merge, or checking whether a frontend change is safe to ship.
+triggers:
+  keywords:
+    - "code review"
+    - "acceptance review"
+    - "quality audit"
+    - "review frontend"
+    - "frontend review"
+    - "审查"
+    - "审计"
+    - "代码评审"
+    - "验收评审"
+  negative:
+    - "landing page"
+    - "restyle"
+    - "dashboard redesign"
 ---
 
 # Frontend Reviewer

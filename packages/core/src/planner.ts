@@ -258,6 +258,7 @@ export class Planner {
       task: task.description,
       context: contextParts.join('\n'),
       sddConstraints,
+      skillContext: context.skillContext,
     });
   }
 

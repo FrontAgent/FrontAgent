@@ -6,6 +6,8 @@ export interface PlannerContextSnapshot {
   readonly ragResults?: readonly string[];
   readonly projectStructure?: string;
   readonly devServerPort?: number;
+  readonly skillContext?: string;
+  readonly matchedSkillNames?: readonly string[];
 }
 
 export interface PlannerStepFactory {

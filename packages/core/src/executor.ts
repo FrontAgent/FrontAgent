@@ -36,6 +36,8 @@ export interface ExecutorConfig {
   getCreatedModules?: () => string[];
   /** 获取 SDD 约束的回调（用于代码生成时遵守 SDD 规范） */
   getSddConstraints?: () => string | undefined;
+  /** 获取内容层 skill 上下文的回调（用于代码生成时遵守已激活 skill） */
+  getSkillContext?: () => string | undefined;
   /** 获取文件系统事实的回调（用于验证文件是否存在） */
   getFileSystemFacts?: () => {
     existingFiles: Set<string>;
@@ -76,6 +78,13 @@ interface LangGraphRuntimeState {
   allResults: ExecutorOutput[];
 }
 
+interface ExecutorCollectedContext {
+  files: Map<string, string>;
+  ragResults?: string[];
+  matchedSkillNames?: string[];
+  skillContext?: string;
+}
+
 /**
  * Executor 类
  */
@@ -92,6 +101,7 @@ export class Executor {
       debug: this.config.debug,
       getCreatedModules: this.config.getCreatedModules,
       getSddConstraints: this.config.getSddConstraints,
+      getSkillContext: this.config.getSkillContext,
       buildContextString: (collectedContext) => this.buildContextString(collectedContext),
       detectLanguage: (path) => this.detectLanguage(path),
     });
@@ -132,7 +142,7 @@ export class Executor {
     step: ExecutionStep,
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string>; ragResults?: string[] };
+      collectedContext: ExecutorCollectedContext;
     }
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
@@ -333,7 +343,7 @@ export class Executor {
    * 构建上下文字符串
    */
   private buildContextString(
-    collectedContext: { files: Map<string, string>; ragResults?: string[] }
+    collectedContext: ExecutorCollectedContext
   ): string {
     const parts: string[] = [];
 
@@ -354,6 +364,10 @@ export class Executor {
       }
     }
 
+    if (collectedContext.matchedSkillNames && collectedContext.matchedSkillNames.length > 0) {
+      parts.push(`\n已激活内容技能: ${collectedContext.matchedSkillNames.join(', ')}`);
+    }
+
     return parts.join('\n');
   }
 
@@ -362,7 +376,7 @@ export class Executor {
    */
   private async validateBeforeExecution(
     step: ExecutionStep,
-    context: { task: AgentTask; collectedContext: { files: Map<string, string>; ragResults?: string[] } }
+    context: { task: AgentTask; collectedContext: ExecutorCollectedContext }
   ): Promise<ValidationResult> {
     const results: ValidationResult['results'] = [];
 
@@ -541,7 +555,7 @@ export class Executor {
     steps: ExecutionStep[],
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string>; ragResults?: string[] };
+      collectedContext: ExecutorCollectedContext;
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void
   ): Promise<ExecutorOutput[]> {
@@ -742,7 +756,7 @@ export class Executor {
     phaseGroup: PhaseExecutionGroup,
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string>; ragResults?: string[] };
+      collectedContext: ExecutorCollectedContext;
     },
     completedStepIds: Set<string>,
     allResults: ExecutorOutput[],
@@ -962,7 +976,7 @@ export class Executor {
     steps: ExecutionStep[],
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string>; ragResults?: string[] };
+      collectedContext: ExecutorCollectedContext;
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
@@ -1073,7 +1087,7 @@ export class Executor {
     steps: ExecutionStep[],
     context: {
       task: AgentTask;
-      collectedContext: { files: Map<string, string>; ragResults?: string[] };
+      collectedContext: ExecutorCollectedContext;
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,

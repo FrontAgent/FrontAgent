@@ -1,6 +1,16 @@
 ---
 name: requirement-interviewer
 description: Gather missing product, UX, technical, and delivery constraints before planning or coding. Use when a request is underspecified, when several implementations are plausible, when frontend work needs explicit acceptance criteria, or when the agent must ask structured questions before acting.
+triggers:
+  keywords:
+    - "clarify requirements"
+    - "requirements interview"
+    - "ask questions first"
+    - "need requirements"
+    - "需求澄清"
+    - "先问问题"
+    - "先澄清"
+    - "采访需求"
 ---
 
 # Requirement Interviewer

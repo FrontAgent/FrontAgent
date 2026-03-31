@@ -2,6 +2,25 @@
 name: frontend-design
 description: Create distinctive, production-grade frontend interfaces with a clear visual direction while respecting SDD constraints, existing design systems, and minimal-diff engineering boundaries. Use when building or restyling pages, landing screens, dashboards, marketing surfaces, or other frontend UI where visual quality materially affects the result.
 license: See LICENSE.txt
+triggers:
+  keywords:
+    - "landing page"
+    - "hero section"
+    - "dashboard"
+    - "marketing site"
+    - "polish ui"
+    - "restyle"
+    - "beautify"
+    - "redesign"
+    - "美化"
+    - "重设计"
+    - "视觉升级"
+    - "设计感"
+  negative:
+    - "code review"
+    - "quality audit"
+    - "bugfix"
+    - "debug"
 ---
 
 # Frontend Design

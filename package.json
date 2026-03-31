@@ -11,6 +11,7 @@
     "dist/index.cjs.map",
     "dist/code-quality-subagent-worker.cjs",
     "dist/code-quality-subagent-worker.cjs.map",
+    "skills/**/*",
     "README.md",
     "LICENSE"
   ],

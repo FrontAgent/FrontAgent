@@ -57,6 +57,7 @@ export type {
   LLMConfig,
   MCPConfig,
   RagConfig,
+  SkillContentConfig,
   HallucinationGuardConfig,
   SubAgentConfig,
   AgentContext,
