@@ -31,8 +31,27 @@ export interface AgentConfig {
   subAgents?: SubAgentConfig;
   /** RAG 配置 */
   rag?: RagConfig;
+  /** 内容层 skill 配置 */
+  skillContent?: SkillContentConfig;
   /** 调试模式 */
   debug?: boolean;
+}
+
+export interface SkillContentConfig {
+  /** 是否启用（默认 true） */
+  enabled?: boolean;
+  /** 额外的用户 skill 根目录 */
+  userSkillRoots?: string[];
+  /** 内置 skill 根目录 */
+  builtInSkillRoots?: string[];
+  /** 隐式触发时最多命中的 skill 数 */
+  maxImplicitMatches?: number;
+  /** 显式触发时最多命中的 skill 数 */
+  maxExplicitMatches?: number;
+  /** 每个 skill 最多自动读取的 references/assets 文件数 */
+  maxReferenceFiles?: number;
+  /** 注入 prompt 时每个 skill 文件的最大字符数 */
+  maxCharsPerFile?: number;
 }
 
 /**
@@ -423,6 +442,10 @@ export interface ContextInfo {
   ragSearchMode?: 'hybrid' | 'keyword_only';
   /** RAG 告警 */
   ragWarnings?: string[];
+  /** 命中的内容层 skill prompt 上下文 */
+  skillContext?: string;
+  /** 命中的内容层 skill 名称 */
+  matchedSkillNames?: string[];
   /** 其他元数据 */
   metadata: Record<string, unknown>;
 }

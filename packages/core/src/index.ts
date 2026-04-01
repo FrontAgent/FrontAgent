@@ -32,6 +32,7 @@ export {
   type GeneratedCode,
   type GeneratedPatch
 } from './llm.js';
+export { SkillLab } from './skill-lab/index.js';
 export {
   PlannerSkillRegistry,
   createDefaultPlannerSkillRegistry,
@@ -57,6 +58,7 @@ export type {
   LLMConfig,
   MCPConfig,
   RagConfig,
+  SkillContentConfig,
   HallucinationGuardConfig,
   SubAgentConfig,
   AgentContext,
@@ -76,3 +78,29 @@ export type {
   ProjectFactsUpdate,
   ProjectFactsMergeResult
 } from './types.js';
+export type {
+  SkillLabConfig,
+  SkillLabSkillSummary,
+  SkillTriggerEvalCase,
+  SkillTriggerEvalSuite,
+  SkillBehaviorExpectation,
+  SkillBehaviorEvalCheck,
+  SkillBehaviorEvalCase,
+  SkillBehaviorEvalSuite,
+  SkillTriggerEvalCaseResult,
+  SkillTriggerBenchmark,
+  SkillTriggerBenchmarkSummary,
+  SkillBehaviorCheckResult,
+  SkillBehaviorEvalCaseResult,
+  SkillBehaviorBenchmark,
+  SkillBehaviorBenchmarkSummary,
+  SkillLabInitResult,
+  SkillLabBehaviorInitResult,
+  SkillLabScaffoldResult,
+  SkillLabBenchmarkResult,
+  SkillLabImproveOptions,
+  SkillLabImproveResult,
+  SkillLabPromotionResult,
+  SkillBenchmarkComparison,
+  SkillBehaviorComparison,
+} from './skill-lab/types.js';

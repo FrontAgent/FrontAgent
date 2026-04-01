@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Creator"
+  short_description: "Create and iterate FrontAgent skills with Skill Lab"
+  default_prompt: "Use $skill-creator to create, benchmark, or improve a FrontAgent content skill with the local Skill Lab workflow."

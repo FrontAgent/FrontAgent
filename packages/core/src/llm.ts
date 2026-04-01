@@ -536,6 +536,7 @@ export class LLMService {
     task: string;
     context: string;
     sddConstraints?: string;
+    skillContext?: string;
   }): Promise<GeneratedPlan> {
     console.log('[LLMService] Using two-phase plan generation...');
 
@@ -581,6 +582,9 @@ export class LLMService {
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
+
+# 内容技能
+${options.skillContext ?? '无已激活内容技能'}
 
 # 输出格式
 输出一个 JSON 对象，包含：
@@ -701,7 +705,10 @@ ${options.sddConstraints ?? '无特殊约束'}
 - 阶段7-仓库管理必须依赖验收阶段成功（例如放在阶段4/6之后）
 
 # SDD 约束
-${options.sddConstraints ?? '无特殊约束'}`;
+${options.sddConstraints ?? '无特殊约束'}
+
+# 内容技能
+${options.skillContext ?? '无已激活内容技能'}`;
 
     // 分批展开步骤（每批最多10个步骤，避免输出过大）
     const batchSize = 10;
@@ -798,6 +805,7 @@ ${JSON.stringify(batch, null, 2)}
     task: string;
     context: string;
     sddConstraints?: string;
+    skillContext?: string;
   }): Promise<GeneratedPlan> {
     // 尝试使用两阶段生成
     try {
@@ -816,6 +824,7 @@ ${JSON.stringify(batch, null, 2)}
     task: string;
     context: string;
     sddConstraints?: string;
+    skillContext?: string;
   }): Promise<GeneratedPlan> {
     const system = `你是一位经验丰富的高级软件工程师，拥有跨多种编程语言和框架的专家级知识。
 
@@ -847,6 +856,9 @@ ${JSON.stringify(batch, null, 2)}
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
+
+# 内容技能
+${options.skillContext ?? '无已激活内容技能'}
 
 # 输出格式
 {
@@ -900,6 +912,8 @@ ${options.sddConstraints ?? '无特殊约束'}
     existingModules?: string[];
     /** SDD 约束（可选） */
     sddConstraints?: string;
+    /** 内容层 skill 上下文（可选） */
+    skillContext?: string;
   }): Promise<string> {
     // 提取上下文中已存在的模块
     const existingModulesInfo = options.existingModules?.length
@@ -910,6 +924,9 @@ ${options.sddConstraints ?? '无特殊约束'}
     const sddConstraintsInfo = options.sddConstraints
       ? `\n# 项目约束\n${options.sddConstraints}\n`
       : '';
+    const skillContextInfo = options.skillContext
+      ? `\n# 内容技能\n${options.skillContext}\n`
+      : '';
 
     const system = `你是一位经验丰富的软件工程师。直接输出代码，不要任何解释或 markdown 标记。
 
@@ -919,6 +936,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 - 要求: ${options.codeDescription}
 ${existingModulesInfo}
 ${sddConstraintsInfo}
+${skillContextInfo}
 ${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
 # 配置文件格式
 直接输出标准格式，如：
@@ -1023,6 +1041,7 @@ ${options.code}
     changeDescription: string;
     filePath: string;
     language: string;
+    skillContext?: string;
   }): Promise<string> {
     const system = `你是一位经验丰富的软件工程师。直接输出修改后的完整代码，不要任何解释或 markdown 标记。
 
@@ -1030,6 +1049,7 @@ ${options.code}
 - 文件: ${options.filePath}
 - 语言: ${options.language}
 - 修改要求: ${options.changeDescription}
+${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
 
 # 要求
 - 只修改必要部分

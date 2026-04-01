@@ -26,6 +26,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Remote Hybrid RAG** - Full-repository indexing with submodule exclusion, combining BM25 keyword search and embedding-based semantic search
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
+- ✅ **Skill Lab** - Benchmark, improve, and promote content skills with local eval suites
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
 
 ## TL;DR
@@ -133,6 +134,45 @@ frontagent run "Explain React setState behavior" \
 # Disable remote RAG for a run
 frontagent run "Create a page" --disable-rag
 ```
+
+## Skill Lab
+
+FrontAgent now includes a local Skill Lab workflow for iterating on content skills under `skills/`.
+
+```bash
+# List visible content skills
+frontagent skill list
+
+# Scaffold a new content skill
+frontagent skill scaffold pricing-audit
+
+# Generate starter trigger evals for a skill
+frontagent skill init-evals frontend-design
+
+# Generate starter behavior evals (binary checks for output quality)
+frontagent skill init-behavior-evals frontend-design
+
+# Benchmark current trigger behavior
+frontagent skill benchmark frontend-design
+
+# Benchmark trigger + behavior together
+frontagent skill benchmark frontend-design --behavior
+
+# Generate a candidate revision and compare it against baseline
+frontagent skill improve frontend-design
+
+# Improve with both trigger and behavior eval suites
+frontagent skill improve frontend-design --behavior
+
+# Promote a candidate after review
+frontagent skill promote frontend-design 20260331T120000Z
+```
+
+The current Skill Lab flow supports two eval tracks for content skills:
+- Trigger evals: whether the skill activates correctly.
+- Behavior evals: whether the final output quality passes binary checks.
+
+You can run trigger-only (default) or trigger + behavior (`--behavior`) in benchmark/improve.
 
 Environment variables:
 
