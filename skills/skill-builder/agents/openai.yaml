@@ -1,4 +1,0 @@
-interface:
-  display_name: "Skill Builder"
-  short_description: "Create and iterate content skills with Skill Lab"
-  default_prompt: "Use $skill-builder to create, benchmark, or improve a content skill with the local Skill Lab workflow."
