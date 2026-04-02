@@ -1,10 +1,10 @@
 ---
-name: skill-creator
+name: skill-builder
 description: Create, evaluate, improve, and benchmark content skills using the local Skill Lab workflow. Use when adding a new skill, tuning an existing skill's trigger behavior, iterating on SKILL.md instructions, or deciding whether a candidate skill should replace the current version.
 triggers:
   explicit:
-    - "$skill-creator"
-    - "skill-creator"
+    - "$skill-builder"
+    - "skill-builder"
   keywords:
     - "create a skill"
     - "new skill"
@@ -19,7 +19,7 @@ triggers:
     - "review code"
     - "bugfix"
     - "普通页面开发"
-license: Inspired by Claude skill-creator concepts
+license: Inspired by Claude skill-builder concepts
 platform:
   name: FrontAgent
   cli: frontagent skill

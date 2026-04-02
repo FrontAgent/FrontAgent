@@ -1,4 +1,4 @@
-# Adaptation Guide — skill-creator
+# Adaptation Guide — skill-builder
 
 This skill is designed to be platform-portable. The core knowledge (eval principles, iteration patterns, benchmark interpretation) is universal. The only platform-specific content is the CLI command set used to operate the Skill Lab tooling.
 
