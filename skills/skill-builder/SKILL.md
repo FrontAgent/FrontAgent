@@ -20,9 +20,6 @@ triggers:
     - "bugfix"
     - "普通页面开发"
 license: Inspired by Claude skill-builder concepts
-platform:
-  name: FrontAgent
-  cli: frontagent skill
 ---
 
 # Skill Creator
