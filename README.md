@@ -1,5 +1,9 @@
 # FrontAgent
 
+<div align="center">
+  <img src="./assets/branding/frontagent-icon.svg" alt="FrontAgent Logo" width="200"/>
+</div>
+
 [![npm version](https://badge.fury.io/js/frontagent.svg)](https://www.npmjs.com/package/frontagent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
