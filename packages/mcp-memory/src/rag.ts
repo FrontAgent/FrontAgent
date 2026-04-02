@@ -48,11 +48,20 @@ const IGNORED_DIR_NAMES = new Set([
   '.nuxt',
 ]);
 const BINARY_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff',
-  '.pdf', '.zip', '.gz', '.tgz', '.7z', '.rar', '.mp3', '.mp4', '.mov',
-  '.avi', '.mkv', '.woff', '.woff2', '.ttf', '.eot', '.otf', '.class',
-  '.jar', '.exe', '.dll', '.so', '.dylib', '.bin', '.wasm', '.psd',
+  // Images
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff', '.svg',
+  // Documents / archives
+  '.pdf', '.zip', '.gz', '.tgz', '.7z', '.rar',
+  // Audio / video
+  '.mp3', '.mp4', '.mov', '.avi', '.mkv', '.wav', '.ogg', '.flac',
+  // Fonts
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  // Compiled / binary
+  '.class', '.jar', '.exe', '.dll', '.so', '.dylib', '.bin', '.wasm', '.psd',
+  // Data / config with no search value
   '.drawio', '.sqlite', '.db', '.lock',
+  // Source maps: large JSON blobs that describe minified code, not useful to index
+  '.map',
 ]);
 
 export interface KnowledgeBaseConfig {
@@ -1212,6 +1221,13 @@ function looksBinary(buffer: Buffer, path: string): boolean {
     return true;
   }
 
+  // Skip minified files – they're unreadable single-line blobs that waste
+  // index space and pollute search results (e.g. foo.min.js, bar.min.css).
+  const fileName = basename(path).toLowerCase();
+  if (/\.min\.(js|css|mjs|cjs)$/.test(fileName)) {
+    return true;
+  }
+
   const sample = buffer.subarray(0, Math.min(buffer.length, 1024));
   let suspicious = 0;
   for (const byte of sample) {
@@ -1297,6 +1313,9 @@ function createSemanticBlocks(
   let currentLines: string[] = [];
   let currentStartLine = 1;
   let inFence = false;
+  // Track whether we are currently accumulating list items so that
+  // continuation items don't each trigger a new block boundary.
+  let inList = false;
 
   const flush = (endLine: number) => {
     const text = currentLines.join('\n').trim();
@@ -1323,6 +1342,8 @@ function createSemanticBlocks(
         flush(lineNumber - 1);
       }
       currentStartLine = lineNumber + 1;
+      // A blank line always ends any active list.
+      inList = false;
       continue;
     }
 
@@ -1332,12 +1353,23 @@ function createSemanticBlocks(
         flush(lineNumber - 1);
       }
       currentStartLine = lineNumber;
+      inList = false;
     }
 
-    if (!inFence && currentLines.length > 0 && isSemanticBoundaryLine(trimmed, extension)) {
-      flush(lineNumber - 1);
-      currentStartLine = lineNumber;
+    const isListItem = /^[-*+]\s+/.test(trimmed) || /^\d+[.)]\s+/.test(trimmed);
+
+    if (!inFence && currentLines.length > 0) {
+      // Start of a new list (transition from non-list content) is a boundary.
+      const isNewListStart = isListItem && !inList;
+      if (isNewListStart || isSemanticBoundaryLine(trimmed, extension)) {
+        flush(lineNumber - 1);
+        currentStartLine = lineNumber;
+      }
     }
+
+    // Update list state after the boundary check so the first item can
+    // correctly trigger a boundary against the preceding prose block.
+    inList = isListItem;
 
     if (currentLines.length === 0) {
       currentStartLine = lineNumber;
@@ -1349,6 +1381,7 @@ function createSemanticBlocks(
       if (!inFence) {
         flush(lineNumber);
         currentStartLine = lineNumber + 1;
+        inList = false;
       }
     }
   }
@@ -1366,10 +1399,6 @@ function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean
   }
 
   if (/^#{1,6}\s+/.test(trimmedLine)) {
-    return true;
-  }
-
-  if (/^[-*]\s+/.test(trimmedLine) || /^\d+\.\s+/.test(trimmedLine)) {
     return true;
   }
 
@@ -1392,6 +1421,71 @@ function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean
 
   if (['.html', '.vue', '.md'].includes(extension)) {
     return /^<[^/!][^>]*>$/.test(trimmedLine);
+  }
+
+  if (extension === '.py') {
+    return (
+      /^(async\s+)?def\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^class\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^@[A-Za-z0-9_]+/.test(trimmedLine)
+    );
+  }
+
+  if (extension === '.go') {
+    return (
+      /^func\s+/.test(trimmedLine) ||
+      /^type\s+[A-Za-z0-9_]+\s+(struct|interface)\b/.test(trimmedLine) ||
+      /^var\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^const\s+[A-Za-z0-9_]/.test(trimmedLine)
+    );
+  }
+
+  if (extension === '.rs') {
+    return (
+      /^(pub(\(crate\))?\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^(pub(\(crate\))?\s+)?struct\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^(pub(\(crate\))?\s+)?enum\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^(pub(\(crate\))?\s+)?impl(\s+[A-Za-z0-9_<>]+)?\b/.test(trimmedLine) ||
+      /^(pub(\(crate\))?\s+)?trait\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^#\[/.test(trimmedLine)
+    );
+  }
+
+  if (['.java', '.kt', '.scala'].includes(extension)) {
+    return (
+      /^(public|private|protected|package|internal)\s+/.test(trimmedLine) ||
+      /^(abstract|sealed|data|open|override|static|final)\s+class\s+/.test(trimmedLine) ||
+      /^class\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^interface\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^object\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^@[A-Za-z0-9_]+/.test(trimmedLine)
+    );
+  }
+
+  if (['.rb', '.rake'].includes(extension)) {
+    return (
+      /^def\s+[A-Za-z0-9_?!]+/.test(trimmedLine) ||
+      /^class\s+[A-Za-z0-9_:]+/.test(trimmedLine) ||
+      /^module\s+[A-Za-z0-9_:]+/.test(trimmedLine)
+    );
+  }
+
+  if (extension === '.php') {
+    return (
+      /^(public|private|protected|static|abstract|final|readonly)\s+/.test(trimmedLine) ||
+      /^function\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^class\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^interface\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^trait\s+[A-Za-z0-9_]+/.test(trimmedLine)
+    );
+  }
+
+  if (['.c', '.cpp', '.cc', '.h', '.hpp'].includes(extension)) {
+    return (
+      /^[A-Za-z_][A-Za-z0-9_\s*&:<>]+\s+[A-Za-z0-9_:~]+\s*\(/.test(trimmedLine) ||
+      /^(class|struct|enum|namespace|template)\s+[A-Za-z0-9_]+/.test(trimmedLine) ||
+      /^#(pragma|ifndef|define|endif)\b/.test(trimmedLine)
+    );
   }
 
   return false;
@@ -2239,22 +2333,54 @@ function matchesMetadataFilter(
 
 function tokenize(input: string): string[] {
   const tokens: string[] = [];
+  const seen = new Set<string>();
+
+  const emit = (token: string) => {
+    if (token.length >= 2 && !seen.has(token)) {
+      seen.add(token);
+      tokens.push(token);
+    }
+  };
+
+  // Primary pass: standard latin + punctuation tokens (lowercased).
   const normalized = input.toLowerCase();
-  const latinMatches = normalized.match(/[a-z0-9_@./:-]+/g) ?? [];
-  for (const match of latinMatches) {
-    if (match.length >= 2) {
-      tokens.push(match);
+  for (const match of normalized.match(/[a-z0-9_@./:-]+/g) ?? []) {
+    emit(match);
+    // Also emit individual underscore-separated sub-words so that
+    // "get_user_profile" matches queries for "user" or "profile".
+    if (match.includes('_')) {
+      for (const part of match.split('_')) {
+        emit(part);
+      }
     }
   }
 
-  const cjkMatches = normalized.match(/[\u4e00-\u9fff]+/g) ?? [];
-  for (const match of cjkMatches) {
+  // Secondary pass: split camelCase / PascalCase identifiers in the
+  // original (pre-lowercase) text so that "getUserProfile" also emits
+  // "get", "user", "profile" as independent search tokens.
+  for (const identifier of input.match(/[A-Za-z][a-zA-Z0-9]*/g) ?? []) {
+    // Only worth splitting mixed-case identifiers – pure lower/upper are
+    // already fully covered by the primary pass above.
+    if (!/[a-z]/.test(identifier) || !/[A-Z]/.test(identifier)) {
+      continue;
+    }
+    const parts = identifier
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .split(/\s+/);
+    for (const part of parts) {
+      emit(part.toLowerCase());
+    }
+  }
+
+  // CJK bigram tokenisation (unchanged).
+  for (const match of normalized.match(/[\u4e00-\u9fff]+/g) ?? []) {
     if (match.length === 1) {
-      tokens.push(match);
+      emit(match);
       continue;
     }
     for (let i = 0; i < match.length - 1; i++) {
-      tokens.push(match.slice(i, i + 2));
+      emit(match.slice(i, i + 2));
     }
   }
 
@@ -2375,9 +2501,11 @@ function createEmbeddingBatches<T extends { estimatedTokens: number }>(
 }
 
 function estimateEmbeddingTokens(input: string): number {
-  // Use a conservative heuristic because some gateways enforce a strict total-token
-  // budget across the entire embedding batch, not per individual input.
-  return Math.max(1, input.length);
+  // Use a conservative heuristic: ~3 chars/token is a safe under-estimate for
+  // mixed code + prose, while still being far more accurate than raw char count.
+  // Some gateways enforce a strict total-token budget across the entire batch, so
+  // we keep a safety margin rather than using a tighter 4-char/token ratio.
+  return Math.max(1, Math.ceil(input.length / 3));
 }
 
 function getTopLevelDir(path: string): string {
