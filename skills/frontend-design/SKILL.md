@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: Create distinctive, production-grade frontend interfaces with a clear visual direction while respecting SDD constraints, existing design systems, and minimal-diff engineering boundaries. Use when building or restyling pages, landing screens, dashboards, marketing surfaces, or other frontend UI where visual quality materially affects the result.
+description: Create distinctive, production-grade frontend interfaces with a clear visual direction while respecting project design specification constraints, existing design systems, and minimal-diff engineering boundaries. Use when building or restyling pages, landing screens, dashboards, marketing surfaces, or other frontend UI where visual quality materially affects the result.
 license: See LICENSE.txt
 triggers:
   keywords:
@@ -24,8 +24,6 @@ triggers:
 ---
 
 # Frontend Design
-
-This FrontAgent skill is adapted from the upstream `anthropics/skills` `frontend-design` skill and modified to fit FrontAgent's skill package structure, SDD-first workflow, and MCP-based execution model.
 
 Use this skill to produce frontend work that feels intentionally designed rather than generic. The goal is not maximalism by default. The goal is a clear visual point of view that matches the product context and still ships as maintainable code.
 
@@ -71,7 +69,7 @@ Use this skill to produce frontend work that feels intentionally designed rather
 
 ## Guardrails
 
-- SDD constraints, protected files, project stack rules, and user requirements remain hard boundaries.
+- Project design specification constraints, protected files, project stack rules, and user requirements remain hard boundaries.
 - Respect the existing design system first. Only deviate when the request explicitly calls for redesign or the current surface clearly lacks a defined visual direction.
 - Prefer minimal diffs for scoped tasks. Do not turn a local UI tweak into a whole-app restyle.
 - Do not add new dependencies, font loaders, or animation libraries unless the task clearly justifies them.

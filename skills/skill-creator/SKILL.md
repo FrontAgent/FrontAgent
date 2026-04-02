@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Create, evaluate, improve, and benchmark FrontAgent content skills using the local Skill Lab workflow. Use when adding a new skill, tuning an existing skill's trigger behavior, iterating on SKILL.md instructions, or deciding whether a candidate skill should replace the current version.
+description: Create, evaluate, improve, and benchmark content skills using the local Skill Lab workflow. Use when adding a new skill, tuning an existing skill's trigger behavior, iterating on SKILL.md instructions, or deciding whether a candidate skill should replace the current version.
 triggers:
   explicit:
     - "$skill-creator"
@@ -20,11 +20,14 @@ triggers:
     - "bugfix"
     - "普通页面开发"
 license: Inspired by Claude skill-creator concepts
+platform:
+  name: FrontAgent
+  cli: frontagent skill
 ---
 
 # Skill Creator
 
-Use this skill when the user wants FrontAgent to work on FrontAgent skills themselves.
+Use this skill when the user wants to work on content skills themselves — creating, evaluating, improving, or benchmarking them.
 
 ## Trigger
 
@@ -37,12 +40,14 @@ Use this skill when the user wants FrontAgent to work on FrontAgent skills thems
 
 1. Read `references/workflow.md` to choose the right Skill Lab sequence.
 2. Read `references/eval-guidelines.md` before creating or editing trigger evals.
-3. If the skill does not exist yet, scaffold it with `frontagent skill scaffold <skill-name>`.
-4. If the skill does not yet have evals, initialize them with `frontagent skill init-evals <skill-name>`.
-5. If behavior quality matters, initialize behavior evals with `frontagent skill init-behavior-evals <skill-name>`.
-6. Run `frontagent skill benchmark <skill-name>` before making changes. Use `--behavior` when behavior evals are available.
-7. When improvement is requested, run `frontagent skill improve <skill-name>` to generate a candidate and compare it with baseline. Use `--behavior` to include behavior scoring.
-8. Only apply a candidate when the benchmark clearly improves and the user wants promotion. Use `frontagent skill promote <skill-name> <candidate-id>` or `--apply-if-better`.
+3. If the skill does not exist yet, scaffold a new skill package (e.g. `frontagent skill scaffold <skill-name>`).
+4. If the skill does not yet have evals, initialize trigger evals (e.g. `frontagent skill init-evals <skill-name>`).
+5. If behavior quality matters, initialize behavior evals (e.g. `frontagent skill init-behavior-evals <skill-name>`).
+6. Run a benchmark before making changes (e.g. `frontagent skill benchmark <skill-name>`). Use `--behavior` when behavior evals are available.
+7. When improvement is requested, generate a candidate and compare it with baseline (e.g. `frontagent skill improve <skill-name>`). Use `--behavior` to include behavior scoring.
+8. Only apply a candidate when the benchmark clearly improves and the user wants promotion (e.g. `frontagent skill promote <skill-name> <candidate-id>` or `--apply-if-better`).
+
+> Platform-specific commands listed above use the `frontagent skill` CLI. See `ADAPTATION.md` for how to map these steps to a different platform.
 
 ## Output Contract
 

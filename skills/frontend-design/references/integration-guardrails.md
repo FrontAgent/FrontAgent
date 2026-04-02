@@ -8,9 +8,9 @@ Use these rules to keep design ambition compatible with FrontAgent's engineering
 - If the request is scoped, keep the diff scoped.
 - Reuse existing tokens, utilities, and primitives before inventing new ones.
 
-## Respect SDD and project rules
+## Respect design specification and project rules
 
-- Treat SDD as a hard boundary for allowed technologies, module edges, and protected files.
+- Treat the project design specification as a hard boundary for allowed technologies, module edges, and protected files.
 - If visual goals conflict with explicit project constraints, follow the constraints and explain the tradeoff.
 - Do not add font packages, UI kits, or animation libraries without clear justification.
 
