@@ -249,9 +249,13 @@ export class Planner {
     // 获取 SDD 约束
     const sddConstraints = this.promptGenerator?.generate();
 
-    // 🔧 优化：明确告诉 LLM SDD 约束已经提供，无需再读取 sdd.yaml
     if (sddConstraints) {
       contextParts.push('\n⚠️ 重要提示：SDD约束已经在下方的"SDD约束"部分提供，无需再读取 sdd.yaml 文件！');
+    }
+
+    // Zone 2: inject cross-session memory as a distinct block
+    if (context.memoryContext) {
+      contextParts.push(`\n${context.memoryContext}`);
     }
 
     return this.llmService.generatePlan({

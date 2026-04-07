@@ -333,6 +333,11 @@ export class ContextManager {
 
   /**
    * 构建系统提示词
+   *
+   * The prompt is structured into three zones with independent budgets:
+   *   1. Rules zone -- SDD constraints, behavioral instructions (immutable per task)
+   *   2. Memory zone -- durable project knowledge from .frontagent/memory/
+   *   3. Context zone -- dynamic per-task data (files, executed steps)
    */
   buildSystemPrompt(taskId: string, sddPrompt: string): string {
     const context = this.contexts.get(taskId);
@@ -340,27 +345,40 @@ export class ContextManager {
       return sddPrompt;
     }
 
-    const parts: string[] = [sddPrompt];
+    const zones: string[] = [];
 
-    // 添加已读取的文件信息
+    // --- Zone 1: Rules (SDD constraints) ---
+    zones.push(sddPrompt);
+
+    // --- Zone 2: Memory (durable cross-session knowledge) ---
+    if (context.collectedContext.memoryContext) {
+      zones.push('\n' + context.collectedContext.memoryContext);
+    }
+
+    // --- Zone 3: Context (dynamic per-task data) ---
+    const contextParts: string[] = [];
+
     if (context.collectedContext.files.size > 0) {
-      parts.push('\n## 已读取的文件\n');
+      contextParts.push('\n## 已读取的文件\n');
       for (const [path, content] of context.collectedContext.files) {
         const lines = content.split('\n').length;
-        parts.push(`- \`${path}\` (${lines} 行)`);
+        contextParts.push(`- \`${path}\` (${lines} 行)`);
       }
     }
 
-    // 添加已执行的步骤
     if (context.executedSteps.length > 0) {
-      parts.push('\n## 已执行的步骤\n');
+      contextParts.push('\n## 已执行的步骤\n');
       for (const step of context.executedSteps) {
         const status = step.status === 'completed' ? '✅' : step.status === 'failed' ? '❌' : '⏳';
-        parts.push(`${status} ${step.description}`);
+        contextParts.push(`${status} ${step.description}`);
       }
     }
 
-    return parts.join('\n');
+    if (contextParts.length > 0) {
+      zones.push(contextParts.join('\n'));
+    }
+
+    return zones.join('\n');
   }
 
   /**

@@ -32,6 +32,17 @@ export {
   type GeneratedCode,
   type GeneratedPatch
 } from './llm.js';
+export { MemoryStore } from './memory/index.js';
+export type {
+  MemoryConfig,
+  MemoryIndex,
+  MemoryTopicMeta,
+  MemoryTopic,
+  MemoryEntry,
+  PersistenceInput,
+  RecallQuery,
+  RecalledMemory,
+} from './memory/index.js';
 export { SkillLab } from './skill-lab/index.js';
 export {
   PlannerSkillRegistry,

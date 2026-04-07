@@ -10,6 +10,7 @@ import type {
   SDDConfig,
   ValidationResult
 } from '@frontagent/shared';
+import type { MemoryConfig } from './memory/types.js';
 
 /**
  * Agent 配置
@@ -33,6 +34,8 @@ export interface AgentConfig {
   rag?: RagConfig;
   /** 内容层 skill 配置 */
   skillContent?: SkillContentConfig;
+  /** 跨会话记忆配置 */
+  memory?: MemoryConfig;
   /** 调试模式 */
   debug?: boolean;
 }
@@ -446,6 +449,8 @@ export interface ContextInfo {
   skillContext?: string;
   /** 命中的内容层 skill 名称 */
   matchedSkillNames?: string[];
+  /** 跨会话记忆内容（Phase 1 preload） */
+  memoryContext?: string;
   /** 其他元数据 */
   metadata: Record<string, unknown>;
 }

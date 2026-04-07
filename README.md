@@ -28,6 +28,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
 - ✅ **Skill Lab** - Benchmark, improve, and promote content skills with local eval suites
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
+- ✅ **Cross-Session Memory** - Four-phase memory system (preload, runtime recall, post-task persistence, structured storage) that persists project facts, error resolutions, and dependency state across runs
 
 ## TL;DR
 
@@ -632,6 +633,66 @@ react-router-dom, axios
 - 📉 **Reduced Token Usage** - Concise information reduces LLM input length
 - 🔗 **Module Tracking** - Auto-parse import/export relationships for each created file
 
+### 8. Cross-Session Memory System (NEW!)
+
+FrontAgent now implements a four-phase memory architecture that persists knowledge across task runs, so the agent no longer starts from scratch every time.
+
+#### Architecture
+
+The memory system treats context as a time-phased pipeline:
+
+1. **Phase 1 -- Startup Preload**: Load durable memories and seed `ProjectFacts` from the last snapshot before planning begins
+2. **Phase 2 -- Runtime Recall**: Dynamically recall relevant memories during code generation based on file path, tags, and keywords
+3. **Phase 3 -- Post-Task Persistence**: Extract and persist durable learnings (created files, error resolutions, dependency changes) after each task completes
+4. **Phase 4 -- Compaction**: Deferred until multi-turn interactive mode is added
+
+#### Storage Layout
+
+```
+<projectRoot>/.frontagent/memory/
+  MEMORY.md              # Index entrypoint (concise topic list)
+  topics/
+    project-structure.md  # Filesystem layout, key modules
+    dependencies.md       # Packages, versions, known issues
+    errors.md             # Past error resolutions
+  snapshots/
+    facts-latest.json     # Last ProjectFacts snapshot
+```
+
+All memory files are human-readable Markdown (inspectable, editable). Facts snapshots use JSON for efficiency.
+
+#### Prompt Separation
+
+The system prompt is now structured into three independent zones, each with its own token budget:
+
+1. **Rules zone** -- SDD constraints, behavioral instructions (immutable per task)
+2. **Memory zone** -- Durable project knowledge loaded from `.frontagent/memory/`
+3. **Context zone** -- Dynamic per-task data (files, RAG results, skills, facts)
+
+#### Key Design Decisions
+
+- **Single-writer pattern**: All writes go through `MemoryStore` to prevent conflicts
+- **Dedup tracking**: Per-session `injectedKeys` set prevents re-injecting the same memory
+- **Budget enforcement**: Configurable character limits for preload (default 8000) and per-step recall (default 2000)
+- **Non-blocking persistence**: Memory writes run off the critical path with full error swallowing
+- **Backward compatible**: Fresh projects with no prior memory run identically to previous behavior
+
+#### Configuration
+
+```typescript
+const agent = createAgent({
+  // ...other config
+  memory: {
+    enabled: true,                // default: true
+    preloadBudgetChars: 8000,     // max chars injected at startup
+    recallBudgetChars: 2000,      // max chars per code-gen recall
+    maxTopicFiles: 10,            // max topic files loaded at startup
+  },
+});
+```
+
+**Implementation**: `packages/core/src/memory/`
+
 ## Core Modules
 
 ### @frontagent/sdd - SDD Control Layer
@@ -735,6 +796,7 @@ frontagent/
 │   ├── mcp-shell/           # Shell commands MCP client
 │   ├── hallucination-guard/ # Hallucination prevention
 │   └── core/                # Agent core (two-stage architecture)
+│       └── memory/          # Cross-session memory system
 ├── apps/
 │   └── cli/                 # CLI tool
 ├── examples/
@@ -916,12 +978,13 @@ pnpm clean
 - [x] **Dependency-aware phase DAG scheduling** (NEW!)
 - [x] **LangGraph execution engine (optional)** (NEW!)
 - [x] **Repository management phase (git/gh automation)** (NEW!)
+- [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)
 
 ### Planned 📋
-- [ ] RAG experience base integration (learn from historical tasks)
+- [ ] Memory-driven pattern learning (auto-extract coding conventions from past tasks)
 - [ ] GUI agent auto-testing (Playwright-based)
 - [ ] VS Code plugin (use directly in IDE)
 - [ ] Multi-agent collaboration (decompose large tasks)

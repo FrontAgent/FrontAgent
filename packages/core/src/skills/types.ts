@@ -8,6 +8,8 @@ export interface PlannerContextSnapshot {
   readonly devServerPort?: number;
   readonly skillContext?: string;
   readonly matchedSkillNames?: readonly string[];
+  /** Preloaded cross-session memory content (Phase 1) */
+  readonly memoryContext?: string;
 }
 
 export interface PlannerStepFactory {
