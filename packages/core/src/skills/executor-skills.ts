@@ -18,6 +18,8 @@ export interface ExecutorSkillRuntime {
   getCreatedModules?: () => string[];
   getSddConstraints?: () => string | undefined;
   getSkillContext?: () => string | undefined;
+  /** Recall relevant memories for a code-generation step (Phase 2) */
+  getMemoryRecall?: (filePath: string, action: string) => string | undefined;
   buildContextString: (collectedContext: ExecutorCollectedContext) => string;
   detectLanguage: (path: string) => 'typescript' | 'javascript' | 'json' | 'yaml' | null;
 }
@@ -136,7 +138,16 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       const filePath = params.path as string;
       const language = runtime.detectLanguage(filePath);
       const codeDescription = (params.codeDescription as string) || step.description;
-      const contextStr = runtime.buildContextString(context.collectedContext);
+      let contextStr = runtime.buildContextString(context.collectedContext);
+
+      // Phase 2: inject recalled memories for this file
+      const memoryRecall = runtime.getMemoryRecall?.(filePath, step.action);
+      if (memoryRecall) {
+        contextStr = `${contextStr}\n\n${memoryRecall}`;
+        if (runtime.debug) {
+          console.log(`[Executor] [Skill:create_file] Injected ${memoryRecall.length} chars of recalled memory`);
+        }
+      }
 
       const existingModules =
         runtime.getCreatedModules?.() ??
@@ -184,11 +195,20 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
 
       const filePath = params.path as string;
       const language = runtime.detectLanguage(filePath);
-      const changeDescription = (params.changeDescription as string) || step.description;
+      let changeDescription = (params.changeDescription as string) || step.description;
       const originalCode = context.collectedContext.files.get(filePath) || '';
 
       if (!originalCode) {
         throw new Error(`Cannot apply patch: file not found in context: ${filePath}`);
+      }
+
+      // Phase 2: inject recalled memories for this file
+      const memoryRecall = runtime.getMemoryRecall?.(filePath, step.action);
+      if (memoryRecall) {
+        changeDescription = `${changeDescription}\n\n参考记忆:\n${memoryRecall}`;
+        if (runtime.debug) {
+          console.log(`[Executor] [Skill:apply_patch] Injected ${memoryRecall.length} chars of recalled memory`);
+        }
       }
 
       if (runtime.debug) {

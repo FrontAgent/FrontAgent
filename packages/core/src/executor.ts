@@ -44,6 +44,8 @@ export interface ExecutorConfig {
     nonExistentPaths: Set<string>;
     directoryContents: Map<string, string[]>;
   } | undefined;
+  /** Recall relevant memories for a code-generation step (Phase 2) */
+  getMemoryRecall?: (filePath: string, action: string) => string | undefined;
   /** 执行流引擎（默认 native） */
   executionEngine?: 'native' | 'langgraph';
   /** LangGraph 相关配置 */
@@ -102,6 +104,7 @@ export class Executor {
       getCreatedModules: this.config.getCreatedModules,
       getSddConstraints: this.config.getSddConstraints,
       getSkillContext: this.config.getSkillContext,
+      getMemoryRecall: this.config.getMemoryRecall,
       buildContextString: (collectedContext) => this.buildContextString(collectedContext),
       detectLanguage: (path) => this.detectLanguage(path),
     });

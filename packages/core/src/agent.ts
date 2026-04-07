@@ -15,6 +15,8 @@ import { LLMService } from './llm.js';
 import { InMemoryA2ABus, type A2AAgent } from './a2a.js';
 import { SkillContentLoader } from './skill-content/loader.js';
 import { SkillContentResolver } from './skill-content/resolver.js';
+import { MemoryStore } from './memory/index.js';
+import type { PersistenceInput } from './memory/types.js';
 import {
   CodeQualitySubAgent,
   ProcessIsolatedCodeQualitySubAgent,
@@ -109,6 +111,7 @@ export class FrontAgent {
   private a2aBus: InMemoryA2ABus;
   private codeQualitySubAgent?: A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>;
   private skillContentResolver?: SkillContentResolver;
+  private memoryStore: MemoryStore;
   private pendingFactsUpdates: ProjectFactsUpdate[] = [];
   private factsUpdateFlushInProgress = false;
 
@@ -154,12 +157,18 @@ export class FrontAgent {
         if (!this.currentTaskId) return undefined;
         return this.contextManager.getContext(this.currentTaskId)?.collectedContext.skillContext;
       },
-      // 🔧 修复问题1：传递文件系统事实，帮助 Executor 判断文件是否存在
       getFileSystemFacts: () => {
         if (!this.currentTaskId) return undefined;
         const context = this.contextManager.getContext(this.currentTaskId);
         return context?.facts.filesystem;
-      }
+      },
+      getMemoryRecall: (filePath: string, action: string) => {
+        if (this.config.memory?.enabled === false) return undefined;
+        const recalled = this.memoryStore.recall({ filePath, action });
+        if (recalled.length === 0) return undefined;
+        const parts = recalled.map((r) => `[${r.topicId}] ${r.content}`);
+        return `## 跨会话记忆\n${parts.join('\n')}`;
+      },
     });
 
     if (config.skillContent?.enabled !== false) {
@@ -175,6 +184,9 @@ export class FrontAgent {
         maxCharsPerFile: config.skillContent?.maxCharsPerFile,
       });
     }
+
+    // 初始化跨会话记忆
+    this.memoryStore = new MemoryStore(config.projectRoot, config.memory);
 
     // 初始化 A2A 总线和代码质量 SubAgent
     this.a2aBus = new InMemoryA2ABus();
@@ -397,7 +409,11 @@ export class FrontAgent {
       context.collectedContext.matchedSkillNames = matchedSkillNames;
       context.collectedContext.metadata.originalTaskDescription = taskDescription;
 
-      // 添加 SDD 约束到系统提示
+      // Phase 1: 跨会话记忆预加载
+      this.memoryStore.resetSession();
+      this.preloadMemory(task.id, context);
+
+      // 添加 SDD 约束到系统提示 (Rules zone)
       if (this.promptGenerator) {
         const sddPrompt = this.promptGenerator.generate();
         this.contextManager.addMessage(task.id, {
@@ -472,10 +488,11 @@ export class FrontAgent {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
           ragResults,
-          projectStructure,  // 🔧 传递项目文件结构给 Planner
-          devServerPort,    // 🔧 传递检测到的端口给 Planner
+          projectStructure,
+          devServerPort,
           skillContext,
           matchedSkillNames,
+          memoryContext: context.collectedContext.memoryContext,
         },
         this.contextManager.getMessages(task.id)
       );
@@ -493,6 +510,7 @@ export class FrontAgent {
             ragResults: context.collectedContext.ragResults,
             skillContext: context.collectedContext.skillContext,
             matchedSkillNames: context.collectedContext.matchedSkillNames,
+            memoryContext: context.collectedContext.memoryContext,
           },
           this.contextManager.getMessages(task.id)
         );
@@ -835,10 +853,13 @@ export class FrontAgent {
         validations: []
       };
     } finally {
+      // 持久化跨会话记忆（off critical path）
+      this.persistMemory(task.id, task.description);
+
       // 清理上下文
       this.pendingFactsUpdates = [];
       this.factsUpdateFlushInProgress = false;
-      this.currentTaskId = undefined;  // 清理当前任务ID
+      this.currentTaskId = undefined;
       this.contextManager.clearContext(task.id);
     }
   }
@@ -1296,6 +1317,123 @@ export class FrontAgent {
       }
 
       this.factsUpdateFlushInProgress = true;
+    }
+  }
+
+  /**
+   * Persist durable memories after a task completes.
+   * Runs synchronously but swallows all errors to stay off the critical path.
+   */
+  private persistMemory(taskId: string, taskDescription: string): void {
+    if (this.config.memory?.enabled === false) return;
+
+    try {
+      const context = this.contextManager.getContext(taskId);
+      if (!context) return;
+
+      const factsSnapshot = this.contextManager.exportFactsSnapshot(taskId);
+      if (!factsSnapshot) return;
+
+      // Collect created files from executed steps
+      const createdFiles: string[] = [];
+      for (const step of context.executedSteps) {
+        if (
+          step.status === 'completed' &&
+          (step.action === 'create_file') &&
+          typeof step.params.path === 'string'
+        ) {
+          createdFiles.push(step.params.path);
+        }
+      }
+
+      // Collect error resolutions (steps that failed then succeeded in recovery)
+      const errorResolutions: PersistenceInput['errorResolutions'] = [];
+      const failedStepDescriptions = new Map<string, string>();
+      for (const step of context.executedSteps) {
+        if (step.status === 'failed' && step.result?.error) {
+          failedStepDescriptions.set(step.action, step.result.error);
+        }
+      }
+      // If any step failed but a recovery step for the same action succeeded, record it
+      for (const step of context.executedSteps) {
+        if (step.status === 'completed' && step.phase && failedStepDescriptions.has(step.action)) {
+          const originalError = failedStepDescriptions.get(step.action)!;
+          errorResolutions.push({
+            errorType: step.action,
+            errorMessage: originalError,
+            resolution: `Fixed via recovery step: ${step.description}`,
+          });
+          failedStepDescriptions.delete(step.action);
+        }
+      }
+
+      const persistInput: PersistenceInput = {
+        factsSnapshot,
+        createdFiles,
+        errorResolutions,
+        dependencyChanges: {
+          installed: Array.from(context.facts.dependencies.installedPackages),
+          missing: Array.from(context.facts.dependencies.missingPackages),
+        },
+        taskDescription,
+      };
+
+      this.memoryStore.persist(persistInput);
+
+      if (this.config.debug) {
+        console.log(
+          `[Agent] 🧠 Persisted memory: ${createdFiles.length} files, ` +
+          `${errorResolutions.length} error resolutions, ` +
+          `${persistInput.dependencyChanges.installed.length} installed deps`
+        );
+      }
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn('[Agent] Memory persistence failed (non-blocking):', error);
+      }
+    }
+  }
+
+  /**
+   * Preload durable memory at the start of a task.
+   * Seeds ProjectFacts from the last snapshot and injects memory content
+   * as a dedicated prompt block.
+   */
+  private preloadMemory(
+    taskId: string,
+    context: NonNullable<ReturnType<ContextManager['getContext']>>
+  ): void {
+    if (this.config.memory?.enabled === false) return;
+    if (!this.memoryStore.hasMemory()) return;
+
+    try {
+      // Seed ProjectFacts from last snapshot
+      const factsSnapshot = this.memoryStore.loadFactsSnapshot();
+      if (factsSnapshot) {
+        this.contextManager.replaceFactsFromSnapshot(taskId, factsSnapshot);
+        if (this.config.debug) {
+          console.log(
+            `[Agent] 🧠 Seeded facts from snapshot (r${factsSnapshot.revision}): ` +
+            `${factsSnapshot.filesystem.existingFiles.length} files, ` +
+            `${factsSnapshot.dependencies.installedPackages.length} packages`
+          );
+        }
+      }
+
+      // Load memory content for prompt injection (Memory zone)
+      const memoryContent = this.memoryStore.preload();
+      if (memoryContent) {
+        context.collectedContext.memoryContext = memoryContent;
+        if (this.config.debug) {
+          console.log(
+            `[Agent] 🧠 Preloaded memory content (${memoryContent.length} chars)`
+          );
+        }
+      }
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn('[Agent] Memory preload failed (non-blocking):', error);
+      }
     }
   }
 
