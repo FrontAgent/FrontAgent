@@ -20,6 +20,8 @@ export interface ExecutorSkillRuntime {
   getSkillContext?: () => string | undefined;
   /** Recall relevant memories for a code-generation step (Phase 2) */
   getMemoryRecall?: (filePath: string, action: string) => string | undefined;
+  /** Callback invoked for each streamed token during code generation */
+  onStreamToken?: (token: string, stepId: string) => void;
   buildContextString: (collectedContext: ExecutorCollectedContext) => string;
   detectLanguage: (path: string) => 'typescript' | 'javascript' | 'json' | 'yaml' | null;
 }

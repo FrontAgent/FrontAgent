@@ -564,9 +564,12 @@ export type AgentEvent =
       matches: RagContextMatch[];
     }
   | { type: 'planning_completed'; plan: ExecutionPlan }
+  | { type: 'phase_started'; phase: string; stepCount: number }
+  | { type: 'phase_completed'; phase: string; successCount: number; failureCount: number }
   | { type: 'step_started'; step: ExecutionStep }
   | { type: 'step_completed'; step: ExecutionStep; result: StepResult }
   | { type: 'step_failed'; step: ExecutionStep; error: string }
+  | { type: 'stream_token'; token: string; stepId: string }
   | { type: 'validation_failed'; result: ValidationResult }
   | { type: 'rollback_started'; snapshotId: string }
   | { type: 'rollback_completed'; snapshotId: string }

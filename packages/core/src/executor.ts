@@ -46,6 +46,8 @@ export interface ExecutorConfig {
   } | undefined;
   /** Recall relevant memories for a code-generation step (Phase 2) */
   getMemoryRecall?: (filePath: string, action: string) => string | undefined;
+  /** Optional callback invoked for each streamed token during code generation */
+  onStreamToken?: (token: string, stepId: string) => void;
   /** 执行流引擎（默认 native） */
   executionEngine?: 'native' | 'langgraph';
   /** LangGraph 相关配置 */
@@ -105,6 +107,7 @@ export class Executor {
       getSddConstraints: this.config.getSddConstraints,
       getSkillContext: this.config.getSkillContext,
       getMemoryRecall: this.config.getMemoryRecall,
+      onStreamToken: this.config.onStreamToken,
       buildContextString: (collectedContext) => this.buildContextString(collectedContext),
       detectLanguage: (path) => this.detectLanguage(path),
     });
@@ -763,7 +766,9 @@ export class Executor {
     },
     completedStepIds: Set<string>,
     allResults: ExecutorOutput[],
+    onStepStart?: (step: ExecutionStep) => void,
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
+    onPhaseStart?: (phase: string, stepCount: number) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
     onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
   ): Promise<void> {
@@ -772,6 +777,8 @@ export class Executor {
 
     console.log(`[Executor] ========================================`);
     console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
+
+    onPhaseStart?.(phase, phaseSteps.length);
     console.log(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
     console.log(`[Executor] 📋 Steps in this phase:`);
     for (const s of phaseSteps) {
@@ -797,6 +804,7 @@ export class Executor {
       }
 
       step.status = 'running';
+      onStepStart?.(step);
       const output = await this.executeStep(step, context);
       step.result = output.stepResult;
       step.status = output.stepResult.success ? 'completed' : 'failed';
@@ -981,7 +989,9 @@ export class Executor {
       task: AgentTask;
       collectedContext: ExecutorCollectedContext;
     },
+    onStepStart?: (step: ExecutionStep) => void,
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
+    onPhaseStart?: (phase: string, stepCount: number) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
     onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
   ): Promise<ExecutorOutput[]> {
@@ -1027,7 +1037,9 @@ export class Executor {
           context,
           completedStepIds,
           allResults,
+          onStepStart,
           onStepComplete,
+          onPhaseStart,
           onPhaseError,
           onPhaseComplete
         );
@@ -1092,7 +1104,9 @@ export class Executor {
       task: AgentTask;
       collectedContext: ExecutorCollectedContext;
     },
+    onStepStart?: (step: ExecutionStep) => void,
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
+    onPhaseStart?: (phase: string, stepCount: number) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
     onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
   ): Promise<ExecutorOutput[]> {
@@ -1103,7 +1117,9 @@ export class Executor {
       return this.executeStepsWithErrorFeedbackViaLangGraph(
         steps,
         context,
+        onStepStart,
         onStepComplete,
+        onPhaseStart,
         onPhaseError,
         onPhaseComplete
       );
@@ -1114,14 +1130,15 @@ export class Executor {
     const allResults: ExecutorOutput[] = [];
     const completedStepIds = new Set<string>();
 
-    // 按阶段顺序执行
     for (const phaseGroup of orderedPhaseGroups) {
       await this.executeSinglePhaseWithRecovery(
         phaseGroup,
         context,
         completedStepIds,
         allResults,
+        onStepStart,
         onStepComplete,
+        onPhaseStart,
         onPhaseError,
         onPhaseComplete
       );

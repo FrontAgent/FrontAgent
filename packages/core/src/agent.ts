@@ -169,6 +169,9 @@ export class FrontAgent {
         const parts = recalled.map((r) => `[${r.topicId}] ${r.content}`);
         return `## 跨会话记忆\n${parts.join('\n')}`;
       },
+      onStreamToken: (token: string, stepId: string) => {
+        this.emit({ type: 'stream_token', token, stepId });
+      },
     });
 
     if (config.skillContent?.enabled !== false) {
@@ -553,6 +556,10 @@ export class FrontAgent {
             skillContext: executionContext.collectedContext.skillContext,
           },
         },
+        // onStepStart
+        (step) => {
+          this.emit({ type: 'step_started', step });
+        },
         // onStepComplete
         (step, output) => {
           // 更新项目事实（从工具执行结果中提取结构化信息）
@@ -614,6 +621,10 @@ export class FrontAgent {
 
           // 更新上下文
           this.contextManager.addExecutedStep(task.id, step);
+        },
+        // onPhaseStart
+        (phase, stepCount) => {
+          this.emit({ type: 'phase_started', phase, stepCount });
         },
         // onPhaseError: Tool Error Feedback Loop
         async (phase, errors) => {
@@ -683,7 +694,11 @@ export class FrontAgent {
           return recoverySteps;
         },
         // onPhaseComplete: 阶段结束时进行自检验证
-        async (phase, _results) => {
+        async (phase, phaseResults) => {
+          const successCount = phaseResults.filter(r => r.stepResult.success).length;
+          const failureCount = phaseResults.filter(r => !r.stepResult.success).length;
+          this.emit({ type: 'phase_completed', phase, successCount, failureCount });
+
           const errors: Array<{ step: ExecutionStep; error: string }> = [];
 
           // 在代码实现阶段结束后进行多项检查
