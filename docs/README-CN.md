@@ -1,7 +1,7 @@
 # FrontAgent
 
 <div align="center">
-  <img src="../assets/branding/frontagent-icon.svg" alt="FrontAgent Logo" width="200"/>
+  <img src="../assets/branding/icon.png" alt="FrontAgent Logo" width="200"/>
 </div>
 
 [![npm version](https://badge.fury.io/js/frontagent.svg)](https://www.npmjs.com/package/frontagent)
