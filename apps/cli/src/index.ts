@@ -3,19 +3,29 @@
  *
  * Heavy imports (core, MCP, React/Ink) are deferred via dynamic import
  * inside each command's .action() so that cheap paths like `--help`,
- * `--version`, `info`, and `init` never pay the startup cost.
+ * `--version`, `-v`, `version`, `info`, and `init` never pay the startup cost.
  */
 
 import { Command } from 'commander';
 import { registerRagCommand } from './commands/rag.js';
 import { registerSkillCommand } from './commands/skill.js';
 
+const CLI_VERSION = '0.1.7';
+
 const program = new Command();
 
 program
   .name('fa')
   .description('FrontAgent - 工程级 AI Agent 系统')
-  .version('0.1.7');
+  .version(CLI_VERSION, '-v, --version');
+
+// ── version ─────────────────────────────────────────────────────────
+program
+  .command('version')
+  .description('显示版本号')
+  .action(() => {
+    console.log(CLI_VERSION);
+  });
 
 // ── init ────────────────────────────────────────────────────────────
 program
