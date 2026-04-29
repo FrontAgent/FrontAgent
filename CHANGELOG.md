@@ -4,8 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-04-29
+
+### Added
+- Added a progressive exploration protocol so file-system changes are planned as observe-first workflows before writes.
+- Added built-in FrontAgent identity context for query answers so identity and capability questions answer from stable agent facts.
+
 ### Changed
 - Shortened the published CLI command from `frontagent` to `fa`.
+- Simplified default `fa run` output to status, tool-call summary, and final answer while keeping verbose internals behind `--debug`.
+
+### Fixed
+- Fixed the ESM bundle bootstrap so `fa run` no longer crashes on packages that expect `__filename`.
+- Normalized OpenAI-compatible base URLs that already include `/chat/completions`.
+- Made query tasks report a clear failure when no final answer is generated instead of presenting tool-only fallback as success.
 
 ## [0.1.6] - 2026-03-22
 
