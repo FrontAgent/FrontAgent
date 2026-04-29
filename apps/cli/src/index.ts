@@ -15,7 +15,7 @@ const program = new Command();
 program
   .name('fa')
   .description('FrontAgent - 工程级 AI Agent 系统')
-  .version('0.1.6');
+  .version('0.1.7');
 
 // ── init ────────────────────────────────────────────────────────────
 program
