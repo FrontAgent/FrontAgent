@@ -156,6 +156,17 @@ function recordToClonedStringArrayMap(record: Record<string, string[]>): Map<str
   return map;
 }
 
+function parentDirectoriesForPath(path: string): string[] {
+  const parts = path.split('/').filter(Boolean);
+  const parents: string[] = [];
+
+  for (let i = 1; i < parts.length; i++) {
+    parents.push(parts.slice(0, i).join('/'));
+  }
+
+  return parents;
+}
+
 /**
  * 上下文管理器
  */
@@ -490,6 +501,40 @@ export class ContextManager {
           }
         } else if (result.skipped || result.error?.includes('not found')) {
           changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
+        }
+        break;
+      }
+      case 'search_code': {
+        if (!result.success) {
+          break;
+        }
+
+        const files = new Set<string>();
+
+        if (Array.isArray(result.files)) {
+          for (const file of result.files) {
+            if (typeof file === 'string') {
+              files.add(file);
+            }
+          }
+        }
+
+        if (Array.isArray(result.matches)) {
+          for (const match of result.matches as Array<{ file?: unknown }>) {
+            if (typeof match.file === 'string') {
+              files.add(match.file);
+            }
+          }
+        }
+
+        for (const file of files) {
+          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
+
+          for (const parent of parentDirectoriesForPath(file)) {
+            changed = this.addToSet(facts.filesystem.existingDirectories, parent) || changed;
+            changed = this.removeFromSet(facts.filesystem.nonExistentPaths, parent) || changed;
+          }
         }
         break;
       }
