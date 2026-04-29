@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 export default async function infoCommand() {
   console.log(chalk.cyan('\n🤖 FrontAgent 系统信息\n'));
-  console.log(chalk.gray('版本: 0.1.7'));
+  console.log(chalk.gray('版本: 0.1.8'));
   console.log(chalk.gray('运行时: Node.js ' + process.version));
   console.log(chalk.gray('工作目录: ' + process.cwd()));
 
