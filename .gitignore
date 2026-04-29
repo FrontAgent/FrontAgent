@@ -46,6 +46,8 @@ artifacts/
 
 .turbo/
 
+/workspace/
+
 # 去除之前的实验，只保留最近的一次，方便他人开发
 # */E-commerce/
 # */E-commerce-2/
