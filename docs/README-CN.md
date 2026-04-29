@@ -608,6 +608,17 @@ console.log(agent.getExecutorSkillSnapshot());
 - 📉 **减少 token 使用**：信息简洁，缩短 LLM 输入
 - 🔗 **模块跟踪**：自动解析每个文件的 import/export
 
+#### 渐进式探索：先观察，再写入
+
+当文件系统状态不确定时，FrontAgent 会引导 Planner 使用“逐步缩小范围”的策略：
+
+1. **Glob 全局发现**：通过 `search_code` 的 `globOnly=true` 和 `filePattern` 先收集候选路径
+2. **上下文确认**：通过 `list_directory` / `read_file` 理解候选目录和文件内容
+3. **Bash 精确确认**：写入前用 `run_command` 检查目标目录存在、目标文件状态符合预期
+4. **执行写入**：最后才调用 `create_file` / `apply_patch`
+
+Executor 也会在 `create_file` 前做父目录与目标路径校验，避免在错误位置创建文件。
+
 ### 8. 跨会话记忆系统（NEW）
 
 FrontAgent 现在实现了四阶段记忆架构，能够跨任务运行持久化知识，让 Agent 不再每次从零开始。

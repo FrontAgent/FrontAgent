@@ -6,6 +6,7 @@
 import type { ExecutionStep, StepResult, ValidationResult, AgentTask } from '@frontagent/shared';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
+import { dirname } from 'node:path/posix';
 import type { ExecutorOutput } from './types.js';
 import { LLMService } from './llm.js';
 import {
@@ -41,6 +42,7 @@ export interface ExecutorConfig {
   /** 获取文件系统事实的回调（用于验证文件是否存在） */
   getFileSystemFacts?: () => {
     existingFiles: Set<string>;
+    existingDirectories: Set<string>;
     nonExistentPaths: Set<string>;
     directoryContents: Map<string, string[]>;
   } | undefined;
@@ -87,6 +89,10 @@ interface ExecutorCollectedContext {
   ragResults?: string[];
   matchedSkillNames?: string[];
   skillContext?: string;
+}
+
+function quoteShellArg(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 /**
@@ -465,8 +471,84 @@ export class Executor {
 
     // 对于创建文件操作，验证文件不存在
     if (step.action === 'create_file' && step.params.path && !step.params.overwrite) {
+      const path = step.params.path as string;
+      const facts = this.config.getFileSystemFacts?.();
+
+      if (facts?.existingFiles.has(path)) {
+        return {
+          pass: false,
+          results: [{
+            pass: false,
+            type: 'file_existence',
+            severity: 'block',
+            message: `Cannot create file: ${path} already exists. Use apply_patch after reading the file instead.`
+          }],
+          blockedBy: [`File ${path} already exists. Use apply_patch instead of create_file.`]
+        };
+      }
+
+      const parentDir = dirname(path);
+      const parentKnown =
+        parentDir === '.' ||
+        facts?.existingDirectories.has(parentDir) ||
+        Array.from(facts?.directoryContents.keys() ?? []).some((dir) => dir === parentDir);
+
+      if (!parentKnown) {
+        if (facts?.nonExistentPaths.has(parentDir)) {
+          return {
+            pass: false,
+            results: [{
+              pass: false,
+              type: 'parent_directory_not_found',
+              severity: 'block',
+              message: `Cannot create file: parent directory ${parentDir} is known to not exist.`
+            }],
+            blockedBy: [`Parent directory ${parentDir} is known to not exist.`]
+          };
+        }
+
+        try {
+          const command = `test -d ${quoteShellArg(parentDir)} && test ! -e ${quoteShellArg(path)}`;
+          const confirmResult = await this.callTool('run_command', { command }) as {
+            success?: boolean;
+            error?: string;
+            stderr?: string;
+            exitCode?: number;
+          };
+
+          if (!confirmResult.success) {
+            const reason = confirmResult.error || confirmResult.stderr || `exit code ${confirmResult.exitCode ?? 'unknown'}`;
+            return {
+              pass: false,
+              results: [{
+                pass: false,
+                type: 'progressive_exploration_required',
+                severity: 'block',
+                message: `Cannot create file until the target path is precisely confirmed with Bash. Parent directory may be missing or target may already exist: ${path} (${reason})`
+              }],
+              blockedBy: [
+                `Create_file requires progressive exploration: use search_code globOnly/list_directory to narrow candidates, then run_command to confirm parent and target before writing ${path}.`
+              ]
+            };
+          }
+        } catch (error) {
+          return {
+            pass: false,
+            results: [{
+              pass: false,
+              type: 'progressive_exploration_required',
+              severity: 'block',
+              message: `Cannot create file before precise Bash confirmation for ${path}: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            blockedBy: [
+              `Create_file requires precise confirmation before writing ${path}.`
+            ]
+          };
+        }
+      }
+
       const fileCheck = await this.config.hallucinationGuard.validateFilePath(
-        step.params.path as string,
+        path,
         false
       );
       results.push(fileCheck);

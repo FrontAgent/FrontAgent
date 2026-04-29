@@ -9,6 +9,16 @@ import { generateText, generateObject, streamText, type CoreMessage, type Langua
 import { z } from 'zod';
 import type { LLMConfig, Message } from './types.js';
 
+const PROGRESSIVE_EXPLORATION_PROTOCOL = `# 渐进式探索协议（先观察，再操作）
+
+当文件系统状态不确定，尤其是要新增文件、移动入口、选择目录或修改不在上下文中的路径时，必须逐步缩小范围：
+1. **Glob 全局发现**：先用 search_code 的 globOnly=true + filePattern 收集候选路径，例如 { "globOnly": true, "filePattern": "**/*Route*.tsx", "maxResults": 50 }。
+2. **上下文读取/目录观察**：对候选目录使用 list_directory，对候选文件使用 read_file，确认项目真实结构和命名习惯。
+3. **Bash 精确确认**：写入前用 run_command 做精确检查，例如 test -d 'src/pages' && test ! -e 'src/pages/Login.tsx'。
+4. **最后才写入**：只有目标目录和目标路径被确认后，才允许 create_file 或 apply_patch。
+
+禁止在不确定目录下直接 create_file。若有多个候选位置，先探索并选择最符合现有结构的位置。`;
+
 /**
  * LLM 服务类
  */
@@ -580,6 +590,8 @@ export class LLMService {
 - **browser_screenshot**: 页面截图
 - **get_page_structure**: 获取页面DOM结构
 
+${PROGRESSIVE_EXPLORATION_PROTOCOL}
+
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
 
@@ -683,6 +695,7 @@ ${options.skillContext ?? '无已激活内容技能'}
 - **apply_patch**: params 需要 path 和 changeDescription（描述要做的修改）
 - **read_file**: params 需要 path
 - **list_directory**: params 需要 path 和可选的 recursive
+- **search_code**: 可用 globOnly=true + filePattern 做写入前的全局路径候选发现；内容搜索时使用 query 或 pattern
 
 ## 命令执行
 - **run_command**: params 需要 command
@@ -700,6 +713,7 @@ ${options.skillContext ?? '无已激活内容技能'}
 
 # 重要提示
 - create_file 和 apply_patch 必须设置 needsCodeGeneration: true
+- 对不确定路径执行 create_file/apply_patch 前，必须先安排 search_code globOnly 或 list_directory，再安排 run_command 精确确认目标目录/目标文件状态
 - 文件路径必须包含完整扩展名（如 .ts, .tsx, .json）
 - 保持 phase 字段与输入一致
 - 阶段7-仓库管理必须依赖验收阶段成功（例如放在阶段4/6之后）
@@ -839,9 +853,9 @@ ${JSON.stringify(batch, null, 2)}
 # 计划结构
 
 根据任务类型组织步骤：
-- **分析类**: 使用 list_directory、read_file 了解项目
-- **创建类**: 创建文件 → 安装依赖 → 类型检查 → 启动 → 浏览器验证
-- **修改类**: 读取文件 → 修改 → 验证
+- **分析类**: 使用 search_code/list_directory/read_file 了解项目
+- **创建类**: Glob 候选发现 → Bash 精确确认 → 创建文件 → 安装依赖 → 类型检查 → 启动 → 浏览器验证
+- **修改类**: Glob/目录观察 → 读取文件 → 修改 → 验证
 
 # 可用工具
 - **read_file**: { path: "文件路径" }
@@ -849,10 +863,12 @@ ${JSON.stringify(batch, null, 2)}
 - **create_file**: { path: "完整路径含扩展名", codeDescription: "描述" }, needsCodeGeneration: true
 - **apply_patch**: { path: "完整路径含扩展名", changeDescription: "描述" }, needsCodeGeneration: true
 - **run_command**: { command: "命令" }
-- **search_code**: { pattern: "搜索模式" }
+- **search_code**: { pattern: "搜索模式" } 或 { globOnly: true, filePattern: "glob模式", maxResults: 50 }
 - **browser_navigate**: { url: "地址" }
 - **browser_screenshot**: { fullPage: true }
 - **get_page_structure**: {}
+
+${PROGRESSIVE_EXPLORATION_PROTOCOL}
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
@@ -1471,7 +1487,11 @@ const StepExpansionSchema = z.object({
     params: z.object({
       path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
       recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+      query: z.string().describe('文本搜索查询（不适用时填空字符串）'),
       pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+      filePattern: z.string().describe('文件 glob 模式（不适用时填空字符串）'),
+      globOnly: z.boolean().describe('是否仅执行 glob 文件发现，不适用时填false'),
+      maxResults: z.number().describe('最大返回结果数，不适用时填0'),
       directory: z.string().describe('搜索目录（不适用时填空字符串）'),
       command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
       url: z.string().describe('URL（不适用时填空字符串）'),
@@ -1480,7 +1500,7 @@ const StepExpansionSchema = z.object({
       fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
       codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
       changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
-    }).describe('工具参数 - 所有字段必填，不适用的字段填空字符串或false'),
+    }).describe('工具参数 - 所有字段必填，不适用的字符串填空字符串，布尔值填false，数字填0'),
     reasoning: z.string().describe('为什么需要这个步骤'),
     needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
   })).describe('展开后的详细步骤列表'),
@@ -1509,14 +1529,18 @@ const GeneratedPlanSchema = z.object({
     // 参数说明：
     // - 对于 read_file: { path: string }
     // - 对于 list_directory: { path: string, recursive?: boolean }
-    // - 对于 search_code: { pattern: string, directory?: string }
+    // - 对于 search_code: { query?: string, pattern?: string, filePattern?: string, globOnly?: boolean, maxResults?: number }
     // - 对于 create_file: { path: string, codeDescription: string } (不包含实际代码)
     // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
     // - 对于 run_command: { command: string, description: string }
     params: z.object({
       path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
       recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+      query: z.string().describe('文本搜索查询（不适用时填空字符串）'),
       pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+      filePattern: z.string().describe('文件 glob 模式（不适用时填空字符串）'),
+      globOnly: z.boolean().describe('是否仅执行 glob 文件发现，不适用时填false'),
+      maxResults: z.number().describe('最大返回结果数，不适用时填0'),
       directory: z.string().describe('搜索目录（不适用时填空字符串）'),
       command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
       url: z.string().describe('URL（不适用时填空字符串）'),
@@ -1525,7 +1549,7 @@ const GeneratedPlanSchema = z.object({
       fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
       codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
       changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
-    }).describe('工具参数 - 所有字段必填，不适用的字段填空字符串或false'),
+    }).describe('工具参数 - 所有字段必填，不适用的字符串填空字符串，布尔值填false，数字填0'),
     reasoning: z.string().describe('为什么需要这个步骤'),
     needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
   })).describe('执行步骤列表'),

@@ -11,6 +11,7 @@ export interface SearchCodeParams {
   query?: string;
   pattern?: string;
   filePattern?: string;
+  globOnly?: boolean;
   maxResults?: number;
   contextLines?: number;
 }
@@ -28,6 +29,8 @@ export interface SearchMatch {
 
 export interface SearchCodeResult {
   success: boolean;
+  files?: string[];
+  totalFiles?: number;
   matches?: SearchMatch[];
   totalMatches?: number;
   truncated?: boolean;
@@ -41,28 +44,41 @@ export async function searchCode(
   params: SearchCodeParams,
   projectRoot: string
 ): Promise<SearchCodeResult> {
+  const defaultFilePattern = '**/*.{ts,tsx,js,jsx,json,yaml,yml,md,css,scss,html,vue,svelte}';
   const {
     query,
     pattern,
-    filePattern = '**/*.{ts,tsx,js,jsx,json,yaml,yml,md,css,scss,html,vue,svelte}',
+    filePattern = defaultFilePattern,
+    globOnly = false,
     maxResults = 100,
     contextLines = 2
   } = params;
+  const effectiveFilePattern = filePattern.trim() || defaultFilePattern;
+  const effectiveMaxResults = maxResults > 0 ? maxResults : 100;
 
-  if (!query && !pattern) {
+  if (!query && !pattern && !globOnly) {
     return {
       success: false,
-      error: 'Either query or pattern must be provided'
+      error: 'Either query, pattern, or globOnly must be provided'
     };
   }
 
   try {
     // 使用 glob 查找文件
-    const files = await glob(filePattern, {
+    const files = await glob(effectiveFilePattern, {
       cwd: projectRoot,
       nodir: true,
       ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/coverage/**']
     });
+
+    if (globOnly) {
+      return {
+        success: true,
+        files: files.slice(0, effectiveMaxResults),
+        totalFiles: files.length,
+        truncated: files.length > effectiveMaxResults
+      };
+    }
 
     const matches: SearchMatch[] = [];
     const searchRegex = pattern
@@ -70,7 +86,7 @@ export async function searchCode(
       : new RegExp(escapeRegex(query!), 'gi');
 
     for (const file of files) {
-      if (matches.length >= maxResults) {
+      if (matches.length >= effectiveMaxResults) {
         break;
       }
 
@@ -87,7 +103,7 @@ export async function searchCode(
         const lines = content.split('\n');
 
         for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-          if (matches.length >= maxResults) {
+          if (matches.length >= effectiveMaxResults) {
             break;
           }
 
@@ -116,7 +132,7 @@ export async function searchCode(
 
             matches.push(searchMatch);
 
-            if (matches.length >= maxResults) {
+            if (matches.length >= effectiveMaxResults) {
               break;
             }
           }
@@ -131,7 +147,7 @@ export async function searchCode(
       success: true,
       matches,
       totalMatches: matches.length,
-      truncated: matches.length >= maxResults
+      truncated: matches.length >= effectiveMaxResults
     };
   } catch (error) {
     return {
@@ -170,6 +186,11 @@ export const searchCodeSchema = {
         description: '文件 glob 模式，默认搜索常见代码文件',
         default: '**/*.{ts,tsx,js,jsx,json,yaml,yml,md,css,scss,html,vue,svelte}'
       },
+      globOnly: {
+        type: 'boolean',
+        description: '仅执行 glob 文件发现，不搜索文件内容。用于写入前先收集候选路径。',
+        default: false
+      },
       maxResults: {
         type: 'number',
         description: '最大返回结果数，默认 100',
@@ -184,4 +205,3 @@ export const searchCodeSchema = {
     required: []
   }
 };
-
