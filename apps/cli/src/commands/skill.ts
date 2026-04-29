@@ -79,7 +79,7 @@ export function registerSkillCommand(parent: Command) {
         spinner.succeed(`已创建 skill 骨架: ${result.skillDir}`);
         console.log(chalk.gray(`   SKILL.md: ${result.skillFilePath}`));
         console.log(chalk.gray(`   agents/openai.yaml: ${result.agentConfigPath}`));
-        console.log(chalk.gray(`   下一步建议: frontagent skill init-evals ${skillName}`));
+        console.log(chalk.gray(`   下一步建议: fa skill init-evals ${skillName}`));
       } catch (error) {
         spinner.fail('创建失败');
         console.log(chalk.red(`\n❌ ${error instanceof Error ? error.message : String(error)}`));

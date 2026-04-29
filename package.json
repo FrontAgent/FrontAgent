@@ -4,7 +4,7 @@
   "description": "Enterprise AI agent platform for frontend engineering with planning/execution architecture, SDD constraints, and MCP-controlled code generation",
   "type": "module",
   "bin": {
-    "frontagent": "dist/index.mjs"
+    "fa": "dist/index.mjs"
   },
   "files": [
     "dist/index.mjs",

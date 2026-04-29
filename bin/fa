@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * FrontAgent 全局 CLI 入口
+ * FrontAgent 全局 CLI 入口（fa）
  * 该脚本会自动找到 FrontAgent 安装位置并执行
  */
 

@@ -59,14 +59,14 @@ export API_KEY="sk-ant-..."
 
 # 3. Navigate to your project directory and initialize SDD
 cd your-project
-frontagent init
+fa init
 
 # 4. Let AI help you complete tasks
-frontagent run "Create a user login page"
-frontagent run "Optimize homepage loading performance"
-frontagent run "Add dark mode support"
+fa run "Create a user login page"
+fa run "Optimize homepage loading performance"
+fa run "Add dark mode support"
 # Use LangGraph engine + checkpoint (optional)
-frontagent run "Add route guards and open a PR" --engine langgraph --langgraph-checkpoint
+fa run "Add route guards and open a PR" --engine langgraph --langgraph-checkpoint
 ```
 
 ## Remote RAG
@@ -86,7 +86,7 @@ Default knowledge source:
 CLI options:
 
 ```bash
-frontagent run "Explain React setState behavior" \
+fa run "Explain React setState behavior" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
@@ -99,14 +99,14 @@ frontagent run "Explain React setState behavior" \
 
 # When provider=openai, RAG embeddings inherit the same base-url/api-key by default.
 # Override them only if your embedding endpoint is different.
-frontagent run "Explain React setState behavior" \
+fa run "Explain React setState behavior" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
   --rag-embedding-model text-embedding-3-small
 
 # Use Weaviate as the semantic vector store (BM25 stays local)
-frontagent run "Explain React setState behavior" \
+fa run "Explain React setState behavior" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
@@ -116,11 +116,11 @@ frontagent run "Explain React setState behavior" \
   --rag-weaviate-collection-prefix FrontAgentRagChunk
 
 # Disable LLM query rewrite before retrieval
-frontagent run "How to build a custom selector" \
+fa run "How to build a custom selector" \
   --disable-rag-query-rewrite
 
 # Cross-encoder reranking is enabled by default after BM25 + embedding candidate retrieval
-frontagent run "Explain React setState behavior" \
+fa run "Explain React setState behavior" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
@@ -129,15 +129,15 @@ frontagent run "Explain React setState behavior" \
   --rag-reranker-base-url https://your-reranker-endpoint/v1
 
 # Disable reranking for a run
-frontagent run "Explain React setState behavior" \
+fa run "Explain React setState behavior" \
   --disable-rag-reranker
 
 # Disable semantic retrieval and use BM25 only
-frontagent run "Explain React setState behavior" \
+fa run "Explain React setState behavior" \
   --disable-rag-semantic
 
 # Disable remote RAG for a run
-frontagent run "Create a page" --disable-rag
+fa run "Create a page" --disable-rag
 ```
 
 ## Skill Lab
@@ -146,31 +146,31 @@ FrontAgent now includes a local Skill Lab workflow for iterating on content skil
 
 ```bash
 # List visible content skills
-frontagent skill list
+fa skill list
 
 # Scaffold a new content skill
-frontagent skill scaffold pricing-audit
+fa skill scaffold pricing-audit
 
 # Generate starter trigger evals for a skill
-frontagent skill init-evals frontend-design
+fa skill init-evals frontend-design
 
 # Generate starter behavior evals (binary checks for output quality)
-frontagent skill init-behavior-evals frontend-design
+fa skill init-behavior-evals frontend-design
 
 # Benchmark current trigger behavior
-frontagent skill benchmark frontend-design
+fa skill benchmark frontend-design
 
 # Benchmark trigger + behavior together
-frontagent skill benchmark frontend-design --behavior
+fa skill benchmark frontend-design --behavior
 
 # Generate a candidate revision and compare it against baseline
-frontagent skill improve frontend-design
+fa skill improve frontend-design
 
 # Improve with both trigger and behavior eval suites
-frontagent skill improve frontend-design --behavior
+fa skill improve frontend-design --behavior
 
 # Promote a candidate after review
-frontagent skill promote frontend-design 20260331T120000Z
+fa skill promote frontend-design 20260331T120000Z
 ```
 
 The current Skill Lab flow supports two eval tracks for content skills:
@@ -210,7 +210,7 @@ If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_
 Main LLM sampling controls:
 
 ```bash
-frontagent run "Explain React createElement" \
+fa run "Explain React createElement" \
   --temperature 0.2 \
   --top-p 0.9
 ```
@@ -234,16 +234,16 @@ Prebuilt cache bundle workflow:
 
 ```bash
 # Export the current cache directory as a distributable tar.gz bundle
-frontagent rag export
+fa rag export
 
 # Export to a custom path
-frontagent rag export --output ./artifacts/frontagent-rag-cache.tar.gz
+fa rag export --output ./artifacts/frontagent-rag-cache.tar.gz
 
 # Import from a local file
-frontagent rag import ./artifacts/frontagent-rag-cache.tar.gz --force
+fa rag import ./artifacts/frontagent-rag-cache.tar.gz --force
 
 # Import from a remote URL
-frontagent rag import https://example.com/frontagent-rag-cache.tar.gz --force
+fa rag import https://example.com/frontagent-rag-cache.tar.gz --force
 ```
 
 ## Architecture Overview
@@ -517,13 +517,13 @@ CLI options:
 
 ```bash
 # Use native engine (default)
-frontagent run "Add login page" --engine native
+fa run "Add login page" --engine native
 
 # Use LangGraph engine
-frontagent run "Add login page" --engine langgraph
+fa run "Add login page" --engine langgraph
 
 # LangGraph + checkpoint + custom recovery attempts
-frontagent run "Add login page" --engine langgraph --langgraph-checkpoint --max-recovery-attempts 5
+fa run "Add login page" --engine langgraph --langgraph-checkpoint --max-recovery-attempts 5
 ```
 
 ### 6. Planner Skills Layer (NEW!)
@@ -817,7 +817,7 @@ frontagent/
 
 ```bash
 cd examples
-frontagent run "Create an e-commerce frontend project using React + TypeScript + Vite + Tailwind CSS"
+fa run "Create an e-commerce frontend project using React + TypeScript + Vite + Tailwind CSS"
 ```
 
 Agent will automatically:
@@ -830,7 +830,7 @@ Agent will automatically:
 ### Example 2: Modify Existing Files
 
 ```bash
-frontagent run "Modify vite.config.ts to add path alias configuration"
+fa run "Modify vite.config.ts to add path alias configuration"
 ```
 
 Agent will:
@@ -842,7 +842,7 @@ Agent will:
 ### Example 3: Add New Features
 
 ```bash
-frontagent run "Add user authentication feature, including login, registration, and token management"
+fa run "Add user authentication feature, including login, registration, and token management"
 ```
 
 Agent will:
@@ -855,7 +855,7 @@ Agent will:
 ### Example 4: Performance Optimization
 
 ```bash
-frontagent run "Analyze and optimize homepage loading performance"
+fa run "Analyze and optimize homepage loading performance"
 ```
 
 Agent will:
@@ -867,7 +867,7 @@ Agent will:
 ### Example 5: Auto Error Recovery
 
 ```bash
-frontagent run "Add route configuration in App.tsx"
+fa run "Add route configuration in App.tsx"
 ```
 
 Execution process shows self-healing:
@@ -900,7 +900,7 @@ Phase 3: Validation Phase
 ### Example 6: Enable LangGraph Engine
 
 ```bash
-frontagent run "Implement user profile page and open PR" \
+fa run "Implement user profile page and open PR" \
   --type create \
   --engine langgraph \
   --langgraph-checkpoint \

@@ -59,14 +59,14 @@ export API_KEY="sk-ant-..."
 
 # 3. 进入你的项目目录并初始化 SDD
 cd your-project
-frontagent init
+fa init
 
 # 4. 让 AI 帮你完成任务
-frontagent run "创建用户登录页面"
-frontagent run "优化首页加载性能"
-frontagent run "添加深色模式支持"
+fa run "创建用户登录页面"
+fa run "优化首页加载性能"
+fa run "添加深色模式支持"
 # 使用 LangGraph 引擎 + checkpoint（可选）
-frontagent run "添加路由守卫并创建 PR" --engine langgraph --langgraph-checkpoint
+fa run "添加路由守卫并创建 PR" --engine langgraph --langgraph-checkpoint
 ```
 
 ## 远程 RAG
@@ -86,7 +86,7 @@ FrontAgent 现在支持一个面向整个远程仓库的知识库流程，用于
 CLI 参数：
 
 ```bash
-frontagent run "解释 React setState 的行为" \
+fa run "解释 React setState 的行为" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
@@ -99,14 +99,14 @@ frontagent run "解释 React setState 的行为" \
 
 # 当 provider=openai 时，RAG embedding 默认继承同一套 base-url/api-key
 # 只有 embedding 端点与大模型端点不同的时候，才需要单独覆盖
-frontagent run "解释 React setState 的行为" \
+fa run "解释 React setState 的行为" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
   --rag-embedding-model text-embedding-3-small
 
 # 使用 Weaviate 作为语义向量库（BM25 仍保留本地索引）
-frontagent run "解释 React setState 的行为" \
+fa run "解释 React setState 的行为" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
@@ -116,11 +116,11 @@ frontagent run "解释 React setState 的行为" \
   --rag-weaviate-collection-prefix FrontAgentRagChunk
 
 # 禁用检索前的 LLM 查询优化
-frontagent run "如何自实现选择框" \
+fa run "如何自实现选择框" \
   --disable-rag-query-rewrite
 
 # 在 BM25 + embedding 初筛后默认启用交叉编码器重排序
-frontagent run "解释 React setState 的行为" \
+fa run "解释 React setState 的行为" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
@@ -129,15 +129,15 @@ frontagent run "解释 React setState 的行为" \
   --rag-reranker-base-url https://your-reranker-endpoint/v1
 
 # 单次运行禁用重排序
-frontagent run "解释 React setState 的行为" \
+fa run "解释 React setState 的行为" \
   --disable-rag-reranker
 
 # 禁用语义检索，仅使用 BM25
-frontagent run "解释 React setState 的行为" \
+fa run "解释 React setState 的行为" \
   --disable-rag-semantic
 
 # 单次运行禁用远程 RAG
-frontagent run "创建页面" --disable-rag
+fa run "创建页面" --disable-rag
 ```
 
 ## Skill Lab
@@ -146,31 +146,31 @@ FrontAgent 现在内置了一个本地 Skill Lab 流程，用于迭代 `skills/`
 
 ```bash
 # 列出当前可见的内容技能
-frontagent skill list
+fa skill list
 
 # 创建一个新的内容技能骨架
-frontagent skill scaffold pricing-audit
+fa skill scaffold pricing-audit
 
 # 为某个 skill 生成 starter trigger evals
-frontagent skill init-evals frontend-design
+fa skill init-evals frontend-design
 
 # 为某个 skill 生成 starter behavior evals（输出质量二元检查）
-frontagent skill init-behavior-evals frontend-design
+fa skill init-behavior-evals frontend-design
 
 # 对当前 skill 触发表现做 benchmark
-frontagent skill benchmark frontend-design
+fa skill benchmark frontend-design
 
 # 同时跑 trigger + behavior benchmark
-frontagent skill benchmark frontend-design --behavior
+fa skill benchmark frontend-design --behavior
 
 # 自动生成候选 skill，并与基线对比
-frontagent skill improve frontend-design
+fa skill improve frontend-design
 
 # 使用 trigger + behavior 双评测进行改进
-frontagent skill improve frontend-design --behavior
+fa skill improve frontend-design --behavior
 
 # 审核后将候选版本提升为当前 skill
-frontagent skill promote frontend-design 20260331T120000Z
+fa skill promote frontend-design 20260331T120000Z
 ```
 
 当前 Skill Lab 支持两条评测维度：
@@ -210,7 +210,7 @@ export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
 主模型采样参数：
 
 ```bash
-frontagent run "解释 React createElement" \
+fa run "解释 React createElement" \
   --temperature 0.2 \
   --top-p 0.9
 ```
@@ -234,16 +234,16 @@ frontagent run "解释 React createElement" \
 
 ```bash
 # 导出当前缓存目录为可分发 tar.gz 包
-frontagent rag export
+fa rag export
 
 # 导出到指定路径
-frontagent rag export --output ./artifacts/frontagent-rag-cache.tar.gz
+fa rag export --output ./artifacts/frontagent-rag-cache.tar.gz
 
 # 从本地文件导入
-frontagent rag import ./artifacts/frontagent-rag-cache.tar.gz --force
+fa rag import ./artifacts/frontagent-rag-cache.tar.gz --force
 
 # 从远程 URL 导入
-frontagent rag import https://example.com/frontagent-rag-cache.tar.gz --force
+fa rag import https://example.com/frontagent-rag-cache.tar.gz --force
 ```
 
 ## 架构概览
@@ -511,13 +511,13 @@ CLI 用法：
 
 ```bash
 # 使用 native 引擎（默认）
-frontagent run "添加登录页" --engine native
+fa run "添加登录页" --engine native
 
 # 使用 LangGraph 引擎
-frontagent run "添加登录页" --engine langgraph
+fa run "添加登录页" --engine langgraph
 
 # LangGraph + checkpoint + 自定义恢复重试次数
-frontagent run "添加登录页" --engine langgraph --langgraph-checkpoint --max-recovery-attempts 5
+fa run "添加登录页" --engine langgraph --langgraph-checkpoint --max-recovery-attempts 5
 ```
 
 ### 6. Planner Skills 层（NEW）
@@ -780,7 +780,7 @@ frontagent/
 
 ```bash
 cd examples
-frontagent run "Create an e-commerce frontend project using React + TypeScript + Vite + Tailwind CSS"
+fa run "Create an e-commerce frontend project using React + TypeScript + Vite + Tailwind CSS"
 ```
 
 流程会自动：分析需求 → 生成执行计划 → 创建 package.json 与配置 → 请求安装依赖（需用户批准）→ 生成页面与样式
@@ -788,7 +788,7 @@ frontagent run "Create an e-commerce frontend project using React + TypeScript +
 ### 示例 2：修改现有文件
 
 ```bash
-frontagent run "Modify vite.config.ts to add path alias configuration"
+fa run "Modify vite.config.ts to add path alias configuration"
 ```
 
 Agent 会：读取现有配置 → 生成新配置代码 → 应用最小补丁
@@ -796,7 +796,7 @@ Agent 会：读取现有配置 → 生成新配置代码 → 应用最小补丁
 ### 示例 3：添加新功能
 
 ```bash
-frontagent run "Add user authentication feature, including login, registration, and token management"
+fa run "Add user authentication feature, including login, registration, and token management"
 ```
 
 Agent 会：分析项目结构 → 规划要创建的文件 → 生成认证相关组件与 API 集成 → 更新路由配置
@@ -804,7 +804,7 @@ Agent 会：分析项目结构 → 规划要创建的文件 → 生成认证相�
 ### 示例 4：性能优化
 
 ```bash
-frontagent run "Analyze and optimize homepage loading performance"
+fa run "Analyze and optimize homepage loading performance"
 ```
 
 Agent 会：读取相关组件 → 分析性能瓶颈 → 提出优化方案 → 实施代码级优化（懒加载、代码拆分等）
@@ -812,7 +812,7 @@ Agent 会：读取相关组件 → 分析性能瓶颈 → 提出优化方案 →
 ### 示例 5：自动错误恢复
 
 ```bash
-frontagent run "Add route configuration in App.tsx"
+fa run "Add route configuration in App.tsx"
 ```
 
 执行过程示例：
@@ -846,7 +846,7 @@ Phase 3: Validation Phase
 ### 示例 6：启用 LangGraph 引擎
 
 ```bash
-frontagent run "实现用户资料页并创建 PR" \
+fa run "实现用户资料页并创建 PR" \
   --type create \
   --engine langgraph \
   --langgraph-checkpoint \

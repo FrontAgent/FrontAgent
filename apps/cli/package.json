@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "frontagent": "./dist/index.js"
+    "fa": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
