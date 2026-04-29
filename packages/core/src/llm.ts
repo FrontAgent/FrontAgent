@@ -19,6 +19,21 @@ const PROGRESSIVE_EXPLORATION_PROTOCOL = `# 渐进式探索协议（先观察，
 
 禁止在不确定目录下直接 create_file。若有多个候选位置，先探索并选择最符合现有结构的位置。`;
 
+function normalizeProviderBaseURL(
+  provider: LLMConfig['provider'],
+  baseURL: string | undefined,
+): string | undefined {
+  if (!baseURL) return undefined;
+  const normalized = baseURL.replace(/\/+$/, '');
+  if (provider === 'openai') {
+    return normalized.replace(/\/chat\/completions$/, '');
+  }
+  if (provider === 'anthropic') {
+    return normalized.replace(/\/messages$/, '');
+  }
+  return normalized;
+}
+
 /**
  * LLM 服务类
  */
@@ -42,6 +57,28 @@ export class LLMService {
   constructor(config: LLMConfig) {
     this.config = config;
     this.model = this.createModel();
+  }
+
+  private isDebug(): boolean {
+    return Boolean(this.config.debug || process.env.DEBUG);
+  }
+
+  private debugLog(...args: unknown[]): void {
+    if (this.isDebug()) {
+      console.log(...args);
+    }
+  }
+
+  private debugWarn(...args: unknown[]): void {
+    if (this.isDebug()) {
+      console.warn(...args);
+    }
+  }
+
+  private debugError(...args: unknown[]): void {
+    if (this.isDebug()) {
+      console.error(...args);
+    }
   }
 
   /**
@@ -78,14 +115,17 @@ export class LLMService {
     const key = apiKey ?? process.env[`${provider.toUpperCase()}_API_KEY`] ?? process.env.API_KEY;
 
     // 获取 baseURL - 优先使用配置，否则从环境变量读取
-    const endpoint = baseURL ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
+    const endpoint = normalizeProviderBaseURL(
+      provider,
+      baseURL ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL,
+    );
 
     // 获取 model - 支持从环境变量覆盖
     const modelName = process.env.MODEL ?? model;
 
     // Debug: 输出配置（仅在有 DEBUG 环境变量时）
-    if (process.env.DEBUG) {
-      console.log('[LLMService] Creating model with config:', {
+    if (this.isDebug()) {
+      this.debugLog('[LLMService] Creating model with config:', {
         provider,
         model: modelName,
         baseURL: endpoint,
@@ -121,7 +161,7 @@ export class LLMService {
           anthropicConfig.headers = {
             'anthropic-beta': betaHeaders.join(',')
           };
-          console.log('[LLMService] Using Anthropic beta headers:', betaHeaders.join(','));
+          this.debugLog('[LLMService] Using Anthropic beta headers:', betaHeaders.join(','));
         }
 
         const anthropic = createAnthropic(anthropicConfig);
@@ -226,7 +266,7 @@ export class LLMService {
           : Math.max(0.1, (options.temperature ?? 0.3) - (attempt * 0.1));
 
         if (attempt > 0) {
-          console.log(`[LLMService] Retry attempt ${attempt}/${maxRetries} with temperature ${temperature.toFixed(2)}`);
+          this.debugLog(`[LLMService] Retry attempt ${attempt}/${maxRetries} with temperature ${temperature.toFixed(2)}`);
         }
 
         const result = await generateObject({
@@ -243,14 +283,14 @@ export class LLMService {
         });
 
         if (attempt > 0) {
-          console.log(`[LLMService] ✅ Retry attempt ${attempt} succeeded`);
+          this.debugLog(`[LLMService] ✅ Retry attempt ${attempt} succeeded`);
         }
 
         return result.object;
       } catch (error: any) {
         const isLastAttempt = attempt === maxRetries;
 
-        console.log(`[LLMService] generateObject failed (attempt ${attempt + 1}/${maxRetries + 1}), attempting to fix...`);
+        this.debugLog(`[LLMService] generateObject failed (attempt ${attempt + 1}/${maxRetries + 1}), attempting to fix...`);
 
         // 统计错误（只在最后一次尝试时统计）
         if (isLastAttempt) {
@@ -263,22 +303,22 @@ export class LLMService {
           if (isLastAttempt) {
             LLMService.errorStats.fixedErrors++;
           }
-          console.log('[LLMService] ✅ Error fixed successfully');
-          console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
+          this.debugLog('[LLMService] ✅ Error fixed successfully');
+          this.debugLog('[LLMService] Error Stats:', LLMService.getErrorStats());
           return fixed as T;
         }
 
         // 如果修复失败，且还有重试机会，继续重试
         if (!isLastAttempt) {
-          console.log(`[LLMService] Fix failed, will retry with lower temperature...`);
+          this.debugLog(`[LLMService] Fix failed, will retry with lower temperature...`);
           await this.sleep(1000 * (attempt + 1)); // 指数退避
           continue;
         }
 
         // 如果是最后一次尝试且修复失败，抛出错误
         LLMService.errorStats.unfixedErrors++;
-        console.error('[LLMService] ❌ All fix attempts and retries failed');
-        console.log('[LLMService] Error Stats:', LLMService.getErrorStats());
+        this.debugError('[LLMService] ❌ All fix attempts and retries failed');
+        this.debugLog('[LLMService] Error Stats:', LLMService.getErrorStats());
         throw error;
       }
     }
@@ -302,25 +342,25 @@ export class LLMService {
     const errorToCheck = error.cause || error;
 
     if (!errorToCheck.value || typeof errorToCheck.value !== 'object') {
-      console.log('[LLMService] No value to fix');
+      this.debugLog('[LLMService] No value to fix');
       return null;
     }
 
     // 详细日志：错误类型和结构
-    console.log('[LLMService] ========================================');
-    console.log('[LLMService] Schema Validation Error Detected');
-    console.log('[LLMService] ========================================');
-    console.log('[LLMService] Error name:', error.name);
-    console.log('[LLMService] Error type:', error.constructor.name);
-    console.log('[LLMService] Has cause:', !!error.cause);
-    console.log('[LLMService] Original value keys:', Object.keys(errorToCheck.value));
-    console.log('[LLMService] Original value structure:', JSON.stringify(errorToCheck.value, null, 2).substring(0, 500) + '...');
+    this.debugLog('[LLMService] ========================================');
+    this.debugLog('[LLMService] Schema Validation Error Detected');
+    this.debugLog('[LLMService] ========================================');
+    this.debugLog('[LLMService] Error name:', error.name);
+    this.debugLog('[LLMService] Error type:', error.constructor.name);
+    this.debugLog('[LLMService] Has cause:', !!error.cause);
+    this.debugLog('[LLMService] Original value keys:', Object.keys(errorToCheck.value));
+    this.debugLog('[LLMService] Original value structure:', JSON.stringify(errorToCheck.value, null, 2).substring(0, 500) + '...');
 
     // 如果有 Zod 错误信息，打印出来
     if (errorToCheck.cause?.issues) {
-      console.log('[LLMService] Zod validation issues:');
+      this.debugLog('[LLMService] Zod validation issues:');
       errorToCheck.cause.issues.forEach((issue: any, index: number) => {
-        console.log(`[LLMService]   Issue ${index + 1}:`, {
+        this.debugLog(`[LLMService]   Issue ${index + 1}:`, {
           path: issue.path.join('.'),
           message: issue.message,
           expected: issue.expected,
@@ -332,61 +372,61 @@ export class LLMService {
     // 策略 1: 检测并解包 $ 包装键
     const unwrapped = this.unwrapDollarKeys(errorToCheck.value);
     if (unwrapped !== errorToCheck.value) {
-      console.log('[LLMService] Strategy 1: Unwrapped $ keys');
+      this.debugLog('[LLMService] Strategy 1: Unwrapped $ keys');
       try {
         const validated = schema.parse(unwrapped);
         LLMService.errorStats.fixStrategies.unwrapDollarKeys++;
-        console.log('[LLMService] ✅ Strategy 1 succeeded');
+        this.debugLog('[LLMService] ✅ Strategy 1 succeeded');
         return validated as T;
       } catch (validationError) {
-        console.log('[LLMService] Strategy 1 failed, trying next...');
+        this.debugLog('[LLMService] Strategy 1 failed, trying next...');
       }
     }
 
     // 策略 2: 深度递归解析字符串化的 JSON 字段
     const deepFixed = this.deepParseStringifiedFields(errorToCheck.value);
     if (deepFixed !== errorToCheck.value) {
-      console.log('[LLMService] Strategy 2: Deep parsed stringified fields');
+      this.debugLog('[LLMService] Strategy 2: Deep parsed stringified fields');
       try {
         const validated = schema.parse(deepFixed);
         LLMService.errorStats.fixStrategies.deepParseStringified++;
-        console.log('[LLMService] ✅ Strategy 2 succeeded');
+        this.debugLog('[LLMService] ✅ Strategy 2 succeeded');
         return validated as T;
       } catch (validationError) {
-        console.log('[LLMService] Strategy 2 failed, trying next...');
+        this.debugLog('[LLMService] Strategy 2 failed, trying next...');
       }
     }
 
     // 策略 3: 组合策略 - 先解包再解析
     const combined = this.deepParseStringifiedFields(unwrapped);
     if (combined !== errorToCheck.value) {
-      console.log('[LLMService] Strategy 3: Combined unwrap + parse');
+      this.debugLog('[LLMService] Strategy 3: Combined unwrap + parse');
       try {
         const validated = schema.parse(combined);
         LLMService.errorStats.fixStrategies.combined++;
-        console.log('[LLMService] ✅ Strategy 3 succeeded');
+        this.debugLog('[LLMService] ✅ Strategy 3 succeeded');
         return validated as T;
       } catch (validationError) {
-        console.log('[LLMService] Strategy 3 failed, trying next...');
+        this.debugLog('[LLMService] Strategy 3 failed, trying next...');
       }
     }
 
     // 策略 4: 尝试从 text 字段中提取 JSON
     if (errorToCheck.text && typeof errorToCheck.text === 'string') {
-      console.log('[LLMService] Strategy 4: Parsing from error.text field');
+      this.debugLog('[LLMService] Strategy 4: Parsing from error.text field');
       try {
         const parsed = JSON.parse(errorToCheck.text);
         const fixed = this.deepParseStringifiedFields(this.unwrapDollarKeys(parsed));
         const validated = schema.parse(fixed);
         LLMService.errorStats.fixStrategies.parseFromText++;
-        console.log('[LLMService] ✅ Strategy 4 succeeded');
+        this.debugLog('[LLMService] ✅ Strategy 4 succeeded');
         return validated as T;
       } catch (parseError) {
-        console.log('[LLMService] Strategy 4 failed');
+        this.debugLog('[LLMService] Strategy 4 failed');
       }
     }
 
-    console.log('[LLMService] All repair strategies failed');
+    this.debugLog('[LLMService] All repair strategies failed');
     return null;
   }
 
@@ -407,7 +447,7 @@ export class LLMService {
 
     if (dollarKeys.length === 1 && Object.keys(obj).length === 1) {
       // 如果只有一个 $ 键，解包它
-      console.log(`[LLMService] Unwrapping ${dollarKeys[0]}`);
+      this.debugLog(`[LLMService] Unwrapping ${dollarKeys[0]}`);
       return this.unwrapDollarKeys(obj[dollarKeys[0]]);
     }
 
@@ -442,7 +482,7 @@ export class LLMService {
         if (value.trim().startsWith('[') || value.trim().startsWith('{')) {
           try {
             const parsed = JSON.parse(value);
-            console.log(`[LLMService] Parsed string field "${key}"`);
+            this.debugLog(`[LLMService] Parsed string field "${key}"`);
             result[key] = this.deepParseStringifiedFields(parsed);
             continue;
           } catch (parseError) {
@@ -473,7 +513,7 @@ export class LLMService {
 
     // 如果 steps 是字符串，尝试解析或创建默认步骤
     if (typeof rawPlan.steps === 'string') {
-      console.warn('[LLM] Warning: steps is a string, expected array. Creating default step.');
+      this.debugWarn('[LLM] Warning: steps is a string, expected array. Creating default step.');
       steps = [];
     }
 
@@ -482,7 +522,7 @@ export class LLMService {
       // 确保 params 是对象
       let params = step.params;
       if (typeof params === 'string') {
-        console.warn(`[LLM] Warning: step[${index}].params is a string, expected object. Converting.`);
+        this.debugWarn(`[LLM] Warning: step[${index}].params is a string, expected object. Converting.`);
         // 尝试解析 JSON 字符串
         try {
           params = JSON.parse(params);
@@ -512,7 +552,7 @@ export class LLMService {
     // 确保 risks 是数组
     let risks = rawPlan.risks;
     if (typeof risks === 'string') {
-      console.warn('[LLM] Warning: risks is a string, expected array. Converting to array.');
+      this.debugWarn('[LLM] Warning: risks is a string, expected array. Converting to array.');
       risks = [risks];
     } else if (!Array.isArray(risks)) {
       risks = [];
@@ -521,7 +561,7 @@ export class LLMService {
     // 确保 alternatives 是数组
     let alternatives = rawPlan.alternatives;
     if (typeof alternatives === 'string') {
-      console.warn('[LLM] Warning: alternatives is a string, expected array. Converting to array.');
+      this.debugWarn('[LLM] Warning: alternatives is a string, expected array. Converting to array.');
       alternatives = [alternatives];
     } else if (!Array.isArray(alternatives)) {
       alternatives = [];
@@ -548,7 +588,7 @@ export class LLMService {
     sddConstraints?: string;
     skillContext?: string;
   }): Promise<GeneratedPlan> {
-    console.log('[LLMService] Using two-phase plan generation...');
+    this.debugLog('[LLMService] Using two-phase plan generation...');
 
     // Phase 1: 生成计划大纲
     const outlineSystem = `你是一位经验丰富的高级软件工程师，拥有跨多种编程语言和框架的专家级知识。你擅长分析复杂任务并制定清晰、可执行的计划。
@@ -621,13 +661,13 @@ ${options.skillContext ?? '无已激活内容技能'}
       maxTokens: 8192,
     });
 
-    console.log(`[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`);
+    this.debugLog(`[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`);
 
     // 🔧 Phase 1 后处理：检查并修正"未分组"问题
     const ungroupedCount = outline.stepOutlines.filter(s => !s.phase || s.phase === '未分组').length;
     if (ungroupedCount > outline.stepOutlines.length * 0.5) {
-      console.warn(`[LLMService] ⚠️  Detected ${ungroupedCount}/${outline.stepOutlines.length} steps with "未分组" or missing phase`);
-      console.log('[LLMService] 🔧 Auto-fixing phase assignments based on action types...');
+      this.debugWarn(`[LLMService] ⚠️  Detected ${ungroupedCount}/${outline.stepOutlines.length} steps with "未分组" or missing phase`);
+      this.debugLog('[LLMService] 🔧 Auto-fixing phase assignments based on action types...');
 
       // 自动分配阶段
       for (let i = 0; i < outline.stepOutlines.length; i++) {
@@ -668,11 +708,11 @@ ${options.skillContext ?? '无已激活内容技能'}
             step.phase = '阶段1-分析';
           }
 
-          console.log(`[LLMService]   Fixed step ${i + 1}: "${step.description}" → ${step.phase}`);
+          this.debugLog(`[LLMService]   Fixed step ${i + 1}: "${step.description}" → ${step.phase}`);
         }
       }
 
-      console.log('[LLMService] ✅ Phase assignment auto-fix complete');
+      this.debugLog('[LLMService] ✅ Phase assignment auto-fix complete');
     }
 
     // Phase 2: 批量展开步骤详情
@@ -762,11 +802,11 @@ ${JSON.stringify(batch, null, 2)}
       // 修正可能的格式错误：如果 steps 是字符串，尝试解析为数组
       let steps = expansion.steps;
       if (typeof steps === 'string') {
-        console.warn(`[LLMService] Warning: expansion.steps is a string, parsing as JSON`);
+        this.debugWarn(`[LLMService] Warning: expansion.steps is a string, parsing as JSON`);
         try {
           steps = JSON.parse(steps);
         } catch (error) {
-          console.error(`[LLMService] Failed to parse steps string:`, error);
+          this.debugError(`[LLMService] Failed to parse steps string:`, error);
           throw new Error(`Invalid steps format: expected array, got string that cannot be parsed`);
         }
       }
@@ -783,17 +823,17 @@ ${JSON.stringify(batch, null, 2)}
         // 如果步骤缺少 phase 或 phase 为空，从原始 batch 中恢复
         if (!step.phase || step.phase.trim() === '') {
           if (batchItem?.phase) {
-            console.warn(`[LLMService] Restoring missing phase for step: ${batchItem.phase}`);
+            this.debugWarn(`[LLMService] Restoring missing phase for step: ${batchItem.phase}`);
             step.phase = batchItem.phase;
           } else {
-            console.warn(`[LLMService] Both step and batch item missing phase, using default`);
+            this.debugWarn(`[LLMService] Both step and batch item missing phase, using default`);
             step.phase = '未分组';
           }
         }
       }
 
       allSteps.push(...steps);
-      console.log(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${steps.length} steps expanded`);
+      this.debugLog(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${steps.length} steps expanded`);
     }
 
     const finalPlan: GeneratedPlan = {
@@ -803,7 +843,7 @@ ${JSON.stringify(batch, null, 2)}
       alternatives: outline.alternatives,
     };
 
-    console.log(`[LLMService] Two-phase generation complete: ${allSteps.length} total steps`);
+    this.debugLog(`[LLMService] Two-phase generation complete: ${allSteps.length} total steps`);
     return finalPlan;
   }
 
@@ -825,7 +865,7 @@ ${JSON.stringify(batch, null, 2)}
     try {
       return await this.generatePlanInTwoPhases(options);
     } catch (error) {
-      console.warn('[LLMService] Two-phase generation failed, falling back to single-phase:', error);
+      this.debugWarn('[LLMService] Two-phase generation failed, falling back to single-phase:', error);
       // 如果两阶段失败，回退到原来的单阶段方法
       return await this.generatePlanSinglePhase(options);
     }
@@ -1221,14 +1261,14 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
     const hasTsErrors = tsErrors.length > 0;
 
     if (hasTsErrors) {
-      console.log('[LLMService] ========================================');
-      console.log(`[LLMService] Detected ${tsErrors.length} TypeScript errors`);
-      console.log('[LLMService] ========================================');
+      this.debugLog('[LLMService] ========================================');
+      this.debugLog(`[LLMService] Detected ${tsErrors.length} TypeScript errors`);
+      this.debugLog('[LLMService] ========================================');
       for (const err of tsErrors) {
-        console.log(`[LLMService] ${err.file}:${err.line}:${err.column} - ${err.errorCode}: ${err.message}`);
+        this.debugLog(`[LLMService] ${err.file}:${err.line}:${err.column} - ${err.errorCode}: ${err.message}`);
       }
-      console.log('[LLMService] Generating intelligent fix steps...');
-      console.log('[LLMService] ========================================');
+      this.debugLog('[LLMService] Generating intelligent fix steps...');
+      this.debugLog('[LLMService] ========================================');
     }
 
     const system = `你是一个专业的错误诊断和恢复规划专家。你的任务是分析工具执行过程中的错误，并生成修复步骤。

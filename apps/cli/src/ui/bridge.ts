@@ -68,7 +68,7 @@ export function createEventBridge(store: Store) {
 
       case 'task_completed':
         store.setState({
-          status: 'done',
+          status: event.result.success ? 'done' : 'error',
           result: event.result,
         });
         break;

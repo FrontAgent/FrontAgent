@@ -16,6 +16,9 @@ export interface PhaseState {
   steps: Array<{
     stepId: string;
     description: string;
+    action: string;
+    tool: string;
+    params: Record<string, unknown>;
     status: StepStatus;
     error?: string;
   }>;
@@ -105,6 +108,9 @@ export function createStore() {
       phase.steps.push({
         stepId: step.stepId,
         description: step.description,
+        action: step.action,
+        tool: step.tool,
+        params: step.params,
         status: 'pending',
       });
     }

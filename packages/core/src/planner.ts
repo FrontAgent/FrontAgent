@@ -30,6 +30,7 @@ export interface PlannerConfig {
   llm: LLMConfig;
   sddConfig?: SDDConfig;
   maxSteps?: number;
+  debug?: boolean;
   /** 是否使用 LLM 生成计划（默认 true） */
   useLLM?: boolean;
 }
@@ -41,6 +42,7 @@ export class Planner {
   private config: PlannerConfig;
   private llmService: LLMService;
   private promptGenerator?: SDDPromptGenerator;
+  private fallbackReason?: string;
   private skills = createDefaultPlannerSkillRegistry({
     generateCreateSteps: (task) => this.generateCreateSteps(task),
     generateModifySteps: (task, context) => this.generateModifySteps(task, context),
@@ -74,6 +76,8 @@ export class Planner {
     context: PlannerContextSnapshot,
     messages: Message[]
   ): Promise<PlannerOutput> {
+    this.fallbackReason = undefined;
+
     // 分析任务，确定需要的上下文
     const contextRequests = this.analyzeContextNeeds(task, context);
 
@@ -96,7 +100,8 @@ export class Planner {
 
     return {
       needsMoreContext: false,
-      plan
+      plan,
+      fallbackReason: this.fallbackReason
     };
   }
 
@@ -149,7 +154,10 @@ export class Planner {
         const llmPlan = await this.generatePlanWithLLM(task, context);
         steps = this.convertLLMPlanToSteps(llmPlan);
       } catch (error) {
-        console.warn('LLM plan generation failed, falling back to rule-based:', error);
+        this.fallbackReason = error instanceof Error ? error.message : String(error);
+        if (this.config.debug) {
+          console.warn('LLM plan generation failed, falling back to rule-based:', error);
+        }
         // 回退到规则生成
         steps = this.generateStepsForTask(task, context);
       }

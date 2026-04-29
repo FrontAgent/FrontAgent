@@ -86,15 +86,68 @@ function PhaseBlock({ phase }: { phase: PhaseState }) {
   );
 }
 
+function formatParam(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function formatToolCall(step: PhaseState['steps'][number]): string {
+  const path = formatParam(step.params.path);
+  const command = formatParam(step.params.command);
+  const query = formatParam(step.params.query) || formatParam(step.params.pattern);
+  const url = formatParam(step.params.url);
+  const target = path || command || query || url;
+  return target ? `${step.tool} ${target}` : `${step.tool} ${step.description}`;
+}
+
+function ToolSummaryLine({ step }: { step: PhaseState['steps'][number] }) {
+  return (
+    <Box paddingLeft={2}>
+      {step.status === 'running' ? (
+        <Text color="yellow">
+          <Spinner type="dots" />
+        </Text>
+      ) : (
+        <Text color={stepColor[step.status]}>{stepIcon[step.status]}</Text>
+      )}
+      <Text> </Text>
+      <Text color={step.status === 'failed' ? 'red' : undefined} dimColor={step.status === 'pending'}>
+        {formatToolCall(step)}
+      </Text>
+    </Box>
+  );
+}
+
+function ToolSummary({ phases }: { phases: PhaseState[] }) {
+  const visibleSteps = phases.flatMap((phase) =>
+    phase.steps.filter((step) => step.status !== 'pending')
+  );
+
+  if (visibleSteps.length === 0) return null;
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text color="cyan" bold>工具调用摘要</Text>
+      {visibleSteps.map((step) => (
+        <ToolSummaryLine key={step.stepId} step={step} />
+      ))}
+    </Box>
+  );
+}
+
 export function PhaseTree({ store }: PhaseTreeProps) {
   const phases = useStoreSelector(store, (s) => s.phases);
   const status = useStoreSelector(store, (s) => s.status);
+  const debug = useStoreSelector(store, (s) => s.debug);
 
   if (status !== 'executing' && status !== 'done' && status !== 'error') {
     return null;
   }
 
   if (phases.length === 0) return null;
+
+  if (!debug) {
+    return <ToolSummary phases={phases} />;
+  }
 
   const completedPhases = phases.filter(p => p.status === 'done');
   const livePhases = phases.filter(p => p.status !== 'done');

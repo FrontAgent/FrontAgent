@@ -21,14 +21,10 @@ export function ResultSummary({ store }: ResultSummaryProps) {
   if (status === 'error') {
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="red" bold>
-          ✖ 任务失败
-        </Text>
-        {result?.error && (
-          <Box paddingLeft={2} marginTop={1}>
-            <Text color="red">{result.error}</Text>
-          </Box>
-        )}
+        <Text color="red" bold>最终回答</Text>
+        <Box paddingLeft={2} marginTop={1}>
+          <Text color="red">{result?.error || '任务未能生成最终回答。'}</Text>
+        </Box>
         <Text dimColor>⏱ {elapsedStr}</Text>
       </Box>
     );
@@ -36,12 +32,14 @@ export function ResultSummary({ store }: ResultSummaryProps) {
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text color="green" bold>
-        ✔ 任务完成
-      </Text>
-      {result?.output && (
+      <Text color="green" bold>最终回答</Text>
+      {result?.output ? (
         <Box paddingLeft={2} marginTop={1}>
           <Text>{String(result.output)}</Text>
+        </Box>
+      ) : (
+        <Box paddingLeft={2} marginTop={1}>
+          <Text color="yellow">任务未能生成最终回答。</Text>
         </Box>
       )}
       <Text dimColor>⏱ {elapsedStr}</Text>

@@ -114,6 +114,8 @@ export class FrontAgent {
   private memoryStore: MemoryStore;
   private pendingFactsUpdates: ProjectFactsUpdate[] = [];
   private factsUpdateFlushInProgress = false;
+  private lastAnswerGenerationError?: string;
+  private lastLlmFailureError?: string;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -130,7 +132,7 @@ export class FrontAgent {
     }
 
     // 初始化 LLM 服务
-    this.llmService = new LLMService(config.llm);
+    this.llmService = new LLMService({ ...config.llm, debug: config.debug });
 
     // 初始化幻觉防控器
     this.hallucinationGuard = new HallucinationGuard({
@@ -141,8 +143,9 @@ export class FrontAgent {
 
     // 初始化 Planner
     this.planner = new Planner({
-      llm: config.llm,
-      sddConfig: this.sddConfig
+      llm: { ...config.llm, debug: config.debug },
+      sddConfig: this.sddConfig,
+      debug: config.debug
     });
 
     // 初始化 Executor（两阶段架构 - 传递 llmService 和 SDD 约束）
@@ -363,8 +366,26 @@ export class FrontAgent {
       try {
         listener(event);
       } catch (error) {
-        console.error('Event listener error:', error);
+        this.debugError('Event listener error:', error);
       }
+    }
+  }
+
+  private debugLog(...args: unknown[]): void {
+    if (this.config.debug) {
+      console.log(...args);
+    }
+  }
+
+  private debugWarn(...args: unknown[]): void {
+    if (this.config.debug) {
+      console.warn(...args);
+    }
+  }
+
+  private debugError(...args: unknown[]): void {
+    if (this.config.debug) {
+      console.error(...args);
     }
   }
 
@@ -379,13 +400,15 @@ export class FrontAgent {
     const startTime = Date.now();
     this.pendingFactsUpdates = [];
     this.factsUpdateFlushInProgress = false;
+    this.lastAnswerGenerationError = undefined;
+    this.lastLlmFailureError = undefined;
     const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
     const resolvedTaskDescription = skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
     const skillContext = skillResolution?.promptContext;
     const matchedSkillNames = skillResolution?.matchedSkills.map((skill) => skill.name) ?? [];
 
-    if (this.config.debug && matchedSkillNames.length > 0) {
-      console.log(`[Agent] 🎯 Matched content skills: ${matchedSkillNames.join(', ')}`);
+    if (matchedSkillNames.length > 0) {
+      this.debugLog(`[Agent] 🎯 Matched content skills: ${matchedSkillNames.join(', ')}`);
     }
 
     // 创建任务
@@ -442,7 +465,7 @@ export class FrontAgent {
 
           if (files.length > 0) {
             projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
-            console.log(`[Agent] 📂 Pre-scanned project structure: ${files.length} files`);
+            this.debugLog(`[Agent] 📂 Pre-scanned project structure: ${files.length} files`);
           }
 
           // 预读取关键配置文件用于端口检测
@@ -462,7 +485,7 @@ export class FrontAgent {
           }
         }
       } catch (error) {
-        console.warn('[Agent] Failed to pre-scan project structure:', error);
+        this.debugWarn('[Agent] Failed to pre-scan project structure:', error);
       }
 
       // 🔧 检测开发服务器端口
@@ -499,6 +522,7 @@ export class FrontAgent {
         },
         this.contextManager.getMessages(task.id)
       );
+      this.rememberPlannerFallback(planResult.fallbackReason);
 
       // 如果需要更多上下文
       if (planResult.needsMoreContext && planResult.contextRequests) {
@@ -517,6 +541,7 @@ export class FrontAgent {
           },
           this.contextManager.getMessages(task.id)
         );
+        this.rememberPlannerFallback(retryResult.fallbackReason);
 
         if (!retryResult.plan) {
           throw new Error(retryResult.rejectionReason ?? '无法生成执行计划');
@@ -588,9 +613,7 @@ export class FrontAgent {
               if (result.content && step.params.path) {
                 const filePath = step.params.path as string;
                 executionContext.collectedContext.files.set(filePath, result.content);
-                if (this.config.debug) {
-                  console.log(`[Agent] Added read file to context: ${filePath}`);
-                }
+                this.debugLog(`[Agent] Added read file to context: ${filePath}`);
               }
             }
 
@@ -601,9 +624,7 @@ export class FrontAgent {
               const content = result?.content || step.params.content as string || '';
               if (content) {
                 executionContext.collectedContext.files.set(filePath, content);
-                if (this.config.debug) {
-                  console.log(`[Agent] Added created file to context: ${filePath}`);
-                }
+                this.debugLog(`[Agent] Added created file to context: ${filePath}`);
               }
             }
           } else {
@@ -628,12 +649,12 @@ export class FrontAgent {
         },
         // onPhaseError: Tool Error Feedback Loop
         async (phase, errors) => {
-          console.log(`[Agent] Error feedback loop triggered for phase: ${phase}`);
+          this.debugLog(`[Agent] Error feedback loop triggered for phase: ${phase}`);
 
           // 检查模块依赖问题（在创建阶段尤其重要）
           const missingModules = this.contextManager.validateModuleDependencies(task.id);
           if (missingModules.length > 0) {
-            console.log(`[Agent] Found ${missingModules.length} missing module dependencies`);
+            this.debugLog(`[Agent] Found ${missingModules.length} missing module dependencies`);
             // 将缺失的模块作为额外的错误添加到分析中
             for (const missing of missingModules.slice(0, 5)) {
               errors.push({
@@ -668,12 +689,12 @@ export class FrontAgent {
             context: factsContext || '无可用的项目状态信息'
           });
 
-          console.log(`[Agent] Recovery plan analysis: ${recoveryPlan.analysis}`);
-          console.log(`[Agent] Can recover: ${recoveryPlan.canRecover}`);
-          console.log(`[Agent] Recommendation: ${recoveryPlan.recommendation}`);
+          this.debugLog(`[Agent] Recovery plan analysis: ${recoveryPlan.analysis}`);
+          this.debugLog(`[Agent] Can recover: ${recoveryPlan.canRecover}`);
+          this.debugLog(`[Agent] Recommendation: ${recoveryPlan.recommendation}`);
 
           if (!recoveryPlan.canRecover) {
-            console.warn(`[Agent] Cannot recover from errors in phase ${phase}`);
+            this.debugWarn(`[Agent] Cannot recover from errors in phase ${phase}`);
             return [];
           }
 
@@ -690,7 +711,7 @@ export class FrontAgent {
             phase: step.phase
           }));
 
-          console.log(`[Agent] Generated ${recoverySteps.length} recovery steps`);
+          this.debugLog(`[Agent] Generated ${recoverySteps.length} recovery steps`);
           return recoverySteps;
         },
         // onPhaseComplete: 阶段结束时进行自检验证
@@ -703,12 +724,12 @@ export class FrontAgent {
 
           // 在代码实现阶段结束后进行多项检查
           if (this.shouldRunPhaseChecks(phase)) {
-            console.log(`[Agent] Running phase completion checks for: ${phase}`);
+            this.debugLog(`[Agent] Running phase completion checks for: ${phase}`);
 
             // 1. 检查模块依赖
             const missingModules = this.contextManager.validateModuleDependencies(task.id);
             if (missingModules.length > 0) {
-              console.log(`[Agent] Module validation found ${missingModules.length} missing dependencies`);
+              this.debugLog(`[Agent] Module validation found ${missingModules.length} missing dependencies`);
               errors.push(...missingModules.slice(0, 5).map(missing => ({
                 step: {
                   stepId: `module-validation-${missing.missing.replace(/[^a-zA-Z0-9]/g, '-')}`,
@@ -732,12 +753,12 @@ export class FrontAgent {
                 executionContext.collectedContext.files.set('package.json', pkgJsonResult.content);
               }
             } catch (error) {
-              console.warn('[Agent] Failed to refresh package.json:', error);
+              this.debugWarn('[Agent] Failed to refresh package.json:', error);
             }
 
             const missingDeps = await this.checkMissingNpmDependencies(executionContext.collectedContext.files);
             if (missingDeps.length > 0) {
-              console.log(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
+              this.debugLog(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
               // 生成安装缺失依赖的步骤
               errors.push({
                 step: {
@@ -757,10 +778,10 @@ export class FrontAgent {
             // 3. TypeScript 类型检查（如果有 tsconfig.json）
             const hasTsConfig = executionContext.collectedContext.files.has('tsconfig.json');
             if (hasTsConfig) {
-              console.log(`[Agent] Running TypeScript type check...`);
+              this.debugLog(`[Agent] Running TypeScript type check...`);
               const typeErrors = await this.runTypeCheck(task.context?.workingDirectory || process.cwd());
               if (typeErrors.length > 0) {
-                console.log(`[Agent] TypeScript check found ${typeErrors.length} errors`);
+                this.debugLog(`[Agent] TypeScript check found ${typeErrors.length} errors`);
                 // 记录 TS 错误到 Facts 系统
                 for (const error of typeErrors.slice(0, 10)) {
                   this.contextManager.addErrorFact(task.id, 'type-check', 'typescript', error.message);
@@ -783,7 +804,7 @@ export class FrontAgent {
                   error: `TypeScript compilation failed with ${typeErrors.length} error(s):\n${tsErrorOutput}`
                 });
               } else {
-                console.log(`[Agent] ✅ TypeScript check passed`);
+                this.debugLog(`[Agent] ✅ TypeScript check passed`);
               }
             }
 
@@ -797,7 +818,7 @@ export class FrontAgent {
             if (qualityIssues.length > 0) {
               const errorCount = qualityIssues.filter(issue => issue.severity === 'error').length;
               const warningCount = qualityIssues.filter(issue => issue.severity === 'warning').length;
-              console.log(`[Agent] CodeQualitySubAgent found ${errorCount} error(s), ${warningCount} warning(s)`);
+              this.debugLog(`[Agent] CodeQualitySubAgent found ${errorCount} error(s), ${warningCount} warning(s)`);
 
               const failOnWarnings = this.config.subAgents?.codeQualityEvaluator?.failOnWarnings ?? false;
               const blockingIssues = qualityIssues.filter(
@@ -837,17 +858,28 @@ export class FrontAgent {
 
       // 检查是否有失败的步骤
       const failedSteps = executionPlan.steps.filter(s => s.status === 'failed');
-      const success = failedSteps.length === 0;
+      let success = failedSteps.length === 0;
       const finalOutput = success
         ? await this.buildFinalOutput(task, executionPlan.steps, executionContext)
         : undefined;
+      const missingQueryAnswer = task.type === 'query' && !finalOutput?.trim();
+      if (missingQueryAnswer) {
+        success = false;
+      }
+      const missingAnswerCause = this.lastAnswerGenerationError ?? this.lastLlmFailureError;
 
       const result: AgentExecutionResult = {
         success,
         taskId: task.id,
         executedSteps: executionPlan.steps,
         output: finalOutput,
-        error: success ? undefined : failedSteps.map(s => s.result?.error).join('; '),
+        error: success
+          ? undefined
+          : missingQueryAnswer
+            ? missingAnswerCause
+              ? `任务未能生成最终回答：${missingAnswerCause}`
+              : '任务完成了工具步骤，但未生成最终回答。'
+            : failedSteps.map(s => s.result?.error).join('; '),
         duration: Date.now() - startTime,
         validations
       };
@@ -936,9 +968,7 @@ export class FrontAgent {
           }
         }
       } catch (error) {
-        if (this.config.debug) {
-          console.warn(`Failed to gather context: ${request.type}`, error);
-        }
+        this.debugWarn(`Failed to gather context: ${request.type}`, error);
       }
     }
   }
@@ -956,7 +986,7 @@ export class FrontAgent {
     task: AgentTask,
     steps: ExecutionPlan['steps'],
     executionContext: NonNullable<ReturnType<ContextManager['getContext']>>,
-  ): Promise<string> {
+  ): Promise<string | undefined> {
     if (task.type !== 'query') {
       return this.generateOutput(steps);
     }
@@ -964,10 +994,9 @@ export class FrontAgent {
     try {
       return await this.generateQueryAnswer(task, executionContext, steps);
     } catch (error) {
-      if (this.config.debug) {
-        console.warn('[Agent] Failed to synthesize query answer:', error);
-      }
-      return this.generateOutput(steps);
+      this.lastAnswerGenerationError = error instanceof Error ? error.message : String(error);
+      this.debugWarn('[Agent] Failed to synthesize query answer:', error);
+      return undefined;
     }
   }
 
@@ -975,7 +1004,7 @@ export class FrontAgent {
     task: AgentTask,
     executionContext: NonNullable<ReturnType<ContextManager['getContext']>>,
     steps: ExecutionPlan['steps'],
-  ): Promise<string> {
+  ): Promise<string | undefined> {
     const ragMatches = executionContext.collectedContext.ragMatches ?? [];
     const ragWarnings = executionContext.collectedContext.ragWarnings ?? [];
     const files = Array.from(executionContext.collectedContext.files.entries());
@@ -1025,7 +1054,7 @@ export class FrontAgent {
     }
 
     if (evidenceParts.length === 0) {
-      return this.generateOutput(steps);
+      return undefined;
     }
 
     const warningText = ragWarnings.length > 0
@@ -1057,6 +1086,12 @@ export class FrontAgent {
     });
   }
 
+  private rememberPlannerFallback(reason: string | undefined): void {
+    if (reason && !this.lastLlmFailureError) {
+      this.lastLlmFailureError = reason;
+    }
+  }
+
   /**
    * 检查代码中使用但未在 package.json 中声明的 npm 依赖
    * 需要从执行上下文中传入 collectedContext
@@ -1073,7 +1108,7 @@ export class FrontAgent {
       try {
         packageJson = JSON.parse(packageJsonContent);
       } catch (error) {
-        console.warn('[Agent] Failed to parse package.json:', error);
+        this.debugWarn('[Agent] Failed to parse package.json:', error);
       }
     }
 
@@ -1158,7 +1193,7 @@ export class FrontAgent {
 
       return errors;
     } catch (error) {
-      console.warn('[Agent] TypeScript check failed:', error);
+      this.debugWarn('[Agent] TypeScript check failed:', error);
       return [];
     }
   }
@@ -1224,9 +1259,7 @@ export class FrontAgent {
           continue;
         }
       } catch (error) {
-        if (this.config.debug) {
-          console.warn(`[Agent] Failed to read file for code quality review: ${path}`, error);
-        }
+        this.debugWarn(`[Agent] Failed to read file for code quality review: ${path}`, error);
       }
 
       const fallbackContent = collectedFiles.get(path);
@@ -1277,7 +1310,7 @@ export class FrontAgent {
     });
 
     if (!response.success || !response.payload) {
-      console.warn(`[Agent] CodeQualitySubAgent request failed: ${response.error ?? 'Unknown error'}`);
+      this.debugWarn(`[Agent] CodeQualitySubAgent request failed: ${response.error ?? 'Unknown error'}`);
       return [];
     }
 
@@ -1285,9 +1318,7 @@ export class FrontAgent {
       await this.enqueueFactsUpdate(taskId, response.payload.factUpdates);
     }
 
-    if (this.config.debug) {
-      console.log(`[Agent] ${response.payload.summary}`);
-    }
+    this.debugLog(`[Agent] ${response.payload.summary}`);
 
     return response.payload.issues;
   }
@@ -1315,13 +1346,11 @@ export class FrontAgent {
           }
 
           const mergeResult = this.contextManager.mergeFactsUpdate(taskId, nextUpdate);
-          if (this.config.debug) {
-            const staleText = mergeResult.staleBaseRevision ? ' (stale base revision, rebased in main reducer)' : '';
-            console.log(
-              `[Agent] Merged facts update from ${mergeResult.source}: ` +
-              `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`
-            );
-          }
+          const staleText = mergeResult.staleBaseRevision ? ' (stale base revision, rebased in main reducer)' : '';
+          this.debugLog(
+            `[Agent] Merged facts update from ${mergeResult.source}: ` +
+            `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`
+          );
         }
       } finally {
         this.factsUpdateFlushInProgress = false;
@@ -1395,17 +1424,13 @@ export class FrontAgent {
 
       this.memoryStore.persist(persistInput);
 
-      if (this.config.debug) {
-        console.log(
-          `[Agent] 🧠 Persisted memory: ${createdFiles.length} files, ` +
-          `${errorResolutions.length} error resolutions, ` +
-          `${persistInput.dependencyChanges.installed.length} installed deps`
-        );
-      }
+      this.debugLog(
+        `[Agent] 🧠 Persisted memory: ${createdFiles.length} files, ` +
+        `${errorResolutions.length} error resolutions, ` +
+        `${persistInput.dependencyChanges.installed.length} installed deps`
+      );
     } catch (error) {
-      if (this.config.debug) {
-        console.warn('[Agent] Memory persistence failed (non-blocking):', error);
-      }
+      this.debugWarn('[Agent] Memory persistence failed (non-blocking):', error);
     }
   }
 
@@ -1426,29 +1451,23 @@ export class FrontAgent {
       const factsSnapshot = this.memoryStore.loadFactsSnapshot();
       if (factsSnapshot) {
         this.contextManager.replaceFactsFromSnapshot(taskId, factsSnapshot);
-        if (this.config.debug) {
-          console.log(
-            `[Agent] 🧠 Seeded facts from snapshot (r${factsSnapshot.revision}): ` +
-            `${factsSnapshot.filesystem.existingFiles.length} files, ` +
-            `${factsSnapshot.dependencies.installedPackages.length} packages`
-          );
-        }
+        this.debugLog(
+          `[Agent] 🧠 Seeded facts from snapshot (r${factsSnapshot.revision}): ` +
+          `${factsSnapshot.filesystem.existingFiles.length} files, ` +
+          `${factsSnapshot.dependencies.installedPackages.length} packages`
+        );
       }
 
       // Load memory content for prompt injection (Memory zone)
       const memoryContent = this.memoryStore.preload();
       if (memoryContent) {
         context.collectedContext.memoryContext = memoryContent;
-        if (this.config.debug) {
-          console.log(
-            `[Agent] 🧠 Preloaded memory content (${memoryContent.length} chars)`
-          );
-        }
+        this.debugLog(
+          `[Agent] 🧠 Preloaded memory content (${memoryContent.length} chars)`
+        );
       }
     } catch (error) {
-      if (this.config.debug) {
-        console.warn('[Agent] Memory preload failed (non-blocking):', error);
-      }
+      this.debugWarn('[Agent] Memory preload failed (non-blocking):', error);
     }
   }
 
@@ -1463,7 +1482,7 @@ export class FrontAgent {
         // 匹配 server: { port: 3000 } 或 server: { port: Number }
         const portMatch = content.match(/server\s*:\s*\{[^}]*port\s*:\s*(\d+)/);
         if (portMatch) {
-          console.log(`[Agent] 🔍 Detected port ${portMatch[1]} from ${filePath}`);
+          this.debugLog(`[Agent] 🔍 Detected port ${portMatch[1]} from ${filePath}`);
           return parseInt(portMatch[1], 10);
         }
       }
@@ -1479,39 +1498,39 @@ export class FrontAgent {
         // 匹配 --port 3000 或 -p 3000
         const portMatch = devScript.match(/(?:--port|-p)\s+(\d+)/);
         if (portMatch) {
-          console.log(`[Agent] 🔍 Detected port ${portMatch[1]} from package.json scripts`);
+          this.debugLog(`[Agent] 🔍 Detected port ${portMatch[1]} from package.json scripts`);
           return parseInt(portMatch[1], 10);
         }
 
         // 检查是否使用特定框架（根据依赖推断默认端口）
         const deps = { ...pkg.dependencies, ...pkg.devDependencies };
         if (deps['vite']) {
-          console.log(`[Agent] 🔍 Detected Vite project, using default port 5173`);
+          this.debugLog(`[Agent] 🔍 Detected Vite project, using default port 5173`);
           return 5173;  // Vite 默认
         }
         if (deps['next']) {
-          console.log(`[Agent] 🔍 Detected Next.js project, using default port 3000`);
+          this.debugLog(`[Agent] 🔍 Detected Next.js project, using default port 3000`);
           return 3000;  // Next.js 默认
         }
         if (deps['react-scripts']) {
-          console.log(`[Agent] 🔍 Detected CRA project, using default port 3000`);
+          this.debugLog(`[Agent] 🔍 Detected CRA project, using default port 3000`);
           return 3000;  // Create React App 默认
         }
         if (deps['@angular/cli']) {
-          console.log(`[Agent] 🔍 Detected Angular project, using default port 4200`);
+          this.debugLog(`[Agent] 🔍 Detected Angular project, using default port 4200`);
           return 4200;  // Angular 默认
         }
         if (deps['vue']) {
-          console.log(`[Agent] 🔍 Detected Vue project, using default port 5173`);
+          this.debugLog(`[Agent] 🔍 Detected Vue project, using default port 5173`);
           return 5173;  // Vue CLI 默认
         }
       } catch (error) {
-        console.warn('[Agent] Failed to parse package.json for port detection:', error);
+        this.debugWarn('[Agent] Failed to parse package.json for port detection:', error);
       }
     }
 
     // 3. 默认使用 5173（Vite 默认）
-    console.log(`[Agent] 🔍 Using fallback port 5173`);
+    this.debugLog(`[Agent] 🔍 Using fallback port 5173`);
     return 5173;
   }
 
@@ -1526,8 +1545,8 @@ export class FrontAgent {
         ? mergeRetrievalQuery(query, rewrittenQuery)
         : normalizeSearchQuery(query);
 
-      if (this.config.debug && rewrittenQuery) {
-        console.log('[Agent] RAG query rewrite applied:', {
+      if (rewrittenQuery) {
+        this.debugLog('[Agent] RAG query rewrite applied:', {
           originalQuery: query,
           rewrittenQuery,
           retrievalQuery,
@@ -1583,9 +1602,7 @@ export class FrontAgent {
         warnings: result.warnings,
       };
     } catch (error) {
-      if (this.config.debug) {
-        console.warn('[Agent] Failed to retrieve RAG context:', error);
-      }
+      this.debugWarn('[Agent] Failed to retrieve RAG context:', error);
       return undefined;
     }
   }
@@ -1627,9 +1644,7 @@ export class FrontAgent {
 
       return rewrittenQuery;
     } catch (error) {
-      if (this.config.debug) {
-        console.warn('[Agent] Failed to rewrite RAG query, falling back to original query:', error);
-      }
+      this.debugWarn('[Agent] Failed to rewrite RAG query, falling back to original query:', error);
       return undefined;
     }
   }

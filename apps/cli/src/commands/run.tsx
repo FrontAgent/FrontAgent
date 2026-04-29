@@ -46,6 +46,75 @@ function createStreamTokenEmitter() {
   };
 }
 
+function installRunConsoleFilter(debug: boolean): () => void {
+  if (debug) return () => {};
+
+  const original = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+  };
+  const hiddenPrefixes = [
+    '[Agent]',
+    '[Executor]',
+    '[LLM]',
+    '[LLMService]',
+    '[MemoryStore]',
+    'LLM plan generation failed',
+  ];
+
+  const shouldHide = (args: unknown[]) => {
+    const first = args[0];
+    return typeof first === 'string' && hiddenPrefixes.some((prefix) => first.startsWith(prefix));
+  };
+
+  console.log = (...args: unknown[]) => {
+    if (!shouldHide(args)) original.log(...args);
+  };
+  console.warn = (...args: unknown[]) => {
+    if (!shouldHide(args)) original.warn(...args);
+  };
+  console.error = (...args: unknown[]) => {
+    if (!shouldHide(args)) original.error(...args);
+  };
+
+  return () => {
+    console.log = original.log;
+    console.warn = original.warn;
+    console.error = original.error;
+  };
+}
+
+function isDebugEnabled(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1';
+}
+
+function formatRunError(
+  error: string | undefined,
+  input: {
+    provider: string;
+    model: string;
+    baseURL?: string;
+    debug: boolean;
+  },
+): string | undefined {
+  if (!error || input.debug) return error;
+
+  if (/not found|404/i.test(error)) {
+    return [
+      'LLM 请求失败：404 Not Found。',
+      `请检查 provider/model/base-url：provider=${input.provider}, model=${input.model}, baseURL=${input.baseURL ?? '(default)'}`,
+      '如 baseURL 包含 /chat/completions，CLI 会自动裁剪；仍失败时请确认供应商的 OpenAI-compatible 地址。',
+    ].join('\n');
+  }
+
+  if (/api key|apikey|unauthorized|401/i.test(error)) {
+    return `LLM 鉴权失败。请检查 ${input.provider.toUpperCase()}_API_KEY 或 --api-key。`;
+  }
+
+  return error.split('\n')[0];
+}
+
 function buildRagConfig(
   options: Record<string, any>,
   ragEnabled: boolean,
@@ -138,8 +207,9 @@ export default async function runCommand(
 ) {
   const projectRoot = process.cwd();
   const sddPath = resolve(projectRoot, options.sdd);
+  const debug = isDebugEnabled(options.debug);
 
-  if (!existsSync(sddPath)) {
+  if (!existsSync(sddPath) && debug) {
     console.log(
       chalk.yellow(`⚠️ SDD 配置文件不存在: ${sddPath}`),
     );
@@ -190,10 +260,11 @@ export default async function runCommand(
 
   // ── Store + Ink ──────────────────────────────────────────────────
   const store = createStore();
-  store.setState({ debug: options.debug ?? false });
+  store.setState({ debug });
 
   const streamTokenEmitter = createStreamTokenEmitter();
   const eventBridge = createEventBridge(store);
+  const restoreConsole = installRunConsoleFilter(debug);
 
   const inkInstance = render(
     <App store={store} streamTokenEmitter={streamTokenEmitter} />,
@@ -229,7 +300,7 @@ export default async function runCommand(
     skillContent: {
       builtInSkillRoots: resolveBuiltInSkillRoots(),
     },
-    debug: options.debug,
+    debug,
   };
 
   const agent = createAgent(config);
@@ -298,19 +369,34 @@ export default async function runCommand(
 
     store.setState({
       status: result.success ? 'done' : 'error',
-      result,
+      result: {
+        ...result,
+        error: formatRunError(result.error, {
+          provider,
+          model,
+          baseURL: resolvedLlmBaseURL,
+          debug,
+        }),
+      },
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     store.setState({
       status: 'error',
       result: {
         success: false,
         taskId: '',
         executedSteps: [],
-        error: error instanceof Error ? error.message : String(error),
+        error: formatRunError(errorMessage, {
+          provider,
+          model,
+          baseURL: resolvedLlmBaseURL,
+          debug,
+        }),
       } as any,
     });
   } finally {
+    restoreConsole();
     await webClient.close();
     // Give Ink one last render cycle before unmounting
     await new Promise((r) => setTimeout(r, 100));

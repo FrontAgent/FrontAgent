@@ -55,12 +55,24 @@ export function resolveProviderBaseURL(
   provider: 'openai' | 'anthropic',
   cliValue?: string,
 ): string | undefined {
-  return cliValue ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
+  const raw = cliValue ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
+  if (!raw) return undefined;
+
+  const normalized = raw.replace(/\/+$/, '');
+  if (provider === 'openai') {
+    return normalized.replace(/\/chat\/completions$/, '');
+  }
+  if (provider === 'anthropic') {
+    return normalized.replace(/\/messages$/, '');
+  }
+  return normalized;
 }
 
 export function resolveEmbeddingBaseURL(baseURL?: string): string | undefined {
   if (!baseURL) return undefined;
-  const normalized = baseURL.replace(/\/+$/, '');
+  const normalized = baseURL
+    .replace(/\/+$/, '')
+    .replace(/\/chat\/completions$/, '');
   return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
 }
 
