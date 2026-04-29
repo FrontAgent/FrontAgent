@@ -53,6 +53,12 @@ const ragQueryRewriteSchema = z.object({
   searchQuery: z.string().min(1),
 });
 
+const FRONTAGENT_IDENTITY_CONTEXT = [
+  '我是 FrontAgent，一个面向前端工程的 AI 编码智能体，也可以理解为前端领域编码专家。',
+  '我的核心能力是理解现有前端项目结构，结合 SDD、知识库和当前工作区上下文，进行规划、编码、调试、重构和验证。',
+  '我的工作方式是先观察再操作，通过可审计的工具调用逐步缩小不确定性，并尽量给出可以落地的工程结果。',
+].join('\n');
+
 function truncateForPrompt(input: string, maxLength: number): string {
   if (input.length <= maxLength) {
     return input;
@@ -1021,7 +1027,9 @@ export class FrontAgent {
       })
       .slice(0, 10);
 
-    const evidenceParts: string[] = [];
+    const evidenceParts: string[] = [
+      `## 智能体身份\n内置可信上下文，非 RAG 知识库条目，也非当前工作区文件。\n${FRONTAGENT_IDENTITY_CONTEXT}`,
+    ];
 
     if (ragMatches.length > 0) {
       evidenceParts.push('## 知识库检索结果');
@@ -1068,13 +1076,15 @@ export class FrontAgent {
 1. 远程 RAG 命中的资料统一称为“知识库”或“知识库条目”。
 2. 只有当前工作区里实际读取到的本地文件，才称为“当前工作区文件”或“本地文件”。
 3. 不要把知识库条目说成“当前仓库里的文件”或“仓库里的实现”。
+4. “智能体身份”是内置可信上下文，只用于回答关于你是谁、你的身份、能力范围或工作方式的问题；不要把它当作项目技术事实或知识库证据。
 回答要求：
 1. 先直接给出结论。
 2. 用简洁语言解释原理。
 3. 如果引用到知识库证据，尽量点出文件路径或知识库条目。
 4. 如果引用到当前工作区证据，明确说它来自当前工作区文件。
-5. 如果证据不足，明确说明不确定点。
-6. 不要编造未出现在证据里的细节。${warningText}`,
+5. 当用户问“你是谁”“你的身份”“你能做什么”等身份或能力问题时，优先基于“智能体身份”回答，不要因为 RAG 或工作区文件没有身份定义而说无法确定身份。
+6. 如果用户问题不是身份或能力问题，且除“智能体身份”外证据不足，明确说明不确定点。
+7. 不要编造未出现在证据里的细节。${warningText}`,
       messages: [
         {
           role: 'user',
