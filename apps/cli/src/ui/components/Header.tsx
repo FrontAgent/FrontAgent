@@ -25,10 +25,9 @@ export function Header({ store }: HeaderProps) {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box>
-        <Text bold color="cyan">
-          FrontAgent
-        </Text>
-        <Text> </Text>
+        <Text bold color="cyan">状态摘要</Text>
+      </Box>
+      <Box paddingLeft={2}>
         {isActive ? (
           <Text color="yellow">
             <Spinner type="dots" /> {statusLabel[status]}
@@ -40,9 +39,11 @@ export function Header({ store }: HeaderProps) {
         )}
       </Box>
       {task ? (
-        <Text dimColor wrap="truncate-end">
-          {task}
-        </Text>
+        <Box paddingLeft={2}>
+          <Text dimColor wrap="truncate-end">
+            任务: {task}
+          </Text>
+        </Box>
       ) : null}
     </Box>
   );

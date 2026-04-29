@@ -176,6 +176,8 @@ export interface LLMConfig {
   topP?: number;
   /** 仅从 top-k 候选中采样；并非所有 provider 都支持 */
   topK?: number;
+  /** 调试模式：打印 LLM 内部重试和修复日志 */
+  debug?: boolean;
 }
 
 /**
@@ -506,6 +508,8 @@ export interface PlannerOutput {
   plan?: ExecutionPlan;
   /** 拒绝原因（如果任务被拒绝） */
   rejectionReason?: string;
+  /** LLM 规划失败后采用规则 fallback 的原因（debug 模式可用于诊断） */
+  fallbackReason?: string;
 }
 
 /**

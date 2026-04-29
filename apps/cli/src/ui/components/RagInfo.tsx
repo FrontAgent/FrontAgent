@@ -7,11 +7,13 @@ interface RagInfoProps {
 }
 
 export function RagInfo({ store }: RagInfoProps) {
+  const debug = useStoreSelector(store, (s) => s.debug);
   const matches = useStoreSelector(store, (s) => s.ragMatches);
   const mode = useStoreSelector(store, (s) => s.ragSearchMode);
   const reranked = useStoreSelector(store, (s) => s.ragReranked);
   const warnings = useStoreSelector(store, (s) => s.ragWarnings);
 
+  if (!debug) return null;
   if (!mode && matches.length === 0) return null;
 
   return (

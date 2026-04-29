@@ -119,6 +119,24 @@ export class Executor {
     });
   }
 
+  private debugLog(...args: unknown[]): void {
+    if (this.config.debug) {
+      console.log(...args);
+    }
+  }
+
+  private debugWarn(...args: unknown[]): void {
+    if (this.config.debug) {
+      console.warn(...args);
+    }
+  }
+
+  private debugError(...args: unknown[]): void {
+    if (this.config.debug) {
+      console.error(...args);
+    }
+  }
+
   /**
    * 注册 MCP 客户端
    */
@@ -416,7 +434,7 @@ export class Executor {
 
       // 🔧 优化：如果文件不在上下文中，自动读取文件（类似 vscode-copilot-chat 的 openFn 机制）
       if (!context.collectedContext.files.has(path)) {
-        console.log(`[Executor] 📖 File ${path} not in context, auto-reading before apply_patch...`);
+        this.debugLog(`[Executor] 📖 File ${path} not in context, auto-reading before apply_patch...`);
 
         try {
           // 自动调用 read_file 工具读取文件
@@ -425,7 +443,7 @@ export class Executor {
           if (readResult.success && readResult.content !== undefined) {
             // 将文件内容添加到上下文
             context.collectedContext.files.set(path, readResult.content);
-            console.log(`[Executor] ✅ Auto-read file ${path} (${readResult.content.length} chars) into context`);
+            this.debugLog(`[Executor] ✅ Auto-read file ${path} (${readResult.content.length} chars) into context`);
           } else {
             // 读取失败，返回错误
             const errorMsg = readResult.error || 'Failed to read file';
@@ -445,7 +463,7 @@ export class Executor {
           }
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.log(`[Executor] ❌ Auto-read exception: ${errorMsg}`);
+          this.debugLog(`[Executor] ❌ Auto-read exception: ${errorMsg}`);
           return {
             pass: false,
             results: [{
@@ -782,7 +800,7 @@ export class Executor {
     }
 
     if (ordered.length !== groups.length) {
-      console.warn('[Executor] Detected phase dependency cycle, fallback to priority ordering');
+      this.debugWarn('[Executor] Detected phase dependency cycle, fallback to priority ordering');
       return [...groups].sort((a, b) => this.comparePhaseGroup(a, b));
     }
 
@@ -857,17 +875,17 @@ export class Executor {
     const phase = phaseGroup.phase;
     const phaseSteps = phaseGroup.steps;
 
-    console.log(`[Executor] ========================================`);
-    console.log(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
+    this.debugLog(`[Executor] ========================================`);
+    this.debugLog(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
 
     onPhaseStart?.(phase, phaseSteps.length);
-    console.log(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
-    console.log(`[Executor] 📋 Steps in this phase:`);
+    this.debugLog(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
+    this.debugLog(`[Executor] 📋 Steps in this phase:`);
     for (const s of phaseSteps) {
-      console.log(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
+      this.debugLog(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
     }
-    console.log(`[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`);
-    console.log(`[Executor] ----------------------------------------`);
+    this.debugLog(`[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`);
+    this.debugLog(`[Executor] ----------------------------------------`);
 
     const phaseResults: ExecutorOutput[] = [];
     let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
@@ -876,11 +894,11 @@ export class Executor {
       const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
       if (!dependenciesMet) {
         const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
-        console.warn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
-        console.warn(`[Executor]    Step description: ${step.description}`);
-        console.warn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
-        console.warn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
-        console.warn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
+        this.debugWarn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
+        this.debugWarn(`[Executor]    Step description: ${step.description}`);
+        this.debugWarn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
+        this.debugWarn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
+        this.debugWarn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
         step.status = 'skipped';
         continue;
       }
@@ -912,11 +930,11 @@ export class Executor {
       try {
         const additionalErrors = await onPhaseComplete(phase, phaseResults);
         if (additionalErrors.length > 0) {
-          console.log(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
+          this.debugLog(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
           phaseErrors.push(...additionalErrors);
         }
       } catch (error) {
-        console.error(`[Executor] Phase complete validation failed:`, error);
+        this.debugError(`[Executor] Phase complete validation failed:`, error);
       }
     }
 
@@ -925,16 +943,16 @@ export class Executor {
 
     while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < maxRecoveryAttempts) {
       recoveryAttempt++;
-      console.log(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`);
+      this.debugLog(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`);
 
       try {
         const recoverySteps = await onPhaseError(phase, phaseErrors);
         if (recoverySteps.length === 0) {
-          console.log(`[Executor] No recovery steps generated, stopping recovery attempts`);
+          this.debugLog(`[Executor] No recovery steps generated, stopping recovery attempts`);
           break;
         }
 
-        console.log(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
+        this.debugLog(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
 
         for (const recoveryStep of recoverySteps) {
           recoveryStep.phase = phase;
@@ -962,7 +980,7 @@ export class Executor {
         }
 
         if (onPhaseComplete) {
-          console.log(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
+          this.debugLog(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
           const previousPhaseErrors = phaseErrors;
           phaseErrors = [];
 
@@ -971,29 +989,29 @@ export class Executor {
             phaseErrors = verificationErrors;
 
             if (phaseErrors.length === 0) {
-              console.log(`[Executor] ✅ Recovery successful! All errors fixed.`);
+              this.debugLog(`[Executor] ✅ Recovery successful! All errors fixed.`);
 
               for (const errorInfo of previousPhaseErrors) {
                 if (errorInfo.step.status === 'failed') {
-                  console.log(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
-                  console.log(`[Executor]    Step description: ${errorInfo.step.description}`);
+                  this.debugLog(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
+                  this.debugLog(`[Executor]    Step description: ${errorInfo.step.description}`);
                   errorInfo.step.status = 'completed';
                   completedStepIds.add(errorInfo.step.stepId);
                 }
               }
 
-              console.log(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
+              this.debugLog(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
 
               const skippedSteps = phaseSteps.filter(s => s.status === 'skipped');
               if (skippedSteps.length > 0) {
-                console.log(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
+                this.debugLog(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
 
                 for (const skippedStep of skippedSteps) {
                   const dependenciesMet = skippedStep.dependencies.every(dep => completedStepIds.has(dep));
 
                   if (dependenciesMet) {
-                    console.log(`[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`);
-                    console.log(`[Executor]    Step description: ${skippedStep.description}`);
+                    this.debugLog(`[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`);
+                    this.debugLog(`[Executor]    Step description: ${skippedStep.description}`);
 
                     skippedStep.status = 'running';
                     const output = await this.executeStep(skippedStep, context);
@@ -1004,9 +1022,9 @@ export class Executor {
 
                     if (output.stepResult.success) {
                       completedStepIds.add(skippedStep.stepId);
-                      console.log(`[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`);
+                      this.debugLog(`[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`);
                     } else {
-                      console.log(`[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`);
+                      this.debugLog(`[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`);
                       phaseErrors.push({
                         step: skippedStep,
                         error: output.stepResult.error || 'Unknown error'
@@ -1018,34 +1036,34 @@ export class Executor {
                     }
                   } else {
                     const missingDeps = skippedStep.dependencies.filter(dep => !completedStepIds.has(dep));
-                    console.log(`[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`);
+                    this.debugLog(`[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`);
                   }
                 }
 
-                console.log(`[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`);
+                this.debugLog(`[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`);
               }
 
               if (phaseErrors.length === 0) {
                 break;
               } else {
-                console.log(`[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`);
+                this.debugLog(`[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`);
                 continue;
               }
             } else {
-              console.log(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
+              this.debugLog(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
               if (recoveryAttempt >= maxRecoveryAttempts) {
-                console.warn(`[Executor] ❌ Max recovery attempts (${maxRecoveryAttempts}) reached. Stopping recovery.`);
+                this.debugWarn(`[Executor] ❌ Max recovery attempts (${maxRecoveryAttempts}) reached. Stopping recovery.`);
               }
             }
           } catch (error) {
-            console.error(`[Executor] Verification check failed:`, error);
+            this.debugError(`[Executor] Verification check failed:`, error);
             break;
           }
         } else {
           break;
         }
       } catch (error) {
-        console.error(`[Executor] Failed to generate/execute recovery plan:`, error);
+        this.debugError(`[Executor] Failed to generate/execute recovery plan:`, error);
         break;
       }
     }
@@ -1056,10 +1074,10 @@ export class Executor {
       failed: phaseSteps.filter(s => s.status === 'failed').length,
       skipped: phaseSteps.filter(s => s.status === 'skipped').length,
     };
-    console.log(`[Executor] ----------------------------------------`);
-    console.log(`[Executor] Phase ${phase} completed`);
-    console.log(`[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`);
-    console.log(`[Executor] ========================================`);
+    this.debugLog(`[Executor] ----------------------------------------`);
+    this.debugLog(`[Executor] Phase ${phase} completed`);
+    this.debugLog(`[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`);
+    this.debugLog(`[Executor] ========================================`);
   }
 
   /**
