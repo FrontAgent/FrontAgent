@@ -1,5 +1,5 @@
 /**
- * `frontagent run` command — Ink TUI version.
+ * `fa run` command — Ink TUI version.
  *
  * Agent execution is driven by core events that flow through the event
  * bridge into the external store. The Ink component tree reads from the
@@ -143,7 +143,7 @@ export default async function runCommand(
     console.log(
       chalk.yellow(`⚠️ SDD 配置文件不存在: ${sddPath}`),
     );
-    console.log(chalk.gray('   运行 frontagent init 创建配置文件'));
+    console.log(chalk.gray('   运行 fa init 创建配置文件'));
     console.log(chalk.gray('   将在无约束模式下运行\n'));
   }
 

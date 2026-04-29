@@ -25,25 +25,25 @@ source CONFIG.sh
 cd /path/to/your-project
 
 # 2. 初始化 SDD 配置
-frontagent init
+fa init
 
 # 3. 编辑 sdd.yaml（根据项目实际情况配置）
 vim sdd.yaml
 
 # 4. 验证配置
-frontagent validate
+fa validate
 
 # 5. 开始使用
 # 查询任务
-frontagent run "查找所有使用了 useState 的组件"
+fa run "查找所有使用了 useState 的组件"
 
 # 修改任务
-frontagent run "添加 loading 状态到 Button 组件" \
+fa run "添加 loading 状态到 Button 组件" \
   --type modify \
   --files src/components/Button.tsx
 
 # 创建任务
-frontagent run "创建一个 Modal 组件" \
+fa run "创建一个 Modal 组件" \
   --type create \
   --files src/components/Modal.tsx
 ```
@@ -51,12 +51,12 @@ frontagent run "创建一个 Modal 组件" \
 ## 常用命令
 
 ```bash
-frontagent init                    # 初始化 SDD 配置
-frontagent validate                # 验证当前目录的 sdd.yaml
-frontagent run "任务描述"          # 执行任务（默认 query 类型）
-frontagent run "任务" --type modify --files path/to/file  # 修改文件
-frontagent info                    # 显示系统信息
-frontagent --help                  # 查看帮助
+fa init                    # 初始化 SDD 配置
+fa validate                # 验证当前目录的 sdd.yaml
+fa run "任务描述"          # 执行任务（默认 query 类型）
+fa run "任务" --type modify --files path/to/file  # 修改文件
+fa info                    # 显示系统信息
+fa --help                  # 查看帮助
 ```
 
 ## 配置 LLM
@@ -83,8 +83,8 @@ export API_KEY="your-api-key"
 
 ```bash
 source CONFIG.sh
-frontagent info          # 查看配置是否正确
-frontagent run "你的任务"
+fa info          # 查看配置是否正确
+fa run "你的任务"
 ```
 
 **提示**: `PROVIDER` 环境变量会决定使用哪个 LLM 提供商，如果不设置则默认使用 `anthropic`

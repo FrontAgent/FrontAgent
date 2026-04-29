@@ -13,7 +13,7 @@ import { registerSkillCommand } from './commands/skill.js';
 const program = new Command();
 
 program
-  .name('frontagent')
+  .name('fa')
   .description('FrontAgent - 工程级 AI Agent 系统')
   .version('0.1.6');
 

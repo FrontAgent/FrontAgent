@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Shortened the published CLI command from `frontagent` to `fa`.
+
 ## [0.1.6] - 2026-03-22
 
 ### Added
