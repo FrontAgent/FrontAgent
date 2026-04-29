@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-04-29
+
+### Added
+- Added `fa -v` as a short alias for CLI version output.
+- Added `fa version` as an explicit version command.
+
 ## [0.1.7] - 2026-04-29
 
 ### Added

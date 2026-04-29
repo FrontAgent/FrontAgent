@@ -10,7 +10,7 @@ import { Command } from 'commander';
 import { registerRagCommand } from './commands/rag.js';
 import { registerSkillCommand } from './commands/skill.js';
 
-const CLI_VERSION = '0.1.7';
+const CLI_VERSION = '0.1.8';
 
 const program = new Command();
 
