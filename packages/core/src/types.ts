@@ -569,6 +569,7 @@ export interface AgentExecutionResult {
  */
 export type AgentEvent =
   | { type: 'task_started'; task: AgentTask }
+  | { type: 'status_update'; label: string; operation?: string; detail?: string }
   | { type: 'planning_started' }
   | {
       type: 'rag_retrieved';

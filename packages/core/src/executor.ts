@@ -1079,6 +1079,7 @@ export class Executor {
         const recoveryFailed = [];
         for (const recoveryStep of recoverySteps) {
           recoveryStep.status = 'running';
+          onStepStart?.(recoveryStep);
           const output = await this.executeStep(recoveryStep, context);
           recoveryStep.result = output.stepResult;
           recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
@@ -1131,6 +1132,7 @@ export class Executor {
                     this.debugLog(`[Executor]    Step description: ${skippedStep.description}`);
 
                     skippedStep.status = 'running';
+                    onStepStart?.(skippedStep);
                     const output = await this.executeStep(skippedStep, context);
                     skippedStep.result = output.stepResult;
                     skippedStep.status = output.stepResult.success ? 'completed' : 'failed';

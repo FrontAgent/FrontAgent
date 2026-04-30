@@ -9,19 +9,22 @@ import type { ExecutionPlan } from '@frontagent/shared';
 import type { AgentExecutionResult } from '@frontagent/core';
 
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+export const RUN_STALL_THRESHOLD_MS = 30_000;
+
+export interface StepState {
+  stepId: string;
+  description: string;
+  action: string;
+  tool: string;
+  params: Record<string, unknown>;
+  status: StepStatus;
+  error?: string;
+}
 
 export interface PhaseState {
   name: string;
   status: 'pending' | 'active' | 'done';
-  steps: Array<{
-    stepId: string;
-    description: string;
-    action: string;
-    tool: string;
-    params: Record<string, unknown>;
-    status: StepStatus;
-    error?: string;
-  }>;
+  steps: StepState[];
 }
 
 export interface PendingApproval {
@@ -54,6 +57,10 @@ export interface AgentUIState {
   ragWarnings: string[];
   debug: boolean;
   startTime: number;
+  runLogPath: string | null;
+  lastActivityAt: number;
+  lastActivityLabel: string;
+  currentOperation: string | null;
 }
 
 type Listener = () => void;
@@ -74,7 +81,20 @@ function createInitialState(): AgentUIState {
     ragWarnings: [],
     debug: false,
     startTime: Date.now(),
+    runLogPath: null,
+    lastActivityAt: Date.now(),
+    lastActivityLabel: '等待开始',
+    currentOperation: null,
   };
+}
+
+export function isRunPossiblyStalled(
+  state: AgentUIState,
+  now = Date.now(),
+  thresholdMs = RUN_STALL_THRESHOLD_MS,
+): boolean {
+  const isActive = state.status !== 'idle' && state.status !== 'done' && state.status !== 'error';
+  return isActive && state.approval === null && now - state.lastActivityAt >= thresholdMs;
 }
 
 export function createStore() {
@@ -136,6 +156,51 @@ export function createStore() {
     setState({ phases });
   }
 
+  function upsertStep(
+    step: Omit<StepState, 'status' | 'error'>,
+    status: StepStatus,
+    error?: string,
+  ) {
+    const phaseName = (step as { phase?: string }).phase || state.currentPhase || '未分组';
+    let found = false;
+    let phaseFound = false;
+
+    const phases = state.phases.map((phase) => {
+      if (phase.name !== phaseName) return phase;
+      phaseFound = true;
+      const steps = phase.steps.map((existing) => {
+        if (existing.stepId !== step.stepId) return existing;
+        found = true;
+        return { ...existing, ...step, status, error };
+      });
+      return {
+        ...phase,
+        steps: found ? steps : [...steps, { ...step, status, error }],
+      };
+    });
+
+    const nextPhases = phaseFound
+      ? phases
+      : [
+          ...phases,
+          {
+            name: phaseName,
+            status: state.currentPhase === phaseName ? 'active' as const : 'pending' as const,
+            steps: [{ ...step, status, error }],
+          },
+        ];
+
+    setState({ phases: nextPhases });
+  }
+
+  function recordActivity(label: string, operation: string | null = label) {
+    setState({
+      lastActivityAt: Date.now(),
+      lastActivityLabel: label,
+      currentOperation: operation,
+    });
+  }
+
   function markPhaseActive(phaseName: string) {
     const phases = state.phases.map((p) => ({
       ...p,
@@ -171,8 +236,10 @@ export function createStore() {
     getSnapshot,
     buildPhasesFromPlan,
     updateStepStatus,
+    upsertStep,
     markPhaseActive,
     markPhaseDone,
+    recordActivity,
     resolveApproval,
   };
 }
