@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-30
+
+### Added
+- Added the first FrontAgent VS Code desktop extension with an Activity Bar task console.
+- Added task input, current-file/selection context, browser URL context, run/cancel controls, phase and step progress, approval cards, and run log access in VS Code.
+- Added SDD initialization and validation commands to the VS Code extension.
+- Added shared `@frontagent/runtime-node` runtime APIs for CLI and VS Code execution.
+- Added cooperative `AbortSignal` cancellation support across FrontAgent execution boundaries.
+
+### Changed
+- Updated the npm package metadata for the `1.0.1` release.
+- Documented the two supported FrontAgent usage modes: CLI and VS Code extension.
+- Refactored `fa run` to reuse the shared Node runtime while preserving the existing Ink terminal workflow.
+
 ## [0.1.8] - 2026-04-29
 
 ### Added

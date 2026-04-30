@@ -402,6 +402,15 @@ export class FrontAgent {
     }
   }
 
+  private throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) return;
+    const reason = signal.reason;
+    if (reason instanceof Error) {
+      throw reason;
+    }
+    throw new Error(typeof reason === 'string' ? reason : 'FrontAgent run cancelled');
+  }
+
   private emitStatus(label: string, operation = label, detail?: string): void {
     this.emit({ type: 'status_update', label, operation, detail });
   }
@@ -413,6 +422,7 @@ export class FrontAgent {
     type?: AgentTask['type'];
     relevantFiles?: string[];
     browserUrl?: string;
+    signal?: AbortSignal;
   }): Promise<AgentExecutionResult> {
     const startTime = Date.now();
     this.pendingFactsUpdates = [];
@@ -444,6 +454,7 @@ export class FrontAgent {
     this.emitStatus('初始化任务', '初始化运行上下文');
 
     try {
+      this.throwIfAborted(options?.signal);
       // 设置当前任务ID，以便 Executor 能获取文件系统事实
       this.currentTaskId = task.id;
 
@@ -584,6 +595,7 @@ export class FrontAgent {
       this.contextManager.setPlan(task.id, executionPlan);
       this.emit({ type: 'planning_completed', plan: executionPlan });
       this.emitStatus('执行计划已生成', '执行工具步骤');
+      this.throwIfAborted(options?.signal);
 
       // 执行阶段（两阶段架构 - 传递上下文给 Executor）
       const validations: ValidationResult[] = [];
@@ -676,6 +688,7 @@ export class FrontAgent {
         },
         // onPhaseError: Tool Error Feedback Loop
         async (phase, errors) => {
+          this.throwIfAborted(options?.signal);
           this.emitStatus(`生成恢复计划：${phase}`, '分析错误并生成恢复步骤');
           this.debugLog(`[Agent] Error feedback loop triggered for phase: ${phase}`);
 
@@ -745,6 +758,7 @@ export class FrontAgent {
         },
         // onPhaseComplete: 阶段结束时进行自检验证
         async (phase, phaseResults) => {
+          this.throwIfAborted(options?.signal);
           const successCount = phaseResults.filter(r => r.stepResult.success).length;
           const failureCount = phaseResults.filter(r => !r.stepResult.success).length;
           this.emitStatus(`阶段检查：${phase}`, '阶段完成检查');
@@ -888,8 +902,11 @@ export class FrontAgent {
 
           this.emit({ type: 'phase_completed', phase, successCount, failureCount });
           return errors;
-        }
+        },
+        options?.signal
       );
+
+      this.throwIfAborted(options?.signal);
 
       // 检查是否有失败的步骤
       const failedSteps = executionPlan.steps.filter(s => s.status === 'failed');
