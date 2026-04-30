@@ -9,22 +9,23 @@
 import { Command } from 'commander';
 import { registerRagCommand } from './commands/rag.js';
 import { registerSkillCommand } from './commands/skill.js';
+import { getCliVersion } from './version.js';
 
-const CLI_VERSION = '0.1.8';
+const cliVersion = getCliVersion();
 
 const program = new Command();
 
 program
   .name('fa')
   .description('FrontAgent - 工程级 AI Agent 系统')
-  .version(CLI_VERSION, '-v, --version');
+  .version(cliVersion, '-v, --version');
 
 // ── version ─────────────────────────────────────────────────────────
 program
   .command('version')
   .description('显示版本号')
   .action(() => {
-    console.log(CLI_VERSION);
+    console.log(cliVersion);
   });
 
 // ── init ────────────────────────────────────────────────────────────
