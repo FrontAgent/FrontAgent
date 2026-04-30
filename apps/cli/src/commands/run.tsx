@@ -287,7 +287,6 @@ export default async function runCommand(
   if (runLogger) {
     console.log(chalk.gray(`日志: ${runLogger.path}`));
   }
-  const internalDebug = debug || runLogger !== null;
 
   // ── Store + Ink ──────────────────────────────────────────────────
   const store = createStore();
@@ -350,7 +349,7 @@ export default async function runCommand(
           });
         }),
     },
-    debug: internalDebug,
+    debug,
   };
 
   const agent = createAgent(config);
