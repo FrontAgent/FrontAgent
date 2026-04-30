@@ -972,6 +972,15 @@ export class Executor {
     return this.config.langGraph?.maxRecoveryAttempts ?? 3;
   }
 
+  private throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) return;
+    const reason = signal.reason;
+    if (reason instanceof Error) {
+      throw reason;
+    }
+    throw new Error(typeof reason === 'string' ? reason : 'FrontAgent run cancelled');
+  }
+
   /**
    * 执行单个阶段（包含阶段内错误恢复）。
    */
@@ -987,7 +996,8 @@ export class Executor {
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseStart?: (phase: string, stepCount: number) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
+    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>,
+    signal?: AbortSignal
   ): Promise<void> {
     const phase = phaseGroup.phase;
     const phaseSteps = phaseGroup.steps;
@@ -1008,6 +1018,7 @@ export class Executor {
     let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
 
     for (const step of phaseSteps) {
+      this.throwIfAborted(signal);
       const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
       if (!dependenciesMet) {
         const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
@@ -1045,6 +1056,7 @@ export class Executor {
 
     if (onPhaseComplete) {
       try {
+        this.throwIfAborted(signal);
         const additionalErrors = await onPhaseComplete(phase, phaseResults);
         if (additionalErrors.length > 0) {
           this.debugLog(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
@@ -1059,6 +1071,7 @@ export class Executor {
     let recoveryAttempt = 0;
 
     while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < maxRecoveryAttempts) {
+      this.throwIfAborted(signal);
       recoveryAttempt++;
       this.debugLog(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`);
 
@@ -1078,7 +1091,9 @@ export class Executor {
 
         const recoveryFailed = [];
         for (const recoveryStep of recoverySteps) {
+          this.throwIfAborted(signal);
           recoveryStep.status = 'running';
+          onStepStart?.(recoveryStep);
           const output = await this.executeStep(recoveryStep, context);
           recoveryStep.result = output.stepResult;
           recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
@@ -1102,6 +1117,7 @@ export class Executor {
           phaseErrors = [];
 
           try {
+            this.throwIfAborted(signal);
             const verificationErrors = await onPhaseComplete(phase, allResults);
             phaseErrors = verificationErrors;
 
@@ -1124,6 +1140,7 @@ export class Executor {
                 this.debugLog(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
 
                 for (const skippedStep of skippedSteps) {
+                  this.throwIfAborted(signal);
                   const dependenciesMet = skippedStep.dependencies.every(dep => completedStepIds.has(dep));
 
                   if (dependenciesMet) {
@@ -1131,6 +1148,7 @@ export class Executor {
                     this.debugLog(`[Executor]    Step description: ${skippedStep.description}`);
 
                     skippedStep.status = 'running';
+                    onStepStart?.(skippedStep);
                     const output = await this.executeStep(skippedStep, context);
                     skippedStep.result = output.stepResult;
                     skippedStep.status = output.stepResult.success ? 'completed' : 'failed';
@@ -1210,7 +1228,8 @@ export class Executor {
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseStart?: (phase: string, stepCount: number) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
+    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>,
+    signal?: AbortSignal
   ): Promise<ExecutorOutput[]> {
     const orderedPhaseGroups = this.buildOrderedPhaseGroups(steps);
     const serializablePhaseGroups: SerializablePhaseExecutionGroup[] = orderedPhaseGroups.map(group => ({
@@ -1258,7 +1277,8 @@ export class Executor {
           onStepComplete,
           onPhaseStart,
           onPhaseError,
-          onPhaseComplete
+          onPhaseComplete,
+          signal
         );
 
         return {
@@ -1325,7 +1345,8 @@ export class Executor {
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseStart?: (phase: string, stepCount: number) => void,
     onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>
+    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>,
+    signal?: AbortSignal
   ): Promise<ExecutorOutput[]> {
     if (this.shouldUseLangGraphEngine()) {
       if (this.config.debug) {
@@ -1338,7 +1359,8 @@ export class Executor {
         onStepComplete,
         onPhaseStart,
         onPhaseError,
-        onPhaseComplete
+        onPhaseComplete,
+        signal
       );
     }
 
@@ -1348,6 +1370,7 @@ export class Executor {
     const completedStepIds = new Set<string>();
 
     for (const phaseGroup of orderedPhaseGroups) {
+      this.throwIfAborted(signal);
       await this.executeSinglePhaseWithRecovery(
         phaseGroup,
         context,
@@ -1357,7 +1380,8 @@ export class Executor {
         onStepComplete,
         onPhaseStart,
         onPhaseError,
-        onPhaseComplete
+        onPhaseComplete,
+        signal
       );
     }
 

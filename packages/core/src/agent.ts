@@ -402,6 +402,19 @@ export class FrontAgent {
     }
   }
 
+  private throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) return;
+    const reason = signal.reason;
+    if (reason instanceof Error) {
+      throw reason;
+    }
+    throw new Error(typeof reason === 'string' ? reason : 'FrontAgent run cancelled');
+  }
+
+  private emitStatus(label: string, operation = label, detail?: string): void {
+    this.emit({ type: 'status_update', label, operation, detail });
+  }
+
   /**
    * 执行任务
    */
@@ -409,6 +422,7 @@ export class FrontAgent {
     type?: AgentTask['type'];
     relevantFiles?: string[];
     browserUrl?: string;
+    signal?: AbortSignal;
   }): Promise<AgentExecutionResult> {
     const startTime = Date.now();
     this.pendingFactsUpdates = [];
@@ -437,8 +451,10 @@ export class FrontAgent {
     };
 
     this.emit({ type: 'task_started', task });
+    this.emitStatus('初始化任务', '初始化运行上下文');
 
     try {
+      this.throwIfAborted(options?.signal);
       // 设置当前任务ID，以便 Executor 能获取文件系统事实
       this.currentTaskId = task.id;
 
@@ -449,6 +465,7 @@ export class FrontAgent {
       context.collectedContext.metadata.originalTaskDescription = taskDescription;
 
       // Phase 1: 跨会话记忆预加载
+      this.emitStatus('加载跨会话记忆', '加载跨会话记忆');
       this.memoryStore.resetSession();
       this.preloadMemory(task.id, context);
 
@@ -465,6 +482,7 @@ export class FrontAgent {
       let projectStructure: string | undefined;
       const preScannedFiles = new Map<string, string>();  // 用于端口检测
       try {
+        this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
         const listResult = await this.executor['callTool']('list_directory', {
           path: this.config.projectRoot,
           recursive: true
@@ -502,9 +520,11 @@ export class FrontAgent {
       }
 
       // 🔧 检测开发服务器端口
+      this.emitStatus('检测开发服务器端口', '检测开发服务器端口');
       const devServerPort = await this.detectDevServerPort(preScannedFiles);
 
       // RAG 预检索：在规划前注入远程知识库结果
+      this.emitStatus('检索知识库', 'RAG 检索');
       const ragContext = await this.retrieveRagContext(task.id, task.description);
       const ragResults = ragContext?.formattedResults;
 
@@ -520,6 +540,7 @@ export class FrontAgent {
 
       // 规划阶段
       this.emit({ type: 'planning_started' });
+      this.emitStatus('生成执行计划', 'LLM 规划');
 
       const planResult = await this.planner.plan(
         task,
@@ -539,9 +560,11 @@ export class FrontAgent {
 
       // 如果需要更多上下文
       if (planResult.needsMoreContext && planResult.contextRequests) {
+        this.emitStatus('补充规划上下文', '读取更多上下文');
         await this.gatherContext(task.id, planResult.contextRequests);
 
         // 重新规划
+        this.emitStatus('重新生成执行计划', 'LLM 重新规划');
         const retryResult = await this.planner.plan(
           task,
           {
@@ -571,6 +594,8 @@ export class FrontAgent {
 
       this.contextManager.setPlan(task.id, executionPlan);
       this.emit({ type: 'planning_completed', plan: executionPlan });
+      this.emitStatus('执行计划已生成', '执行工具步骤');
+      this.throwIfAborted(options?.signal);
 
       // 执行阶段（两阶段架构 - 传递上下文给 Executor）
       const validations: ValidationResult[] = [];
@@ -583,6 +608,7 @@ export class FrontAgent {
       // 执行阶段：使用错误反馈循环机制
       // Executor 只关注执行 Plan，不再传递 SDD 约束
       // SDD 已在 Planner 阶段约束，确保生成的 Plan 符合 SDD 规范
+      this.emitStatus('执行工具步骤', '执行工具步骤');
       await this.executor.executeStepsWithErrorFeedback(
         executionPlan.steps,
         {
@@ -662,6 +688,8 @@ export class FrontAgent {
         },
         // onPhaseError: Tool Error Feedback Loop
         async (phase, errors) => {
+          this.throwIfAborted(options?.signal);
+          this.emitStatus(`生成恢复计划：${phase}`, '分析错误并生成恢复步骤');
           this.debugLog(`[Agent] Error feedback loop triggered for phase: ${phase}`);
 
           // 检查模块依赖问题（在创建阶段尤其重要）
@@ -725,13 +753,15 @@ export class FrontAgent {
           }));
 
           this.debugLog(`[Agent] Generated ${recoverySteps.length} recovery steps`);
+          this.emitStatus(`恢复计划生成完成：${phase}`, `恢复步骤 ${recoverySteps.length} 个`);
           return recoverySteps;
         },
         // onPhaseComplete: 阶段结束时进行自检验证
         async (phase, phaseResults) => {
+          this.throwIfAborted(options?.signal);
           const successCount = phaseResults.filter(r => r.stepResult.success).length;
           const failureCount = phaseResults.filter(r => !r.stepResult.success).length;
-          this.emit({ type: 'phase_completed', phase, successCount, failureCount });
+          this.emitStatus(`阶段检查：${phase}`, '阶段完成检查');
 
           const errors: Array<{ step: ExecutionStep; error: string }> = [];
 
@@ -740,6 +770,7 @@ export class FrontAgent {
             this.debugLog(`[Agent] Running phase completion checks for: ${phase}`);
 
             // 1. 检查模块依赖
+            this.emitStatus(`检查模块依赖：${phase}`, '模块依赖检查');
             const missingModules = this.contextManager.validateModuleDependencies(task.id);
             if (missingModules.length > 0) {
               this.debugLog(`[Agent] Module validation found ${missingModules.length} missing dependencies`);
@@ -761,6 +792,7 @@ export class FrontAgent {
             // 2. 检查缺失的 npm 依赖（检查代码中使用但未在 package.json 中声明的依赖）
             // 重新读取 package.json 以获取最新的依赖列表（可能已通过 npm install 更新）
             try {
+              this.emitStatus(`刷新依赖清单：${phase}`, '读取 package.json');
               const pkgJsonResult = await this.executor['callTool']('read_file', { path: 'package.json' }) as { success: boolean; content?: string };
               if (pkgJsonResult.success && pkgJsonResult.content) {
                 executionContext.collectedContext.files.set('package.json', pkgJsonResult.content);
@@ -769,6 +801,7 @@ export class FrontAgent {
               this.debugWarn('[Agent] Failed to refresh package.json:', error);
             }
 
+            this.emitStatus(`检查缺失依赖：${phase}`, 'npm 依赖检查');
             const missingDeps = await this.checkMissingNpmDependencies(executionContext.collectedContext.files);
             if (missingDeps.length > 0) {
               this.debugLog(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
@@ -791,6 +824,7 @@ export class FrontAgent {
             // 3. TypeScript 类型检查（如果有 tsconfig.json）
             const hasTsConfig = executionContext.collectedContext.files.has('tsconfig.json');
             if (hasTsConfig) {
+              this.emitStatus(`TypeScript 检查：${phase}`, '运行类型检查');
               this.debugLog(`[Agent] Running TypeScript type check...`);
               const typeErrors = await this.runTypeCheck(task.context?.workingDirectory || process.cwd());
               if (typeErrors.length > 0) {
@@ -822,6 +856,7 @@ export class FrontAgent {
             }
 
             // 4. 通过 A2A 调用代码质量 SubAgent 审核本阶段生成/修改的文件
+            this.emitStatus(`代码质量检查：${phase}`, 'SubAgent 代码质量评估');
             const qualityIssues = await this.evaluateGeneratedCodeQualityViaSubAgent(
               task.id,
               phase,
@@ -865,13 +900,21 @@ export class FrontAgent {
             }
           }
 
+          this.emit({ type: 'phase_completed', phase, successCount, failureCount });
           return errors;
-        }
+        },
+        options?.signal
       );
+
+      this.throwIfAborted(options?.signal);
 
       // 检查是否有失败的步骤
       const failedSteps = executionPlan.steps.filter(s => s.status === 'failed');
       let success = failedSteps.length === 0;
+      this.emitStatus(
+        task.type === 'query' ? '生成最终回答' : '汇总执行结果',
+        task.type === 'query' ? '生成最终回答' : '汇总执行结果',
+      );
       const finalOutput = success
         ? await this.buildFinalOutput(task, executionPlan.steps, executionContext)
         : undefined;
@@ -897,6 +940,7 @@ export class FrontAgent {
         validations
       };
 
+      this.emitStatus('任务执行完成', '准备输出结果');
       this.emit({ type: 'task_completed', result });
       return result;
 
@@ -914,9 +958,11 @@ export class FrontAgent {
       };
     } finally {
       // 持久化跨会话记忆（off critical path）
+      this.emitStatus('持久化运行记忆', '写入跨会话记忆');
       this.persistMemory(task.id, task.description);
 
       // 清理上下文
+      this.emitStatus('清理运行上下文', '清理运行上下文');
       this.pendingFactsUpdates = [];
       this.factsUpdateFlushInProgress = false;
       this.currentTaskId = undefined;

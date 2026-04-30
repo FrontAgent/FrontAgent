@@ -116,6 +116,8 @@ program
   .option('--rag-weaviate-collection-prefix <prefix>', 'Weaviate Collection 前缀', process.env.FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX)
   .option('--rag-weaviate-batch-size <n>', 'Weaviate 批量写入大小', process.env.FRONTAGENT_RAG_WEAVIATE_BATCH_SIZE)
   .option('--rag-weaviate-timeout-ms <n>', 'Weaviate 请求超时毫秒', process.env.FRONTAGENT_RAG_WEAVIATE_TIMEOUT_MS)
+  .option('--log-file <path>', '运行日志输出路径（默认：.frontagent/runs/<timestamp>-<runId>.log）')
+  .option('--no-run-log', '关闭默认运行日志')
   .option('--debug', '启用调试模式', false)
   .action(async (task, options) => {
     const { default: runCommand } = await import('./commands/run.js');

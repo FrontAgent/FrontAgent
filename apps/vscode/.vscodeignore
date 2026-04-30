@@ -1,0 +1,8 @@
+.turbo/**
+node_modules/**
+src/**
+*.tsbuildinfo
+build.mjs
+tsconfig.json
+*.vsix
+dist/**/*.map
