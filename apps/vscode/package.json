@@ -1,8 +1,8 @@
 {
   "name": "frontagent",
   "displayName": "FrontAgent",
-  "description": "Use FrontAgent from a VS Code sidebar task console.",
-  "version": "1.0.1",
+  "description": "Chat with FrontAgent from a VS Code sidebar.",
+  "version": "1.0.2",
   "publisher": "ceilf6",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "coding"
   ],
   "type": "module",
-  "main": "./dist/extension.js",
+  "main": "./dist/extension.cjs",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -42,7 +42,7 @@
         {
           "id": "frontagent",
           "title": "FrontAgent",
-          "icon": "media/icon.svg"
+          "icon": "media/activitybar.svg"
         }
       ]
     },
@@ -50,7 +50,7 @@
       "frontagent": [
         {
           "id": "frontagent.taskView",
-          "name": "Tasks",
+          "name": "Chat",
           "type": "webview"
         }
       ]
@@ -123,19 +123,19 @@
       "properties": {
         "frontagent.provider": {
           "type": "string",
-          "enum": ["anthropic", "openai"],
-          "default": "anthropic",
-          "description": "LLM provider used by FrontAgent."
+          "enum": ["", "anthropic", "openai"],
+          "default": "",
+          "description": "LLM provider used by FrontAgent. Leave empty to read PROVIDER from the environment."
         },
         "frontagent.model": {
           "type": "string",
           "default": "",
-          "description": "LLM model name. Empty uses the FrontAgent default for the provider."
+          "description": "LLM model name. Leave empty to read MODEL from the environment."
         },
         "frontagent.baseUrl": {
           "type": "string",
           "default": "",
-          "description": "Optional OpenAI/Anthropic-compatible API base URL."
+          "description": "OpenAI/Anthropic-compatible API base URL. Leave empty to read provider-specific env vars or BASE_URL."
         },
         "frontagent.maxTokens": {
           "type": "number",

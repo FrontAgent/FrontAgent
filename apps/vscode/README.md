@@ -1,16 +1,16 @@
 # FrontAgent
 
-FrontAgent can now be used in two ways: the original `fa` CLI for terminal-first workflows, and this VS Code extension for a sidebar-driven desktop workflow.
+FrontAgent can now be used in two ways: the original `fa` CLI for terminal-first workflows, and this VS Code extension for a sidebar chat workflow.
 
-This extension brings the FrontAgent task flow into VS Code so you can run AI frontend engineering tasks, review progress, approve tool actions, and open logs without leaving your workspace.
+This extension brings FrontAgent into VS Code as a Copilot-style sidebar chat. Configure your model once, attach the current file or selection, and ask FrontAgent to explain, edit, or debug your workspace without leaving the editor.
 
 ## Usage
 
 1. Install the extension from the VS Code Marketplace.
 2. Open a project folder in VS Code.
 3. Run `FrontAgent: Configure` and set your OpenAI-compatible or Anthropic API key.
-4. Open the FrontAgent view from the Activity Bar.
-5. Enter a task, optionally attach the current file/selection or a browser URL, then run it.
+4. Open the FrontAgent chat view from the Activity Bar.
+5. Ask a question or request an edit, optionally with the current file, selected text, or a browser URL attached.
 
 You can still use the CLI in the same project:
 
@@ -21,11 +21,11 @@ fa run "Create a user login page"
 
 ## Features
 
-- Run FrontAgent tasks from the Activity Bar.
-- Use the current file or selected text as task context.
+- Chat with FrontAgent from the Activity Bar.
+- Use the current file or selected text as chat context.
 - Attach a browser URL as task context.
-- Review phase and step progress as structured status.
-- Approve or reject sensitive tool actions in VS Code.
+- Review phase, step, and RAG details in a collapsible run panel.
+- Approve or reject sensitive tool actions inline.
 - Initialize and validate `sdd.yaml`.
 - Open run logs written under `.frontagent/runs`.
 
@@ -33,13 +33,13 @@ fa run "Create a user login page"
 
 FrontAgent for VS Code is a desktop extension. It uses Node.js, local file system access, shell tooling, and browser automation capabilities from the FrontAgent runtime.
 
-Configure an Anthropic or OpenAI-compatible API key with `FrontAgent: Configure` before running tasks.
+Configure a provider, model, base URL, and API key with `FrontAgent: Configure` or the sidebar configuration panel before running tasks. API keys are stored in VS Code SecretStorage.
 
 ## Extension Settings
 
 - `frontagent.provider`: LLM provider, `anthropic` or `openai`.
-- `frontagent.model`: Optional model override.
-- `frontagent.baseUrl`: Optional API base URL.
+- `frontagent.model`: Model name.
+- `frontagent.baseUrl`: API base URL.
 - `frontagent.maxTokens`: Maximum output tokens.
 - `frontagent.temperature`: Sampling temperature.
 - `frontagent.securityMode`: Tool execution security mode.
