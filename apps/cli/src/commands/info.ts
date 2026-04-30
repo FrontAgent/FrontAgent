@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getCliVersion } from '../version.js';
 
 export default async function infoCommand() {
   console.log(chalk.cyan('\n🤖 FrontAgent 系统信息\n'));
-  console.log(chalk.gray('版本: 0.1.8'));
+  console.log(chalk.gray(`版本: ${getCliVersion()}`));
   console.log(chalk.gray('运行时: Node.js ' + process.version));
   console.log(chalk.gray('工作目录: ' + process.cwd()));
 
