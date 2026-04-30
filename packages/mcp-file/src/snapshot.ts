@@ -3,9 +3,17 @@
  * 支持文件修改的快照和回滚
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { generateId } from '@frontagent/shared';
+import { getRealProjectRoot, isInsidePath } from './path-safety.js';
 
 /**
  * 快照记录
@@ -26,9 +34,11 @@ export class SnapshotManager {
   private snapshots: Map<string, Snapshot> = new Map();
   private fileSnapshots: Map<string, string[]> = new Map(); // filePath -> snapshotIds
   private snapshotDir: string;
+  private projectRoot: string;
 
   constructor(projectRoot: string) {
-    this.snapshotDir = join(projectRoot, '.frontagent', 'snapshots');
+    this.projectRoot = getRealProjectRoot(projectRoot);
+    this.snapshotDir = join(this.projectRoot, '.frontagent', 'snapshots');
     this.ensureSnapshotDir();
   }
 
@@ -47,6 +57,9 @@ export class SnapshotManager {
   createSnapshot(filePath: string, operation: 'create' | 'modify' | 'delete'): string {
     const snapshotId = generateId('snap');
     const timestamp = Date.now();
+    if (!this.isManagedPath(filePath)) {
+      throw new Error(`Cannot create snapshot outside project root: ${filePath}`);
+    }
 
     let previousContent: string | undefined;
     if (existsSync(filePath) && operation !== 'create') {
@@ -99,12 +112,17 @@ export class SnapshotManager {
     try {
       if (snapshot.operation === 'create') {
         // 如果是创建操作，回滚就是删除文件
+        if (!this.isManagedPath(snapshot.filePath)) {
+          return { success: false, message: `Refusing to rollback path outside project root: ${snapshot.filePath}` };
+        }
         if (existsSync(snapshot.filePath)) {
-          const { unlinkSync } = require('node:fs');
           unlinkSync(snapshot.filePath);
         }
       } else if (snapshot.previousContent !== undefined) {
         // 恢复之前的内容
+        if (!this.isManagedPath(snapshot.filePath)) {
+          return { success: false, message: `Refusing to rollback path outside project root: ${snapshot.filePath}` };
+        }
         const dir = dirname(snapshot.filePath);
         if (!existsSync(dir)) {
           mkdirSync(dir, { recursive: true });
@@ -138,7 +156,12 @@ export class SnapshotManager {
    * 获取文件的所有快照
    */
   getFileSnapshots(filePath: string): Snapshot[] {
-    const snapshotIds = this.fileSnapshots.get(filePath) ?? [];
+    const normalizedPath = this.normalizeManagedPath(filePath);
+    if (!normalizedPath) {
+      return [];
+    }
+
+    const snapshotIds = this.fileSnapshots.get(normalizedPath) ?? [];
     return snapshotIds
       .map(id => this.snapshots.get(id))
       .filter((s): s is Snapshot => s !== undefined);
@@ -181,7 +204,6 @@ export class SnapshotManager {
    * 从磁盘加载快照
    */
   loadSnapshots(): void {
-    const { readdirSync } = require('node:fs');
     if (!existsSync(this.snapshotDir)) {
       return;
     }
@@ -192,6 +214,9 @@ export class SnapshotManager {
         try {
           const content = readFileSync(join(this.snapshotDir, file), 'utf-8');
           const snapshot = JSON.parse(content) as Snapshot;
+          if (!this.isManagedPath(snapshot.filePath)) {
+            continue;
+          }
           this.snapshots.set(snapshot.id, snapshot);
 
           const fileHistory = this.fileSnapshots.get(snapshot.filePath) ?? [];
@@ -203,5 +228,16 @@ export class SnapshotManager {
       }
     }
   }
-}
 
+  private isManagedPath(path: string): boolean {
+    return isInsidePath(path, this.projectRoot);
+  }
+
+  private normalizeManagedPath(path: string): string | undefined {
+    const candidate = isAbsolute(path) ? path : resolve(this.projectRoot, path);
+    if (!this.isManagedPath(candidate)) {
+      return undefined;
+    }
+    return candidate;
+  }
+}

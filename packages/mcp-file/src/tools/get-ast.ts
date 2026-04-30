@@ -3,9 +3,9 @@
  * 获取文件的 AST 结构分析
  */
 
-import { existsSync } from 'node:fs';
-import { resolve, extname } from 'node:path';
+import { extname } from 'node:path';
 import { Project, SyntaxKind } from 'ts-morph';
+import { resolveReadPath } from '../path-safety.js';
 
 export interface GetASTParams {
   path: string;
@@ -54,27 +54,16 @@ export interface ASTResult {
 export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
   const { path: filePath } = params;
 
-  // 解析完整路径
-  const fullPath = resolve(projectRoot, filePath);
-
-  // 安全检查
-  if (!fullPath.startsWith(projectRoot)) {
+  const safePath = resolveReadPath(filePath, projectRoot);
+  if (!safePath.ok) {
     return {
       success: false,
-      error: `Access denied: Path is outside project root`
-    };
-  }
-
-  // 检查文件是否存在
-  if (!existsSync(fullPath)) {
-    return {
-      success: false,
-      error: `File not found: ${filePath}`
+      error: safePath.error
     };
   }
 
   // 检查文件类型
-  const ext = extname(fullPath).toLowerCase();
+  const ext = extname(safePath.fullPath).toLowerCase();
   if (!['.ts', '.tsx', '.js', '.jsx'].includes(ext)) {
     return {
       success: false,
@@ -90,7 +79,7 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
       }
     });
 
-    const sourceFile = project.addSourceFileAtPath(fullPath);
+    const sourceFile = project.addSourceFileAtPath(safePath.fullPath);
 
     // 提取 imports
     const imports: ImportInfo[] = sourceFile.getImportDeclarations().map(imp => {
@@ -264,4 +253,3 @@ export const getASTSchema = {
     required: ['path']
   }
 };
-

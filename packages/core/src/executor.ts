@@ -3,12 +3,23 @@
  * 负责执行计划中的步骤，并在需要时动态生成代码
  */
 
-import type { ExecutionStep, StepResult, ValidationResult, AgentTask } from '@frontagent/shared';
+import { existsSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import type {
+  ApprovalRequest,
+  ExecutionStep,
+  StepResult,
+  ValidationResult,
+  AgentTask,
+  SDDConfig,
+  SecurityConfig,
+  SecurityDecision,
+} from '@frontagent/shared';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
-import { dirname } from 'node:path/posix';
 import type { ExecutorOutput } from './types.js';
 import { LLMService } from './llm.js';
+import { SecurityManager, toApprovalRequest } from './security.js';
 import {
   createDefaultExecutorSkillRegistry,
   type ExecutorActionSkill,
@@ -27,6 +38,8 @@ export interface MCPClient {
  * Executor 配置
  */
 export interface ExecutorConfig {
+  /** 项目根目录 */
+  projectRoot: string;
   /** 幻觉防控器 */
   hallucinationGuard: HallucinationGuard;
   /** LLM 服务（用于动态代码生成） */
@@ -50,6 +63,14 @@ export interface ExecutorConfig {
   getMemoryRecall?: (filePath: string, action: string) => string | undefined;
   /** Optional callback invoked for each streamed token during code generation */
   onStreamToken?: (token: string, stepId: string) => void;
+  /** Deterministic tool execution security policy */
+  security?: SecurityConfig;
+  /** Parsed SDD config for security-level protected path and approval decisions */
+  sddConfig?: SDDConfig;
+  /** Approval handler for ask decisions; missing handler fails closed */
+  approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+  /** Emits allow/ask/deny decisions for audit/debug surfaces */
+  onSecurityDecision?: (decision: SecurityDecision) => void;
   /** 执行流引擎（默认 native） */
   executionEngine?: 'native' | 'langgraph';
   /** LangGraph 相关配置 */
@@ -91,10 +112,6 @@ interface ExecutorCollectedContext {
   skillContext?: string;
 }
 
-function quoteShellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
 /**
  * Executor 类
  */
@@ -103,9 +120,12 @@ export class Executor {
   private mcpClients: Map<string, MCPClient> = new Map();
   private toolToClient: Map<string, string> = new Map();
   private actionSkills: ReturnType<typeof createDefaultExecutorSkillRegistry>;
+  private securityManager: SecurityManager;
+  private currentBrowserUrl?: string;
 
   constructor(config: ExecutorConfig) {
     this.config = config;
+    this.securityManager = new SecurityManager();
     this.actionSkills = createDefaultExecutorSkillRegistry({
       llmService: this.config.llmService,
       debug: this.config.debug,
@@ -526,26 +546,25 @@ export class Executor {
         }
 
         try {
-          const command = `test -d ${quoteShellArg(parentDir)} && test ! -e ${quoteShellArg(path)}`;
-          const confirmResult = await this.callTool('run_command', { command }) as {
-            success?: boolean;
-            error?: string;
-            stderr?: string;
-            exitCode?: number;
-          };
+          const absoluteParent = resolve(this.config.projectRoot, parentDir);
+          const absoluteTarget = resolve(this.config.projectRoot, path);
+          const parentExists = existsSync(absoluteParent) && statSync(absoluteParent).isDirectory();
+          const targetExists = existsSync(absoluteTarget);
 
-          if (!confirmResult.success) {
-            const reason = confirmResult.error || confirmResult.stderr || `exit code ${confirmResult.exitCode ?? 'unknown'}`;
+          if (!parentExists || targetExists) {
+            const reason = !parentExists
+              ? `parent directory ${parentDir} does not exist`
+              : `target ${path} already exists`;
             return {
               pass: false,
               results: [{
                 pass: false,
                 type: 'progressive_exploration_required',
                 severity: 'block',
-                message: `Cannot create file until the target path is precisely confirmed with Bash. Parent directory may be missing or target may already exist: ${path} (${reason})`
+                message: `Cannot create file until the target path is precisely confirmed. ${reason}.`
               }],
               blockedBy: [
-                `Create_file requires progressive exploration: use search_code globOnly/list_directory to narrow candidates, then run_command to confirm parent and target before writing ${path}.`
+                `Create_file requires progressive exploration: use search_code globOnly/list_directory to narrow candidates before writing ${path}.`
               ]
             };
           }
@@ -645,13 +664,111 @@ export class Executor {
       console.log(`[Executor] Calling tool: ${toolName}`, args);
     }
 
-    const result = await client.callTool(toolName, args);
+    const security = await this.enforceSecurity(toolName, args);
+    if (!security.allowed) {
+      return {
+        success: false,
+        error: security.error,
+      };
+    }
+
+    const result = await client.callTool(toolName, security.args);
+
+    if (toolName === 'browser_navigate' || toolName === 'navigate') {
+      if (typeof args.url === 'string' && this.isSuccessfulToolResult(result)) {
+        this.currentBrowserUrl = args.url;
+      }
+    }
 
     if (this.config.debug) {
       console.log(`[Executor] Tool result:`, result);
     }
 
     return result;
+  }
+
+  private async enforceSecurity(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{ allowed: true; args: Record<string, unknown> } | { allowed: false; error: string }> {
+    const decision = this.securityManager.evaluate({
+      toolName,
+      args,
+      projectRoot: this.config.projectRoot,
+      sddConfig: this.config.sddConfig,
+      security: this.config.security,
+      currentBrowserUrl: this.currentBrowserUrl,
+    });
+
+    this.emitSecurityDecision(decision);
+
+    if (decision.decision === 'deny') {
+      return { allowed: false, error: `Security policy denied ${toolName}: ${decision.message}` };
+    }
+
+    if (decision.decision === 'allow') {
+      return { allowed: true, args };
+    }
+
+    const approvalRequest = toApprovalRequest(decision);
+    const interactive = this.config.security?.interactive ?? false;
+    if (!interactive || !this.config.approvalHandler) {
+      const deniedDecision: SecurityDecision = {
+        ...decision,
+        decision: 'deny',
+        reasonCode: 'security_approval_unavailable',
+        message: 'Approval is required but no interactive approval channel is available.',
+      };
+      this.emitSecurityDecision(deniedDecision);
+      return { allowed: false, error: deniedDecision.message };
+    }
+
+    const approved = await this.config.approvalHandler(approvalRequest);
+    const finalDecision: SecurityDecision = approved
+      ? {
+          ...decision,
+          decision: 'allow',
+          reasonCode: 'approved_by_user',
+          message: `User approved: ${decision.message}`,
+          approvalId: approvalRequest.approvalId,
+        }
+      : {
+          ...decision,
+          decision: 'deny',
+          reasonCode: 'rejected_by_user',
+          message: `User rejected: ${decision.message}`,
+          approvalId: approvalRequest.approvalId,
+        };
+    this.emitSecurityDecision(finalDecision);
+
+    if (!approved) {
+      return { allowed: false, error: `Security approval rejected for ${toolName}: ${decision.message}` };
+    }
+
+    return {
+      allowed: true,
+      args: {
+        ...args,
+        __frontagentSecurityApproved: true,
+      },
+    };
+  }
+
+  private emitSecurityDecision(decision: SecurityDecision): void {
+    if (this.config.security?.auditEnabled === false) {
+      return;
+    }
+
+    this.config.onSecurityDecision?.(decision);
+  }
+
+  private isSuccessfulToolResult(result: unknown): boolean {
+    if (typeof result !== 'object' || result === null) {
+      return true;
+    }
+
+    const resultObj = result as { success?: boolean };
+    return resultObj.success !== false;
   }
 
   /**

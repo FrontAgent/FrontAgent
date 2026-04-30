@@ -4,13 +4,15 @@
  */
 
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { dirname } from 'node:path';
 import type { SnapshotManager } from '../snapshot.js';
+import { assertWritableByPolicy, resolveWritePath } from '../path-safety.js';
 
 export interface CreateFileParams {
   path: string;
   content: string;
   overwrite?: boolean;
+  __frontagentSecurityApproved?: boolean;
 }
 
 export interface CreateFileResult {
@@ -28,21 +30,35 @@ export function createFile(
   projectRoot: string,
   snapshotManager: SnapshotManager
 ): CreateFileResult {
-  const { path: filePath, content, overwrite = false } = params;
+  const {
+    path: filePath,
+    content,
+    overwrite = false,
+    __frontagentSecurityApproved = false,
+  } = params;
 
-  // 解析完整路径
-  const fullPath = resolve(projectRoot, filePath);
-
-  // 安全检查
-  if (!fullPath.startsWith(projectRoot)) {
+  const safePath = resolveWritePath(filePath, projectRoot);
+  if (!safePath.ok) {
     return {
       success: false,
-      error: `Access denied: Path is outside project root`
+      error: safePath.error
+    };
+  }
+
+  const policyError = assertWritableByPolicy({
+    relativePath: safePath.relativePath,
+    overwrite,
+    approved: __frontagentSecurityApproved,
+  });
+  if (policyError) {
+    return {
+      success: false,
+      error: policyError,
     };
   }
 
   // 检查文件是否已存在
-  if (existsSync(fullPath) && !overwrite) {
+  if (existsSync(safePath.fullPath) && !overwrite) {
     return {
       success: false,
       error: `File already exists: ${filePath}. Set overwrite=true to overwrite.`
@@ -50,17 +66,20 @@ export function createFile(
   }
 
   // 创建快照
-  const snapshotId = snapshotManager.createSnapshot(fullPath, 'create');
+  const snapshotId = snapshotManager.createSnapshot(
+    safePath.fullPath,
+    existsSync(safePath.fullPath) ? 'modify' : 'create',
+  );
 
   try {
     // 确保目录存在
-    const dir = dirname(fullPath);
+    const dir = dirname(safePath.fullPath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
     // 写入文件
-    writeFileSync(fullPath, content, 'utf-8');
+    writeFileSync(safePath.fullPath, content, 'utf-8');
     snapshotManager.updateSnapshotContent(snapshotId, content);
 
     return {
@@ -105,4 +124,3 @@ export const createFileSchema = {
     required: ['path', 'content']
   }
 };
-

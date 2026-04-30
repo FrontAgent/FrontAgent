@@ -77,6 +77,7 @@ program
   .option('--top-p <n>', 'Nucleus sampling (top_p)', process.env.TOP_P)
   .option('--top-k <n>', 'Top-k sampling（仅部分 provider 支持）', process.env.TOP_K)
   .option('--engine <engine>', '执行引擎 (native/langgraph)', process.env.EXECUTION_ENGINE || 'native')
+  .option('--security-mode <mode>', '安全模式 (balanced/strict/developer)', process.env.FRONTAGENT_SECURITY_MODE || 'balanced')
   .option('--langgraph-checkpoint', '启用 LangGraph checkpoint', false)
   .option('--max-recovery-attempts <n>', '阶段恢复最大重试次数', process.env.MAX_RECOVERY_ATTEMPTS || '3')
   .option('--disable-rag', '禁用远程知识库 RAG', false)

@@ -6,6 +6,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import { glob } from 'glob';
+import { getRealProjectRoot, isInsidePath, isUnsafeGlobPattern } from '../path-safety.js';
 
 export interface SearchCodeParams {
   query?: string;
@@ -64,19 +65,28 @@ export async function searchCode(
   }
 
   try {
+    if (isUnsafeGlobPattern(effectiveFilePattern)) {
+      return {
+        success: false,
+        error: 'Unsafe filePattern: glob patterns must stay inside the project root',
+      };
+    }
+
+    const realProjectRoot = getRealProjectRoot(projectRoot);
     // 使用 glob 查找文件
     const files = await glob(effectiveFilePattern, {
-      cwd: projectRoot,
+      cwd: realProjectRoot,
       nodir: true,
       ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/coverage/**']
     });
+    const safeFiles = files.filter((file) => isInsidePath(resolve(realProjectRoot, file), realProjectRoot));
 
     if (globOnly) {
       return {
         success: true,
-        files: files.slice(0, effectiveMaxResults),
-        totalFiles: files.length,
-        truncated: files.length > effectiveMaxResults
+        files: safeFiles.slice(0, effectiveMaxResults),
+        totalFiles: safeFiles.length,
+        truncated: safeFiles.length > effectiveMaxResults
       };
     }
 
@@ -85,12 +95,12 @@ export async function searchCode(
       ? new RegExp(pattern, 'gi')
       : new RegExp(escapeRegex(query!), 'gi');
 
-    for (const file of files) {
+    for (const file of safeFiles) {
       if (matches.length >= effectiveMaxResults) {
         break;
       }
 
-      const fullPath = resolve(projectRoot, file);
+      const fullPath = resolve(realProjectRoot, file);
       
       // 跳过太大的文件
       const stat = statSync(fullPath);
@@ -113,7 +123,7 @@ export async function searchCode(
 
           while ((match = searchRegex.exec(line)) !== null) {
             const searchMatch: SearchMatch = {
-              file: relative(projectRoot, fullPath),
+              file: relative(realProjectRoot, fullPath),
               line: lineIdx + 1,
               column: match.index + 1,
               content: line.trim()

@@ -156,9 +156,16 @@ export class FrontAgent {
 
     // 初始化 Executor（两阶段架构 - 传递 llmService 和 SDD 约束）
     this.executor = new Executor({
+      projectRoot: config.projectRoot,
       hallucinationGuard: this.hallucinationGuard,
       llmService: this.llmService,
       debug: config.debug,
+      security: config.security,
+      sddConfig: this.sddConfig,
+      approvalHandler: config.security?.approvalHandler,
+      onSecurityDecision: (decision) => {
+        this.emit({ type: 'security_decision', decision });
+      },
       executionEngine: config.execution?.engine,
       langGraph: config.execution?.langGraph,
       getSddConstraints: () => this.promptGenerator?.generate(),
