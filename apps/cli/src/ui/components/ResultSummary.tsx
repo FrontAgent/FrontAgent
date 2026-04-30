@@ -10,6 +10,7 @@ export function ResultSummary({ store }: ResultSummaryProps) {
   const status = useStoreSelector(store, (s) => s.status);
   const result = useStoreSelector(store, (s) => s.result);
   const startTime = useStoreSelector(store, (s) => s.startTime);
+  const runLogPath = useStoreSelector(store, (s) => s.runLogPath);
 
   if (status !== 'done' && status !== 'error') return null;
 
@@ -26,6 +27,7 @@ export function ResultSummary({ store }: ResultSummaryProps) {
           <Text color="red">{result?.error || '任务未能生成最终回答。'}</Text>
         </Box>
         <Text dimColor>⏱ {elapsedStr}</Text>
+        {runLogPath ? <Text dimColor>日志: {runLogPath}</Text> : null}
       </Box>
     );
   }
@@ -43,6 +45,7 @@ export function ResultSummary({ store }: ResultSummaryProps) {
         </Box>
       )}
       <Text dimColor>⏱ {elapsedStr}</Text>
+      {runLogPath ? <Text dimColor>日志: {runLogPath}</Text> : null}
     </Box>
   );
 }

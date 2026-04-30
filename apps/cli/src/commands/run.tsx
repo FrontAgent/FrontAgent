@@ -31,6 +31,7 @@ import {
 import { createStore } from '../ui/store.js';
 import { createEventBridge } from '../ui/bridge.js';
 import { App } from '../ui/components/App.js';
+import { createRunLogger, type RunLogger } from '../run-logger.js';
 
 type TokenListener = (token: string) => void;
 
@@ -47,9 +48,7 @@ function createStreamTokenEmitter() {
   };
 }
 
-function installRunConsoleFilter(debug: boolean): () => void {
-  if (debug) return () => {};
-
+function installRunConsoleFilter(debug: boolean, logger: RunLogger | null): () => void {
   const original = {
     log: console.log,
     warn: console.warn,
@@ -70,13 +69,16 @@ function installRunConsoleFilter(debug: boolean): () => void {
   };
 
   console.log = (...args: unknown[]) => {
-    if (!shouldHide(args)) original.log(...args);
+    logger?.console('log', args);
+    if (debug || !shouldHide(args)) original.log(...args);
   };
   console.warn = (...args: unknown[]) => {
-    if (!shouldHide(args)) original.warn(...args);
+    logger?.console('warn', args);
+    if (debug || !shouldHide(args)) original.warn(...args);
   };
   console.error = (...args: unknown[]) => {
-    if (!shouldHide(args)) original.error(...args);
+    logger?.console('error', args);
+    if (debug || !shouldHide(args)) original.error(...args);
   };
 
   return () => {
@@ -265,14 +267,35 @@ export default async function runCommand(
     resolvedLlmApiKey,
     provider,
   );
+  const runLogger = createRunLogger({
+    projectRoot,
+    enabled: options.runLog !== false,
+    logFile: options.logFile,
+    task,
+    provider,
+    model,
+    baseURL: resolvedLlmBaseURL,
+    options: {
+      ...options,
+      apiKey: options.apiKey ? '[REDACTED]' : undefined,
+      ragEmbeddingApiKey: options.ragEmbeddingApiKey ? '[REDACTED]' : undefined,
+      ragRerankerApiKey: options.ragRerankerApiKey ? '[REDACTED]' : undefined,
+      ragWeaviateApiKey: options.ragWeaviateApiKey ? '[REDACTED]' : undefined,
+    },
+  });
+
+  if (runLogger) {
+    console.log(chalk.gray(`日志: ${runLogger.path}`));
+  }
+  const internalDebug = debug || runLogger !== null;
 
   // ── Store + Ink ──────────────────────────────────────────────────
   const store = createStore();
-  store.setState({ debug });
+  store.setState({ debug, runLogPath: runLogger?.path ?? null });
 
   const streamTokenEmitter = createStreamTokenEmitter();
   const eventBridge = createEventBridge(store);
-  const restoreConsole = installRunConsoleFilter(debug);
+  const restoreConsole = installRunConsoleFilter(debug, runLogger);
 
   const inkInstance = render(
     <App store={store} streamTokenEmitter={streamTokenEmitter} />,
@@ -327,7 +350,7 @@ export default async function runCommand(
           });
         }),
     },
-    debug,
+    debug: internalDebug,
   };
 
   const agent = createAgent(config);
@@ -369,6 +392,7 @@ export default async function runCommand(
 
   // ── Event wiring ────────────────────────────────────────────────
   agent.addEventListener((event) => {
+    runLogger?.event(event);
     eventBridge(event);
 
     // Tier 2: stream tokens bypass the store
@@ -384,6 +408,7 @@ export default async function runCommand(
       relevantFiles: options.files,
       browserUrl: options.url,
     });
+    runLogger?.result(result);
 
     store.setState({
       status: result.success ? 'done' : 'error',
@@ -399,6 +424,7 @@ export default async function runCommand(
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    runLogger?.error(error);
     store.setState({
       status: 'error',
       result: {
@@ -414,10 +440,20 @@ export default async function runCommand(
       } as any,
     });
   } finally {
-    restoreConsole();
-    await webClient.close();
-    // Give Ink one last render cycle before unmounting
-    await new Promise((r) => setTimeout(r, 100));
-    inkInstance.unmount();
+    try {
+      store.recordActivity('关闭浏览器资源', '关闭浏览器资源');
+      runLogger?.event({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      await webClient.close();
+    } catch (error) {
+      runLogger?.error(error);
+    } finally {
+      store.recordActivity('收尾完成', null);
+      runLogger?.event({ type: 'status_update', label: '收尾完成' });
+      // Give Ink one last render cycle before unmounting
+      await new Promise((r) => setTimeout(r, 100));
+      inkInstance.unmount();
+      restoreConsole();
+      runLogger?.close();
+    }
   }
 }
