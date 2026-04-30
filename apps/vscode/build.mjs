@@ -6,9 +6,15 @@ await build({
   bundle: true,
   platform: 'node',
   target: 'node20',
-  format: 'esm',
-  outfile: resolve('dist/extension.js'),
+  format: 'cjs',
+  outfile: resolve('dist/extension.cjs'),
   external: ['vscode', 'playwright'],
+  define: {
+    'import.meta.url': '__frontAgentImportMetaUrl',
+  },
+  banner: {
+    js: 'const __frontAgentImportMetaUrl = require("node:url").pathToFileURL(__filename).href;',
+  },
   sourcemap: true,
   minify: false,
 });

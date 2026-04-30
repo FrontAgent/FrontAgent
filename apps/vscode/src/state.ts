@@ -2,6 +2,27 @@ import type { AgentEvent, AgentExecutionResult } from '@frontagent/runtime-node'
 
 export type ViewStatus = 'idle' | 'scanning' | 'planning' | 'executing' | 'done' | 'error';
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'rolled_back';
+export type ChatRole = 'user' | 'assistant' | 'system' | 'error';
+export type ChatMode = 'query' | 'modify' | 'debug';
+export type MissingConfigField = 'provider' | 'model' | 'baseUrl' | 'apiKey';
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  text: string;
+  files?: string[];
+  url?: string;
+  mode?: ChatMode;
+}
+
+export interface ConfigStatus {
+  provider: string | null;
+  model: string | null;
+  baseUrl: string | null;
+  hasApiKey: boolean;
+  configured: boolean;
+  missing: MissingConfigField[];
+}
 
 export interface ViewStep {
   stepId: string;
@@ -45,7 +66,24 @@ export interface ViewState {
   streamText: string;
   isRunning: boolean;
   error: string | null;
+  messages: ChatMessage[];
+  composer: string;
+  mode: ChatMode;
+  contextFiles: string[];
+  selectionPreview: string | null;
+  browserUrl: string;
+  configStatus: ConfigStatus;
+  detailsCollapsed: boolean;
 }
+
+export const emptyConfigStatus: ConfigStatus = {
+  provider: null,
+  model: null,
+  baseUrl: null,
+  hasApiKey: false,
+  configured: false,
+  missing: ['provider', 'model', 'baseUrl', 'apiKey'],
+};
 
 export function createInitialViewState(): ViewState {
   return {
@@ -66,7 +104,128 @@ export function createInitialViewState(): ViewState {
     streamText: '',
     isRunning: false,
     error: null,
+    messages: [],
+    composer: '',
+    mode: 'query',
+    contextFiles: [],
+    selectionPreview: null,
+    browserUrl: '',
+    configStatus: emptyConfigStatus,
+    detailsCollapsed: true,
   };
+}
+
+export function appendChatMessage(
+  state: ViewState,
+  role: ChatRole,
+  text: string,
+  metadata: Pick<ChatMessage, 'files' | 'url' | 'mode'> = {},
+): ViewState {
+  const trimmed = text.trim();
+  if (!trimmed) return state;
+  const message: ChatMessage = {
+    id: `${role}-${state.messages.length + 1}`,
+    role,
+    text: trimmed,
+    ...metadata,
+  };
+  return { ...state, messages: [...state.messages, message] };
+}
+
+export function applyPrefill(
+  state: ViewState,
+  request: {
+    task?: string;
+    mode?: ChatMode;
+    files?: string[];
+    url?: string;
+    selectionPreview?: string | null;
+  },
+): ViewState {
+  const files = request.files?.map((file) => file.trim()).filter(Boolean) ?? [];
+  return {
+    ...state,
+    composer: request.task ?? state.composer,
+    mode: request.mode ?? state.mode,
+    contextFiles: files.length ? [...new Set([...state.contextFiles, ...files])] : state.contextFiles,
+    browserUrl: request.url ?? state.browserUrl,
+    selectionPreview: request.selectionPreview !== undefined ? request.selectionPreview : state.selectionPreview,
+  };
+}
+
+export function setConfigStatus(state: ViewState, configStatus: ConfigStatus): ViewState {
+  return { ...state, configStatus };
+}
+
+export function setDetailsCollapsed(state: ViewState, detailsCollapsed: boolean): ViewState {
+  return { ...state, detailsCollapsed };
+}
+
+export function beginChatRun(
+  state: ViewState,
+  input: { task: string; mode: ChatMode; files: string[]; url?: string },
+): ViewState {
+  const withUserMessage = appendChatMessage(state, 'user', input.task, {
+    mode: input.mode,
+    files: input.files,
+    url: input.url,
+  });
+  return {
+    ...withUserMessage,
+    status: 'scanning',
+    isRunning: true,
+    taskDescription: input.task,
+    composer: '',
+    mode: input.mode,
+    contextFiles: input.files,
+    browserUrl: input.url ?? state.browserUrl,
+    lastActivityLabel: '准备运行',
+    currentOperation: '初始化任务',
+    result: null,
+    error: null,
+    streamText: '',
+    approval: null,
+  };
+}
+
+export function completeChatRun(state: ViewState, result: AgentExecutionResult): ViewState {
+  const text = result.success
+    ? result.output || state.streamText || 'FrontAgent completed the task.'
+    : result.error || 'FrontAgent failed to complete the task.';
+  const role: ChatRole = result.success ? 'assistant' : 'error';
+  const next = appendIfNotLast(state, role, text);
+  return {
+    ...next,
+    status: result.success ? 'done' : 'error',
+    isRunning: false,
+    approval: null,
+    result,
+    error: result.error ?? null,
+    streamText: '',
+    lastActivityLabel: result.success ? '任务完成' : '任务失败',
+    currentOperation: null,
+  };
+}
+
+export function failChatRun(state: ViewState, error: string): ViewState {
+  const next = appendIfNotLast(state, 'error', error);
+  return {
+    ...next,
+    status: 'error',
+    isRunning: false,
+    approval: null,
+    error,
+    streamText: '',
+    lastActivityLabel: '任务失败',
+    currentOperation: null,
+  };
+}
+
+function appendIfNotLast(state: ViewState, role: ChatRole, text: string): ViewState {
+  const trimmed = text.trim();
+  const last = state.messages[state.messages.length - 1];
+  if (last?.role === role && last.text === trimmed) return state;
+  return appendChatMessage(state, role, trimmed);
 }
 
 function buildPhasesFromPlan(plan: Extract<AgentEvent, { type: 'planning_completed' }>['plan']): ViewPhase[] {
@@ -221,26 +380,9 @@ export function reduceAgentEvent(state: ViewState, event: AgentEvent): ViewState
         streamText: `${state.streamText}${event.token}`.slice(-12000),
       };
     case 'task_completed':
-      return {
-        ...state,
-        status: event.result.success ? 'done' : 'error',
-        isRunning: false,
-        approval: null,
-        result: event.result,
-        error: event.result.error ?? null,
-        lastActivityLabel: '任务完成',
-        currentOperation: null,
-      };
+      return completeChatRun(state, event.result);
     case 'task_failed':
-      return {
-        ...state,
-        status: 'error',
-        isRunning: false,
-        approval: null,
-        error: event.error,
-        lastActivityLabel: '任务失败',
-        currentOperation: null,
-      };
+      return failChatRun(state, event.error);
     default:
       return state;
   }

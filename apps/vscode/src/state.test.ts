@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialViewState, reduceAgentEvent } from './state.js';
+import {
+  applyPrefill,
+  beginChatRun,
+  completeChatRun,
+  createInitialViewState,
+  reduceAgentEvent,
+  setDetailsCollapsed,
+} from './state.js';
 import type { AgentEvent } from '@frontagent/runtime-node';
 
-describe('VSCode view state reducer', () => {
+describe('VS Code view state reducer', () => {
   it('builds phases and updates step status from agent events', () => {
     let state = createInitialViewState();
     const plan = {
@@ -53,6 +60,45 @@ describe('VSCode view state reducer', () => {
     expect(state.phases[0].steps[0].status).toBe('completed');
   });
 
+  it('tracks chat prefill, user message, and final assistant answer', () => {
+    let state = createInitialViewState();
+    state = applyPrefill(state, {
+      mode: 'modify',
+      files: ['src/App.tsx'],
+      selectionPreview: 'const value = 1;',
+    });
+    expect(state.mode).toBe('modify');
+    expect(state.contextFiles).toEqual(['src/App.tsx']);
+    expect(state.selectionPreview).toContain('value');
+
+    state = beginChatRun(state, {
+      task: 'Refactor this component',
+      mode: 'modify',
+      files: ['src/App.tsx'],
+      url: 'http://localhost:5173',
+    });
+    expect(state.messages[0]).toMatchObject({
+      role: 'user',
+      text: 'Refactor this component',
+      mode: 'modify',
+      files: ['src/App.tsx'],
+      url: 'http://localhost:5173',
+    });
+    expect(state.isRunning).toBe(true);
+    expect(state.composer).toBe('');
+
+    state = completeChatRun(state, {
+      success: true,
+      taskId: 't1',
+      executedSteps: [],
+      output: 'Done',
+      duration: 1,
+      validations: [],
+    });
+    expect(state.messages.at(-1)).toMatchObject({ role: 'assistant', text: 'Done' });
+    expect(state.status).toBe('done');
+  });
+
   it('caps streamed text to keep webview messages bounded', () => {
     let state = createInitialViewState();
     state = reduceAgentEvent(state, {
@@ -61,5 +107,12 @@ describe('VSCode view state reducer', () => {
       token: 'x'.repeat(13000),
     });
     expect(state.streamText).toHaveLength(12000);
+  });
+
+  it('stores details collapsed state', () => {
+    let state = createInitialViewState();
+    expect(state.detailsCollapsed).toBe(true);
+    state = setDetailsCollapsed(state, false);
+    expect(state.detailsCollapsed).toBe(false);
   });
 });

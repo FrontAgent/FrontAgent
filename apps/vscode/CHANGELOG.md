@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Fixed extension activation by bundling the extension host entry as CommonJS.
+- Fixed the Activity Bar icon path with a dedicated monochrome SVG icon.
+- Reworked the sidebar into a chat-first FrontAgent experience.
+- Changed LLM settings defaults to stay empty and rely on settings, secrets, or environment variables.
+
 ## 1.0.1
 
 - Updated Marketplace README to describe the VS Code extension workflow.
