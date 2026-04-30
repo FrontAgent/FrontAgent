@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-30
+
+### 新增
+- 新增首版 FrontAgent VS Code 桌面插件，在 Activity Bar 提供侧边栏任务台。
+- 新增 VS Code 内的任务输入、当前文件/选区上下文、浏览器 URL 上下文、Run/Cancel、阶段与步骤进度、审批卡片和运行日志入口。
+- 新增 VS Code 插件中的 SDD 初始化与校验命令。
+- 新增共享的 `@frontagent/runtime-node` 运行时 API，供 CLI 与 VS Code 插件复用。
+- 新增 FrontAgent 执行链路中的协作式 `AbortSignal` 取消支持。
+
+### 变更
+- 更新 npm 包元数据，对齐 `1.0.1` 版本发布。
+- 文档补充 CLI 与 VS Code 插件两种使用方式。
+- `fa run` 改为复用共享 Node runtime，同时保留原有 Ink 终端交互体验。
+
 ## [0.1.8] - 2026-04-29
 
 ### 新增

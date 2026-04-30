@@ -34,7 +34,16 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在�
 - ✅ **仓库管理阶段** — 验收通过后自动执行 git/gh 流程（commit/push/PR）
 - ✅ **跨会话记忆** — 四阶段记忆体系（预加载、运行时召回、任务后持久化、结构化存储），跨运行保留项目事实、错误修复经验与依赖状态
 
-## TL;DR
+## 两种使用方式
+
+FrontAgent 现在同时支持命令行和 VS Code 桌面插件两种使用方式：
+
+- **CLI**：在终端里使用 `fa init`、`fa run`、RAG 命令、Skill Lab，以及适合自动化脚本的工作流。
+- **VS Code 插件**：在 Activity Bar 打开 FrontAgent 侧边栏任务台，直接运行任务、附加当前文件或选区、填写浏览器 URL、查看阶段/步骤进度、审批敏感操作、初始化/校验 SDD，并在 VS Code 内打开运行日志。
+
+你可以在 VS Code Marketplace 搜索 `FrontAgent`，或使用插件 ID `ceilf6.frontagent` 安装。
+
+## CLI 快速开始
 
 ```bash
 # 1. 通过 npm 全局安装

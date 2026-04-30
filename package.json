@@ -1,7 +1,7 @@
 {
   "name": "frontagent",
-  "version": "0.1.10",
-  "description": "Enterprise AI agent platform for frontend engineering with planning/execution architecture, SDD constraints, and MCP-controlled code generation",
+  "version": "1.0.1",
+  "description": "FrontAgent CLI and VS Code extension for frontend AI engineering with SDD constraints, MCP-controlled execution, and RAG planning",
   "type": "module",
   "bin": {
     "fa": "dist/index.mjs"
@@ -13,6 +13,8 @@
     "dist/code-quality-subagent-worker.cjs.map",
     "skills/**/*",
     "README.md",
+    "CHANGELOG.md",
+    "docs/releases/**/*",
     "LICENSE"
   ],
   "scripts": {
@@ -33,6 +35,8 @@
     "sdd",
     "automation",
     "cli",
+    "vscode",
+    "vscode-extension",
     "developer-tools"
   ],
   "author": "FrontAgent Team",
