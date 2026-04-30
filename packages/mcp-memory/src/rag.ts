@@ -355,10 +355,17 @@ class HybridRepositoryKnowledgeBase {
 
     try {
       const warnings: string[] = [];
-      const index = await this.ensureIndex(Boolean(params.refresh));
       const queryText = params.query.trim();
       const maxResults = params.maxResults ?? this.config.maxResults;
       const filters = params.filters;
+      const filterError = validateMetadataFilters(filters);
+      if (filterError) {
+        return {
+          success: false,
+          error: filterError,
+        };
+      }
+      const index = await this.ensureIndex(Boolean(params.refresh));
 
       const keywordChunkCandidates = searchBm25(
         index,
@@ -792,6 +799,24 @@ class HybridRepositoryKnowledgeBase {
   private getVectorStoreStatePath(): string {
     return join(this.config.cacheDir, 'vector-store-state.json');
   }
+}
+
+function validateMetadataFilters(filters?: RagMetadataFilter): string | undefined {
+  if (!filters) return undefined;
+
+  const pathValues = [
+    ...(filters.pathPrefixes ?? []),
+    ...(filters.excludePathPrefixes ?? []),
+    ...(filters.topLevelDirs ?? []),
+  ];
+
+  for (const value of pathValues) {
+    if (value.startsWith('/') || value.split(/[\\/]+/).includes('..')) {
+      return `Unsafe RAG metadata filter path: ${value}`;
+    }
+  }
+
+  return undefined;
 }
 
 type RequiredHybridConfig = {

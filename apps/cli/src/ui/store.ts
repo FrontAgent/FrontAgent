@@ -25,7 +25,12 @@ export interface PhaseState {
 }
 
 export interface PendingApproval {
-  command: string;
+  approvalId: string;
+  toolName: string;
+  riskLevel: string;
+  reasonCode: string;
+  message: string;
+  argsSummary: string;
   resolve: (approved: boolean) => void;
 }
 
@@ -148,6 +153,17 @@ export function createStore() {
     setState({ phases, currentPhase: nextActive });
   }
 
+  function resolveApproval(approvalId: string, approved: boolean): boolean {
+    const current = state.approval;
+    if (!current || current.approvalId !== approvalId) {
+      return false;
+    }
+
+    setState({ approval: null });
+    current.resolve(approved);
+    return true;
+  }
+
   return {
     getState,
     setState,
@@ -157,6 +173,7 @@ export function createStore() {
     updateStepStatus,
     markPhaseActive,
     markPhaseDone,
+    resolveApproval,
   };
 }
 

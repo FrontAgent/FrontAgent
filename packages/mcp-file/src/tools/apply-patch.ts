@@ -4,16 +4,18 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import * as Diff from 'diff';
 import type { FilePatch, PatchResult } from '@frontagent/shared';
 import type { SnapshotManager } from '../snapshot.js';
+import { assertWritableByPolicy, resolveWritePath } from '../path-safety.js';
 
 export interface ApplyPatchParams {
   path: string;
   patches: FilePatch[];
   dryRun?: boolean;
+  __frontagentSecurityApproved?: boolean;
 }
 
 /**
@@ -24,31 +26,55 @@ export function applyPatch(
   projectRoot: string,
   snapshotManager: SnapshotManager
 ): PatchResult {
-  const { path: filePath, patches, dryRun = false } = params;
+  const {
+    path: filePath,
+    patches,
+    dryRun = false,
+    __frontagentSecurityApproved = false,
+  } = params;
 
-  // 解析完整路径
-  const fullPath = resolve(projectRoot, filePath);
-
-  // 安全检查
-  if (!fullPath.startsWith(projectRoot)) {
+  const safePath = resolveWritePath(filePath, projectRoot);
+  if (!safePath.ok) {
     return {
       success: false,
       diff: '',
       validation: { syntaxValid: false, lintErrors: [], typeErrors: [] },
-      snapshotId: ''
+      snapshotId: '',
+      error: safePath.error,
+    };
+  }
+
+  const policyError = assertWritableByPolicy({
+    relativePath: safePath.relativePath,
+    approved: __frontagentSecurityApproved,
+  });
+  if (policyError) {
+    return {
+      success: false,
+      diff: '',
+      validation: { syntaxValid: false, lintErrors: [], typeErrors: [] },
+      snapshotId: '',
+      error: policyError,
+    };
+  }
+
+  if (!existsSync(safePath.fullPath)) {
+    return {
+      success: false,
+      diff: '',
+      validation: { syntaxValid: false, lintErrors: [], typeErrors: [] },
+      snapshotId: '',
+      error: `Cannot apply patch: file does not exist: ${filePath}`,
     };
   }
 
   // 读取原文件内容
-  let originalContent = '';
-  if (existsSync(fullPath)) {
-    originalContent = readFileSync(fullPath, 'utf-8');
-  }
+  const originalContent = readFileSync(safePath.fullPath, 'utf-8');
 
   const lines = originalContent.split('\n');
 
   // 创建快照
-  const snapshotId = snapshotManager.createSnapshot(fullPath, existsSync(fullPath) ? 'modify' : 'create');
+  const snapshotId = dryRun ? '' : snapshotManager.createSnapshot(safePath.fullPath, 'modify');
 
   // 按行号倒序排列补丁，从后往前应用以保持行号正确
   const sortedPatches = [...patches].sort((a, b) => b.startLine - a.startLine);
@@ -90,11 +116,11 @@ export function applyPatch(
 
   // 如果不是 dry run，写入文件
   if (!dryRun) {
-    const dir = dirname(fullPath);
+    const dir = dirname(safePath.fullPath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(fullPath, newContent, 'utf-8');
+    writeFileSync(safePath.fullPath, newContent, 'utf-8');
     snapshotManager.updateSnapshotContent(snapshotId, newContent);
   }
 
@@ -251,4 +277,3 @@ export const applyPatchSchema = {
     required: ['path', 'patches']
   }
 };
-

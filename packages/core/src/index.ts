@@ -33,6 +33,13 @@ export {
   type GeneratedPatch
 } from './llm.js';
 export { MemoryStore } from './memory/index.js';
+export {
+  SecurityManager,
+  normalizeSecurity,
+  toApprovalRequest,
+  type NormalizedSecurityConfig,
+  type SecurityEvaluationInput,
+} from './security.js';
 export type {
   MemoryConfig,
   MemoryIndex,
@@ -65,6 +72,7 @@ export type {
 
 export type {
   AgentConfig,
+  AgentSecurityConfig,
   AgentExecutionConfig,
   LLMConfig,
   MCPConfig,

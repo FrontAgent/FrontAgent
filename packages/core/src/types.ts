@@ -3,11 +3,14 @@
  */
 
 import type {
+  ApprovalRequest,
   AgentTask,
   ExecutionPlan,
   ExecutionStep,
   StepResult,
   SDDConfig,
+  SecurityConfig,
+  SecurityDecision,
   ValidationResult
 } from '@frontagent/shared';
 import type { MemoryConfig } from './memory/types.js';
@@ -36,8 +39,15 @@ export interface AgentConfig {
   skillContent?: SkillContentConfig;
   /** 跨会话记忆配置 */
   memory?: MemoryConfig;
+  /** 工具执行安全控制面配置 */
+  security?: AgentSecurityConfig;
   /** 调试模式 */
   debug?: boolean;
+}
+
+export interface AgentSecurityConfig extends SecurityConfig {
+  /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
+  approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
 }
 
 export interface SkillContentConfig {
@@ -573,6 +583,7 @@ export type AgentEvent =
   | { type: 'step_started'; step: ExecutionStep }
   | { type: 'step_completed'; step: ExecutionStep; result: StepResult }
   | { type: 'step_failed'; step: ExecutionStep; error: string }
+  | { type: 'security_decision'; decision: SecurityDecision }
   | { type: 'stream_token'; token: string; stepId: string }
   | { type: 'validation_failed'; result: ValidationResult }
   | { type: 'rollback_started'; snapshotId: string }

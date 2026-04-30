@@ -14,13 +14,9 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
       if (!approval) return;
       const lower = input.toLowerCase();
       if (lower === 'y') {
-        const { resolve } = approval;
-        store.setState({ approval: null });
-        resolve(true);
+        store.resolveApproval(approval.approvalId, true);
       } else if (lower === 'n' || input === '\r' || input === '\n') {
-        const { resolve } = approval;
-        store.setState({ approval: null });
-        resolve(false);
+        store.resolveApproval(approval.approvalId, false);
       }
     },
     { isActive: approval !== null },
@@ -37,10 +33,16 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
       paddingX={1}
     >
       <Text color="yellow" bold>
-        ⚠ Shell 命令请求
+        ⚠ 工具执行审批
       </Text>
       <Box marginTop={1}>
-        <Text color="cyan">{`  $ ${approval.command}`}</Text>
+        <Text color="cyan">{`  ${approval.argsSummary}`}</Text>
+      </Box>
+      <Box marginTop={1}>
+        <Text color="yellow">{`  ${approval.riskLevel.toUpperCase()} · ${approval.reasonCode}`}</Text>
+      </Box>
+      <Box marginTop={1}>
+        <Text>{`  ${approval.message}`}</Text>
       </Box>
       <Box marginTop={1}>
         <Text>

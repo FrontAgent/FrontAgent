@@ -3,8 +3,9 @@
  * 读取指定文件的内容
  */
 
-import { readFileSync, existsSync, statSync } from 'node:fs';
-import { resolve, extname } from 'node:path';
+import { readFileSync, statSync } from 'node:fs';
+import { extname } from 'node:path';
+import { resolveReadPath } from '../path-safety.js';
 
 export interface ReadFileParams {
   path: string;
@@ -67,27 +68,16 @@ function detectLanguage(filePath: string): string {
 export function readFile(params: ReadFileParams, projectRoot: string): ReadFileResult {
   const { path: filePath, encoding = 'utf-8', startLine, endLine } = params;
 
-  // 解析完整路径
-  const fullPath = resolve(projectRoot, filePath);
-
-  // 安全检查：确保路径在项目根目录内
-  if (!fullPath.startsWith(projectRoot)) {
+  const safePath = resolveReadPath(filePath, projectRoot);
+  if (!safePath.ok) {
     return {
       success: false,
-      error: `Access denied: Path is outside project root`
-    };
-  }
-
-  // 检查文件是否存在
-  if (!existsSync(fullPath)) {
-    return {
-      success: false,
-      error: `File not found: ${filePath}`
+      error: safePath.error
     };
   }
 
   // 检查是否是文件
-  const stat = statSync(fullPath);
+  const stat = statSync(safePath.fullPath);
   if (!stat.isFile()) {
     return {
       success: false,
@@ -96,7 +86,7 @@ export function readFile(params: ReadFileParams, projectRoot: string): ReadFileR
   }
 
   try {
-    let content = readFileSync(fullPath, encoding);
+    let content = readFileSync(safePath.fullPath, encoding);
     const allLines = content.split('\n');
     let lines = allLines.length;
 
@@ -112,7 +102,7 @@ export function readFile(params: ReadFileParams, projectRoot: string): ReadFileR
       success: true,
       content,
       lines,
-      language: detectLanguage(fullPath),
+      language: detectLanguage(safePath.fullPath),
       size: stat.size
     };
   } catch (error) {
@@ -153,4 +143,3 @@ export const readFileSchema = {
     required: ['path']
   }
 };
-

@@ -15,6 +15,7 @@ import chalk from 'chalk';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createAgent, type AgentConfig } from '@frontagent/core';
+import type { SecurityMode } from '@frontagent/shared';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from '../mcp-client.js';
 import { createShellMCPClient } from '@frontagent/mcp-shell';
 import {
@@ -87,6 +88,12 @@ function installRunConsoleFilter(debug: boolean): () => void {
 
 function isDebugEnabled(value: unknown): boolean {
   return value === true || value === 'true' || value === '1';
+}
+
+function parseSecurityMode(value: unknown): SecurityMode {
+  return value === 'strict' || value === 'developer' || value === 'balanced'
+    ? value
+    : 'balanced';
 }
 
 function formatRunError(
@@ -241,6 +248,7 @@ export default async function runCommand(
   );
   const maxRecoveryAttempts =
     Number.parseInt(options.maxRecoveryAttempts, 10) || 3;
+  const securityMode = parseSecurityMode(options.securityMode);
   const ragEnabled = !options.disableRag;
   const ragCacheDir = resolve(projectRoot, '.frontagent', 'rag-cache');
   const ragExcludedPathPrefixes = parsePathList(
@@ -300,6 +308,25 @@ export default async function runCommand(
     skillContent: {
       builtInSkillRoots: resolveBuiltInSkillRoots(),
     },
+    security: {
+      mode: securityMode,
+      interactive: true,
+      auditEnabled: true,
+      approvalHandler: (request) =>
+        new Promise<boolean>((resolveApproval) => {
+          store.setState({
+            approval: {
+              approvalId: request.approvalId,
+              toolName: request.toolName,
+              riskLevel: request.riskLevel,
+              reasonCode: request.reasonCode,
+              message: request.message,
+              argsSummary: request.argsSummary,
+              resolve: resolveApproval,
+            },
+          });
+        }),
+    },
     debug,
   };
 
@@ -332,16 +359,7 @@ export default async function runCommand(
     agent.registerMemoryTools();
   }
 
-  // Approval via store instead of readline — Tier 3 bridge state
-  const shellClient = createShellMCPClient(
-    projectRoot,
-    (command: string) =>
-      new Promise<boolean>((resolveApproval) => {
-        store.setState({
-          approval: { command, resolve: resolveApproval },
-        });
-      }),
-  );
+  const shellClient = createShellMCPClient(projectRoot);
   agent.registerMCPClient('shell', shellClient);
   agent.registerShellTools();
 

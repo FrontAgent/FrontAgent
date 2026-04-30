@@ -18,6 +18,7 @@ const browserManager = new BrowserManager({
   headless: process.env.HEADLESS !== 'false',
   slowMo: parseInt(process.env.SLOW_MO ?? '0', 10)
 });
+const enableEvaluate = process.env.FRONTAGENT_ENABLE_WEB_EVALUATE === '1';
 
 // 创建 MCP Server
 const server = new Server(
@@ -173,7 +174,7 @@ const tools = [
       required: ['selector']
     }
   },
-  {
+  ...(enableEvaluate ? [{
     name: 'evaluate',
     description: '在页面中执行 JavaScript 代码',
     inputSchema: {
@@ -186,7 +187,7 @@ const tools = [
       },
       required: ['script']
     }
-  },
+  }] : []),
   {
     name: 'close_browser',
     description: '关闭浏览器',
@@ -289,6 +290,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'evaluate': {
+        if (!enableEvaluate) {
+          return {
+            content: [{ type: 'text', text: 'evaluate is disabled by default. Set FRONTAGENT_ENABLE_WEB_EVALUATE=1 to enable it.' }],
+            isError: true,
+          };
+        }
         const { script } = args as { script: string };
         const result = await browserManager.evaluate(script);
         return {
@@ -341,4 +348,3 @@ process.on('SIGTERM', async () => {
 });
 
 main().catch(console.error);
-

@@ -4,12 +4,15 @@
  */
 
 import { spawn } from 'node:child_process';
+import { isAbsolute, relative, resolve } from 'node:path';
+import { analyzeShellCommand, detectDangerousShellCommand } from '@frontagent/shared';
 
 export interface RunCommandParams {
   command: string;
   workingDirectory?: string;
   timeout?: number;
   requiresApproval?: boolean;
+  __frontagentSecurityApproved?: boolean;
 }
 
 export interface RunCommandResult {
@@ -88,7 +91,20 @@ export class ShellMCPClient {
    * 执行命令（使用 spawn 支持长时间运行的命令）
    */
   private async runCommand(params: RunCommandParams): Promise<RunCommandResult> {
-    const { command, workingDirectory } = params;
+    const {
+      command,
+      workingDirectory,
+      __frontagentSecurityApproved = false,
+    } = params;
+    const analysis = analyzeShellCommand(command);
+    const dangerous = detectDangerousShellCommand(command, analysis);
+
+    if (dangerous.dangerous) {
+      return {
+        success: false,
+        error: dangerous.reason ?? 'Dangerous command blocked by shell hard boundary',
+      };
+    }
 
     // 如果需要批准，先请求用户批准
     if (this.approvalCallback) {
@@ -99,23 +115,35 @@ export class ShellMCPClient {
           error: 'Command execution was rejected by user'
         };
       }
+    } else if (!analysis.structurallyTrusted && !__frontagentSecurityApproved) {
+      return {
+        success: false,
+        error: `Command requires security approval before shell execution: ${analysis.reason ?? 'complex shell structure'}`
+      };
     }
 
-    const cwd = workingDirectory || this.projectRoot;
+    const cwd = resolve(this.projectRoot, workingDirectory ?? '.');
+    const root = resolve(this.projectRoot);
+    const relativeCwd = relative(root, cwd);
+    if (relativeCwd.startsWith('..') || isAbsolute(relativeCwd)) {
+      return {
+        success: false,
+        error: 'Access denied: workingDirectory is outside project root'
+      };
+    }
 
     return new Promise((resolve) => {
-      // 处理 npx 的交互式确认：自动添加 -y 标志
-      let finalCommand = command;
-      if (command.startsWith('npx ') && !command.includes(' -y ') && !command.startsWith('npx -y ')) {
-        finalCommand = command.replace(/^npx /, 'npx -y ');
-      }
-
-      // 使用 shell 模式执行命令，支持管道、重定向等
-      const child = spawn(finalCommand, {
-        cwd,
-        shell: true,
-        stdio: ['ignore', 'pipe', 'pipe']  // stdin 设为 ignore，避免交互式命令卡住
-      });
+      const child = analysis.structurallyTrusted
+        ? spawn(analysis.argv[0], analysis.argv.slice(1), {
+          cwd,
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+        : spawn(command, {
+          cwd,
+          shell: true,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
 
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];

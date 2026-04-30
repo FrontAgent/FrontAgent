@@ -3,8 +3,9 @@
  * 列出目录内容
  */
 
-import { readdirSync, statSync, existsSync } from 'node:fs';
-import { resolve, relative, join } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { relative, join } from 'node:path';
+import { getRealProjectRoot, resolveReadPath } from '../path-safety.js';
 
 export interface ListDirectoryParams {
   path: string;
@@ -36,27 +37,16 @@ export function listDirectory(
 ): ListDirectoryResult {
   const { path: dirPath, recursive = false, includeHidden = false, maxDepth = 3 } = params;
 
-  // 解析完整路径
-  const fullPath = resolve(projectRoot, dirPath);
-
-  // 安全检查
-  if (!fullPath.startsWith(projectRoot)) {
+  const safePath = resolveReadPath(dirPath, projectRoot);
+  if (!safePath.ok) {
     return {
       success: false,
-      error: `Access denied: Path is outside project root`
-    };
-  }
-
-  // 检查目录是否存在
-  if (!existsSync(fullPath)) {
-    return {
-      success: false,
-      error: `Directory not found: ${dirPath}`
+      error: safePath.error
     };
   }
 
   // 检查是否是目录
-  const stat = statSync(fullPath);
+  const stat = statSync(safePath.fullPath);
   if (!stat.isDirectory()) {
     return {
       success: false,
@@ -65,7 +55,7 @@ export function listDirectory(
   }
 
   try {
-    const entries = listRecursive(fullPath, projectRoot, recursive, includeHidden, 0, maxDepth);
+    const entries = listRecursive(safePath.fullPath, getRealProjectRoot(projectRoot), recursive, includeHidden, 0, maxDepth);
     return {
       success: true,
       entries
@@ -173,4 +163,3 @@ export const listDirectorySchema = {
     required: ['path']
   }
 };
-
