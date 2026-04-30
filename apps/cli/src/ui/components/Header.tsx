@@ -19,10 +19,11 @@ const statusLabel: Record<AgentUIState['status'], string> = {
 };
 
 function formatElapsed(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${Math.floor(ms / 1000)}s`;
-  const minutes = Math.floor(ms / 60_000);
-  const seconds = Math.floor((ms % 60_000) / 1000);
+  const elapsed = Math.max(0, ms);
+  if (elapsed < 1000) return `${elapsed}ms`;
+  if (elapsed < 60_000) return `${Math.floor(elapsed / 1000)}s`;
+  const minutes = Math.floor(elapsed / 60_000);
+  const seconds = Math.floor((elapsed % 60_000) / 1000);
   return `${minutes}m${seconds}s`;
 }
 
@@ -30,7 +31,6 @@ export function Header({ store }: HeaderProps) {
   const status = useStoreSelector(store, (s) => s.status);
   const task = useStoreSelector(store, (s) => s.taskDescription);
   const startTime = useStoreSelector(store, (s) => s.startTime);
-  const lastActivityAt = useStoreSelector(store, (s) => s.lastActivityAt);
   const lastActivityLabel = useStoreSelector(store, (s) => s.lastActivityLabel);
   const currentOperation = useStoreSelector(store, (s) => s.currentOperation);
   const runLogPath = useStoreSelector(store, (s) => s.runLogPath);
@@ -54,7 +54,7 @@ export function Header({ store }: HeaderProps) {
       <Box paddingLeft={2}>
         {isActive ? (
           <Text color="yellow">
-            <Spinner type="dots" /> {statusLabel[status]} · 已运行 {formatElapsed(now - startTime)} · 最后活动 {formatElapsed(now - lastActivityAt)} 前
+            <Spinner type="dots" /> {statusLabel[status]} · 已运行 {formatElapsed(now - startTime)}
           </Text>
         ) : (
           <Text color={status === 'error' ? 'red' : 'green'}>
