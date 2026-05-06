@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+- Added FrontAgent extension logs through a dedicated output channel.
+- Deferred runtime loading until a command or chat run needs it, so commands can register even if the runtime fails later.
+- Added `frontagent.apiKey` as a settings fallback while keeping SecretStorage as the recommended storage path.
+
 ## 1.0.2
 
 - Fixed extension activation by bundling the extension host entry as CommonJS.

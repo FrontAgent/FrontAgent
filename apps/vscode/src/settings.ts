@@ -5,6 +5,7 @@ export interface ConfigSourceValues {
     provider?: string;
     model?: string;
     baseUrl?: string;
+    apiKey?: string;
   };
   secrets: {
     providerApiKey?: string;
@@ -40,6 +41,7 @@ export function resolveConfigStatusFromSources(values: ConfigSourceValues): Conf
   const apiKey =
     emptyToUndefined(values.secrets.providerApiKey) ??
     emptyToUndefined(values.secrets.legacyApiKey) ??
+    emptyToUndefined(values.settings.apiKey) ??
     (providerApiKeyEnv ? emptyToUndefined(values.env[providerApiKeyEnv]) : undefined) ??
     emptyToUndefined(values.env.API_KEY);
 

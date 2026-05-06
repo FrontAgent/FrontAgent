@@ -33,13 +33,14 @@ fa run "Create a user login page"
 
 FrontAgent for VS Code is a desktop extension. It uses Node.js, local file system access, shell tooling, and browser automation capabilities from the FrontAgent runtime.
 
-Configure a provider, model, base URL, and API key with `FrontAgent: Configure` or the sidebar configuration panel before running tasks. API keys are stored in VS Code SecretStorage.
+Configure a provider, model, base URL, and API key with `FrontAgent: Configure` or the sidebar configuration panel before running tasks. API keys entered there are stored in VS Code SecretStorage. You can also use `frontagent.apiKey` in Settings as a fallback when you explicitly want a settings-based key.
 
 ## Extension Settings
 
 - `frontagent.provider`: LLM provider, `anthropic` or `openai`.
 - `frontagent.model`: Model name.
 - `frontagent.baseUrl`: API base URL.
+- `frontagent.apiKey`: Optional API key fallback; SecretStorage is recommended.
 - `frontagent.maxTokens`: Maximum output tokens.
 - `frontagent.temperature`: Sampling temperature.
 - `frontagent.securityMode`: Tool execution security mode.
@@ -47,6 +48,8 @@ Configure a provider, model, base URL, and API key with `FrontAgent: Configure` 
 - `frontagent.rag.repo`: Knowledge-base Git repository.
 - `frontagent.rag.branch`: Knowledge-base branch.
 - `frontagent.runLog.enabled`: Enable run logs.
+
+Use `FrontAgent: Show Extension Logs` to inspect activation, command registration, runtime loading, and webview errors.
 
 ## Known Limits
 

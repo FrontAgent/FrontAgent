@@ -10,6 +10,9 @@ describe('VS Code extension manifest', () => {
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       main: string;
       contributes: {
+        configuration: {
+          properties: Record<string, unknown>;
+        };
         viewsContainers: {
           activitybar: Array<{ icon: string }>;
         };
@@ -20,6 +23,7 @@ describe('VS Code extension manifest', () => {
     const icon = manifest.contributes.viewsContainers.activitybar[0].icon;
     expect(icon).toBe('media/activitybar.svg');
     expect(existsSync(resolve(root, icon))).toBe(true);
+    expect(manifest.contributes.configuration.properties).toHaveProperty('frontagent.apiKey');
   });
 
   it('contributes all commands used by the sidebar and editor context menus', () => {
@@ -38,6 +42,7 @@ describe('VS Code extension manifest', () => {
       'frontagent.initSdd',
       'frontagent.validateSdd',
       'frontagent.openRunLog',
+      'frontagent.showLogs',
     ]) {
       expect(commands.has(command)).toBe(true);
     }
