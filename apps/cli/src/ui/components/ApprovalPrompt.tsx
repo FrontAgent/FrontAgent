@@ -8,6 +8,7 @@ interface ApprovalPromptProps {
 
 export function ApprovalPrompt({ store }: ApprovalPromptProps) {
   const approval = useStoreSelector(store, (s) => s.approval);
+  const canReadInput = process.stdin.isTTY !== false;
 
   useInput(
     (input) => {
@@ -19,7 +20,7 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
         store.resolveApproval(approval.approvalId, false);
       }
     },
-    { isActive: approval !== null },
+    { isActive: approval !== null && canReadInput },
   );
 
   if (!approval) return null;
@@ -45,11 +46,15 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
         <Text>{`  ${approval.message}`}</Text>
       </Box>
       <Box marginTop={1}>
-        <Text>
-          允许执行? <Text bold color="green">y</Text>
-          <Text dimColor>/</Text>
-          <Text bold color="red">N</Text>
-        </Text>
+        {canReadInput ? (
+          <Text>
+            允许执行? <Text bold color="green">y</Text>
+            <Text dimColor>/</Text>
+            <Text bold color="red">N</Text>
+          </Text>
+        ) : (
+          <Text dimColor>当前终端不可交互，审批请求将被自动拒绝。</Text>
+        )}
       </Box>
     </Box>
   );

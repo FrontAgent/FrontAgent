@@ -148,8 +148,10 @@ export class Planner {
   ): Promise<ExecutionPlan | null> {
     let steps: ExecutionStep[];
 
-    // 使用 LLM 生成计划
-    if (this.config.useLLM) {
+    if (task.type === 'query') {
+      steps = this.generateStepsForTask(task, context);
+    } else if (this.config.useLLM) {
+      // 使用 LLM 生成计划
       try {
         const llmPlan = await this.generatePlanWithLLM(task, context);
         steps = this.convertLLMPlanToSteps(llmPlan);
@@ -620,14 +622,49 @@ export class Planner {
    */
   private generateQuerySteps(task: AgentTask): ExecutionStep[] {
     const steps: ExecutionStep[] = [];
+    const relevantFiles = task.context?.relevantFiles ?? [];
 
-    // 搜索代码
-    steps.push(this.createStep({
-      description: '搜索相关代码',
-      action: 'search_code',
-      tool: 'search_code',
-      params: { query: task.description }
-    }));
+    for (const file of relevantFiles) {
+      steps.push(this.createStep({
+        description: `读取文件 ${file}`,
+        action: 'read_file',
+        tool: 'read_file',
+        params: { path: file },
+        validation: [{ type: 'file_exists', required: true }],
+        phase: '阶段1-分析',
+      }));
+    }
+
+    if (task.context?.browserUrl) {
+      const navigateStep = this.createStep({
+        description: '打开查询相关页面',
+        action: 'browser_navigate',
+        tool: 'browser_navigate',
+        params: { url: task.context.browserUrl },
+        dependencies: steps.length > 0 ? [steps[steps.length - 1].stepId] : [],
+        phase: '阶段1-分析',
+      });
+      steps.push(navigateStep);
+
+      steps.push(this.createStep({
+        description: '读取页面结构作为回答证据',
+        action: 'get_page_structure',
+        tool: 'get_page_structure',
+        params: {},
+        dependencies: [navigateStep.stepId],
+        phase: '阶段1-分析',
+      }));
+    }
+
+    if (steps.length === 0) {
+      steps.push(this.createStep({
+        description: '搜索相关代码',
+        action: 'search_code',
+        tool: 'search_code',
+        params: { query: task.description, maxResults: 20 },
+        phase: '阶段1-分析',
+      }));
+    }
 
     return steps;
   }

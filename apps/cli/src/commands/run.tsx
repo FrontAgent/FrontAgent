@@ -37,6 +37,7 @@ export default async function runCommand(
   const projectRoot = process.cwd();
   const sddPath = resolve(projectRoot, options.sdd);
   const debug = isDebugEnabled(options.debug);
+  const canPromptForApproval = process.stdin.isTTY !== false;
 
   if (!existsSync(sddPath) && debug) {
     console.log(
@@ -72,8 +73,13 @@ export default async function runCommand(
           store.setState({ runLogPath });
         }
       },
-      onApprovalRequest: (request) =>
-        new Promise<boolean>((resolveApproval) => {
+      onApprovalRequest: (request) => {
+        if (!canPromptForApproval) {
+          store.recordActivity('审批不可交互，已拒绝工具执行', request.toolName);
+          return Promise.resolve(false);
+        }
+
+        return new Promise<boolean>((resolveApproval) => {
           store.setState({
             approval: {
               approvalId: request.approvalId,
@@ -85,7 +91,8 @@ export default async function runCommand(
               resolve: resolveApproval,
             },
           });
-        }),
+        });
+      },
       onEvent: (event) => {
         eventBridge(event);
         if (event.type === 'stream_token') {

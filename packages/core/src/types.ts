@@ -81,7 +81,7 @@ export interface RagConfig {
   maxResults?: number;
   /** 缓存目录（默认 projectRoot/.frontagent/rag-cache） */
   cacheDir?: string;
-  /** 是否在查询时尝试同步远程仓库（默认 true） */
+  /** 是否在查询时尝试同步远程仓库（默认 false；缺少缓存时仍会 clone） */
   syncOnQuery?: boolean;
   /** 额外排除的路径前缀；子模块路径会自动排除 */
   excludedPathPrefixes?: string[];

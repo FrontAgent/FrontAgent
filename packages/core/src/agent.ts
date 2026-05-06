@@ -1602,8 +1602,11 @@ export class FrontAgent {
       return undefined;
     }
 
+    const startedAt = Date.now();
     try {
+      const rewriteStartedAt = Date.now();
       const rewrittenQuery = await this.rewriteRagQueryForRetrieval(query);
+      const rewriteDurationMs = Date.now() - rewriteStartedAt;
       const retrievalQuery = rewrittenQuery
         ? mergeRetrievalQuery(query, rewrittenQuery)
         : normalizeSearchQuery(query);
@@ -1633,10 +1636,30 @@ export class FrontAgent {
           score?: number;
           rerankScore?: number;
         }>;
+        error?: string;
       };
 
       if (!result.success) {
-        return undefined;
+        const warnings = [
+          `RAG query failed after ${Date.now() - startedAt}ms: ${result.error ?? 'unknown error'}`,
+        ];
+        this.contextManager.setRagMetadata(taskId, {
+          matches: [],
+          searchMode: result.searchMode,
+          warnings,
+        });
+        this.debugWarn('[Agent] RAG query failed:', {
+          durationMs: Date.now() - startedAt,
+          rewriteDurationMs,
+          error: result.error,
+        });
+        return {
+          formattedResults: [],
+          matches: [],
+          searchMode: result.searchMode,
+          reranked: result.reranked,
+          warnings,
+        };
       }
 
       const matches = (result.results ?? []).map((item) => ({
@@ -1657,6 +1680,14 @@ export class FrontAgent {
         searchMode: result.searchMode,
         warnings: result.warnings,
       });
+      this.debugLog('[Agent] RAG retrieval completed:', {
+        durationMs: Date.now() - startedAt,
+        rewriteDurationMs,
+        searchMode: result.searchMode,
+        resultCount: matches.length,
+        reranked: result.reranked,
+        warningCount: result.warnings?.length ?? 0,
+      });
       return {
         formattedResults,
         matches,
@@ -1666,7 +1697,18 @@ export class FrontAgent {
       };
     } catch (error) {
       this.debugWarn('[Agent] Failed to retrieve RAG context:', error);
-      return undefined;
+      const warnings = [
+        `RAG query failed after ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`,
+      ];
+      this.contextManager.setRagMetadata(taskId, {
+        matches: [],
+        warnings,
+      });
+      return {
+        formattedResults: [],
+        matches: [],
+        warnings,
+      };
     }
   }
 
