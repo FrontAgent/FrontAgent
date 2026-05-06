@@ -82,6 +82,7 @@ program
   .option('--langgraph-checkpoint', '启用 LangGraph checkpoint', false)
   .option('--max-recovery-attempts <n>', '阶段恢复最大重试次数', process.env.MAX_RECOVERY_ATTEMPTS || '3')
   .option('--disable-rag', '禁用远程知识库 RAG', false)
+  .option('--rag-sync-on-query', '每次 RAG 查询前同步远程仓库（默认只在缺少本地缓存时 clone）')
   .option('--rag-repo <url>', '远程知识库 Git 仓库地址', process.env.FRONTAGENT_RAG_REPO || 'https://github.com/ceilf6/Lab.git')
   .option('--rag-branch <branch>', '远程知识库分支', process.env.FRONTAGENT_RAG_BRANCH || 'main')
   .option('--rag-max-results <n>', '规划前 RAG 返回条数', process.env.FRONTAGENT_RAG_MAX_RESULTS || '5')

@@ -147,6 +147,9 @@ fa run "Explain React setState behavior" \
 
 # Disable remote RAG for a run
 fa run "Create a page" --disable-rag
+
+# Force a remote git sync before this query; by default FrontAgent reuses the local cache
+fa run "Explain React setState behavior" --rag-sync-on-query
 ```
 
 ## Skill Lab
@@ -193,6 +196,7 @@ Environment variables:
 ```bash
 export FRONTAGENT_RAG_REPO="https://github.com/ceilf6/Lab.git"
 export FRONTAGENT_RAG_BRANCH="main"
+export FRONTAGENT_RAG_SYNC_ON_QUERY="false"
 export FRONTAGENT_RAG_MAX_RESULTS="5"
 export FRONTAGENT_RAG_KEYWORD_CANDIDATES="40"
 export FRONTAGENT_RAG_SEMANTIC_CANDIDATES="40"
