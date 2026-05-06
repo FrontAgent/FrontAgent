@@ -40,6 +40,22 @@ describe('VS Code config resolution', () => {
     });
   });
 
+  it('accepts API key from settings when SecretStorage is empty', () => {
+    const status = resolveConfigStatusFromSources({
+      settings: {
+        provider: 'openai',
+        model: 'zai-org/GLM-4.6',
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'settings-key',
+      },
+      secrets: {},
+      env: {},
+    });
+
+    expect(status.configured).toBe(true);
+    expect(status.hasApiKey).toBe(true);
+  });
+
   it('falls back to provider-specific env values', () => {
     const status = resolveConfigStatusFromSources({
       settings: {},

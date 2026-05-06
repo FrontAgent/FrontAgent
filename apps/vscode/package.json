@@ -2,7 +2,7 @@
   "name": "frontagent",
   "displayName": "FrontAgent",
   "description": "Chat with FrontAgent from a VS Code sidebar.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "ceilf6",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -34,6 +34,7 @@
     "onCommand:frontagent.initSdd",
     "onCommand:frontagent.validateSdd",
     "onCommand:frontagent.openRunLog",
+    "onCommand:frontagent.showLogs",
     "onCommand:frontagent.configure"
   ],
   "contributes": {
@@ -87,6 +88,11 @@
         "category": "FrontAgent"
       },
       {
+        "command": "frontagent.showLogs",
+        "title": "FrontAgent: Show Extension Logs",
+        "category": "FrontAgent"
+      },
+      {
         "command": "frontagent.configure",
         "title": "FrontAgent: Configure",
         "category": "FrontAgent"
@@ -101,6 +107,11 @@
         },
         {
           "command": "frontagent.configure",
+          "when": "view == frontagent.taskView",
+          "group": "navigation"
+        },
+        {
+          "command": "frontagent.showLogs",
           "when": "view == frontagent.taskView",
           "group": "navigation"
         }
@@ -136,6 +147,11 @@
           "type": "string",
           "default": "",
           "description": "OpenAI/Anthropic-compatible API base URL. Leave empty to read provider-specific env vars or BASE_URL."
+        },
+        "frontagent.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional API key fallback. Prefer `FrontAgent: Configure` or the sidebar Configure form because they store keys in VS Code SecretStorage. Leave empty to read provider-specific env vars or `API_KEY`."
         },
         "frontagent.maxTokens": {
           "type": "number",
