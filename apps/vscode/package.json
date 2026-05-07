@@ -2,7 +2,7 @@
   "name": "frontagent",
   "displayName": "FrontAgent",
   "description": "Chat with FrontAgent from a VS Code sidebar.",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "publisher": "ceilf6",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -134,7 +134,11 @@
       "properties": {
         "frontagent.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai"],
+          "enum": [
+            "",
+            "anthropic",
+            "openai"
+          ],
           "default": "",
           "description": "LLM provider used by FrontAgent. Leave empty to read PROVIDER from the environment."
         },
@@ -168,7 +172,11 @@
         },
         "frontagent.securityMode": {
           "type": "string",
-          "enum": ["balanced", "strict", "developer"],
+          "enum": [
+            "balanced",
+            "strict",
+            "developer"
+          ],
           "default": "balanced",
           "description": "Tool execution security mode."
         },
