@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+
+- Deferred Playwright loading until browser tools are actually used, so the FrontAgent runtime can load in the VS Code extension without a local Playwright install.
+
 ## 1.0.3
 
 - Added FrontAgent extension logs through a dedicated output channel.

@@ -3,8 +3,10 @@
  * 封装 Playwright 提供浏览器操作能力
  */
 
-import { chromium, Browser, Page, BrowserContext } from 'playwright';
+import type { Browser, Page, BrowserContext } from 'playwright';
 import type { DOMNode, AXNode, InteractiveElement } from '@frontagent/shared';
+
+type PlaywrightModule = typeof import('playwright');
 
 export interface BrowserConfig {
   headless?: boolean;
@@ -20,6 +22,7 @@ export class BrowserManager {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private config: Required<BrowserConfig>;
+  private playwright?: PlaywrightModule;
 
   constructor(config: BrowserConfig = {}) {
     this.config = {
@@ -37,6 +40,7 @@ export class BrowserManager {
       return;
     }
 
+    const { chromium } = await this.loadPlaywright();
     this.browser = await chromium.launch({
       headless: this.config.headless,
       slowMo: this.config.slowMo
@@ -375,6 +379,26 @@ export class BrowserManager {
       await this.launch();
     }
   }
+
+  private async loadPlaywright(): Promise<PlaywrightModule> {
+    if (this.playwright) {
+      return this.playwright;
+    }
+
+    try {
+      this.playwright = await import('playwright');
+      return this.playwright;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        [
+          'Playwright is required only when FrontAgent uses browser tools, but it could not be loaded.',
+          `Original error: ${message}`,
+          'If you need browser URL context in the VS Code extension, install a VSIX that bundles Playwright or run the CLI in an environment with Playwright installed.',
+        ].join('\n'),
+      );
+    }
+  }
 }
 
 /**
@@ -383,4 +407,3 @@ export class BrowserManager {
 export function createBrowserManager(config?: BrowserConfig): BrowserManager {
   return new BrowserManager(config);
 }
-
