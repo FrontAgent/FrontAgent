@@ -820,6 +820,55 @@ function getWebviewHtml(webview: vscode.Webview): string {
       background: var(--panel);
       border-radius: 0 10px 10px 0;
     }
+    .live-card {
+      display: grid;
+      gap: 8px;
+      width: min(100%, 620px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: var(--panel);
+    }
+    .live-status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+      flex: 0 0 auto;
+    }
+    .live-label {
+      color: var(--vscode-foreground);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .live-operation {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .stream-content {
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .stream-cursor {
+      display: inline-block;
+      width: 6px;
+      height: 1em;
+      margin-left: 2px;
+      vertical-align: -0.15em;
+      background: var(--accent);
+    }
     .approval {
       border: 1px solid var(--warning);
       border-radius: 10px;
@@ -1007,6 +1056,22 @@ function getWebviewHtml(webview: vscode.Webview): string {
     .muted { color: var(--muted); }
     .danger { color: var(--danger); }
     .hidden { display: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      .live-dot {
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      .stream-cursor {
+        animation: blink 1s steps(2, start) infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(0.85); opacity: 0.7; }
+        50% { transform: scale(1); opacity: 1; }
+      }
+      @keyframes blink {
+        0%, 45% { opacity: 1; }
+        46%, 100% { opacity: 0; }
+      }
+    }
   </style>
 </head>
 <body>
@@ -1121,7 +1186,7 @@ function getWebviewHtml(webview: vscode.Webview): string {
     function render(next) {
       state = next;
       activeMode = next.mode || activeMode;
-      $('status').textContent = next.status;
+      $('status').textContent = next.isRunning ? next.lastActivityLabel || next.status : next.status;
       $('sendButton').disabled = next.isRunning || !next.configStatus.configured;
       $('stopButton').disabled = !next.isRunning;
       renderConfig(next.configStatus);
@@ -1186,8 +1251,24 @@ function getWebviewHtml(webview: vscode.Webview): string {
             \${meta.length ? \`<div class="meta">\${meta.map((item) => \`<span class="chip">\${escapeHtml(item)}</span>\`).join('')}</div>\` : ''}
           </div>\`);
       }
-      if (next.streamText) {
-        parts.push(\`<div class="message assistant"><div class="role">assistant</div><div class="draft">\${escapeHtml(next.streamText)}</div></div>\`);
+      if (next.isRunning || next.streamText) {
+        const label = next.lastActivityLabel || 'FrontAgent is working';
+        const operation = next.currentOperation || next.status || '';
+        const stream = next.streamText
+          ? \`<div class="stream-content">\${escapeHtml(next.streamText)}<span class="stream-cursor"></span></div>\`
+          : '<div class="muted">Waiting for the first streamed response...</div>';
+        parts.push(\`
+          <div class="message assistant">
+            <div class="role">assistant</div>
+            <div class="live-card">
+              <div class="live-status">
+                <span class="live-dot"></span>
+                <span class="live-label">\${escapeHtml(label)}</span>
+                \${operation ? \`<span class="live-operation">\${escapeHtml(operation)}</span>\` : ''}
+              </div>
+              \${stream}
+            </div>
+          </div>\`);
       }
       if (next.approval) {
         parts.push(\`
