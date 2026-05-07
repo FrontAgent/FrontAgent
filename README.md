@@ -39,8 +39,9 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 FrontAgent now supports both terminal-first and VS Code desktop workflows:
 
 - **CLI**: use `fa init`, `fa run`, RAG commands, Skill Lab, and automation-friendly workflows directly from your terminal.
-- **VS Code Extension**: use the FrontAgent sidebar task console to run tasks, attach the current file or selection, provide a browser URL, review phase/step progress, approve sensitive actions, initialize/validate SDD, and open run logs from inside VS Code.  
-  Install the VS Code extension from the Marketplace: <a href="vscode:extension/ceilf6.frontagent"><button>One-Click Install</button></a>
+- **VS Code Extension**: use the FrontAgent sidebar task console to run tasks, attach the current file or selection, provide a browser URL, review phase/step progress, approve sensitive actions, initialize/validate SDD, and open run logs from inside VS Code.
+
+Install the VS Code extension from the Marketplace by searching for `FrontAgent` or the extension id `ceilf6.frontagent`.
 
 ## CLI Quick Start
 
