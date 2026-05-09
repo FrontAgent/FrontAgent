@@ -14,6 +14,8 @@
 
 FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在真实工程场景中部署 agent 时遇到的核心问题：
 
+> **蒸馏规划模型**：FrontAgent 的 Planner 阶段已蒸馏为一个独立的小模型 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)，可基于 Qwen2.5-Coder-7B 加载 LoRA adapter 直接生成前端执行计划，无需调用大型 LLM API。
+
 - ✅ **两阶段架构** — 规划与执行分离，避免 JSON 解析错误并支持动态代码生成
 - ✅ **分阶段执行** — 步骤按阶段分组，支持阶段内错误恢复
 - ✅ **自愈能力** — 工具错误反馈循环会自动分析错误并生成修复步骤
@@ -938,6 +940,7 @@ pnpm clean
 - LangGraph 执行引擎（可选）（NEW）
 - 仓库管理阶段（git/gh 自动化）（NEW）
 - 跨会话记忆系统（NEW）— 四阶段持久化记忆 + 结构化 Markdown 存储 + 运行时召回 + Prompt 分区
+- Planner 蒸馏模型 — 基于 FrontAgent Planner 提示词 SFT 微调，发布为 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)（Qwen2.5-Coder-7B + LoRA，100% JSON 合法率，100% 完整计划率）
 
 进行中 🚧
 - 增强的 SDD 约束（更细粒度规则）
