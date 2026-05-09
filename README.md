@@ -14,6 +14,8 @@
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
+> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs.
+
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
 - ✅ **Self-Healing** - Tool Error Feedback Loop automatically analyzes errors and generates fix steps
@@ -996,6 +998,7 @@ pnpm clean
 - [x] **LangGraph execution engine (optional)** (NEW!)
 - [x] **Repository management phase (git/gh automation)** (NEW!)
 - [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
+- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)
