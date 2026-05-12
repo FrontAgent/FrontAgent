@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
 
 export interface SddInitResult {
@@ -93,9 +93,27 @@ modification_rules:
 `;
 }
 
-export function initSddConfig(projectRoot: string, output = 'sdd.yaml'): SddInitResult {
+function isInsidePath(child: string, parent: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+export function initSddConfig(
+  projectRoot: string,
+  output = 'sdd.yaml',
+  options: { force?: boolean } = {},
+): SddInitResult {
   const outputPath = resolve(projectRoot, output);
-  if (existsSync(outputPath)) {
+  const root = resolve(projectRoot);
+  if (!isInsidePath(outputPath, root)) {
+    return {
+      created: false,
+      path: outputPath,
+      message: `拒绝写入项目根目录之外的 SDD 文件: ${outputPath}`,
+    };
+  }
+
+  if (existsSync(outputPath) && !options.force) {
     return {
       created: false,
       path: outputPath,

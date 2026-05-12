@@ -2,6 +2,7 @@
  * Agent Core 类型定义
  */
 
+import type { z } from 'zod';
 import type {
   ApprovalRequest,
   AgentTask,
@@ -43,6 +44,14 @@ export interface AgentConfig {
   security?: AgentSecurityConfig;
   /** 调试模式 */
   debug?: boolean;
+}
+
+export interface AgentPlanResult {
+  success: boolean;
+  taskId: string;
+  plan?: ExecutionPlan;
+  error?: string;
+  duration: number;
 }
 
 export interface AgentSecurityConfig extends SecurityConfig {
@@ -188,6 +197,29 @@ export interface LLMConfig {
   topK?: number;
   /** 调试模式：打印 LLM 内部重试和修复日志 */
   debug?: boolean;
+  /** Optional runtime LLM backend, e.g. MCP sampling with direct-provider fallback. */
+  backend?: LLMBackend;
+}
+
+export interface LLMGenerateTextOptions {
+  messages: Message[];
+  system?: string;
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+}
+
+export interface LLMGenerateObjectOptions<T> extends LLMGenerateTextOptions {
+  schema: z.ZodType<T>;
+  maxRetries?: number;
+}
+
+export interface LLMBackend {
+  readonly name: string;
+  generateText(options: LLMGenerateTextOptions): Promise<string>;
+  streamText?(options: LLMGenerateTextOptions): AsyncGenerator<string>;
+  generateObject<T>(options: LLMGenerateObjectOptions<T>): Promise<T>;
 }
 
 /**
