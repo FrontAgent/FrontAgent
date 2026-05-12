@@ -5,6 +5,8 @@ import {
   type AgentConfig,
   type AgentEvent,
   type AgentExecutionResult,
+  type AgentPlanResult,
+  type LLMBackend,
 } from '@frontagent/core';
 import type { ApprovalRequest, TaskType } from '@frontagent/shared';
 import { createShellMCPClient } from '@frontagent/mcp-shell';
@@ -31,6 +33,8 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   filterConsole?: boolean;
   builtInSkillRoots?: string[];
   codeQualityIsolationMode?: 'process' | 'in_memory';
+  streamShellOutput?: boolean;
+  llmBackend?: LLMBackend;
   signal?: AbortSignal;
   onRunLogPath?: (path: string | null) => void;
   onEvent?: (event: AgentEvent) => void;
@@ -91,6 +95,7 @@ export async function runFrontAgentTask(
       onEvent: undefined,
       onApprovalRequest: undefined,
       onRunLogPath: undefined,
+      llmBackend: options.llmBackend ? `[${options.llmBackend.name}]` : undefined,
       signal: undefined,
     },
   });
@@ -104,7 +109,10 @@ export async function runFrontAgentTask(
   const config: AgentConfig = {
     projectRoot,
     sddPath: existsSync(sddPath) ? sddPath : undefined,
-    llm: resolved.llm,
+    llm: {
+      ...resolved.llm,
+      backend: options.llmBackend,
+    },
     execution: resolved.execution,
     rag: resolved.rag,
     skillContent: {
@@ -147,6 +155,7 @@ export async function runFrontAgentTask(
       chunkSize: resolved.rag.chunkSize,
       chunkOverlap: resolved.rag.chunkOverlap,
       maxFileSizeBytes: resolved.rag.maxFileSizeBytes,
+      reranker: resolved.rag.reranker,
       embedding: resolved.rag.embedding,
       vectorStore: resolved.rag.vectorStore,
     });
@@ -154,7 +163,9 @@ export async function runFrontAgentTask(
     agent.registerMemoryTools();
   }
 
-  const shellClient = createShellMCPClient(projectRoot);
+  const shellClient = createShellMCPClient(projectRoot, undefined, {
+    streamOutput: options.streamShellOutput ?? true,
+  });
   agent.registerMCPClient('shell', shellClient);
   agent.registerShellTools();
 
@@ -199,6 +210,161 @@ export async function runFrontAgentTask(
       }),
       duration: 0,
       validations: [],
+    };
+  } finally {
+    try {
+      options.onEvent?.({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      runLogger?.event({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      await webClient.close();
+    } catch (error) {
+      runLogger?.error(error);
+    } finally {
+      options.onEvent?.({ type: 'status_update', label: '收尾完成' });
+      runLogger?.event({ type: 'status_update', label: '收尾完成' });
+      restoreConsole();
+      runLogger?.close();
+    }
+  }
+}
+
+export interface PlanFrontAgentTaskOptions extends RunFrontAgentTaskOptions {}
+
+export async function planFrontAgentTask(
+  options: PlanFrontAgentTaskOptions,
+): Promise<AgentPlanResult> {
+  const projectRoot = options.projectRoot;
+  const sddPath = resolve(projectRoot, options.sddPath ?? 'sdd.yaml');
+  const debug = isDebugEnabled(options.debug);
+  const resolved = resolveRuntimeConfig(options, projectRoot);
+  const runLogger = createRunLogger({
+    projectRoot,
+    enabled: options.runLog !== false,
+    logFile: options.logFile,
+    task: options.task,
+    provider: resolved.provider,
+    model: resolved.model,
+    baseURL: resolved.llm.baseURL,
+    options: {
+      ...options,
+      apiKey: options.apiKey ? '[REDACTED]' : undefined,
+      ragEmbeddingApiKey: options.ragEmbeddingApiKey ? '[REDACTED]' : undefined,
+      ragRerankerApiKey: options.ragRerankerApiKey ? '[REDACTED]' : undefined,
+      ragWeaviateApiKey: options.ragWeaviateApiKey ? '[REDACTED]' : undefined,
+      onEvent: undefined,
+      onApprovalRequest: undefined,
+      onRunLogPath: undefined,
+      llmBackend: options.llmBackend ? `[${options.llmBackend.name}]` : undefined,
+      signal: undefined,
+    },
+  });
+  options.onRunLogPath?.(runLogger?.path ?? null);
+
+  const restoreConsole = options.filterConsole
+    ? installRunConsoleFilter(debug, runLogger)
+    : () => {};
+  const webClient = new WebMCPClient();
+
+  const config: AgentConfig = {
+    projectRoot,
+    sddPath: existsSync(sddPath) ? sddPath : undefined,
+    llm: {
+      ...resolved.llm,
+      backend: options.llmBackend,
+    },
+    execution: resolved.execution,
+    rag: resolved.rag,
+    skillContent: {
+      builtInSkillRoots: resolveBuiltInSkillRoots(options.builtInSkillRoots),
+    },
+    security: {
+      mode: resolved.securityMode,
+      interactive: Boolean(options.onApprovalRequest),
+      auditEnabled: true,
+      approvalHandler: options.onApprovalRequest,
+    },
+    subAgents: options.codeQualityIsolationMode
+      ? {
+          codeQualityEvaluator: {
+            isolationMode: options.codeQualityIsolationMode,
+          },
+        }
+      : undefined,
+    debug,
+  };
+
+  const agent = createAgent(config);
+
+  const fileClient = new FileMCPClient(projectRoot);
+  agent.registerMCPClient('file', fileClient);
+  agent.registerFileTools();
+
+  if (resolved.rag.enabled !== false) {
+    const memoryClient = new MemoryMCPClient({
+      repoUrl: resolved.rag.repoUrl,
+      branch: resolved.rag.branch ?? 'main',
+      cacheDir: resolved.rag.cacheDir ?? getDefaultRagCacheDir(projectRoot),
+      syncOnQuery: resolved.rag.syncOnQuery,
+      maxResults: resolved.rag.maxResults,
+      excludedPathPrefixes: resolved.rag.excludedPathPrefixes,
+      keywordCandidateCount: resolved.rag.keywordCandidateCount,
+      semanticCandidateCount: resolved.rag.semanticCandidateCount,
+      keywordWeight: resolved.rag.keywordWeight,
+      semanticWeight: resolved.rag.semanticWeight,
+      chunkSize: resolved.rag.chunkSize,
+      chunkOverlap: resolved.rag.chunkOverlap,
+      maxFileSizeBytes: resolved.rag.maxFileSizeBytes,
+      reranker: resolved.rag.reranker,
+      embedding: resolved.rag.embedding,
+      vectorStore: resolved.rag.vectorStore,
+    });
+    agent.registerMCPClient('memory', memoryClient);
+    agent.registerMemoryTools();
+  }
+
+  const shellClient = createShellMCPClient(projectRoot, undefined, {
+    streamOutput: options.streamShellOutput ?? true,
+  });
+  agent.registerMCPClient('shell', shellClient);
+  agent.registerShellTools();
+
+  agent.registerMCPClient('web', webClient);
+  agent.registerWebTools();
+
+  agent.addEventListener((event) => {
+    runLogger?.event(event);
+    options.onEvent?.(event);
+  });
+
+  try {
+    const result = await agent.planOnly(options.task, {
+      type: parseTaskType(String(options.type ?? 'query')),
+      relevantFiles: options.files,
+      browserUrl: options.url,
+      signal: options.signal,
+    });
+    const formattedResult: AgentPlanResult = {
+      ...result,
+      error: formatRunError(result.error, {
+        provider: resolved.provider,
+        model: resolved.model,
+        baseURL: resolved.llm.baseURL,
+        debug,
+      }),
+    };
+    return formattedResult;
+  } catch (error) {
+    runLogger?.error(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      taskId: '',
+      error: formatRunError(errorMessage, {
+        provider: resolved.provider,
+        model: resolved.model,
+        baseURL: resolved.llm.baseURL,
+        debug,
+      }),
+      duration: 0,
     };
   } finally {
     try {

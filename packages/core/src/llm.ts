@@ -39,7 +39,7 @@ function normalizeProviderBaseURL(
  */
 export class LLMService {
   private config: LLMConfig;
-  private model: LanguageModel;
+  private model?: LanguageModel;
 
   // 错误统计（类级别的静态成员）
   private static errorStats = {
@@ -56,7 +56,11 @@ export class LLMService {
 
   constructor(config: LLMConfig) {
     this.config = config;
-    this.model = this.createModel();
+    this.model = config.backend ? undefined : this.createModel();
+  }
+
+  get name(): string {
+    return this.config.backend?.name ?? 'direct';
   }
 
   private isDebug(): boolean {
@@ -210,6 +214,12 @@ export class LLMService {
     topP?: number;
     topK?: number;
   }): Promise<string> {
+    if (this.config.backend) {
+      return this.config.backend.generateText(options);
+    }
+    if (!this.model) {
+      throw new Error('No LLM model is configured');
+    }
     const result = await generateText({
       model: this.model,
       messages: this.convertMessages(options.messages),
@@ -231,6 +241,17 @@ export class LLMService {
     topP?: number;
     topK?: number;
   }): AsyncGenerator<string> {
+    if (this.config.backend?.streamText) {
+      yield* this.config.backend.streamText(options);
+      return;
+    }
+    if (this.config.backend) {
+      yield await this.config.backend.generateText(options);
+      return;
+    }
+    if (!this.model) {
+      throw new Error('No LLM model is configured');
+    }
     const result = streamText({
       model: this.model,
       messages: this.convertMessages(options.messages),
@@ -256,6 +277,12 @@ export class LLMService {
     topK?: number;
     maxRetries?: number; // 最大重试次数
   }): Promise<T> {
+    if (this.config.backend) {
+      return this.config.backend.generateObject(options);
+    }
+    if (!this.model) {
+      throw new Error('No LLM model is configured');
+    }
     const maxRetries = options.maxRetries ?? 2;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {

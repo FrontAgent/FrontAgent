@@ -259,6 +259,15 @@ importers:
       '@frontagent/shared':
         specifier: workspace:*
         version: link:../shared
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.0
+        version: 1.25.1(@cfworker/json-schema@4.1.1)(hono@4.11.3)(zod@3.25.76)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+      zod-to-json-schema:
+        specifier: ^3.25.0
+        version: 3.25.0(zod@3.25.76)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
