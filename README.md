@@ -118,7 +118,7 @@ fa mcp serve \
 
 ### Host Configuration
 
-Most MCP hosts use the same `mcpServers` shape. Put this JSON in the host's MCP configuration file or UI:
+Most MCP hosts use the same `mcpServers` shape. Start with the simple config:
 
 ```json
 {
@@ -134,13 +134,42 @@ Most MCP hosts use the same `mcpServers` shape. Put this JSON in the host's MCP 
 }
 ```
 
-If the host cannot find `fa` on `PATH`, use the built CLI file directly:
+If your host UI has separate fields, use:
+
+- Command: `fa`
+- Args: `mcp`, `serve`
+
+Do not put `fa mcp serve` into the command field as one string.
+
+If the host reports `command "fa" not found` or `env: node: No such file or directory`, the GUI host probably does not inherit your terminal shell `PATH`. Then use absolute paths:
+
+```bash
+which node
+which fa
+```
 
 ```json
 {
   "mcpServers": {
     "frontagent": {
-      "command": "node",
+      "command": "/opt/homebrew/bin/node",
+      "args": [
+        "/opt/homebrew/bin/fa",
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+If you are using a source checkout instead of a globally linked package, point `node` at the built CLI file after `pnpm build`:
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "/opt/homebrew/bin/node",
       "args": [
         "/absolute/path/to/FrontAgent-app/apps/cli/dist/index.js",
         "mcp",

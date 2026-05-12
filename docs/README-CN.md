@@ -80,6 +80,120 @@ fa run "添加深色模式支持"
 fa run "添加路由守卫并创建 PR" --engine langgraph --langgraph-checkpoint
 ```
 
+## MCP Server
+
+FrontAgent 可以作为本地 stdio MCP Server 接入 Claude Desktop、Cursor、Codex 等 MCP Host。
+
+默认启动：
+
+```bash
+fa mcp serve
+```
+
+FrontAgent 会优先使用 MCP Host 暴露的单一 workspace root 作为项目根目录；如果 Host 不提供 roots，则退回 MCP Server 进程的当前工作目录。只有需要固定项目，或 Host 暴露多个 workspace roots 时，才需要显式指定：
+
+```bash
+fa mcp serve --project-root /absolute/path/to/your-project
+```
+
+### Host 配置
+
+大多数 MCP Host 使用 `mcpServers` 配置。优先使用最简配置：
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "fa",
+      "args": [
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+如果 Host UI 分“命令”和“参数”两个输入框：
+
+- 命令：`fa`
+- 参数：`mcp`、`serve`
+
+不要把 `fa mcp serve` 整串填进命令框。
+
+如果遇到 `找不到命令 "fa"` 或 `env: node: No such file or directory`，说明 GUI Host 没继承终端里的 `PATH`。先在终端确认路径：
+
+```bash
+which node
+which fa
+```
+
+再改用绝对路径：
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "/opt/homebrew/bin/node",
+      "args": [
+        "/opt/homebrew/bin/fa",
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+如果使用源码构建产物：
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "/opt/homebrew/bin/node",
+      "args": [
+        "/absolute/path/to/FrontAgent-app/apps/cli/dist/index.js",
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+如需 direct LLM fallback，可通过 Host 配置传入环境变量：
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "fa",
+      "args": ["mcp", "serve"],
+      "env": {
+        "PROVIDER": "openai",
+        "BASE_URL": "https://api.openai.com/v1",
+        "MODEL": "gpt-4",
+        "API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+### 暴露的 MCP 工具
+
+FrontAgent 只暴露上层能力，不直接暴露内部 `read_file`、`apply_patch`、`run_command`、browser 或 RAG 底层工具。
+
+- `frontagent_status`：查看项目、SDD、skills、LLM backend、RAG、日志状态。
+- `frontagent_run_task`：执行完整 FrontAgent 任务。
+- `frontagent_plan_task`：只生成执行计划，不执行、不写文件。
+- `frontagent_validate_sdd`：校验 SDD。
+- `frontagent_list_skills`：列出可见内容技能。
+- `frontagent_init_sdd`：初始化 SDD；已存在时默认不覆盖，除非 `force=true`。
+
+MCP 模式默认使用 `auto` LLM backend：Host 支持 MCP Sampling 时优先使用 Host 模型；否则回退到 FrontAgent direct LLM 配置。由于 stdio MCP 没有 FrontAgent 的交互审批 UI，需要审批的动作会 fail-closed。
+
 ## 远程 RAG
 
 FrontAgent 现在支持一个面向整个远程仓库的知识库流程，用于增强规划和代码生成：
