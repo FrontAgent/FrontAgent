@@ -5,4 +5,5 @@ src/**
 build.mjs
 tsconfig.json
 *.vsix
+dist/**/*.js
 dist/**/*.map

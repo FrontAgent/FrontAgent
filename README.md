@@ -14,6 +14,8 @@
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
+> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs.
+
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
 - ✅ **Self-Healing** - Tool Error Feedback Loop automatically analyzes errors and generates fix steps
@@ -77,6 +79,159 @@ fa run "Add dark mode support"
 # Use LangGraph engine + checkpoint (optional)
 fa run "Add route guards and open a PR" --engine langgraph --langgraph-checkpoint
 ```
+
+## MCP Server
+
+FrontAgent can run as a local stdio MCP Server for MCP hosts such as Claude Desktop, Cursor, Codex, and other clients that can launch a command-based MCP server.
+
+MCP mode exposes FrontAgent's upper-level agent capabilities only. It does not expose raw internal tools such as `read_file`, `apply_patch`, `run_command`, browser tools, or `rag_query` directly to the external host.
+
+### Start the Server
+
+```bash
+# Use the installed CLI
+fa mcp serve
+
+# Or run from a source checkout after pnpm build
+node /absolute/path/to/FrontAgent-app/apps/cli/dist/index.js \
+  mcp serve
+```
+
+By default, FrontAgent resolves the project root from the MCP host's workspace roots when the host exposes exactly one file root. If host roots are unavailable, it falls back to the MCP server process current working directory.
+
+Use `--project-root` only when you want to pin the server to a specific project, or when the host exposes multiple workspace roots and FrontAgent cannot choose safely:
+
+```bash
+fa mcp serve --project-root /absolute/path/to/your-project
+```
+
+One MCP server process is bound to one resolved project root.
+
+Useful server options:
+
+```bash
+fa mcp serve \
+  --security-mode balanced \
+  --rag-repo https://github.com/ceilf6/Lab.git \
+  --rag-branch main
+```
+
+### Host Configuration
+
+Most MCP hosts use the same `mcpServers` shape. Put this JSON in the host's MCP configuration file or UI:
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "fa",
+      "args": [
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+If the host cannot find `fa` on `PATH`, use the built CLI file directly:
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/FrontAgent-app/apps/cli/dist/index.js",
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+For direct LLM fallback, pass environment variables through the host config:
+
+```json
+{
+  "mcpServers": {
+    "frontagent": {
+      "command": "fa",
+      "args": [
+        "mcp",
+        "serve"
+      ],
+      "env": {
+        "PROVIDER": "openai",
+        "BASE_URL": "https://api.openai.com/v1",
+        "MODEL": "gpt-4",
+        "API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+Examples of where to put the config:
+
+- Claude Desktop: add the server under `mcpServers` in `claude_desktop_config.json`.
+- Cursor: add the server under `mcpServers` in your Cursor MCP config, for example `.cursor/mcp.json`.
+- Codex or other MCP hosts: use the same command, args, and env values in the host's MCP server configuration surface.
+
+### Exposed MCP Tools
+
+FrontAgent exposes six MCP tools:
+
+- `frontagent_status`: returns project root, SDD status, visible skills, LLM backend status, RAG status, and run-log directory.
+- `frontagent_run_task`: runs a full FrontAgent task. Inputs include `task`, `type`, `files`, `url`, `sddPath`, and `securityMode`.
+- `frontagent_plan_task`: generates a FrontAgent execution plan without executing tools or writing files.
+- `frontagent_validate_sdd`: validates the project SDD file.
+- `frontagent_list_skills`: lists visible content skills.
+- `frontagent_init_sdd`: creates an SDD template. Existing files are not overwritten unless `force=true`.
+
+`frontagent_run_task` returns structured JSON text with:
+
+```json
+{
+  "success": true,
+  "taskId": "task_...",
+  "output": "...",
+  "error": null,
+  "duration": 1234,
+  "runLogPath": "/absolute/path/.frontagent/runs/...",
+  "executedStepsSummary": [],
+  "securityDecisions": []
+}
+```
+
+### LLM Backend Behavior
+
+MCP mode uses `auto` LLM backend selection:
+
+1. If the host supports MCP Sampling, FrontAgent asks the host model through `sampling/createMessage`.
+2. If Sampling is unsupported or unavailable, FrontAgent falls back to direct LLM configuration.
+
+Direct fallback uses the same environment variables and flags as `fa run`:
+
+```bash
+export PROVIDER="openai"
+export BASE_URL="https://api.openai.com/v1"
+export MODEL="gpt-4"
+export API_KEY="sk-..."
+```
+
+Read-only tools such as `frontagent_status`, `frontagent_list_skills`, `frontagent_validate_sdd`, and `frontagent_init_sdd` do not require LLM configuration. `frontagent_run_task` and `frontagent_plan_task` require either host Sampling support or a valid direct LLM fallback.
+
+### Security Model
+
+MCP mode keeps FrontAgent's internal safety boundary:
+
+- External MCP hosts cannot directly call internal file, shell, browser, or RAG tools.
+- Internal file writes, shell commands, browser actions, and other side effects still go through `SecurityManager`.
+- The default security mode is `balanced`.
+- Because stdio MCP does not provide FrontAgent's interactive approval UI, any action that requires an `ask` decision fails closed.
+- `frontagent_init_sdd` only writes SDD files inside the configured project root.
 
 ## Remote RAG
 
@@ -147,6 +302,9 @@ fa run "Explain React setState behavior" \
 
 # Disable remote RAG for a run
 fa run "Create a page" --disable-rag
+
+# Force a remote git sync before this query; by default FrontAgent reuses the local cache
+fa run "Explain React setState behavior" --rag-sync-on-query
 ```
 
 ## Skill Lab
@@ -193,6 +351,7 @@ Environment variables:
 ```bash
 export FRONTAGENT_RAG_REPO="https://github.com/ceilf6/Lab.git"
 export FRONTAGENT_RAG_BRANCH="main"
+export FRONTAGENT_RAG_SYNC_ON_QUERY="false"
 export FRONTAGENT_RAG_MAX_RESULTS="5"
 export FRONTAGENT_RAG_KEYWORD_CANDIDATES="40"
 export FRONTAGENT_RAG_SEMANTIC_CANDIDATES="40"
@@ -992,6 +1151,7 @@ pnpm clean
 - [x] **LangGraph execution engine (optional)** (NEW!)
 - [x] **Repository management phase (git/gh automation)** (NEW!)
 - [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
+- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)

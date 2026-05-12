@@ -882,7 +882,10 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
     repoUrl: config.repoUrl,
     branch: config.branch,
     cacheDir: resolve(config.cacheDir),
-    syncOnQuery: config.syncOnQuery ?? true,
+    syncOnQuery:
+      config.syncOnQuery ??
+      parseOptionalBoolean(process.env.FRONTAGENT_RAG_SYNC_ON_QUERY) ??
+      false,
     maxResults: config.maxResults ?? DEFAULT_MAX_RESULTS,
     excludedPathPrefixes:
       config.excludedPathPrefixes ??
@@ -2621,6 +2624,20 @@ function parseOptionalInt(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseOptionalBoolean(value: string | undefined): boolean | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+    return true;
+  }
+  if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+    return false;
+  }
+  return undefined;
 }
 
 function parseStringList(value: string | undefined): string[] | undefined {

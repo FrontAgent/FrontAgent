@@ -37,6 +37,7 @@ import type {
   AgentExecutionResult,
   AgentEvent,
   AgentEventListener,
+  AgentPlanResult,
   ProjectFactsUpdate,
   RagContextMatch,
 } from './types.js';
@@ -413,6 +414,191 @@ export class FrontAgent {
 
   private emitStatus(label: string, operation = label, detail?: string): void {
     this.emit({ type: 'status_update', label, operation, detail });
+  }
+
+  /**
+   * 只生成 FrontAgent 执行计划，不进入 Executor。
+   */
+  async planOnly(taskDescription: string, options?: {
+    type?: AgentTask['type'];
+    relevantFiles?: string[];
+    browserUrl?: string;
+    signal?: AbortSignal;
+  }): Promise<AgentPlanResult> {
+    const startTime = Date.now();
+    this.pendingFactsUpdates = [];
+    this.factsUpdateFlushInProgress = false;
+    this.lastAnswerGenerationError = undefined;
+    this.lastLlmFailureError = undefined;
+
+    const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
+    const resolvedTaskDescription = skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
+    const skillContext = skillResolution?.promptContext;
+    const matchedSkillNames = skillResolution?.matchedSkills.map((skill) => skill.name) ?? [];
+
+    const task: AgentTask = {
+      id: generateId('task'),
+      type: options?.type ?? 'query',
+      description: resolvedTaskDescription,
+      context: {
+        workingDirectory: this.config.projectRoot,
+        relevantFiles: options?.relevantFiles,
+        browserUrl: options?.browserUrl
+      }
+    };
+
+    this.emit({ type: 'task_started', task });
+    this.emitStatus('初始化计划任务', '初始化计划上下文');
+
+    try {
+      this.throwIfAborted(options?.signal);
+      this.currentTaskId = task.id;
+
+      const context = this.contextManager.createContext(task, this.sddConfig);
+      context.collectedContext.skillContext = skillContext;
+      context.collectedContext.matchedSkillNames = matchedSkillNames;
+      context.collectedContext.metadata.originalTaskDescription = taskDescription;
+
+      this.emitStatus('加载跨会话记忆', '加载跨会话记忆');
+      this.memoryStore.resetSession();
+      this.preloadMemory(task.id, context);
+
+      if (this.promptGenerator) {
+        this.contextManager.addMessage(task.id, {
+          role: 'system',
+          content: this.promptGenerator.generate()
+        });
+      }
+
+      let projectStructure: string | undefined;
+      const preScannedFiles = new Map<string, string>();
+      try {
+        this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
+        const listResult = await this.executor['callTool']('list_directory', {
+          path: this.config.projectRoot,
+          recursive: true
+        }) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
+
+        if (listResult.success && listResult.entries) {
+          const files = listResult.entries
+            .filter(e => e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'))
+            .map(e => e.path);
+
+          if (files.length > 0) {
+            projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
+          }
+
+          const configFiles = files.filter(f =>
+            f.endsWith('package.json') ||
+            f.includes('vite.config')
+          );
+          for (const configFile of configFiles) {
+            try {
+              const readResult = await this.executor['callTool']('read_file', { path: configFile }) as { success: boolean; content?: string };
+              if (readResult.success && readResult.content) {
+                preScannedFiles.set(configFile, readResult.content);
+              }
+            } catch {
+              // Ignore optional pre-scan read failures.
+            }
+          }
+        }
+      } catch (error) {
+        this.debugWarn('[Agent] Failed to pre-scan project structure for plan-only:', error);
+      }
+
+      this.emitStatus('检测开发服务器端口', '检测开发服务器端口');
+      const devServerPort = await this.detectDevServerPort(preScannedFiles);
+
+      this.emitStatus('检索知识库', 'RAG 检索');
+      const ragContext = await this.retrieveRagContext(task.id, task.description);
+      const ragResults = ragContext?.formattedResults;
+
+      if (this.config.rag?.enabled !== false) {
+        this.emit({
+          type: 'rag_retrieved',
+          searchMode: ragContext?.searchMode,
+          reranked: ragContext?.reranked,
+          warnings: ragContext?.warnings,
+          matches: ragContext?.matches ?? [],
+        });
+      }
+
+      this.emit({ type: 'planning_started' });
+      this.emitStatus('生成执行计划', 'LLM 规划');
+
+      const planResult = await this.planner.plan(
+        task,
+        {
+          files: context.collectedContext.files,
+          pageStructure: context.collectedContext.pageStructure,
+          ragResults,
+          projectStructure,
+          devServerPort,
+          skillContext,
+          matchedSkillNames,
+          memoryContext: context.collectedContext.memoryContext,
+        },
+        this.contextManager.getMessages(task.id)
+      );
+      this.rememberPlannerFallback(planResult.fallbackReason);
+
+      if (planResult.needsMoreContext && planResult.contextRequests) {
+        this.emitStatus('补充规划上下文', '读取更多上下文');
+        await this.gatherContext(task.id, planResult.contextRequests);
+
+        this.emitStatus('重新生成执行计划', 'LLM 重新规划');
+        const retryResult = await this.planner.plan(
+          task,
+          {
+            files: context.collectedContext.files,
+            pageStructure: context.collectedContext.pageStructure,
+            ragResults: context.collectedContext.ragResults,
+            skillContext: context.collectedContext.skillContext,
+            matchedSkillNames: context.collectedContext.matchedSkillNames,
+            memoryContext: context.collectedContext.memoryContext,
+          },
+          this.contextManager.getMessages(task.id)
+        );
+        this.rememberPlannerFallback(retryResult.fallbackReason);
+
+        if (!retryResult.plan) {
+          throw new Error(retryResult.rejectionReason ?? '无法生成执行计划');
+        }
+
+        planResult.plan = retryResult.plan;
+      }
+
+      if (!planResult.plan) {
+        throw new Error(planResult.rejectionReason ?? '无法生成执行计划');
+      }
+
+      this.contextManager.setPlan(task.id, planResult.plan);
+      this.emit({ type: 'planning_completed', plan: planResult.plan });
+      this.emitStatus('执行计划已生成', '计划模式完成');
+
+      return {
+        success: true,
+        taskId: task.id,
+        plan: planResult.plan,
+        duration: Date.now() - startTime,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.emit({ type: 'task_failed', error: errorMessage });
+      return {
+        success: false,
+        taskId: task.id,
+        error: errorMessage,
+        duration: Date.now() - startTime,
+      };
+    } finally {
+      this.emitStatus('清理计划上下文', '清理计划上下文');
+      this.pendingFactsUpdates = [];
+      this.factsUpdateFlushInProgress = false;
+      this.currentTaskId = undefined;
+      this.contextManager.clearContext(task.id);
+    }
   }
 
   /**
@@ -1602,8 +1788,11 @@ export class FrontAgent {
       return undefined;
     }
 
+    const startedAt = Date.now();
     try {
+      const rewriteStartedAt = Date.now();
       const rewrittenQuery = await this.rewriteRagQueryForRetrieval(query);
+      const rewriteDurationMs = Date.now() - rewriteStartedAt;
       const retrievalQuery = rewrittenQuery
         ? mergeRetrievalQuery(query, rewrittenQuery)
         : normalizeSearchQuery(query);
@@ -1633,10 +1822,30 @@ export class FrontAgent {
           score?: number;
           rerankScore?: number;
         }>;
+        error?: string;
       };
 
       if (!result.success) {
-        return undefined;
+        const warnings = [
+          `RAG query failed after ${Date.now() - startedAt}ms: ${result.error ?? 'unknown error'}`,
+        ];
+        this.contextManager.setRagMetadata(taskId, {
+          matches: [],
+          searchMode: result.searchMode,
+          warnings,
+        });
+        this.debugWarn('[Agent] RAG query failed:', {
+          durationMs: Date.now() - startedAt,
+          rewriteDurationMs,
+          error: result.error,
+        });
+        return {
+          formattedResults: [],
+          matches: [],
+          searchMode: result.searchMode,
+          reranked: result.reranked,
+          warnings,
+        };
       }
 
       const matches = (result.results ?? []).map((item) => ({
@@ -1657,6 +1866,14 @@ export class FrontAgent {
         searchMode: result.searchMode,
         warnings: result.warnings,
       });
+      this.debugLog('[Agent] RAG retrieval completed:', {
+        durationMs: Date.now() - startedAt,
+        rewriteDurationMs,
+        searchMode: result.searchMode,
+        resultCount: matches.length,
+        reranked: result.reranked,
+        warningCount: result.warnings?.length ?? 0,
+      });
       return {
         formattedResults,
         matches,
@@ -1666,7 +1883,18 @@ export class FrontAgent {
       };
     } catch (error) {
       this.debugWarn('[Agent] Failed to retrieve RAG context:', error);
-      return undefined;
+      const warnings = [
+        `RAG query failed after ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`,
+      ];
+      this.contextManager.setRagMetadata(taskId, {
+        matches: [],
+        warnings,
+      });
+      return {
+        formattedResults: [],
+        matches: [],
+        warnings,
+      };
     }
   }
 

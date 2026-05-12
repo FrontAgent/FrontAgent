@@ -23,19 +23,26 @@ export interface RunCommandResult {
   error?: string;
 }
 
+export interface ShellMCPClientOptions {
+  streamOutput?: boolean;
+}
+
 /**
  * Shell MCP Client
  */
 export class ShellMCPClient {
   private projectRoot: string;
   private approvalCallback?: (command: string) => Promise<boolean>;
+  private streamOutput: boolean;
 
   constructor(
     projectRoot: string,
-    approvalCallback?: (command: string) => Promise<boolean>
+    approvalCallback?: (command: string) => Promise<boolean>,
+    options: ShellMCPClientOptions = {},
   ) {
     this.projectRoot = projectRoot;
     this.approvalCallback = approvalCallback;
+    this.streamOutput = options.streamOutput ?? true;
   }
 
   /**
@@ -150,14 +157,16 @@ export class ShellMCPClient {
 
       child.stdout?.on('data', (chunk: Buffer) => {
         stdoutChunks.push(chunk);
-        // 实时输出到控制台
-        process.stdout.write(chunk);
+        if (this.streamOutput) {
+          process.stdout.write(chunk);
+        }
       });
 
       child.stderr?.on('data', (chunk: Buffer) => {
         stderrChunks.push(chunk);
-        // 实时输出到控制台
-        process.stderr.write(chunk);
+        if (this.streamOutput) {
+          process.stderr.write(chunk);
+        }
       });
 
       child.on('error', (error) => {
@@ -202,7 +211,8 @@ export class ShellMCPClient {
  */
 export function createShellMCPClient(
   projectRoot: string,
-  approvalCallback?: (command: string) => Promise<boolean>
+  approvalCallback?: (command: string) => Promise<boolean>,
+  options?: ShellMCPClientOptions,
 ): ShellMCPClient {
-  return new ShellMCPClient(projectRoot, approvalCallback);
+  return new ShellMCPClient(projectRoot, approvalCallback, options);
 }
