@@ -1,6 +1,6 @@
 {
   "name": "frontagent",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "FrontAgent CLI and VS Code extension for frontend AI engineering with SDD constraints, MCP-controlled execution, and RAG planning",
   "type": "module",
   "bin": {
