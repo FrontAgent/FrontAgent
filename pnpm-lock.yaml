@@ -165,6 +165,9 @@ importers:
 
   packages/mcp-file:
     dependencies:
+      '@frontagent/mcp-filesense':
+        specifier: workspace:*
+        version: link:../mcp-filesense
       '@frontagent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -190,6 +193,18 @@ importers:
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
+
+  packages/mcp-filesense:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.27
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.1.4
+        version: 3.2.4(@types/node@20.19.27)(yaml@2.8.2)
 
   packages/mcp-memory:
     dependencies:

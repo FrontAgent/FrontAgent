@@ -18,6 +18,7 @@ import { createFile, createFileSchema } from './tools/create-file.js';
 import { searchCode, searchCodeSchema } from './tools/search-code.js';
 import { listDirectory, listDirectorySchema } from './tools/list-directory.js';
 import { getAST, getASTSchema } from './tools/get-ast.js';
+import { allFilesenseSchemas, handleFilesenseTool } from '@frontagent/mcp-filesense';
 
 // 从环境变量或参数获取项目根目录
 const projectRoot = process.env.PROJECT_ROOT ?? process.cwd();
@@ -49,6 +50,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       searchCodeSchema,
       listDirectorySchema,
       getASTSchema,
+      ...allFilesenseSchemas,
       {
         name: 'rollback',
         description: '回滚到指定快照',
@@ -138,6 +140,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'get_ast': {
         const result = getAST(args as unknown as Parameters<typeof getAST>[0], projectRoot);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'filesense_init':
+      case 'filesense_sync':
+      case 'filesense_summarize':
+      case 'filesense_query':
+      case 'filesense_check':
+      case 'filesense_sync_and_summarize': {
+        const result = await handleFilesenseTool(name, args as Record<string, unknown>, projectRoot);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
