@@ -495,6 +495,8 @@ export interface ContextInfo {
   matchedSkillNames?: string[];
   /** 跨会话记忆内容（Phase 1 preload） */
   memoryContext?: string;
+  /** Filesense 目录索引上下文 */
+  filesenseContext?: string;
   /** 其他元数据 */
   metadata: Record<string, unknown>;
 }
