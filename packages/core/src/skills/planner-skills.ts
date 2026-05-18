@@ -126,6 +126,30 @@ export function createDefaultPlannerSkillRegistry(
 
   const phaseSkills: PhaseInjectionSkill[] = [
     {
+      name: 'phase.filesense-sync',
+      shouldInject: ({ task, steps }) => {
+        // Inject filesense sync before any task that reads or writes files
+        if (task.type === 'query') return false;
+        return steps.some((step) =>
+          step.action === 'create_file' ||
+          step.action === 'apply_patch' ||
+          step.action === 'read_file' ||
+          step.action === 'list_directory'
+        );
+      },
+      apply: ({ task: _task, steps, stepFactory }) => {
+        // Prepend a filesense_sync_and_summarize step at the beginning
+        const syncStep = stepFactory.createStep({
+          description: '同步目录索引，获取项目结构感知',
+          action: 'filesense_sync_and_summarize' as ExecutionStep['action'],
+          tool: 'filesense_sync_and_summarize',
+          params: { path: '.' },
+          phase: 'preparation',
+        });
+        return [syncStep, ...steps];
+      },
+    },
+    {
       name: 'phase.repository-management',
       shouldInject: ({ task, steps }) => {
         if (task.type === 'query') {
