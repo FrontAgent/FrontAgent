@@ -19,7 +19,7 @@ const PROGRESSIVE_EXPLORATION_PROTOCOL = `# 渐进式探索协议（先观察，
 
 禁止在不确定目录下直接 create_file。若有多个候选位置，先探索并选择最符合现有结构的位置。`;
 
-function normalizeProviderBaseURL(
+export function normalizeProviderBaseURL(
   provider: LLMConfig['provider'],
   baseURL: string | undefined,
 ): string | undefined {
@@ -29,7 +29,8 @@ function normalizeProviderBaseURL(
     return normalized.replace(/\/chat\/completions$/, '');
   }
   if (provider === 'anthropic') {
-    return normalized.replace(/\/messages$/, '');
+    const anthropicBaseURL = normalized.replace(/\/messages$/, '');
+    return anthropicBaseURL.endsWith('/v1') ? anthropicBaseURL : `${anthropicBaseURL}/v1`;
   }
   return normalized;
 }

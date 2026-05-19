@@ -1,4 +1,5 @@
 import type { AgentTask, ExecutionStep } from '@frontagent/shared';
+import { decideFilesense } from '../filesense/trigger-policy.js';
 import type {
   PhaseInjectionSkill,
   PlannerContextSnapshot,
@@ -125,6 +126,31 @@ export function createDefaultPlannerSkillRegistry(
   ];
 
   const phaseSkills: PhaseInjectionSkill[] = [
+    {
+      name: 'phase.filesense-navigate',
+      shouldInject: ({ task, steps }) => decideFilesense(task, steps).enabled,
+      apply: ({ task, steps, stepFactory }) => {
+        const decision = decideFilesense(task, steps);
+        if (!decision.enabled) return steps;
+
+        const navigateStep = stepFactory.createStep({
+          description: `按需构建目录导航上下文：${decision.reason}`,
+          action: 'filesense_navigate' as ExecutionStep['action'],
+          tool: 'filesense_navigate',
+          params: {
+            intent: decision.intent,
+            paths: decision.paths,
+            depth: decision.depth,
+            maxEntries: decision.maxEntries,
+            maxBytes: decision.maxBytes,
+            output: 'summary',
+            writeMode: 'cache',
+          },
+          phase: 'preparation',
+        });
+        return [navigateStep, ...steps];
+      },
+    },
     {
       name: 'phase.repository-management',
       shouldInject: ({ task, steps }) => {

@@ -319,6 +319,16 @@ export class ContextManager {
   }
 
   /**
+   * 设置 Filesense 目录索引上下文
+   */
+  setFilesenseContext(taskId: string, context: string): void {
+    const ctx = this.contexts.get(taskId);
+    if (ctx) {
+      ctx.collectedContext.filesenseContext = context;
+    }
+  }
+
+  /**
    * 添加消息
    */
   addMessage(taskId: string, message: Message): void {
@@ -364,6 +374,11 @@ export class ContextManager {
     // --- Zone 2: Memory (durable cross-session knowledge) ---
     if (context.collectedContext.memoryContext) {
       zones.push('\n' + context.collectedContext.memoryContext);
+    }
+
+    // --- Zone 2.5: Filesense (directory structure awareness) ---
+    if (context.collectedContext.filesenseContext) {
+      zones.push('\n## 目录索引 (Filesense)\n' + context.collectedContext.filesenseContext);
     }
 
     // --- Zone 3: Context (dynamic per-task data) ---
@@ -440,6 +455,49 @@ export class ContextManager {
 
     const { facts } = context;
     let changed = false;
+
+    // Handle filesense navigation results - consume explicit factsDelta instead of guessing result shape.
+    if (toolName.startsWith('filesense_')) {
+      const data = result.data as { factsDelta?: { existingFiles?: string[]; existingDirectories?: string[] } } | undefined;
+      const factsDelta = data?.factsDelta;
+      if (result.success && factsDelta) {
+        for (const file of factsDelta.existingFiles ?? []) {
+          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
+        }
+        for (const dir of factsDelta.existingDirectories ?? []) {
+          changed = this.addToSet(facts.filesystem.existingDirectories, dir) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, dir) || changed;
+        }
+      }
+    }
+
+    // Handle filesense tool results - enrich ProjectFacts from index data
+    if (toolName === 'filesense_sync' || toolName === 'filesense_sync_and_summarize' || toolName === 'filesense_query') {
+      if (result.success && result.data) {
+        const data = result.data as Record<string, unknown>;
+
+        // For query results, extract file/directory existence from the index
+        const index = (data.index ?? (data as { sync?: unknown }).sync) as { children?: Array<{ name: string; path: string; type: string }> } | undefined;
+        if (index?.children) {
+          for (const child of index.children) {
+            if (child.type === 'file') {
+              changed = this.addToSet(facts.filesystem.existingFiles, child.path) || changed;
+              changed = this.removeFromSet(facts.filesystem.nonExistentPaths, child.path) || changed;
+            } else if (child.type === 'dir') {
+              changed = this.addToSet(facts.filesystem.existingDirectories, child.path) || changed;
+              changed = this.removeFromSet(facts.filesystem.nonExistentPaths, child.path) || changed;
+            }
+          }
+        }
+
+        // For sync results, mark the root as existing directory
+        const root = data.root as string | undefined;
+        if (root) {
+          changed = this.addToSet(facts.filesystem.existingDirectories, root) || changed;
+        }
+      }
+    }
 
     switch (toolName) {
       case 'create_file':

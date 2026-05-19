@@ -63,7 +63,8 @@ export function resolveProviderBaseURL(
     return normalized.replace(/\/chat\/completions$/, '');
   }
   if (provider === 'anthropic') {
-    return normalized.replace(/\/messages$/, '');
+    const anthropicBaseURL = normalized.replace(/\/messages$/, '');
+    return anthropicBaseURL.endsWith('/v1') ? anthropicBaseURL : `${anthropicBaseURL}/v1`;
   }
   return normalized;
 }
