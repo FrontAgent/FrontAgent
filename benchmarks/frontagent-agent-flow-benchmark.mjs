@@ -37,6 +37,7 @@ const scenarioNamesByMode = {
   smoke: new Set(['query-identity', 'query-structure']),
   query: new Set(['query-structure']),
   create: new Set(['create-component']),
+  ci: new Set(['query-structure', 'create-component']),
   full: null,
 };
 
@@ -224,11 +225,36 @@ function summarizeTools(tools) {
   return Object.fromEntries(Object.entries(byTool).map(([tool, value]) => [tool, { count: value.count, elapsedMs: stats(value.elapsedMs) }]));
 }
 
+function summarizeExecutorTraces(traces) {
+  const byTool = {};
+  for (const t of traces) {
+    const key = t.tool ?? t.action;
+    const bucket = byTool[key] ??= { count: 0, totalMs: [], toolDurationMs: [], stages: {}, subStages: {} };
+    bucket.count += 1;
+    if (Number.isFinite(t.totalMs)) bucket.totalMs.push(t.totalMs);
+    if (Number.isFinite(t.toolDurationMs)) bucket.toolDurationMs.push(t.toolDurationMs);
+    for (const s of t.stages ?? []) {
+      (bucket.stages[s.name] ??= []).push(s.durationMs);
+    }
+    for (const s of t.subStages ?? []) {
+      (bucket.subStages[s.name] ??= []).push(s.durationMs);
+    }
+  }
+  return Object.fromEntries(Object.entries(byTool).map(([tool, value]) => [tool, {
+    count: value.count,
+    totalMs: stats(value.totalMs),
+    toolDurationMs: stats(value.toolDurationMs),
+    stages: Object.fromEntries(Object.entries(value.stages).map(([name, vals]) => [name, stats(vals)])),
+    subStages: Object.fromEntries(Object.entries(value.subStages).map(([name, vals]) => [name, stats(vals)])),
+  }]));
+}
+
 async function runScenario(scenario) {
   await createFixture();
   const cacheClearTiming = await timed(() => clearFrontagentCache());
   const { trace, onEvent, finish } = createRunTrace();
   const llmBackend = createLlmBackend();
+  const executorTraces = [];
 
   const runTiming = await timed(() => runFrontAgentTask({
     projectRoot: ROOT,
@@ -255,6 +281,7 @@ async function runScenario(scenario) {
     streamShellOutput: false,
     llmBackend,
     onEvent,
+    onStepTrace: (stepTrace) => executorTraces.push(stepTrace),
   }));
   finish();
 
@@ -279,6 +306,7 @@ async function runScenario(scenario) {
       success: tool.success,
       error: tool.error,
     })),
+    executorTraces: summarizeExecutorTraces(executorTraces),
   };
 }
 
@@ -286,6 +314,8 @@ const allScenarios = [
   { name: 'query-identity', type: 'query', task: '你是谁？请基于 FrontAgent 内置身份回答。' },
   { name: 'query-structure', type: 'query', task: '梳理这个项目的目录结构和入口。' },
   { name: 'create-component', type: 'create', task: '新增一个 Card 组件到 src/components，保持实现简单。' },
+  { name: 'create-file-no-codegen', type: 'create', task: '在 src/components 下创建一个空的 utils.ts 文件，内容为 export {};。' },
+  { name: 'create-file-with-codegen', type: 'create', task: '新增一个简单的 Card 组件到 src/components/Card.tsx，包含 title 和 children props。' },
 ];
 
 async function main() {
@@ -352,6 +382,27 @@ async function main() {
   const json = JSON.stringify(output, null, 2);
   if (WRITE_JSON) await fs.writeFile(WRITE_JSON, json);
   console.log(json);
+
+  // CI threshold check
+  if (MODE === 'ci') {
+    const thresholds = {
+      'query-structure': { executeMsMax: 5 },
+      'create-component': { executeMsMax: 500 },
+    };
+    let failed = false;
+    for (const [scenario, limits] of Object.entries(thresholds)) {
+      const s = output.scenarios[scenario];
+      if (!s) continue;
+      const avg = s.summary.agentExecuteMs.avg;
+      if (avg > limits.executeMsMax) {
+        console.error(`[CI FAIL] ${scenario}: agentExecuteMs avg ${avg.toFixed(2)}ms > threshold ${limits.executeMsMax}ms`);
+        failed = true;
+      } else {
+        console.log(`[CI PASS] ${scenario}: agentExecuteMs avg ${avg.toFixed(2)}ms < threshold ${limits.executeMsMax}ms`);
+      }
+    }
+    if (failed) process.exitCode = 1;
+  }
 }
 
 main().catch((error) => {

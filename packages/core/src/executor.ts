@@ -82,6 +82,8 @@ export interface ExecutorConfig {
     maxRecoveryAttempts?: number;
     threadIdPrefix?: string;
   };
+  /** 启用 phase 内独立步骤并行执行（默认 false） */
+  parallelExecution?: boolean;
 }
 
 interface PhaseExecutionGroup {
@@ -106,6 +108,13 @@ export interface ExecutorTraceStage {
   error?: string;
 }
 
+export interface ExecutorSubStage {
+  name: string;
+  durationMs: number;
+  success: boolean;
+  error?: string;
+}
+
 export interface ExecutorStepTrace {
   taskId?: string;
   stepId: string;
@@ -116,11 +125,90 @@ export interface ExecutorStepTrace {
   skipped?: boolean;
   error?: string;
   stages: ExecutorTraceStage[];
+  /** MCP 工具实际执行耗时（不含安全检查等 executor 开销） */
+  toolDurationMs?: number;
+  /** prepareToolParams 子阶段计时 */
+  subStages?: ExecutorSubStage[];
 }
 
 export interface ExecutorTraceConfig {
   enabled?: boolean;
   onStepTrace?: (trace: ExecutorStepTrace) => void;
+}
+
+function calcStats(values: number[]): { avg: number; min: number; median: number; max: number } {
+  if (values.length === 0) return { avg: 0, min: 0, median: 0, max: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  return { avg, min: sorted[0], median: sorted[Math.floor(sorted.length / 2)], max: sorted[sorted.length - 1] };
+}
+
+export interface ExecutorTraceSummary {
+  count: number;
+  totalMs: { avg: number; min: number; median: number; max: number };
+  toolDurationMs: { avg: number; min: number; median: number; max: number };
+  stages: Record<string, { avg: number; min: number; median: number; max: number }>;
+  subStages: Record<string, { avg: number; min: number; median: number; max: number }>;
+}
+
+export interface ExecutorTraceCollector {
+  traces: ExecutorStepTrace[];
+  config: ExecutorTraceConfig;
+  summary(): Record<string, ExecutorTraceSummary>;
+}
+
+export function createTraceCollector(): ExecutorTraceCollector {
+  const traces: ExecutorStepTrace[] = [];
+  return {
+    traces,
+    config: {
+      enabled: true,
+      onStepTrace: (trace) => traces.push(trace),
+    },
+    summary() {
+      return summarizeTraces(traces);
+    },
+  };
+}
+
+function summarizeTraces(traces: ExecutorStepTrace[]): Record<string, ExecutorTraceSummary> {
+  const byTool: Record<string, ExecutorStepTrace[]> = {};
+  for (const t of traces) {
+    (byTool[t.tool] ??= []).push(t);
+  }
+
+  const result: Record<string, ExecutorTraceSummary> = {};
+  for (const [tool, group] of Object.entries(byTool)) {
+    const stageMap: Record<string, number[]> = {};
+    const subStageMap: Record<string, number[]> = {};
+    const toolDurations: number[] = [];
+
+    for (const t of group) {
+      if (t.toolDurationMs != null) toolDurations.push(t.toolDurationMs);
+      for (const s of t.stages) {
+        (stageMap[s.name] ??= []).push(s.durationMs);
+      }
+      if (t.subStages) {
+        for (const s of t.subStages) {
+          (subStageMap[s.name] ??= []).push(s.durationMs);
+        }
+      }
+    }
+
+    const stages: Record<string, { avg: number; min: number; median: number; max: number }> = {};
+    for (const [name, vals] of Object.entries(stageMap)) stages[name] = calcStats(vals);
+    const subStages: Record<string, { avg: number; min: number; median: number; max: number }> = {};
+    for (const [name, vals] of Object.entries(subStageMap)) subStages[name] = calcStats(vals);
+
+    result[tool] = {
+      count: group.length,
+      totalMs: calcStats(group.map(t => t.totalMs)),
+      toolDurationMs: calcStats(toolDurations),
+      stages,
+      subStages,
+    };
+  }
+  return result;
 }
 
 interface SerializablePhaseExecutionGroup {
@@ -254,10 +342,12 @@ export class Executor {
     const traceEnabled = this.isTraceEnabled();
     const traceStartedAt = traceEnabled ? this.nowMs() : 0;
     const traceStages: ExecutorTraceStage[] = [];
+    const subStages: ExecutorSubStage[] = [];
 
     const finish = (output: ExecutorOutput): ExecutorOutput => {
       if (traceEnabled) {
         const stepResult = output.stepResult;
+        const toolResult = stepResult.output as any;
         this.config.trace?.onStepTrace?.({
           taskId: context.task.id,
           stepId: step.stepId,
@@ -268,6 +358,8 @@ export class Executor {
           skipped: typeof stepResult.output === 'object' && stepResult.output !== null && Boolean((stepResult.output as { skipped?: boolean }).skipped),
           error: stepResult.error,
           stages: traceStages,
+          toolDurationMs: toolResult?.__toolDurationMs,
+          subStages: subStages.length > 0 ? subStages : undefined,
         });
       }
       return output;
@@ -360,6 +452,9 @@ export class Executor {
         step,
         params: toolParams,
         context,
+        onSubStageTiming: (name, durationMs) => {
+          subStages.push({ name, durationMs, success: true });
+        },
       }));
 
       // 3. 调用 MCP 工具
@@ -769,7 +864,12 @@ export class Executor {
       };
     }
 
+    const mcpStart = this.nowMs();
     const result = await client.callTool(toolName, security.args);
+    const mcpDurationMs = this.nowMs() - mcpStart;
+    if (typeof result === 'object' && result !== null) {
+      (result as any).__toolDurationMs = mcpDurationMs;
+    }
 
     if (toolName === 'browser_navigate' || toolName === 'navigate') {
       if (typeof args.url === 'string' && this.isSuccessfulToolResult(result)) {
@@ -1114,40 +1214,99 @@ export class Executor {
     const phaseResults: ExecutorOutput[] = [];
     let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
 
-    for (const step of phaseSteps) {
-      this.throwIfAborted(signal);
-      const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
-      if (!dependenciesMet) {
-        const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
-        this.debugWarn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
-        this.debugWarn(`[Executor]    Step description: ${step.description}`);
-        this.debugWarn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
-        this.debugWarn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
-        this.debugWarn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
-        step.status = 'skipped';
-        continue;
+    if (this.config.parallelExecution) {
+      // Wave-based parallel execution: run all ready steps concurrently per wave
+      const pending = [...phaseSteps];
+
+      while (pending.length > 0) {
+        this.throwIfAborted(signal);
+
+        const ready = pending.filter(step =>
+          step.dependencies.every(dep => completedStepIds.has(dep))
+        );
+
+        if (ready.length === 0) {
+          // Skip steps with unmet external dependencies
+          const skippable = pending.filter(step =>
+            step.dependencies.some(dep => !completedStepIds.has(dep))
+          );
+          for (const s of skippable) {
+            this.debugWarn(`[Executor] ⏭️  Skipping step ${s.stepId}: dependencies not met`);
+            s.status = 'skipped';
+            pending.splice(pending.indexOf(s), 1);
+          }
+          if (pending.length > 0 && skippable.length === 0) {
+            this.debugError(`[Executor] Circular dependency detected within phase ${phase}`);
+            break;
+          }
+          continue;
+        }
+
+        for (const s of ready) pending.splice(pending.indexOf(s), 1);
+
+        // Execute ready steps in parallel
+        const results = await Promise.allSettled(
+          ready.map(async (step) => {
+            step.status = 'running';
+            onStepStart?.(step);
+            const output = await this.executeStep(step, context);
+            return { step, output };
+          })
+        );
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { step, output } = result.value;
+            step.result = output.stepResult;
+            step.status = output.stepResult.success ? 'completed' : 'failed';
+            phaseResults.push(output);
+            allResults.push(output);
+            if (output.stepResult.success) {
+              completedStepIds.add(step.stepId);
+            } else {
+              phaseErrors.push({ step, error: output.stepResult.error || 'Unknown error' });
+            }
+            onStepComplete?.(step, output);
+          }
+        }
       }
+    } else {
+      // Sequential execution (existing behavior)
+      for (const step of phaseSteps) {
+        this.throwIfAborted(signal);
+        const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
+        if (!dependenciesMet) {
+          const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
+          this.debugWarn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
+          this.debugWarn(`[Executor]    Step description: ${step.description}`);
+          this.debugWarn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
+          this.debugWarn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
+          this.debugWarn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
+          step.status = 'skipped';
+          continue;
+        }
 
-      step.status = 'running';
-      onStepStart?.(step);
-      const output = await this.executeStep(step, context);
-      step.result = output.stepResult;
-      step.status = output.stepResult.success ? 'completed' : 'failed';
+        step.status = 'running';
+        onStepStart?.(step);
+        const output = await this.executeStep(step, context);
+        step.result = output.stepResult;
+        step.status = output.stepResult.success ? 'completed' : 'failed';
 
-      phaseResults.push(output);
-      allResults.push(output);
+        phaseResults.push(output);
+        allResults.push(output);
 
-      if (output.stepResult.success) {
-        completedStepIds.add(step.stepId);
-      } else {
-        phaseErrors.push({
-          step,
-          error: output.stepResult.error || 'Unknown error'
-        });
-      }
+        if (output.stepResult.success) {
+          completedStepIds.add(step.stepId);
+        } else {
+          phaseErrors.push({
+            step,
+            error: output.stepResult.error || 'Unknown error'
+          });
+        }
 
-      if (onStepComplete) {
-        onStepComplete(step, output);
+        if (onStepComplete) {
+          onStepComplete(step, output);
+        }
       }
     }
 

@@ -189,6 +189,7 @@ export class FrontAgent {
       onStreamToken: (token: string, stepId: string) => {
         this.emit({ type: 'stream_token', token, stepId });
       },
+      trace: config.trace,
     });
 
     if (config.skillContent?.enabled !== false) {

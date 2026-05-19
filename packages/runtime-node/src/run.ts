@@ -6,6 +6,7 @@ import {
   type AgentEvent,
   type AgentExecutionResult,
   type AgentPlanResult,
+  type ExecutorStepTrace,
   type LLMBackend,
 } from '@frontagent/core';
 import type { ApprovalRequest, TaskType } from '@frontagent/shared';
@@ -39,6 +40,8 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   onRunLogPath?: (path: string | null) => void;
   onEvent?: (event: AgentEvent) => void;
   onApprovalRequest?: (request: ApprovalRequest) => Promise<boolean>;
+  /** 可选的 executor step trace 回调，用于性能分析 */
+  onStepTrace?: (trace: ExecutorStepTrace) => void;
 }
 
 function isDebugEnabled(value: unknown): boolean {
@@ -134,6 +137,7 @@ export async function runFrontAgentTask(
         }
       : undefined,
     debug,
+    trace: options.onStepTrace ? { enabled: true, onStepTrace: options.onStepTrace } : undefined,
   };
 
   const agent = createAgent(config);
@@ -292,6 +296,7 @@ export async function planFrontAgentTask(
         }
       : undefined,
     debug,
+    trace: options.onStepTrace ? { enabled: true, onStepTrace: options.onStepTrace } : undefined,
   };
 
   const agent = createAgent(config);

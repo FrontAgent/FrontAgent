@@ -44,6 +44,8 @@ export interface AgentConfig {
   security?: AgentSecurityConfig;
   /** 调试模式 */
   debug?: boolean;
+  /** 可选的执行器 trace 钩子，用于性能分析 */
+  trace?: import('./executor.js').ExecutorTraceConfig;
 }
 
 export interface AgentPlanResult {
