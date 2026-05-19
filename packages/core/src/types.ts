@@ -507,6 +507,16 @@ export interface ContextInfo {
   metadata: Record<string, unknown>;
 }
 
+export interface RagQueryTiming {
+  ensureIndexMs: number;
+  bm25Ms: number;
+  semanticMs: number;
+  fusionMs: number;
+  rerankMs: number;
+  totalMs: number;
+  cacheHit: boolean;
+}
+
 export interface RagContextMatch {
   type: string;
   title: string;
@@ -616,6 +626,7 @@ export type AgentEvent =
       searchMode?: 'hybrid' | 'keyword_only';
       reranked?: boolean;
       warnings?: string[];
+      timing?: RagQueryTiming;
       matches: RagContextMatch[];
     }
   | { type: 'planning_completed'; plan: ExecutionPlan }

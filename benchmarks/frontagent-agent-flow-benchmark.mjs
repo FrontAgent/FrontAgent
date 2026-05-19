@@ -52,7 +52,9 @@ async function clearFrontagentCache() {
 }
 
 async function createFixture() {
-  await rm(ROOT);
+  if (CLEAR_FRONTAGENT_CACHE) {
+    await rm(ROOT);
+  }
   await fs.mkdir(path.join(ROOT, 'src/components'), { recursive: true });
   await fs.mkdir(path.join(ROOT, 'src/hooks'), { recursive: true });
   await fs.mkdir(path.join(ROOT, 'src/services'), { recursive: true });
@@ -179,6 +181,7 @@ function createRunTrace() {
           searchMode: event.searchMode ?? null,
           reranked: event.reranked ?? false,
           warningCount: event.warnings?.length ?? 0,
+          timing: event.timing ?? null,
         };
       }
 
@@ -376,6 +379,15 @@ async function main() {
       matchCount: stats(runs.map((run) => run.rag?.matchCount ?? 0)),
       rerankedRate: runs.filter((run) => run.rag?.reranked).length / runs.length,
       warningCount: stats(runs.map((run) => run.rag?.warningCount ?? 0)),
+      cacheHitRate: runs.filter((run) => run.rag?.timing?.cacheHit).length / runs.length,
+      timing: {
+        ensureIndexMs: stats(runs.map((run) => run.rag?.timing?.ensureIndexMs ?? 0)),
+        bm25Ms: stats(runs.map((run) => run.rag?.timing?.bm25Ms ?? 0)),
+        semanticMs: stats(runs.map((run) => run.rag?.timing?.semanticMs ?? 0)),
+        fusionMs: stats(runs.map((run) => run.rag?.timing?.fusionMs ?? 0)),
+        rerankMs: stats(runs.map((run) => run.rag?.timing?.rerankMs ?? 0)),
+        totalMs: stats(runs.map((run) => run.rag?.timing?.totalMs ?? 0)),
+      },
     };
   }
 

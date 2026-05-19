@@ -40,6 +40,7 @@ import type {
   AgentPlanResult,
   ProjectFactsUpdate,
   RagContextMatch,
+  RagQueryTiming,
 } from './types.js';
 
 interface RetrievedRagContext {
@@ -48,6 +49,7 @@ interface RetrievedRagContext {
   searchMode?: 'hybrid' | 'keyword_only';
   reranked?: boolean;
   warnings?: string[];
+  timing?: RagQueryTiming;
 }
 
 const ragQueryRewriteSchema = z.object({
@@ -529,6 +531,7 @@ export class FrontAgent {
           searchMode: ragContext?.searchMode,
           reranked: ragContext?.reranked,
           warnings: ragContext?.warnings,
+          timing: ragContext?.timing,
           matches: ragContext?.matches ?? [],
         });
       }
@@ -729,6 +732,7 @@ export class FrontAgent {
           searchMode: ragContext?.searchMode,
           reranked: ragContext?.reranked,
           warnings: ragContext?.warnings,
+          timing: ragContext?.timing,
           matches: ragContext?.matches ?? [],
         });
       }
@@ -1832,6 +1836,7 @@ export class FrontAgent {
           score?: number;
           rerankScore?: number;
         }>;
+        timing?: RagQueryTiming;
         error?: string;
       };
 
@@ -1855,6 +1860,7 @@ export class FrontAgent {
           searchMode: result.searchMode,
           reranked: result.reranked,
           warnings,
+          timing: result.timing,
         };
       }
 
@@ -1879,6 +1885,7 @@ export class FrontAgent {
       this.debugLog('[Agent] RAG retrieval completed:', {
         durationMs: Date.now() - startedAt,
         rewriteDurationMs,
+        timing: result.timing,
         searchMode: result.searchMode,
         resultCount: matches.length,
         reranked: result.reranked,
@@ -1890,6 +1897,7 @@ export class FrontAgent {
         searchMode: result.searchMode,
         reranked: result.reranked,
         warnings: result.warnings,
+        timing: result.timing,
       };
     } catch (error) {
       this.debugWarn('[Agent] Failed to retrieve RAG context:', error);

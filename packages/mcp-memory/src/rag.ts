@@ -37,6 +37,7 @@ const DEFAULT_EMBEDDING_DIMENSIONS = 512;
 const DEFAULT_VECTOR_STORE_PROVIDER = 'local';
 const DEFAULT_WEAVIATE_COLLECTION_PREFIX = 'FrontAgentRagChunk';
 const DEFAULT_WEAVIATE_BATCH_SIZE = 64;
+const DEFAULT_RAG_QUERY_CACHE_SIZE = 100;
 const DEFAULT_EXCLUDED_PATH_PREFIXES: string[] = [];
 const IGNORED_DIR_NAMES = new Set([
   '.git',
@@ -152,6 +153,16 @@ export interface RagQueryMatch {
   };
 }
 
+export interface RagQueryTiming {
+  ensureIndexMs: number;
+  bm25Ms: number;
+  semanticMs: number;
+  fusionMs: number;
+  rerankMs: number;
+  totalMs: number;
+  cacheHit: boolean;
+}
+
 export interface RagQueryResult {
   success: boolean;
   syncedAt?: string;
@@ -160,6 +171,7 @@ export interface RagQueryResult {
   warnings?: string[];
   searchMode?: 'hybrid' | 'keyword_only';
   reranked?: boolean;
+  timing?: RagQueryTiming;
   error?: string;
 }
 
@@ -340,6 +352,7 @@ export const ragQuerySchema = {
 
 class HybridRepositoryKnowledgeBase {
   private readonly config: RequiredHybridConfig;
+  private readonly queryCache = new Map<string, RagQueryResult>();
 
   constructor(config: KnowledgeBaseConfig) {
     this.config = normalizeConfig(config);
@@ -355,6 +368,16 @@ class HybridRepositoryKnowledgeBase {
 
     try {
       const warnings: string[] = [];
+      const timing: RagQueryTiming = {
+        ensureIndexMs: 0,
+        bm25Ms: 0,
+        semanticMs: 0,
+        fusionMs: 0,
+        rerankMs: 0,
+        totalMs: 0,
+        cacheHit: false,
+      };
+      const queryStartedAt = performance.now();
       const queryText = params.query.trim();
       const maxResults = params.maxResults ?? this.config.maxResults;
       const filters = params.filters;
@@ -365,8 +388,31 @@ class HybridRepositoryKnowledgeBase {
           error: filterError,
         };
       }
+      const ensureIndexStartedAt = performance.now();
       const index = await this.ensureIndex(Boolean(params.refresh));
+      timing.ensureIndexMs = performance.now() - ensureIndexStartedAt;
 
+      const cacheKey = this.createQueryCacheKey(queryText, maxResults, filters, index);
+      const cachedResult = params.refresh ? undefined : this.queryCache.get(cacheKey);
+      if (cachedResult) {
+        this.queryCache.delete(cacheKey);
+        this.queryCache.set(cacheKey, cachedResult);
+        const cachedTiming = cachedResult.timing;
+        return {
+          ...cachedResult,
+          timing: {
+            ensureIndexMs: timing.ensureIndexMs,
+            bm25Ms: cachedTiming?.bm25Ms ?? 0,
+            semanticMs: cachedTiming?.semanticMs ?? 0,
+            fusionMs: cachedTiming?.fusionMs ?? 0,
+            rerankMs: cachedTiming?.rerankMs ?? 0,
+            totalMs: performance.now() - queryStartedAt,
+            cacheHit: true,
+          },
+        };
+      }
+
+      const bm25StartedAt = performance.now();
       const keywordChunkCandidates = searchBm25(
         index,
         queryText,
@@ -377,97 +423,104 @@ class HybridRepositoryKnowledgeBase {
         index,
         filters,
       );
+      timing.bm25Ms = performance.now() - bm25StartedAt;
 
       let semanticDocumentCandidates: DocumentCandidate[] = [];
       let searchMode: RagQueryResult['searchMode'] = 'keyword_only';
 
       if (this.config.embedding.enabled) {
-        if (this.config.embedding.apiKey) {
-          if (this.config.vectorStore.provider === 'weaviate') {
-            if (!this.config.vectorStore.weaviate.baseURL) {
-              warnings.push('Weaviate base URL is not configured; keyword-only search was used.');
-            } else {
-              try {
-                await this.ensureWeaviateSemanticIndex(index);
-                const semanticChunkCandidates = await searchSemanticWithWeaviate(
-                  queryText,
-                  index,
-                  this.config.embedding,
-                  this.config.vectorStore.weaviate,
-                  getWeaviateCollectionName(this.config),
-                  this.config.semanticCandidateCount,
-                );
-                semanticDocumentCandidates = aggregateChunkCandidates(
-                  semanticChunkCandidates,
-                  index,
-                  filters,
-                );
-                if (semanticDocumentCandidates.length > 0) {
-                  searchMode = 'hybrid';
-                } else {
-                  warnings.push('Semantic search returned no candidates; keyword results were used.');
+        const semanticStartedAt = performance.now();
+        try {
+          if (this.config.embedding.apiKey) {
+            if (this.config.vectorStore.provider === 'weaviate') {
+              if (!this.config.vectorStore.weaviate.baseURL) {
+                warnings.push('Weaviate base URL is not configured; keyword-only search was used.');
+              } else {
+                try {
+                  await this.ensureWeaviateSemanticIndex(index);
+                  const semanticChunkCandidates = await searchSemanticWithWeaviate(
+                    queryText,
+                    index,
+                    this.config.embedding,
+                    this.config.vectorStore.weaviate,
+                    getWeaviateCollectionName(this.config),
+                    this.config.semanticCandidateCount,
+                  );
+                  semanticDocumentCandidates = aggregateChunkCandidates(
+                    semanticChunkCandidates,
+                    index,
+                    filters,
+                  );
+                  if (semanticDocumentCandidates.length > 0) {
+                    searchMode = 'hybrid';
+                  } else {
+                    warnings.push('Semantic search returned no candidates; keyword results were used.');
+                  }
+                } catch (error) {
+                  warnings.push(
+                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                  );
                 }
+              }
+            } else {
+              let embeddingStore: EmbeddingStore | null = null;
+              let usedPartialEmbeddingCache = false;
+
+              try {
+                embeddingStore = await this.ensureEmbeddings(index);
               } catch (error) {
-                warnings.push(
-                  `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
-                );
+                const cachedStore = this.readEmbeddingStore();
+                if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
+                  embeddingStore = cachedStore;
+                  usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
+                }
+
+                if (!embeddingStore || !usedPartialEmbeddingCache) {
+                  warnings.push(
+                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                } else {
+                  warnings.push(
+                    `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`
+                  );
+                }
+              }
+
+              if (embeddingStore) {
+                try {
+                  const semanticChunkCandidates = await searchSemantic(
+                    queryText,
+                    index,
+                    embeddingStore,
+                    this.config.embedding,
+                    this.config.semanticCandidateCount,
+                  );
+                  semanticDocumentCandidates = aggregateChunkCandidates(
+                    semanticChunkCandidates,
+                    index,
+                    filters,
+                  );
+                  if (semanticDocumentCandidates.length > 0) {
+                    searchMode = 'hybrid';
+                  } else {
+                    warnings.push('Semantic search returned no candidates; keyword results were used.');
+                  }
+                } catch (error) {
+                  warnings.push(
+                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                }
               }
             }
           } else {
-            let embeddingStore: EmbeddingStore | null = null;
-            let usedPartialEmbeddingCache = false;
-
-            try {
-              embeddingStore = await this.ensureEmbeddings(index);
-            } catch (error) {
-              const cachedStore = this.readEmbeddingStore();
-              if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
-                embeddingStore = cachedStore;
-                usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
-              }
-
-              if (!embeddingStore || !usedPartialEmbeddingCache) {
-                warnings.push(
-                  `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
-                );
-              } else {
-                warnings.push(
-                  `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`
-                );
-              }
-            }
-
-            if (embeddingStore) {
-              try {
-                const semanticChunkCandidates = await searchSemantic(
-                  queryText,
-                  index,
-                  embeddingStore,
-                  this.config.embedding,
-                  this.config.semanticCandidateCount,
-                );
-                semanticDocumentCandidates = aggregateChunkCandidates(
-                  semanticChunkCandidates,
-                  index,
-                  filters,
-                );
-                if (semanticDocumentCandidates.length > 0) {
-                  searchMode = 'hybrid';
-                } else {
-                  warnings.push('Semantic search returned no candidates; keyword results were used.');
-                }
-              } catch (error) {
-                warnings.push(
-                  `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
-                );
-              }
-            }
+            warnings.push('Embedding API key is not configured; keyword-only search was used.');
           }
-        } else {
-          warnings.push('Embedding API key is not configured; keyword-only search was used.');
+        } finally {
+          timing.semanticMs = performance.now() - semanticStartedAt;
         }
       }
 
+      const fusionStartedAt = performance.now();
       const fusedResults = fuseDocumentCandidates({
         keywordCandidates: keywordDocumentCandidates,
         semanticCandidates: semanticDocumentCandidates,
@@ -475,33 +528,42 @@ class HybridRepositoryKnowledgeBase {
         keywordWeight: this.config.keywordWeight,
         semanticWeight: this.config.semanticWeight,
       });
+      timing.fusionMs = performance.now() - fusionStartedAt;
 
       let reranked = false;
       let finalResults = fusedResults.slice(0, maxResults);
       if (this.config.reranker.enabled) {
-        if (this.config.reranker.model && this.config.reranker.baseURL && this.config.reranker.apiKey) {
-          try {
-            finalResults = await rerankDocumentCandidates({
-              query: queryText,
-              candidates: fusedResults,
-              maxResults,
-              config: this.config.reranker,
-            });
-            reranked = true;
-          } catch (error) {
-            warnings.push(
-              `Reranking unavailable: ${error instanceof Error ? error.message : String(error)}`
-            );
+        const rerankStartedAt = performance.now();
+        try {
+          if (this.config.reranker.model && this.config.reranker.baseURL && this.config.reranker.apiKey) {
+            try {
+              finalResults = await rerankDocumentCandidates({
+                query: queryText,
+                candidates: fusedResults,
+                maxResults,
+                config: this.config.reranker,
+              });
+              reranked = true;
+            } catch (error) {
+              warnings.push(
+                `Reranking unavailable: ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
           }
+        } finally {
+          timing.rerankMs = performance.now() - rerankStartedAt;
         }
       }
 
-      return {
+      timing.totalMs = performance.now() - queryStartedAt;
+
+      const result: RagQueryResult = {
         success: true,
         syncedAt: index.source.syncedAt,
         sourceRevision: index.source.revision,
         searchMode,
         reranked,
+        timing,
         warnings: warnings.length > 0 ? warnings : undefined,
         results: finalResults.map((result) => ({
           id: result.document.id,
@@ -523,6 +585,9 @@ class HybridRepositoryKnowledgeBase {
           },
         })),
       };
+
+      this.setQueryCache(cacheKey, result);
+      return result;
     } catch (error) {
       return {
         success: false,
@@ -531,10 +596,58 @@ class HybridRepositoryKnowledgeBase {
     }
   }
 
+  private createQueryCacheKey(
+    queryText: string,
+    maxResults: number,
+    filters: RagMetadataFilter | undefined,
+    index: RepositoryIndex,
+  ): string {
+    return JSON.stringify({
+      queryText,
+      maxResults,
+      filters: normalizeFiltersForCache(filters),
+      revision: index.source.revision,
+      indexVersion: index.version,
+      embedding: {
+        enabled: this.config.embedding.enabled,
+        model: this.config.embedding.model,
+        baseURL: this.config.embedding.baseURL,
+        dimensions: this.config.embedding.dimensions,
+      },
+      vectorStoreProvider: this.config.vectorStore.provider,
+      reranker: {
+        enabled: this.config.reranker.enabled,
+        model: this.config.reranker.model,
+        candidateCount: this.config.reranker.candidateCount,
+      },
+      candidates: {
+        keyword: this.config.keywordCandidateCount,
+        semantic: this.config.semanticCandidateCount,
+      },
+      weights: {
+        keyword: this.config.keywordWeight,
+        semantic: this.config.semanticWeight,
+      },
+    });
+  }
+
+  private setQueryCache(key: string, result: RagQueryResult): void {
+    this.queryCache.set(key, result);
+    while (this.queryCache.size > DEFAULT_RAG_QUERY_CACHE_SIZE) {
+      const oldestKey = this.queryCache.keys().next().value;
+      if (!oldestKey) break;
+      this.queryCache.delete(oldestKey);
+    }
+  }
+
   private async ensureIndex(forceRefresh: boolean): Promise<RepositoryIndex> {
     mkdirSync(this.config.cacheDir, { recursive: true });
     const existing = this.readIndex();
     const targetRepoDir = this.getRepoDir();
+    if (existing && this.canReuseWarmIndex(existing, targetRepoDir, forceRefresh)) {
+      return existing;
+    }
+
     const shouldSyncRepository =
       forceRefresh || this.config.syncOnQuery || !existing || !existsSync(targetRepoDir);
     const repoDir = await ensureRepositoryCheckout({
@@ -579,6 +692,24 @@ class HybridRepositoryKnowledgeBase {
     });
     this.writeIndex(index);
     return index;
+  }
+
+  private canReuseWarmIndex(index: RepositoryIndex, repoDir: string, forceRefresh: boolean): boolean {
+    return (
+      !forceRefresh &&
+      !this.config.syncOnQuery &&
+      existsSync(repoDir) &&
+      index.source.repoUrl === this.config.repoUrl &&
+      index.source.branch === this.config.branch &&
+      index.source.repoDir === repoDir &&
+      index.build.chunkSize === this.config.chunkSize &&
+      index.build.chunkOverlap === this.config.chunkOverlap &&
+      index.build.maxFileSizeBytes === this.config.maxFileSizeBytes &&
+      index.build.chunkingStrategy === 'semantic-v2' &&
+      this.config.excludedPathPrefixes.every((prefix) =>
+        index.source.excludedPathPrefixes.includes(normalizeRepoPath(prefix)),
+      )
+    );
   }
 
   private readIndex(): RepositoryIndex | null {
@@ -799,6 +930,17 @@ class HybridRepositoryKnowledgeBase {
   private getVectorStoreStatePath(): string {
     return join(this.config.cacheDir, 'vector-store-state.json');
   }
+}
+
+function normalizeFiltersForCache(filters?: RagMetadataFilter): RagMetadataFilter | undefined {
+  if (!filters) return undefined;
+  const normalizeList = (values?: string[]) => values ? [...values].sort() : undefined;
+  return {
+    topLevelDirs: normalizeList(filters.topLevelDirs),
+    extensions: normalizeList(filters.extensions),
+    pathPrefixes: normalizeList(filters.pathPrefixes),
+    excludePathPrefixes: normalizeList(filters.excludePathPrefixes),
+  };
 }
 
 function validateMetadataFilters(filters?: RagMetadataFilter): string | undefined {
