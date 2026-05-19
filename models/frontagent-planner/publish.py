@@ -12,8 +12,8 @@ from huggingface_hub import HfApi, login
 
 def main():
     parser = argparse.ArgumentParser(description="发布 LoRA adapter 到 HuggingFace")
-    parser.add_argument("--adapter", default="output/lora_adapter", help="LoRA adapter 目录")
-    parser.add_argument("--repo-id", default="ceilf6/frontagent-planner-7B-lora", help="HuggingFace 仓库 ID")
+    parser.add_argument("--adapter", default="output-14b/lora_adapter", help="LoRA adapter 目录")
+    parser.add_argument("--repo-id", default="ceilf6/frontagent-planner-14B-lora", help="HuggingFace 仓库 ID")
     parser.add_argument("--hf-token", default=None, help="HuggingFace token (也可用 HF_TOKEN 环境变量)")
     args = parser.parse_args()
 
