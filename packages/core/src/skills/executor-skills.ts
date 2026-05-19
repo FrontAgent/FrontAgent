@@ -130,9 +130,25 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     name: 'action.create-file.codegen',
     action: 'create_file',
     requiredParams: ['path'],
+    validateParams: ({ step, params }) => {
+      const stepAny = step as { needsCodeGeneration?: boolean };
+      const hasContent = typeof params.content === 'string' && params.content.length > 0;
+      const hasDescription = typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
+
+      if (!hasContent && !stepAny.needsCodeGeneration && !hasDescription) {
+        return {
+          valid: false,
+          reason: 'create_file requires content, codeDescription, or needsCodeGeneration=true',
+        };
+      }
+
+      return { valid: true };
+    },
     prepareToolParams: async ({ step, params, context }) => {
       const stepAny = step as { needsCodeGeneration?: boolean };
-      const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || !params.content);
+      const hasContent = typeof params.content === 'string' && params.content.length > 0;
+      const hasDescription = typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
+      const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || (!hasContent && hasDescription));
       if (!shouldGenerateCode) {
         return params;
       }

@@ -25,7 +25,9 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "clean": "turbo clean && rm -rf node_modules dist",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm build",
+    "bench:flow": "node benchmarks/frontagent-flow-benchmark.mjs",
+    "bench:flow:smoke": "BENCH_MODE=smoke RUNS=3 node benchmarks/frontagent-flow-benchmark.mjs"
   },
   "keywords": [
     "ai-agent",
