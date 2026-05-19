@@ -4,7 +4,7 @@
 
 export { FrontAgent, createAgent } from './agent.js';
 export { Planner, createPlanner, type PlannerConfig } from './planner.js';
-export { Executor, createExecutor, type ExecutorConfig, type MCPClient } from './executor.js';
+export { Executor, createExecutor, createTraceCollector, type ExecutorConfig, type MCPClient, type ExecutorStepTrace, type ExecutorSubStage, type ExecutorTraceConfig, type ExecutorTraceCollector, type ExecutorTraceSummary } from './executor.js';
 export { ContextManager, createContextManager } from './context.js';
 export {
   A2A_PROTOCOL_NAME,

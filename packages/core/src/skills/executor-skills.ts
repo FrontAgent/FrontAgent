@@ -38,6 +38,7 @@ export interface ExecutorActionSkill {
     step: ExecutionStep;
     params: Record<string, unknown>;
     context: ExecutorStepContextSnapshot;
+    onSubStageTiming?: (stageName: string, durationMs: number) => void;
   }) => Promise<Record<string, unknown>>;
   shouldSkipToolError?: (input: {
     errorMsg: string;
@@ -93,6 +94,7 @@ export class ExecutorSkillRegistry {
     step: ExecutionStep;
     params: Record<string, unknown>;
     context: ExecutorStepContextSnapshot;
+    onSubStageTiming?: (stageName: string, durationMs: number) => void;
   }): Promise<Record<string, unknown>> {
     const skill = this.resolveActionSkill(input.step.action);
     if (!skill?.prepareToolParams) {
@@ -144,7 +146,7 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
 
       return { valid: true };
     },
-    prepareToolParams: async ({ step, params, context }) => {
+    prepareToolParams: async ({ step, params, context, onSubStageTiming }) => {
       const stepAny = step as { needsCodeGeneration?: boolean };
       const hasContent = typeof params.content === 'string' && params.content.length > 0;
       const hasDescription = typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
@@ -156,9 +158,13 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       const filePath = params.path as string;
       const language = runtime.detectLanguage(filePath);
       const codeDescription = (params.codeDescription as string) || step.description;
+
+      let t0 = performance.now();
       let contextStr = runtime.buildContextString(context.collectedContext);
+      onSubStageTiming?.('build_context', performance.now() - t0);
 
       // Phase 2: inject recalled memories for this file
+      t0 = performance.now();
       const memoryRecall = runtime.getMemoryRecall?.(filePath, step.action);
       if (memoryRecall) {
         contextStr = `${contextStr}\n\n${memoryRecall}`;
@@ -166,16 +172,20 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
           console.log(`[Executor] [Skill:create_file] Injected ${memoryRecall.length} chars of recalled memory`);
         }
       }
+      onSubStageTiming?.('memory_recall', performance.now() - t0);
 
+      t0 = performance.now();
       const existingModules =
         runtime.getCreatedModules?.() ??
         Array.from(context.collectedContext.files.keys()).filter((path) => /\.(tsx?|jsx?|mjs|cjs)$/.test(path));
+      onSubStageTiming?.('resolve_modules', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(`[Executor] [Skill:create_file] Generating code for new file: ${filePath}`);
         console.log(`[Executor] [Skill:create_file] Existing modules: ${existingModules.length}`);
       }
 
+      t0 = performance.now();
       const code = await runtime.llmService.generateCodeForFile({
         task: context.task.description,
         filePath,
@@ -186,6 +196,7 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         sddConstraints: runtime.getSddConstraints?.(),
         skillContext: runtime.getSkillContext?.(),
       });
+      onSubStageTiming?.('llm_code_generation', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(`[Executor] [Skill:create_file] Generated code length: ${code.length} chars`);
@@ -204,7 +215,7 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     name: 'action.apply-patch.codegen',
     action: 'apply_patch',
     requiredParams: ['path'],
-    prepareToolParams: async ({ step, params, context }) => {
+    prepareToolParams: async ({ step, params, context, onSubStageTiming }) => {
       const stepAny = step as { needsCodeGeneration?: boolean };
       const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || !params.patches);
       if (!shouldGenerateCode) {
@@ -214,13 +225,17 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       const filePath = params.path as string;
       const language = runtime.detectLanguage(filePath);
       let changeDescription = (params.changeDescription as string) || step.description;
+
+      let t0 = performance.now();
       const originalCode = context.collectedContext.files.get(filePath) || '';
+      onSubStageTiming?.('build_context', performance.now() - t0);
 
       if (!originalCode) {
         throw new Error(`Cannot apply patch: file not found in context: ${filePath}`);
       }
 
       // Phase 2: inject recalled memories for this file
+      t0 = performance.now();
       const memoryRecall = runtime.getMemoryRecall?.(filePath, step.action);
       if (memoryRecall) {
         changeDescription = `${changeDescription}\n\n参考记忆:\n${memoryRecall}`;
@@ -228,11 +243,13 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
           console.log(`[Executor] [Skill:apply_patch] Injected ${memoryRecall.length} chars of recalled memory`);
         }
       }
+      onSubStageTiming?.('memory_recall', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(`[Executor] [Skill:apply_patch] Generating modified code for: ${filePath}`);
       }
 
+      t0 = performance.now();
       const modifiedCode = await runtime.llmService.generateModifiedCode({
         originalCode,
         changeDescription,
@@ -240,6 +257,7 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         language: language || 'typescript',
         skillContext: runtime.getSkillContext?.(),
       });
+      onSubStageTiming?.('llm_code_generation', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(
