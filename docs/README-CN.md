@@ -14,7 +14,7 @@
 
 FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在真实工程场景中部署 agent 时遇到的核心问题：
 
-> **蒸馏规划模型**：FrontAgent 的 Planner 阶段已蒸馏为一个独立的小模型 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)，可基于 Qwen2.5-Coder-7B 加载 LoRA adapter 直接生成前端执行计划，无需调用大型 LLM API。
+> **蒸馏规划模型**：FrontAgent 的 Planner 阶段已蒸馏为一个独立的小模型 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)，可基于 Qwen2.5-Coder-7B 加载 LoRA adapter 直接生成前端执行计划，无需调用大型 LLM API。训练流程、提示词、评估脚本和 Hugging Face 发布元数据已统一放在 [models/frontagent-planner](../models/frontagent-planner)。
 
 - ✅ **两阶段架构** — 规划与执行分离，避免 JSON 解析错误并支持动态代码生成
 - ✅ **分阶段执行** — 步骤按阶段分组，支持阶段内错误恢复
@@ -32,6 +32,7 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在�
 - ✅ **远程混合 RAG** — 对整个远程仓库建索引并自动排除子模块，组合 BM25 关键词检索与 embedding 语义检索
 - ✅ **LangGraph 引擎（可选）** — 可切换图执行引擎并支持可选 checkpoint
 - ✅ **Planner Skills 层** — 可复用的规划技能封装（任务拆解与阶段注入）
+- ✅ **蒸馏 Planner 资产** — 在仓库内统一维护 Planner LoRA 模型的训练、评估与发布资料
 - ✅ **Skill Lab** — 通过本地 eval 套件对内容技能做 benchmark、改进与提升
 - ✅ **仓库管理阶段** — 验收通过后自动执行 git/gh 流程（commit/push/PR）
 - ✅ **跨会话记忆** — 四阶段记忆体系（预加载、运行时召回、任务后持久化、结构化存储），跨运行保留项目事实、错误修复经验与依赖状态
@@ -1054,7 +1055,7 @@ pnpm clean
 - LangGraph 执行引擎（可选）（NEW）
 - 仓库管理阶段（git/gh 自动化）（NEW）
 - 跨会话记忆系统（NEW）— 四阶段持久化记忆 + 结构化 Markdown 存储 + 运行时召回 + Prompt 分区
-- Planner 蒸馏模型 — 基于 FrontAgent Planner 提示词 SFT 微调，发布为 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)（Qwen2.5-Coder-7B + LoRA，100% JSON 合法率，100% 完整计划率）
+- Planner 蒸馏模型 — 基于 FrontAgent Planner 提示词 SFT 微调，发布为 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)，训练与发布资产位于 [models/frontagent-planner](../models/frontagent-planner)（Qwen2.5-Coder-7B + LoRA，100% JSON 合法率，100% 完整计划率）
 
 进行中 🚧
 - 增强的 SDD 约束（更细粒度规则）

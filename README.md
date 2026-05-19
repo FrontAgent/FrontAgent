@@ -14,7 +14,7 @@
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
-> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs.
+> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs. The training workflow, prompts, evaluation scripts, and Hugging Face release metadata live in [models/frontagent-planner](models/frontagent-planner).
 
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
@@ -32,6 +32,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Remote Hybrid RAG** - Full-repository indexing with submodule exclusion, combining BM25 keyword search and embedding-based semantic search
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
+- ✅ **Distilled Planner Assets** - Repository-native training, evaluation, and release assets for the Planner LoRA model
 - ✅ **Skill Lab** - Benchmark, improve, and promote content skills with local eval suites
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
 - ✅ **Cross-Session Memory** - Four-phase memory system (preload, runtime recall, post-task persistence, structured storage) that persists project facts, error resolutions, and dependency state across runs
@@ -1180,7 +1181,7 @@ pnpm clean
 - [x] **LangGraph execution engine (optional)** (NEW!)
 - [x] **Repository management phase (git/gh automation)** (NEW!)
 - [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
-- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
+- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora), with training and release assets in [models/frontagent-planner](models/frontagent-planner) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)
