@@ -87,6 +87,46 @@ export interface QueryResult {
   notes: NotesFile | null;
 }
 
+export interface FilesenseBudget {
+  depth?: number;
+  maxEntries?: number;
+  maxBytes?: number;
+  timeoutMs?: number;
+}
+
+export interface NavigateOptions extends FilesenseBudget {
+  paths?: string[];
+  intent?: 'locate' | 'understand_structure' | 'find_conventions' | 'prepare_refactor' | 'prepare_create' | 'validate_freshness';
+  output?: 'summary' | 'candidates' | 'verbose';
+  writeMode?: 'cache' | 'workspace' | 'none';
+}
+
+export interface NavigateResult {
+  root: string;
+  scanned: {
+    paths: string[];
+    depth: number;
+    entries: number;
+    elapsedMs: number;
+    truncated: boolean;
+  };
+  summary: {
+    projectType?: string;
+    packageManager?: string;
+    mainEntrypoints: string[];
+    importantDirs: Array<{ path: string; purpose: string; confidence: number }>;
+    conventions: string[];
+    risks: string[];
+  };
+  candidates: Array<{ path: string; type: 'file' | 'dir'; reason: string; score: number }>;
+  factsDelta: {
+    existingFiles: string[];
+    existingDirectories: string[];
+  };
+  warnings: string[];
+  indexes?: IndexFile[];
+}
+
 export type IgnoreMatcher = (relativePath: string, isDirectory: boolean) => boolean;
 
 export const DEFAULT_CONFIG: FilesenseConfig = {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { init, syncIndexes, summarize, query, check, syncAndSummarize } from './engine.js';
+import { init, syncIndexes, summarize, query, check, syncAndSummarize, navigate } from './engine.js';
 
 const TEST_DIR = path.join(import.meta.dirname, '..', '.test-workspace');
 
@@ -105,5 +105,20 @@ describe('Filesense Engine', () => {
     const second = await syncIndexes(TEST_DIR);
     expect(second.filesHashed).toBe(0);
     expect(second.indexesWritten).toBe(0);
+  });
+
+  it('navigate returns compact summary without writing workspace indexes', async () => {
+    await fs.writeFile(path.join(TEST_DIR, 'package.json'), '{"scripts":{"dev":"vite"}}');
+    await fs.mkdir(path.join(TEST_DIR, 'src'));
+    await fs.writeFile(path.join(TEST_DIR, 'src', 'main.tsx'), 'export const main = 1;');
+
+    const result = await navigate(TEST_DIR, { paths: ['.'], depth: 1, maxEntries: 20, output: 'summary' });
+    expect(result.summary.packageManager).toBe('node');
+    expect(result.summary.mainEntrypoints).toContain('package.json');
+    expect(result.candidates.some(candidate => candidate.path === 'src')).toBe(true);
+    expect(result.factsDelta.existingDirectories).toContain('src');
+
+    const indexExists = await fs.access(path.join(TEST_DIR, 'FILES.json')).then(() => true).catch(() => false);
+    expect(indexExists).toBe(false);
   });
 });

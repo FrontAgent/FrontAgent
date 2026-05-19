@@ -15,6 +15,8 @@ import type {
   SummarizeSummary,
   CheckSummary,
   QueryResult,
+  NavigateOptions,
+  NavigateResult,
   IgnoreMatcher,
 } from './types.js';
 import { DEFAULT_CONFIG, INTERNAL_FILES } from './types.js';
@@ -252,19 +254,28 @@ async function listTrackedEntries(
 async function walkDirectories(
   root: string, startDir: string, config: FilesenseConfig, ignores: IgnoreMatcher,
   onDirectory: (dirPath: string) => Promise<void>,
-  onSkip: () => void
+  onSkip: () => void,
+  options: { maxDepth?: number; startDepth?: number; shouldStop?: () => boolean } = {},
 ): Promise<void> {
+  if (options.shouldStop?.()) return;
+  const currentDepth = options.startDepth ?? 0;
   await onDirectory(startDir);
   if (!config.recursive) return;
+  if (options.maxDepth !== undefined && currentDepth >= options.maxDepth) return;
+  if (options.shouldStop?.()) return;
 
   const items = await fs.readdir(startDir, { withFileTypes: true });
   for (const item of items) {
+    if (options.shouldStop?.()) return;
     if (!item.isDirectory()) continue;
     const absolutePath = path.join(startDir, item.name);
     const relative = relativeToRoot(root, absolutePath);
     if (relative === config.schemaDir || relative.startsWith(config.schemaDir + '/')) { onSkip(); continue; }
     if (ignores(relative, true)) { onSkip(); continue; }
-    await walkDirectories(root, absolutePath, config, ignores, onDirectory, onSkip);
+    await walkDirectories(root, absolutePath, config, ignores, onDirectory, onSkip, {
+      ...options,
+      startDepth: currentDepth + 1,
+    });
   }
 }
 
@@ -477,17 +488,23 @@ export async function init(targetPath: string): Promise<SyncSummary> {
 /**
  * Sync (write/update) FILES.json indexes recursively
  */
-export async function syncIndexes(targetPath: string, forceFull: boolean = false): Promise<SyncSummary> {
+export async function syncIndexes(targetPath: string, forceFull: boolean = false, options: { depth?: number; maxEntries?: number; timeoutMs?: number } = {}): Promise<SyncSummary> {
   const { root, config, ignores } = await resolveRootAndConfig(targetPath);
   await ensureSchemaFiles(root, config);
   const summary: SyncSummary = { root, directoriesScanned: 0, indexesWritten: 0, filesHashed: 0, directoriesSkipped: 0 };
+  const startedAt = Date.now();
 
   await walkDirectories(root, root, config, ignores, async (dirPath) => {
     summary.directoriesScanned += 1;
     const result = await writeDirectoryIndex(root, dirPath, config, ignores, forceFull);
     summary.filesHashed += result.filesHashed;
     if (result.wroteIndex) summary.indexesWritten += 1;
-  }, () => { summary.directoriesSkipped += 1; });
+  }, () => { summary.directoriesSkipped += 1; }, {
+    maxDepth: options.depth,
+    shouldStop: () =>
+      (options.maxEntries !== undefined && summary.directoriesScanned >= options.maxEntries) ||
+      (options.timeoutMs !== undefined && Date.now() - startedAt >= options.timeoutMs),
+  });
 
   return summary;
 }
@@ -563,6 +580,160 @@ export async function query(targetPath: string): Promise<QueryResult> {
   const notes = (await exists(notesPath)) ? ((await readJson(notesPath)) as NotesFile) : null;
 
   return { root, target, rootRelativePath: relative === '' ? '.' : relative, index, notes };
+}
+
+function detectPackageManager(indexes: IndexFile[]): string | undefined {
+  const names = new Set(indexes.flatMap(index => index.children.map(child => child.name)));
+  if (names.has('pnpm-lock.yaml')) return 'pnpm';
+  if (names.has('yarn.lock')) return 'yarn';
+  if (names.has('package-lock.json')) return 'npm';
+  if (names.has('bun.lockb')) return 'bun';
+  return names.has('package.json') ? 'node' : undefined;
+}
+
+function detectProjectType(indexes: IndexFile[]): string | undefined {
+  const names = new Set(indexes.flatMap(index => index.children.map(child => child.name.toLowerCase())));
+  if (names.has('vite.config.ts') || names.has('vite.config.js')) return 'Vite frontend project';
+  if (names.has('next.config.js') || names.has('next.config.mjs')) return 'Next.js frontend project';
+  if (names.has('package.json')) return 'Node.js / frontend project';
+  if (indexes.some(index => index.children.some(child => ['.tsx', '.jsx', '.vue', '.svelte'].includes(child.ext)))) return 'Frontend source project';
+  return undefined;
+}
+
+function scoreCandidate(entry: ChildEntry, intent: NavigateOptions['intent']): number {
+  let score = entry.importance === 'high' ? 80 : 40;
+  const name = entry.name.toLowerCase();
+  if (entry.type === 'dir' && ['src', 'components', 'pages', 'views', 'hooks', 'api', 'services'].includes(name)) score += 30;
+  if (intent === 'find_conventions' && (name === 'readme.md' || name.includes('config'))) score += 25;
+  if (intent === 'locate' && entry.importance === 'high') score += 20;
+  return score;
+}
+
+export async function navigate(targetPath: string, options: NavigateOptions = {}): Promise<NavigateResult> {
+  const startedAt = Date.now();
+  const depth = options.depth ?? 2;
+  const maxEntries = options.maxEntries ?? 300;
+  const timeoutMs = options.timeoutMs ?? 3000;
+  const output = options.output ?? 'summary';
+  const target = path.resolve(targetPath);
+  const { root, config, ignores } = await resolveRootAndConfig(target);
+  const requestedPaths = options.paths?.length ? options.paths : ['.'];
+  const indexes: IndexFile[] = [];
+  const warnings: string[] = [];
+  let entries = 0;
+  let truncated = false;
+
+  const stop = () => {
+    const shouldStop = entries >= maxEntries || Date.now() - startedAt >= timeoutMs;
+    if (shouldStop) truncated = true;
+    return shouldStop;
+  };
+
+  for (const requestedPath of requestedPaths) {
+    if (stop()) break;
+    const startDir = path.resolve(root, requestedPath);
+    if (!(await exists(startDir))) {
+      warnings.push(`Path does not exist: ${requestedPath}`);
+      continue;
+    }
+    const stat = await fs.stat(startDir);
+    const dir = stat.isDirectory() ? startDir : path.dirname(startDir);
+
+    await walkDirectories(root, dir, config, ignores, async (dirPath) => {
+      if (stop()) return;
+      const children = await listTrackedEntries(root, dirPath, config, ignores);
+      const childEntries: ChildEntry[] = children.map(entry => {
+        const absolutePath = path.join(dirPath, entry.name);
+        return {
+          name: entry.name,
+          type: entry.type,
+          path: relativeToRoot(root, absolutePath),
+          ext: entry.type === 'file' ? path.extname(entry.name) : '',
+          size: entry.type === 'file' ? Number(entry.stat.size) : 0,
+          mtimeMs: Number(entry.stat.mtimeMs),
+          hash: null,
+          summary: entry.type === 'dir' ? 'Directory' : inferSummary(entry.name),
+          importance: entry.type === 'file' ? inferImportance(entry.name) : 'normal',
+          status: 'active' as const,
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+      entries += childEntries.length;
+      indexes.push({
+        schema_version: config.schemaVersion,
+        generated_at: new Date().toISOString(),
+        root_relative_path: relativeToRoot(root, dirPath),
+        directory: { name: path.basename(dirPath), path: relativeToRoot(root, dirPath) },
+        children: childEntries,
+        sync: {
+          child_count: childEntries.length,
+          file_count: childEntries.filter(child => child.type === 'file').length,
+          dir_count: childEntries.filter(child => child.type === 'dir').length,
+          last_full_sync: null,
+          last_incremental_sync: null,
+        },
+      });
+    }, () => undefined, { maxDepth: depth, shouldStop: stop });
+  }
+
+  const allChildren = indexes.flatMap(index => index.children);
+  const mainEntrypoints = allChildren
+    .filter(child => child.type === 'file' && child.importance === 'high')
+    .map(child => child.path)
+    .slice(0, 8);
+  const importantDirs = indexes
+    .filter(index => index.root_relative_path !== '.')
+    .map(index => ({ path: index.root_relative_path, purpose: inferDirectoryPurpose(index), confidence: 0.75 }))
+    .slice(0, 10);
+  const conventions = Array.from(new Set(indexes.flatMap(index => inferConventions(index)))).slice(0, 8);
+  const candidates = allChildren
+    .map(child => ({
+      path: child.path,
+      type: child.type,
+      reason: child.importance === 'high' ? 'high-importance entrypoint/config' : child.summary,
+      score: scoreCandidate(child, options.intent),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, output === 'verbose' ? 50 : 15);
+
+  const result: NavigateResult = {
+    root,
+    scanned: {
+      paths: requestedPaths,
+      depth,
+      entries,
+      elapsedMs: Date.now() - startedAt,
+      truncated,
+    },
+    summary: {
+      projectType: detectProjectType(indexes),
+      packageManager: detectPackageManager(indexes),
+      mainEntrypoints,
+      importantDirs,
+      conventions,
+      risks: truncated ? ['Filesense navigation was truncated by budget; expand depth/maxEntries if more coverage is needed.'] : [],
+    },
+    candidates,
+    factsDelta: {
+      existingFiles: Array.from(new Set(allChildren.filter(child => child.type === 'file').map(child => child.path))).slice(0, 200),
+      existingDirectories: Array.from(new Set(allChildren.filter(child => child.type === 'dir').map(child => child.path))).slice(0, 200),
+    },
+    warnings,
+  };
+
+  if (output === 'verbose') {
+    result.indexes = indexes;
+  }
+
+  const maxBytes = options.maxBytes;
+  if (maxBytes !== undefined && Buffer.byteLength(JSON.stringify(result), 'utf8') > maxBytes) {
+    result.warnings.push(`Navigation result exceeded maxBytes=${maxBytes}; returning compact summary.`);
+    result.candidates = result.candidates.slice(0, 10);
+    result.factsDelta.existingFiles = result.factsDelta.existingFiles.slice(0, 80);
+    result.factsDelta.existingDirectories = result.factsDelta.existingDirectories.slice(0, 80);
+    delete result.indexes;
+  }
+
+  return result;
 }
 
 /**

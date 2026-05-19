@@ -150,6 +150,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'filesense_summarize':
       case 'filesense_query':
       case 'filesense_check':
+      case 'filesense_navigate':
       case 'filesense_sync_and_summarize': {
         const result = await handleFilesenseTool(name, args as Record<string, unknown>, projectRoot);
         return {
