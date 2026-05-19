@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@frontagent/shared": "workspace:*",
+    "@frontagent/mcp-filesense": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "diff": "^5.1.0",
     "ts-morph": "^21.0.0",

@@ -301,6 +301,34 @@ function createRunCommandSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
 function createDefaultActionSkills(runtime: ExecutorSkillRuntime): ExecutorActionSkill[] {
   return [
     {
+      name: 'action.filesense-navigate',
+      action: 'filesense_navigate' as ExecutionStep['action'],
+      shouldSkipToolError: ({ errorMsg }) => {
+        // Filesense is an acceleration/navigation layer. Never block the main task on it.
+        if (runtime.debug) {
+          console.log(`[Executor] [Skill:filesense:navigate] Non-fatal error: ${errorMsg}`);
+        }
+        return true;
+      },
+    },
+    {
+      name: 'action.filesense-sync-and-summarize',
+      action: 'filesense_sync_and_summarize' as ExecutionStep['action'],
+      shouldSkipToolError: ({ errorMsg }) => {
+        // Filesense errors are non-fatal - the agent can still work without indexes
+        if (runtime.debug) {
+          console.log(`[Executor] [Skill:filesense] Non-fatal error: ${errorMsg}`);
+        }
+        return true;
+      },
+    },
+    {
+      name: 'action.filesense-query',
+      action: 'filesense_query' as ExecutionStep['action'],
+      requiredParams: ['path'],
+      shouldSkipToolError: () => true, // Non-fatal
+    },
+    {
       name: 'action.read-file',
       action: 'read_file',
       requiredParams: ['path'],

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+FILES.json
+FILES.notes.json
+.filesrc.json
+.filesignore
+schemas/

@@ -187,7 +187,7 @@ function toRuntimeInput(args: Record<string, unknown>, defaults: FrontAgentMcpSe
     disableRag: boolValue(args.disableRag, defaults.disableRag ?? false),
     ragRepo: stringValue(args.ragRepo) ?? defaults.ragRepo,
     ragBranch: stringValue(args.ragBranch) ?? defaults.ragBranch,
-    ragSyncOnQuery: boolValue(args.ragSyncOnQuery, defaults.ragSyncOnQuery ?? false),
+    ragSyncOnQuery: boolValue(args.ragSyncOnQuery, Boolean(defaults.ragSyncOnQuery ?? false)),
     ragMaxResults: (args.ragMaxResults as string | number | undefined) ?? defaults.ragMaxResults,
     ragKeywordCandidates: (args.ragKeywordCandidates as string | number | undefined) ?? defaults.ragKeywordCandidates,
     ragSemanticCandidates: (args.ragSemanticCandidates as string | number | undefined) ?? defaults.ragSemanticCandidates,
