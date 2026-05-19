@@ -130,3 +130,78 @@ create 场景优化前后对比：
 2. 可以通过入仓 benchmark 复现全流程编排成本。
 3. Filesense read-only 工具在非交互执行中不会再被误跳过。
 4. create_file 参数语义更清晰，避免空 content 触发隐式生成。
+
+## 真实 LLM 复测结果
+
+### 测试条件
+
+- Provider：`anthropic`
+- Base URL：内部模型网关
+- Model：`gpt-5.5`
+- API Key：仅通过本地环境变量注入，未写入仓库或文档。
+- Benchmark 根目录：`/tmp/frontagent-flow-bench-workspace`
+- 每轮测试前：重新创建 fixture，并删除 `<bench-root>/.frontagent/`。
+- 时间单位：ms，来自 Node `performance.now()`。
+
+### Benchmark 模式补充
+
+`benchmarks/frontagent-flow-benchmark.mjs` 现在额外支持：
+
+- `BENCH_MODE=realCreate`：仅运行 create-component，适合真实模型小样本测试。
+- `BENCH_LLM=real`：Planner 仍为规则模式，Executor 动态代码生成走真实 `LLMService`。
+- `BENCH_LLM=real-full`：Planner 与 Executor 都走真实 `LLMService`。
+- `BENCH_USE_LLM_PLANNER=1`：在任意模式下单独启用真实 LLM Planner。
+- `BENCH_CLEAR_CACHE=0`：关闭每轮 `.frontagent/` 缓存清理；默认每轮清理。
+
+### 规则 Planner + 真实 Executor LLM
+
+命令形态：
+
+```bash
+BENCH_MODE=local BENCH_LLM=real RUNS=3 node benchmarks/frontagent-flow-benchmark.mjs
+```
+
+该模式用于隔离“FrontAgent 编排 + Executor 真实代码生成”的耗时，Planner 不调用模型。
+
+| 场景 | cache clear avg | plan avg | execute avg | total avg | Filesense avg | create_file prepare avg | 结论 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| query-explicit-file | 0.03 | 0.15 | 0.30 | 0.48 | - | - | 单文件直读，端到端仍为亚毫秒级 |
+| query-structure | 0.27 | 0.06 | 2.87 | 3.20 | 2.76 | - | 主要成本来自轻量 Filesense 导航 |
+| create-component | 0.05 | 0.62 | 17423.36 | 17424.03 | 0.87 | 17417.43 | 真实代码生成占绝对主导 |
+| debug-structure | 0.07 | 0.24 | 2.42 | 2.72 | 2.35 | - | Filesense 导航仍稳定在毫秒级 |
+| refactor-multi-file | 0.10 | 0.12 | 0.86 | 1.08 | 0.34 | - | 当前规则 refactor 未触发真实 LLM 修改生成 |
+
+关键观察：
+
+- Filesense 优化仍有效：结构/调试场景中 `filesense_navigate` 平均约 `2.35~2.76ms`，create 场景约 `0.87ms`。
+- `create-component` 的端到端 `17.4s` 基本全部落在 `create_file.prepare_tool_params`，即真实模型生成代码阶段。
+- Planner 规则路径不是瓶颈：所有场景 `plan avg < 1ms`。
+
+### 真实 Planner + 真实 Executor LLM
+
+命令形态：
+
+```bash
+BENCH_MODE=realCreate BENCH_LLM=real-full RUNS=3 node benchmarks/frontagent-flow-benchmark.mjs
+```
+
+该模式用于验证“真实 Planner 生成计划”的端到端影响。
+
+| 场景 | cache clear avg | plan avg | execute avg | total avg | step avg | 结论 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| create-component | 0.31 | 82109.17 | 15.76 | 82125.24 | 17.7 | 真实 Planner 一次结构化计划生成约 82s，远高于执行编排成本 |
+
+本组样本中真实 Planner 生成了约 `17.7` 个 step，但多数工具未在本地 benchmark MCP stub 中注册或被安全策略跳过，因此该组主要用于衡量 Planner 模型调用与计划膨胀风险，不适合直接代表完整生产执行。
+
+### 更新后的性能判断
+
+1. **编排层已经不是主要瓶颈**：stub 模式下多数场景在毫秒内完成。
+2. **真实 Executor 代码生成是 create 类任务主耗时**：`create_file.prepare_tool_params` 平均约 `17.4s`。
+3. **真实 Planner 成本更高且可能产生过长计划**：`create-component` 真实规划平均约 `82.1s`，并生成约 `17.7` 个 step。
+4. **Filesense 优化结论成立**：真实 LLM 测试中 Filesense 仍保持低毫秒级，不再是主瓶颈。
+
+下一阶段优化应优先：
+
+- 默认保持规则 Planner + 必要时局部 LLM，而不是全量 LLM Planner。
+- 对 create/modify 的模型调用做 prompt 压缩、上下文裁剪和 streaming/timeout 观测。
+- 为真实 Planner 增加 step 上限、工具白名单和计划瘦身策略。

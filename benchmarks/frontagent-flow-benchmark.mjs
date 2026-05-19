@@ -5,23 +5,34 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { Planner } from '../packages/core/dist/planner.js';
 import { Executor } from '../packages/core/dist/executor.js';
+import { LLMService } from '../packages/core/dist/llm.js';
 import { HallucinationGuard } from '../packages/hallucination-guard/dist/index.js';
 import { navigate } from '../packages/mcp-filesense/dist/engine.js';
 
 const ROOT = process.env.FRONTAGENT_BENCH_ROOT ?? '/tmp/frontagent-flow-bench-workspace';
 const RUNS = Number(process.env.RUNS ?? 10);
 const MODE = process.env.BENCH_MODE ?? 'local';
+const LLM_MODE = process.env.BENCH_LLM ?? 'stub';
+const USE_LLM_PLANNER = process.env.BENCH_USE_LLM_PLANNER === '1' || LLM_MODE === 'real-full';
+const CLEAR_FRONTAGENT_CACHE = process.env.BENCH_CLEAR_CACHE !== '0';
 const WRITE_JSON = process.env.BENCH_JSON;
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const scenarioNamesByMode = {
   smoke: new Set(['query-explicit-file', 'query-structure', 'refactor-multi-file']),
+  realCreate: new Set(['create-component']),
   local: null,
   full: null,
 };
 
 async function rm(targetPath) {
   await fs.rm(targetPath, { recursive: true, force: true });
+}
+
+async function clearFrontagentCache() {
+  if (CLEAR_FRONTAGENT_CACHE) {
+    await rm(path.join(ROOT, '.frontagent'));
+  }
 }
 
 async function createFixture() {
@@ -106,23 +117,41 @@ class LocalMcpClient {
   }
 }
 
-function createPlanner() {
-  return new Planner({ llm: { provider: 'openai', model: 'bench', apiKey: 'bench' }, useLLM: false });
+function createLlmConfig() {
+  return {
+    provider: process.env.PROVIDER ?? 'openai',
+    model: process.env.MODEL ?? 'bench',
+    apiKey: process.env.API_KEY ?? 'bench',
+    baseURL: process.env.BASE_URL,
+    maxTokens: Number(process.env.MAX_TOKENS ?? 2048),
+  };
 }
 
-function createExecutor(client, traces) {
-  const fastLlmService = {
+function createPlanner() {
+  return new Planner({ llm: createLlmConfig(), useLLM: USE_LLM_PLANNER });
+}
+
+function createLlmService() {
+  if (LLM_MODE === 'real' || LLM_MODE === 'real-full') {
+    return new LLMService(createLlmConfig());
+  }
+
+  return {
     generateCodeForFile: async ({ filePath }) => {
       const exportName = path.basename(String(filePath)).replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_$]/g, '') || 'Generated';
       return `export const ${exportName} = () => null;\n`;
     },
     generateModifiedCode: async ({ originalCode }) => originalCode,
   };
+}
+
+function createExecutor(client, traces) {
+  const llmService = createLlmService();
 
   const executor = new Executor({
     projectRoot: ROOT,
     hallucinationGuard: new HallucinationGuard({ projectRoot: ROOT }),
-    llmService: fastLlmService,
+    llmService,
     security: { mode: 'developer', interactive: false },
     trace: {
       enabled: true,
@@ -160,6 +189,7 @@ function summarizeTraces(traces) {
 
 async function runScenario(scenario) {
   await createFixture();
+  await clearFrontagentCache();
 
   const planner = createPlanner();
   const client = new LocalMcpClient(0);
@@ -168,6 +198,7 @@ async function runScenario(scenario) {
   const task = scenario.task();
 
   const contextFiles = new Map((task.context?.relevantFiles ?? []).map((file) => [file, 'preloaded benchmark content']));
+  const cacheClearTiming = await timed(() => clearFrontagentCache());
   const planTiming = await timed(() => planner.plan(task, { files: contextFiles }, []));
   if (!planTiming.result.plan) throw new Error(`No plan for ${scenario.name}`);
 
@@ -178,9 +209,11 @@ async function runScenario(scenario) {
   }));
 
   return {
+    cacheClearMs: cacheClearTiming.elapsedMs,
     planMs: planTiming.elapsedMs,
     executeMs: executionTiming.elapsedMs,
-    totalMs: planTiming.elapsedMs + executionTiming.elapsedMs,
+    totalMs: cacheClearTiming.elapsedMs + planTiming.elapsedMs + executionTiming.elapsedMs,
+    planAndExecuteMs: planTiming.elapsedMs + executionTiming.elapsedMs,
     stepCount: planTiming.result.plan.steps.length,
     steps: planTiming.result.plan.steps.map((step) => ({ action: step.action, tool: step.tool, phase: step.phase, duration: step.result?.duration ?? null })),
     toolCalls: client.calls,
@@ -203,6 +236,9 @@ const out = {
   repoRoot: REPO_ROOT,
   root: ROOT,
   mode: MODE,
+  llmMode: LLM_MODE,
+  useLlmPlanner: USE_LLM_PLANNER,
+  clearFrontagentCache: CLEAR_FRONTAGENT_CACHE,
   runs: RUNS,
   scenarios: {},
 };
@@ -212,8 +248,10 @@ for (const scenario of scenarios) {
   for (let i = 0; i < RUNS; i++) runs.push(await runScenario(scenario));
   const allToolCalls = runs.flatMap((run) => run.toolCalls.map((call) => call.name));
   out.scenarios[scenario.name] = {
+    cacheClearMs: stats(runs.map((run) => run.cacheClearMs)),
     planMs: stats(runs.map((run) => run.planMs)),
     executeMs: stats(runs.map((run) => run.executeMs)),
+    planAndExecuteMs: stats(runs.map((run) => run.planAndExecuteMs)),
     totalMs: stats(runs.map((run) => run.totalMs)),
     stepCount: stats(runs.map((run) => run.stepCount)),
     sampleSteps: runs.at(-1).steps,
