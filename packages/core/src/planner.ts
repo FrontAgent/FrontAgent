@@ -288,13 +288,18 @@ export class Planner {
       // 映射 action 到标准类型
       const action = this.mapLLMAction(llmStep.action);
 
+      const previousStep = steps[i - 1];
+      const dependencies = previousStep && !(
+        this.isReadOnlyPlanningAction(previousStep.action) && this.isReadOnlyPlanningAction(action)
+      ) ? [previousStep.stepId] : [];
+
       const step: ExecutionStep = {
         stepId: generateId('step'),
         description: llmStep.description,
         action,
         tool: llmStep.tool,
         params: llmStep.params as Record<string, unknown>,
-        dependencies: i > 0 ? [steps[i - 1].stepId] : [],
+        dependencies,
         validation: this.getDefaultValidation(action),
         status: 'pending',
         // 保留 phase 字段
@@ -305,6 +310,10 @@ export class Planner {
     }
 
     return steps;
+  }
+
+  private isReadOnlyPlanningAction(action: ExecutionStep['action']): boolean {
+    return ['read_file', 'search_code', 'list_directory', 'get_ast'].includes(action);
   }
 
   /**

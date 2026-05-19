@@ -169,6 +169,7 @@ export class FrontAgent {
       },
       executionEngine: config.execution?.engine,
       langGraph: config.execution?.langGraph,
+      maxRecoveryAttempts: config.execution?.maxRecoveryAttempts,
       getSddConstraints: () => this.promptGenerator?.generate(),
       getSkillContext: () => {
         if (!this.currentTaskId) return undefined;
@@ -934,13 +935,14 @@ export class FrontAgent {
           }
 
           // 将LLM生成的修复步骤转换为ExecutionStep
+          const recoveryStepIds = recoveryPlan.recoverySteps.map(() => generateId('recovery-step'));
           const recoverySteps: ExecutionStep[] = recoveryPlan.recoverySteps.map((step, idx) => ({
-            stepId: generateId('recovery-step'),
+            stepId: recoveryStepIds[idx],
             description: step.description,
             action: step.action as any,
             tool: step.tool,
             params: step.params as Record<string, unknown>,
-            dependencies: idx > 0 ? [generateId('recovery-step')] : [],
+            dependencies: idx > 0 ? [recoveryStepIds[idx - 1]] : [],
             validation: [],
             status: 'pending' as const,
             phase: step.phase
@@ -1907,12 +1909,17 @@ export class FrontAgent {
   }
 
   private async rewriteRagQueryForRetrieval(query: string): Promise<string | undefined> {
-    if (this.config.rag?.queryRewrite?.enabled === false) {
+    const rewriteConfig = this.config.rag?.queryRewrite;
+    if (rewriteConfig?.enabled === false || rewriteConfig?.mode === 'never') {
       return undefined;
     }
 
     const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) {
+      return undefined;
+    }
+
+    if ((rewriteConfig?.mode ?? 'auto') === 'auto' && !this.shouldRewriteRagQuery(normalizedQuery)) {
       return undefined;
     }
 
@@ -1946,6 +1953,14 @@ export class FrontAgent {
       this.debugWarn('[Agent] Failed to rewrite RAG query, falling back to original query:', error);
       return undefined;
     }
+  }
+
+  private shouldRewriteRagQuery(query: string): boolean {
+    const normalized = normalizeSearchQuery(query);
+    if (!normalized) return false;
+    if (/[./][A-Za-z0-9_-]+|[A-Za-z_$][\w$]*\(|@[a-z0-9-]+\/|#[0-9]+/.test(normalized)) return false;
+    if (normalized.length <= 80 && /[A-Za-z0-9_./-]/.test(normalized)) return false;
+    return true;
   }
 
   private formatRagResult(result: {
