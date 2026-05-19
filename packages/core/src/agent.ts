@@ -301,7 +301,14 @@ export class FrontAgent {
       'list_directory',
       'get_ast',
       'rollback',
-      'get_snapshots'
+      'get_snapshots',
+      'filesense_init',
+      'filesense_sync',
+      'filesense_summarize',
+      'filesense_query',
+      'filesense_check',
+      'filesense_navigate',
+      'filesense_sync_and_summarize'
     ];
     for (const tool of tools) {
       this.executor.registerToolMapping(tool, 'file');
