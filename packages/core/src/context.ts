@@ -456,6 +456,22 @@ export class ContextManager {
     const { facts } = context;
     let changed = false;
 
+    // Handle filesense navigation results - consume explicit factsDelta instead of guessing result shape.
+    if (toolName.startsWith('filesense_')) {
+      const data = result.data as { factsDelta?: { existingFiles?: string[]; existingDirectories?: string[] } } | undefined;
+      const factsDelta = data?.factsDelta;
+      if (result.success && factsDelta) {
+        for (const file of factsDelta.existingFiles ?? []) {
+          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
+        }
+        for (const dir of factsDelta.existingDirectories ?? []) {
+          changed = this.addToSet(facts.filesystem.existingDirectories, dir) || changed;
+          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, dir) || changed;
+        }
+      }
+    }
+
     // Handle filesense tool results - enrich ProjectFacts from index data
     if (toolName === 'filesense_sync' || toolName === 'filesense_sync_and_summarize' || toolName === 'filesense_query') {
       if (result.success && result.data) {

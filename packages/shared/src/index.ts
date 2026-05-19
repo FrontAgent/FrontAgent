@@ -428,7 +428,10 @@ export type ActionType =
   | 'browser_click'
   | 'browser_type'
   | 'browser_screenshot'
-  | 'get_page_structure';
+  | 'get_page_structure'
+  | 'filesense_sync_and_summarize'
+  | 'filesense_query'
+  | 'filesense_navigate';
 
 /**
  * 步骤执行结果

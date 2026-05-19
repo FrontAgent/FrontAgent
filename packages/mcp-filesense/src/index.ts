@@ -18,6 +18,7 @@ export {
   filesenseQuerySchema,
   filesenseCheckSchema,
   filesenseSyncAndSummarizeSchema,
+  filesenseNavigateSchema,
   handleFilesenseTool,
   type FilesenseToolResult,
 } from './tools.js';

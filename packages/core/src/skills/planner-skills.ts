@@ -1,4 +1,5 @@
 import type { AgentTask, ExecutionStep } from '@frontagent/shared';
+import { decideFilesense } from '../filesense/trigger-policy.js';
 import type {
   PhaseInjectionSkill,
   PlannerContextSnapshot,
@@ -126,27 +127,28 @@ export function createDefaultPlannerSkillRegistry(
 
   const phaseSkills: PhaseInjectionSkill[] = [
     {
-      name: 'phase.filesense-sync',
-      shouldInject: ({ task, steps }) => {
-        // Inject filesense sync before any task that reads or writes files
-        if (task.type === 'query') return false;
-        return steps.some((step) =>
-          step.action === 'create_file' ||
-          step.action === 'apply_patch' ||
-          step.action === 'read_file' ||
-          step.action === 'list_directory'
-        );
-      },
-      apply: ({ task: _task, steps, stepFactory }) => {
-        // Prepend a filesense_sync_and_summarize step at the beginning
-        const syncStep = stepFactory.createStep({
-          description: '同步目录索引，获取项目结构感知',
-          action: 'filesense_sync_and_summarize' as ExecutionStep['action'],
-          tool: 'filesense_sync_and_summarize',
-          params: { path: '.' },
+      name: 'phase.filesense-navigate',
+      shouldInject: ({ task, steps }) => decideFilesense(task, steps).enabled,
+      apply: ({ task, steps, stepFactory }) => {
+        const decision = decideFilesense(task, steps);
+        if (!decision.enabled) return steps;
+
+        const navigateStep = stepFactory.createStep({
+          description: `按需构建目录导航上下文：${decision.reason}`,
+          action: 'filesense_navigate' as ExecutionStep['action'],
+          tool: 'filesense_navigate',
+          params: {
+            intent: decision.intent,
+            paths: decision.paths,
+            depth: decision.depth,
+            maxEntries: decision.maxEntries,
+            maxBytes: decision.maxBytes,
+            output: 'summary',
+            writeMode: 'cache',
+          },
           phase: 'preparation',
         });
-        return [syncStep, ...steps];
+        return [navigateStep, ...steps];
       },
     },
     {
