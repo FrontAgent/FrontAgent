@@ -16,6 +16,7 @@ The Planner model turns natural-language frontend engineering tasks plus project
 - `prompts/` - Planner and error-recovery prompts extracted from FrontAgent.
 - `data/` - Alpaca-format training/eval data and the v2 data generator.
 - `train.py` - Unsloth QLoRA SFT training script, defaulting to the 14B v2 track.
+- `train_mlx.py` - Apple Silicon MLX LoRA launcher for local Mac training with MLX 4bit bases.
 - `eval.py` - Schema, action, phase, executability, overplanning, and task-fit evaluator.
 - `publish.py` - Hugging Face Hub upload script, defaulting to the 14B adapter repo.
 - `hf-release/` - Existing 7B Hugging Face release metadata.
@@ -63,6 +64,46 @@ Training smoke with the first 20 samples:
 
 ```bash
 python train.py --data data/train_v2.json --output output-14b-smoke --max-samples 20 --epochs 1
+```
+
+Apple Silicon local route:
+
+```bash
+python -m venv /tmp/frontagent-planner-mlx-venv
+/tmp/frontagent-planner-mlx-venv/bin/python -m pip install mlx-lm huggingface_hub
+
+cd models/frontagent-planner
+/tmp/frontagent-planner-mlx-venv/bin/python train_mlx.py \
+  --base-model mlx-community/Qwen2.5-Coder-14B-Instruct-4bit \
+  --train-data data/train_v2.json \
+  --eval-data data/eval_v2.json \
+  --output output-14b-mlx \
+  --iters 1000 \
+  --batch-size 1 \
+  --gradient-accumulation 4 \
+  --lora-rank 32 \
+  --lora-alpha 64 \
+  --num-layers -1 \
+  --max-seq-len 2048
+```
+
+MLX smoke test on a small same-family base:
+
+```bash
+/tmp/frontagent-planner-mlx-venv/bin/python train_mlx.py \
+  --base-model mlx-community/Qwen2.5-Coder-0.5B-Instruct-4bit \
+  --train-data data/train_v2.json \
+  --eval-data data/eval_v2.json \
+  --output /tmp/frontagent-planner-mlx-smoke \
+  --max-train-samples 20 \
+  --max-eval-samples 12 \
+  --iters 2 \
+  --val-batches 1 \
+  --test-batches 1 \
+  --num-layers 4 \
+  --lora-rank 4 \
+  --lora-alpha 8 \
+  --max-seq-len 1024
 ```
 
 Legacy 7B track:

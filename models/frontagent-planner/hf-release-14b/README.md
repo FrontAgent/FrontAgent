@@ -76,6 +76,23 @@ python train.py \
   --max-seq-len 2048
 ```
 
+Apple Silicon MLX command:
+
+```bash
+python train_mlx.py \
+  --base-model mlx-community/Qwen2.5-Coder-14B-Instruct-4bit \
+  --train-data data/train_v2.json \
+  --eval-data data/eval_v2.json \
+  --output output-14b-mlx \
+  --iters 1000 \
+  --batch-size 1 \
+  --gradient-accumulation 4 \
+  --lora-rank 32 \
+  --lora-alpha 64 \
+  --num-layers -1 \
+  --max-seq-len 2048
+```
+
 ## Evaluation
 
 The v2 evaluator reports:

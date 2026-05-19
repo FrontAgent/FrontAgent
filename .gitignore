@@ -70,3 +70,6 @@ models/frontagent-planner/data/*
 !models/frontagent-planner/data/eval_v2.json
 
 *.tgz
+
+# FrontAgent planner training outputs
+models/frontagent-planner/output*/
