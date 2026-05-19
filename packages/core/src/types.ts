@@ -114,6 +114,8 @@ export interface RagConfig {
   queryRewrite?: {
     /** 是否在检索前用主 LLM 优化用户查询（默认 true） */
     enabled?: boolean;
+    /** 查询改写模式：auto 会跳过路径、符号等明确技术查询 */
+    mode?: 'always' | 'auto' | 'never';
     /** 查询改写最大输出 token */
     maxTokens?: number;
     /** 查询改写温度 */
@@ -249,6 +251,8 @@ export interface MCPConfig {
 export interface AgentExecutionConfig {
   /** 执行引擎（默认 native） */
   engine?: 'native' | 'langgraph';
+  /** 阶段错误恢复最大重试次数（默认 2） */
+  maxRecoveryAttempts?: number;
   /** LangGraph 专用配置 */
   langGraph?: {
     /** 是否启用 checkpoint（默认 false） */

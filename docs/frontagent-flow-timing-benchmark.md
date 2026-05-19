@@ -197,6 +197,135 @@ apply_patch(src/services/foo.ts)
    - 样本中 Filesense 仅 1.35 ms，说明瓶颈不在 Filesense。
    - 建议下一步拆分 `create_file` 的动态代码生成、校验、写入、验证耗时。
 
+## 真实模型细粒度补测（2026-05-19）
+
+在新增 executor trace、`toolDurationMs` 和 `prepareToolParams` 子阶段计时后，使用真实模型链路补跑一次端到端观测，用于定位真实任务下的主要耗时来源。
+
+### 测试环境与口径
+
+- 运行命令：`BENCH_MODE=full RUNS=1 BENCH_LLM=real node benchmarks/frontagent-agent-flow-benchmark.mjs`
+- Provider：`anthropic`
+- Model：`gpt-5.5`
+- Base URL：内部 Anthropic 兼容网关
+- Fixture：`/tmp/frontagent-agent-flow-bench-workspace`
+- 重复次数：1 次
+- 说明：本次是真实模型链路的单次观测，主要用于细粒度定位；真实 LLM、RAG 检索和最终回答生成波动较大，不作为稳定性能阈值。
+
+### 全链路阶段耗时
+
+| 场景 | 成功 | 步骤数 | total | rag_retrieve | planner | executor | final_output |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| query-identity | 是 | 1 | 128806 ms | 125512 ms | 0.4 ms | 7.3 ms | 3262 ms |
+| query-structure | 是 | 2 | 56191 ms | 30929 ms | 0.2 ms | 6.3 ms | 25241 ms |
+| create-component | 否 | 16 | 319456 ms | 27089 ms | 43124 ms | 249224 ms | 0 ms |
+| create-file-no-codegen | 否 | 8 | 136303 ms | 22267 ms | 22113 ms | 91903 ms | 0 ms |
+| create-file-with-codegen | 否 | 16 | 302014 ms | 22839 ms | 48741 ms | 230416 ms | 0 ms |
+
+结论：
+
+1. query 场景的 executor 仍只有毫秒级，主要耗时在 `rag_retrieve` 和 `final_output`。
+2. create 场景的主要耗时在 `planner` 与 `executor`，其中 executor 内部又集中在代码生成型 `prepareToolParams`。
+3. create 场景本次失败，说明真实模型链路仍会触发多轮恢复/修补；这些失败样本对定位耗时瓶颈仍有价值，但不代表成功路径耗时。
+
+### Executor 工具级耗时拆分
+
+#### query-identity
+
+| tool | totalMs | toolDurationMs | 主要阶段 |
+| --- | ---: | ---: | --- |
+| search_code | 6.5 ms | 6.2 ms | `call_tool` 6.2 ms |
+
+#### query-structure
+
+| tool | totalMs | toolDurationMs | 主要阶段 |
+| --- | ---: | ---: | --- |
+| search_code | 4.0 ms | 3.9 ms | `call_tool` 3.9 ms |
+| filesense_navigate | 2.2 ms | 2.1 ms | `call_tool` 2.1 ms |
+
+#### create-component
+
+| tool | totalMs | toolDurationMs | prepare_tool_params | call_tool | 子阶段主要耗时 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| read_file | 0.7 ms | 0.5 ms | 0.0 ms | 0.5 ms | - |
+| run_command | 0.3 ms | 0.0 ms | 0.0 ms | 0.2 ms | - |
+| list_directory | 0.8 ms | 1.1 ms | 0.0 ms | 1.3 ms | - |
+| create_file | 3150.8 ms | 2.0 ms | 6294.6 ms | 2.9 ms | `llm_code_generation` 6293.6 ms |
+| apply_patch | 5094.3 ms | 1.8 ms | 5728.9 ms | 2.1 ms | `llm_code_generation` 5728.6 ms |
+| browser_navigate | 61.1 ms | 0.0 ms | 0.0 ms | 61.0 ms | - |
+| browser_screenshot | 1.5 ms | 0.0 ms | 0.0 ms | 1.4 ms | - |
+| filesense_navigate | 3.6 ms | 3.4 ms | 0.0 ms | 3.5 ms | - |
+
+#### create-file-no-codegen
+
+| tool | totalMs | toolDurationMs | prepare_tool_params | call_tool | 子阶段主要耗时 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| run_command | 0.1 ms | 0.0 ms | 0.0 ms | 0.1 ms | - |
+| list_directory | 0.4 ms | 0.4 ms | 0.0 ms | 0.4 ms | - |
+| read_file | 1.0 ms | 1.0 ms | 0.0 ms | 1.0 ms | - |
+| create_file | 581.3 ms | 2.6 ms | 1158.9 ms | 3.0 ms | `llm_code_generation` 1158.8 ms |
+| apply_patch | 1516.5 ms | 1.7 ms | 1514.6 ms | 1.8 ms | `llm_code_generation` 1514.5 ms |
+
+> 虽然场景名是 `create-file-no-codegen`，真实模型规划仍生成了需要代码生成/修补的步骤，因此仍出现 `llm_code_generation`。这说明“无 codegen”需要在更底层的 executor benchmark 中构造确定性步骤，而不是依赖真实 planner 自然生成。
+
+#### create-file-with-codegen
+
+| tool | totalMs | toolDurationMs | prepare_tool_params | call_tool | 子阶段主要耗时 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| read_file | 1.0 ms | 0.7 ms | 0.0 ms | 0.7 ms | - |
+| run_command | 0.2 ms | 0.0 ms | 0.0 ms | 0.1 ms | - |
+| list_directory | 0.2 ms | 0.2 ms | 0.0 ms | 0.2 ms | - |
+| create_file | 3943.5 ms | 3.5 ms | 7880.6 ms | 3.7 ms | `llm_code_generation` 7880.3 ms |
+| apply_patch | 5694.4 ms | 3.0 ms | 5691.0 ms | 3.1 ms | `llm_code_generation` 5690.9 ms |
+| browser_navigate | 6.9 ms | 0.0 ms | 0.0 ms | 6.9 ms | - |
+| browser_screenshot | 7.0 ms | 0.0 ms | 0.0 ms | 7.0 ms | - |
+| filesense_navigate | 8.5 ms | 8.2 ms | 0.0 ms | 8.4 ms | - |
+
+### 关键发现
+
+1. **Filesense 仍不是瓶颈**
+   - query 场景中 `filesense_navigate` 约 2.2 ms。
+   - create 场景中 `filesense_navigate` 约 3.6–8.5 ms。
+   - 相比数十秒到数分钟级的真实任务耗时，Filesense 可忽略。
+
+2. **MCP 工具本体很快，慢在 executor 的代码生成准备阶段**
+   - `create_file` 的 `toolDurationMs` 只有约 2–3.5 ms。
+   - `apply_patch` 的 `toolDurationMs` 只有约 1.7–3.0 ms。
+   - 真正耗时的是 `prepare_tool_params`，并且子阶段几乎全部落在 `llm_code_generation`。
+
+3. **上下文构造与记忆召回不是主要开销**
+   - `build_context` 通常约 0.0–0.1 ms。
+   - `memory_recall` 通常约 0.0–0.2 ms。
+   - `resolve_modules` 通常约 0.0–0.2 ms。
+   - 因此不应优先优化这些本地逻辑。
+
+4. **真实 create 任务会放大 planner 和 recovery 成本**
+   - `create-component` planner 约 43.1 s，executor 约 249.2 s。
+   - `create-file-with-codegen` planner 约 48.7 s，executor 约 230.4 s。
+   - 多次 `apply_patch` 说明真实路径存在反复修补/恢复，后续应单独统计 recovery attempt 数和每次 recovery 的 LLM 耗时。
+
+5. **当前 trace 聚合对多次同 tool 有解释偏差**
+   - 表中 `totalMs` 是同 tool 多次调用的平均值。
+   - `prepare_tool_params` 子阶段主要来自需要 codegen 的调用；同一 tool 内同时存在 codegen 和非 codegen 调用时，平均值会出现不直观的差异。
+   - 后续 benchmark 应按 `action + tool + needsCodeGeneration` 或按 step 明细输出，避免 codegen/non-codegen 混合聚合。
+
+### 下一步优化方向
+
+1. **优先优化代码生成 LLM 调用**
+   - `create_file` / `apply_patch` 的主要耗时是 `llm_code_generation`。
+   - 可评估缩短 prompt、减少上下文、复用 plan 阶段结构化结果、或对确定性小文件使用模板/规则生成。
+
+2. **拆分 recovery 计时**
+   - 真实 create 场景耗时主要来自多轮修补。
+   - 建议新增 recovery trace：`recovery_analyze_errors`、`recovery_generate_steps`、`recovery_execute_steps`、`recovery_validate`。
+
+3. **修正 benchmark 聚合维度**
+   - 当前按 tool 聚合不够精确。
+   - 建议输出 step 级明细，并额外按 `tool + action + needsCodeGeneration` 分组。
+
+4. **RAG/query 链路单独优化**
+   - query 场景主要慢在 `rag_retrieve` 和 `final_output`。
+   - 需要进一步拆分 RAG query rewrite、检索、排序、格式化和最终回答生成。
+
 ## 后续建议
 
 - 给 Executor 增加可选 trace hook，记录：

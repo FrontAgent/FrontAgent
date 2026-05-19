@@ -216,8 +216,8 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     action: 'apply_patch',
     requiredParams: ['path'],
     prepareToolParams: async ({ step, params, context, onSubStageTiming }) => {
-      const stepAny = step as { needsCodeGeneration?: boolean };
-      const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || !params.patches);
+      const hasPatches = Array.isArray(params.patches) && params.patches.length > 0;
+      const shouldGenerateCode = !hasPatches;
       if (!shouldGenerateCode) {
         return params;
       }

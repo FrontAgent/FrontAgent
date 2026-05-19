@@ -82,6 +82,8 @@ export interface ExecutorConfig {
     maxRecoveryAttempts?: number;
     threadIdPrefix?: string;
   };
+  /** 阶段错误恢复最大重试次数（默认 2） */
+  maxRecoveryAttempts?: number;
   /** 启用 phase 内独立步骤并行执行（默认 false） */
   parallelExecution?: boolean;
 }
@@ -1166,7 +1168,26 @@ export class Executor {
    * 获取阶段恢复最大重试次数。
    */
   private getMaxRecoveryAttempts(): number {
-    return this.config.langGraph?.maxRecoveryAttempts ?? 3;
+    return this.config.maxRecoveryAttempts ?? this.config.langGraph?.maxRecoveryAttempts ?? 2;
+  }
+
+  private createRecoveryFingerprint(errors: Array<{ step: ExecutionStep; error: string }>): string {
+    return errors
+      .map(({ step, error }) => {
+        const target = typeof step.params.path === 'string'
+          ? step.params.path
+          : typeof step.params.command === 'string'
+            ? step.params.command
+            : '';
+        const normalizedError = error
+          .replace(/:\d+:\d+/g, '')
+          .replace(/\bline\s+\d+\b/gi, 'line')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return `${step.action}|${step.tool}|${target}|${normalizedError}`;
+      })
+      .sort()
+      .join('\n');
   }
 
   private throwIfAborted(signal?: AbortSignal): void {
@@ -1324,10 +1345,18 @@ export class Executor {
     }
 
     const maxRecoveryAttempts = this.getMaxRecoveryAttempts();
+    const seenRecoveryFingerprints = new Set<string>();
     let recoveryAttempt = 0;
 
     while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < maxRecoveryAttempts) {
       this.throwIfAborted(signal);
+      const recoveryFingerprint = this.createRecoveryFingerprint(phaseErrors);
+      if (seenRecoveryFingerprints.has(recoveryFingerprint)) {
+        this.debugWarn(`[Executor] Repeated recovery error fingerprint detected, stopping recovery attempts`);
+        break;
+      }
+      seenRecoveryFingerprints.add(recoveryFingerprint);
+
       recoveryAttempt++;
       this.debugLog(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`);
 
