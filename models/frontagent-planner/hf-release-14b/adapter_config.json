@@ -1,0 +1,21 @@
+{
+  "base_model_name_or_path": "Qwen/Qwen2.5-Coder-14B-Instruct",
+  "bias": "none",
+  "fan_in_fan_out": false,
+  "inference_mode": true,
+  "init_lora_weights": true,
+  "lora_alpha": 64,
+  "lora_dropout": 0,
+  "peft_type": "LORA",
+  "r": 32,
+  "target_modules": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+  ],
+  "task_type": "CAUSAL_LM"
+}

@@ -1,13 +1,12 @@
 """
 FrontAgent Planner — Unsloth SFT 微调脚本
 
-基座模型: Qwen/Qwen2.5-Coder-7B
-训练数据: data/train.json (Alpaca 格式)
-运行环境: Colab T4 (16GB VRAM)
+默认基座模型: Qwen/Qwen2.5-Coder-14B-Instruct
+默认训练数据: data/train_v2.json (Alpaca 格式)
+推荐运行环境: L4/A10/A100。T4 可用于 7B 或极小 batch 的 14B 冒烟。
 """
 
 import json
-import os
 import argparse
 from pathlib import Path
 
@@ -20,23 +19,27 @@ from trl import SFTTrainer
 
 
 # ─── 超参数 ───────────────────────────────────────────────
-BASE_MODEL = "Qwen/Qwen2.5-Coder-7B"
+BASE_MODEL_7B = "Qwen/Qwen2.5-Coder-7B"
+BASE_MODEL_14B = "Qwen/Qwen2.5-Coder-14B-Instruct"
+BASE_MODEL = BASE_MODEL_14B
 MAX_SEQ_LENGTH = 2048
-LORA_RANK = 16
-LORA_ALPHA = 32
-LEARNING_RATE = 2e-4
+LORA_RANK = 32
+LORA_ALPHA = 64
+LEARNING_RATE = 1e-4
 EPOCHS = 3
-BATCH_SIZE = 4
+BATCH_SIZE = 1
 GRADIENT_ACCUMULATION = 4
 WARMUP_RATIO = 0.05
 LOGGING_STEPS = 10
 SAVE_STEPS = 200
 
 
-def load_alpaca_data(data_path: str) -> Dataset:
+def load_alpaca_data(data_path: str, max_samples: int | None = None) -> Dataset:
     """加载 Alpaca 格式的 JSON 训练数据"""
     with open(data_path, "r", encoding="utf-8") as f:
         raw = json.load(f)
+    if max_samples is not None:
+        raw = raw[:max_samples]
 
     # 转为 HuggingFace Dataset
     ds = Dataset.from_list(raw)
@@ -69,14 +72,18 @@ def format_alpaca_to_chat(example: dict, tokenizer) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="FrontAgent Planner SFT 训练")
-    parser.add_argument("--data", default="data/train.json", help="训练数据路径")
-    parser.add_argument("--output", default="output", help="模型输出目录")
+    parser.add_argument("--data", default="data/train_v2.json", help="训练数据路径")
+    parser.add_argument("--output", default="output-14b", help="模型输出目录")
     parser.add_argument("--base-model", default=BASE_MODEL, help="基座模型")
     parser.add_argument("--epochs", type=int, default=EPOCHS)
     parser.add_argument("--lr", type=float, default=LEARNING_RATE)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    parser.add_argument("--gradient-accumulation", type=int, default=GRADIENT_ACCUMULATION)
     parser.add_argument("--max-seq-len", type=int, default=MAX_SEQ_LENGTH)
     parser.add_argument("--lora-rank", type=int, default=LORA_RANK, help="LoRA rank")
+    parser.add_argument("--lora-alpha", type=int, default=LORA_ALPHA, help="LoRA alpha")
+    parser.add_argument("--max-samples", type=int, default=None, help="只取前 N 条样本，用于训练冒烟")
+    parser.add_argument("--no-4bit", action="store_true", help="关闭 QLoRA 4bit 加载")
     args = parser.parse_args()
 
     output_dir = Path(args.output)
@@ -88,7 +95,7 @@ def main():
         model_name=args.base_model,
         max_seq_length=args.max_seq_len,
         dtype=None,  # 自动检测 (T4 用 float16)
-        load_in_4bit=True,  # QLoRA 4bit 量化，T4 友好
+        load_in_4bit=not args.no_4bit,
     )
 
     # ── 2. 配置 Chat Template ───────────────────────────
@@ -101,7 +108,7 @@ def main():
     model = FastLanguageModel.get_peft_model(
         model,
         r=args.lora_rank,
-        lora_alpha=args.lora_rank * 2,
+        lora_alpha=args.lora_alpha,
         lora_dropout=0,  # Unsloth 建议设 0 加速
         target_modules=[
             "q_proj", "k_proj", "v_proj", "o_proj",
@@ -118,7 +125,7 @@ def main():
     print(f"可训练参数: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
 
     # ── 4. 加载 & 处理数据 ───────────────────────────────
-    ds = load_alpaca_data(args.data)
+    ds = load_alpaca_data(args.data, max_samples=args.max_samples)
     ds = ds.map(
         lambda ex: format_alpaca_to_chat(ex, tokenizer),
         remove_columns=ds.column_names,
@@ -130,7 +137,7 @@ def main():
         output_dir=str(output_dir),
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        gradient_accumulation_steps=GRADIENT_ACCUMULATION,
+        gradient_accumulation_steps=args.gradient_accumulation,
         learning_rate=args.lr,
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
