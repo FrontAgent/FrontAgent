@@ -8,6 +8,7 @@ import {
   getAST,
   SnapshotManager,
 } from '@frontagent/mcp-file';
+import { handleFilesenseTool } from '@frontagent/mcp-filesense';
 import { ragQuery, type KnowledgeBaseConfig } from '@frontagent/mcp-memory';
 import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
@@ -41,6 +42,14 @@ export class FileMCPClient implements MCPClient {
         }
         return { snapshots: [] };
       }
+      case 'filesense_init':
+      case 'filesense_sync':
+      case 'filesense_summarize':
+      case 'filesense_query':
+      case 'filesense_check':
+      case 'filesense_navigate':
+      case 'filesense_sync_and_summarize':
+        return handleFilesenseTool(name, args, this.projectRoot);
       default:
         throw new Error(`Unknown file tool: ${name}`);
     }
@@ -56,6 +65,13 @@ export class FileMCPClient implements MCPClient {
       { name: 'get_ast', description: '获取 AST 分析' },
       { name: 'rollback', description: '回滚修改' },
       { name: 'get_snapshots', description: '获取快照列表' },
+      { name: 'filesense_init', description: '初始化 Filesense 索引' },
+      { name: 'filesense_sync', description: '同步 Filesense 索引' },
+      { name: 'filesense_summarize', description: '生成 Filesense 摘要' },
+      { name: 'filesense_query', description: '查询 Filesense 索引' },
+      { name: 'filesense_check', description: '检查 Filesense 索引' },
+      { name: 'filesense_navigate', description: '轻量按需导航项目结构' },
+      { name: 'filesense_sync_and_summarize', description: '同步并摘要 Filesense 索引' },
     ];
   }
 }

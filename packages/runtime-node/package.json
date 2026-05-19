@@ -23,6 +23,7 @@
     "@frontagent/shared": "workspace:*",
     "@frontagent/sdd": "workspace:*",
     "@frontagent/mcp-file": "workspace:*",
+    "@frontagent/mcp-filesense": "workspace:*",
     "@frontagent/mcp-memory": "workspace:*",
     "@frontagent/mcp-web": "workspace:*",
     "@frontagent/mcp-shell": "workspace:*",

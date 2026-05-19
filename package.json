@@ -27,7 +27,9 @@
     "clean": "turbo clean && rm -rf node_modules dist",
     "prepublishOnly": "pnpm build",
     "bench:flow": "node benchmarks/frontagent-flow-benchmark.mjs",
-    "bench:flow:smoke": "BENCH_MODE=smoke RUNS=3 node benchmarks/frontagent-flow-benchmark.mjs"
+    "bench:flow:smoke": "BENCH_MODE=smoke RUNS=3 node benchmarks/frontagent-flow-benchmark.mjs",
+    "bench:agent-flow": "node benchmarks/frontagent-agent-flow-benchmark.mjs",
+    "bench:agent-flow:smoke": "BENCH_MODE=smoke RUNS=1 node benchmarks/frontagent-agent-flow-benchmark.mjs"
   },
   "keywords": [
     "ai-agent",

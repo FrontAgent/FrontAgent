@@ -259,6 +259,9 @@ importers:
       '@frontagent/mcp-file':
         specifier: workspace:*
         version: link:../mcp-file
+      '@frontagent/mcp-filesense':
+        specifier: workspace:*
+        version: link:../mcp-filesense
       '@frontagent/mcp-memory':
         specifier: workspace:*
         version: link:../mcp-memory

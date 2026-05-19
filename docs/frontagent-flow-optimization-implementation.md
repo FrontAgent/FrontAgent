@@ -205,3 +205,159 @@ BENCH_MODE=realCreate BENCH_LLM=real-full RUNS=3 node benchmarks/frontagent-flow
 - 默认保持规则 Planner + 必要时局部 LLM，而不是全量 LLM Planner。
 - 对 create/modify 的模型调用做 prompt 压缩、上下文裁剪和 streaming/timeout 观测。
 - 为真实 Planner 增加 step 上限、工具白名单和计划瘦身策略。
+
+## 真实 Agent.execute 全链路复测结果
+
+### 为什么补测
+
+前面的 `benchmarks/frontagent-flow-benchmark.mjs` 是 **Planner/Executor 层切片 benchmark**：它直接调用 `Planner.plan()` + `Executor.executeSteps()`，适合定位编排、Filesense 与 `create_file` 生成阶段，但不覆盖真实入口 `Agent.execute()` 的启动链路。
+
+真实 `fa run` / runtime 调用会经过 `runFrontAgentTask(...) -> Agent.execute(...)`，规划前还包含：
+
+1. 跨会话记忆初始化/预加载。
+2. 项目递归预扫描。
+3. 开发服务器端口检测。
+4. RAG/知识库检索。
+5. Planner。
+6. Executor。
+7. 最终回答/结果汇总。
+8. 记忆持久化与运行上下文清理。
+
+因此新增真实入口 benchmark：
+
+```text
+benchmarks/frontagent-agent-flow-benchmark.mjs
+```
+
+新增命令：
+
+```bash
+pnpm bench:agent-flow
+pnpm bench:agent-flow:smoke
+```
+
+该脚本直接调用 `runFrontAgentTask(...)`，监听 `AgentEvent` / `status_update`，把真实运行阶段归档到：
+
+| 阶段 | 来源 | 含义 |
+| --- | --- | --- |
+| `initialize_task` | `status_update: 初始化任务` | 创建 task 与运行上下文 |
+| `memory_preload` | `status_update: 加载跨会话记忆` | `memoryStore.resetSession()` + `preloadMemory()` |
+| `project_prescan` | `status_update: 扫描项目结构` | 递归 `list_directory` + 关键配置预读取 |
+| `dev_server_detect` | `status_update: 检测开发服务器端口` | 从预读配置推断 dev server port |
+| `rag_retrieve` | `status_update: 检索知识库` | `retrieveRagContext(...)` 知识库检索 |
+| `planner` | `planning_started/planning_completed` + status | 生成执行计划 |
+| `executor` | `status_update: 执行工具步骤` | 执行计划 steps、MCP tools、安全检查、幻觉防控 |
+| `final_output` | `status_update: 生成最终回答/汇总执行结果` | query 回答合成或执行结果摘要 |
+| `memory_persist` | `status_update: 持久化运行记忆` | 写入跨会话记忆 |
+| `context_cleanup` | `status_update: 清理运行上下文` | 清理 task runtime context |
+| `browser_cleanup` | runtime finally | 关闭浏览器资源 |
+| `runtime_cleanup` | runtime finally | 运行收尾 |
+
+### 真实入口 Query 场景：规则 Planner + 真实最终回答 LLM
+
+命令形态：
+
+```bash
+BENCH_MODE=query RUNS=3 BENCH_LLM=real \
+  BENCH_DISABLE_RAG_SEMANTIC=1 \
+  BENCH_DISABLE_RAG_RERANKER=1 \
+  BENCH_DISABLE_RAG_QUERY_REWRITE=1 \
+  node benchmarks/frontagent-agent-flow-benchmark.mjs
+```
+
+> API Key 仍仅从本地环境变量读取；结果文件位于 `/tmp/frontagent-agent-flow-real-query-runs3.json`，未写入密钥。
+
+场景：`query-structure`（“梳理这个项目的目录结构和入口。”）
+
+| 阶段 | avg ms | 说明 |
+| --- | ---: | --- |
+| cache clear | 0.10 | 每轮删除 `<bench-root>/.frontagent/` |
+| `memory_preload` | 0.08 | 当前 fixture 基本无可复用记忆，成本极低 |
+| `project_prescan` | 1.29 | 递归扫描 fixture + 预读 `package.json` / `vite.config.ts` |
+| `dev_server_detect` | 0.05 | 从预读配置识别端口 |
+| `rag_retrieve` | 13848.93 | 知识库 keyword-only 检索，平均 5 条命中 |
+| `planner` | 0.23 | 规则 Planner，未调用真实 Planner LLM |
+| `executor` | 12.02 | 执行 `filesense_navigate` + `search_code` |
+| `final_output` | 28260.22 | 真实 LLM 合成最终 query 回答 |
+| `memory_persist` | 3.26 | 持久化运行记忆 |
+| `context_cleanup` | 0.11 | 清理上下文 |
+| total | 42144.71 | cache clear + `Agent.execute()` 全链路 |
+
+工具级结果：
+
+| 工具 | count avg | elapsed avg ms |
+| --- | ---: | ---: |
+| `filesense_navigate` | 1 | 3.16 |
+| `search_code` | 1 | 8.62 |
+
+结论：在真实入口 query 场景下，**最大成本不是 Filesense，也不是项目预扫描，而是 RAG/知识库检索与最终回答 LLM 合成**。其中知识库检索约 `13.85s`，最终回答合成约 `28.26s`。
+
+### 真实入口 Create 场景：真实 Planner + 真实 Executor
+
+命令形态：
+
+```bash
+BENCH_MODE=create RUNS=1 BENCH_LLM=real \
+  BENCH_DISABLE_RAG_SEMANTIC=1 \
+  BENCH_DISABLE_RAG_RERANKER=1 \
+  BENCH_DISABLE_RAG_QUERY_REWRITE=1 \
+  node benchmarks/frontagent-agent-flow-benchmark.mjs
+```
+
+> 结果文件：`/tmp/frontagent-agent-flow-real-create-run1.json`。该样本是真实入口压力样本，包含真实 Planner、真实代码生成/修改、approval 失败恢复与浏览器工具失败路径。
+
+场景：`create-component`（“新增一个 Card 组件到 src/components，保持实现简单。”）
+
+| 阶段 | ms | 说明 |
+| --- | ---: | --- |
+| cache clear | 约 0.07 | 每轮清理 `.frontagent/` |
+| `memory_preload` | 0.05 | 记忆预加载 |
+| `project_prescan` | 1.53 | 递归项目预扫描 |
+| `dev_server_detect` | 0.09 | dev server 端口检测 |
+| `rag_retrieve` | 12284.37 | 知识库检索 |
+| `planner` | 51074.12 | 真实 Planner 生成 15 个 step |
+| `executor` | 134997.82 | 执行、失败恢复、真实代码生成/修改、浏览器工具失败 |
+| `final_output` | 0.16 | create 任务仅汇总，不走 query 回答合成 |
+| `memory_persist` | 4.81 | 持久化运行记忆 |
+| total | 198382.99 | 约 198.38s |
+
+计划动作序列：
+
+```text
+filesense_navigate, read_file, read_file, run_command, create_file,
+run_command, run_command, run_command, browser_navigate, browser_screenshot,
+run_command, run_command, run_command, run_command, run_command
+```
+
+工具级观测：
+
+| 工具 | count | avg ms | 说明 |
+| --- | ---: | ---: | --- |
+| `filesense_navigate` | 1 | 10.49 | 仍为低毫秒级 |
+| `read_file` | 11 | 1.82 | 文件读取不是瓶颈 |
+| `run_command` | 6 | 1.16 | 非交互 approval 要求导致快速失败 |
+| `create_file` | 2 | 3627.53 | 首次真实生成约 7.25s，后续因文件已存在失败 |
+| `apply_patch` | 4 | 7400.98 | 多次真实修改生成，最高约 11.95s |
+| `browser_navigate` | 1 | 191.86 | Playwright 浏览器二进制缺失导致失败 |
+
+本轮 create 样本最终失败原因：本机 Playwright Chromium headless shell 缺失，`browser_navigate` 无法启动浏览器。这是环境依赖问题，不影响前序阶段耗时判断，但说明真实 Planner 当前会把 create 任务扩展到浏览器验证链路，带来额外环境耦合。
+
+### 新发现与修正
+
+1. **之前“全流程”表述需要收口**：`frontagent-flow-benchmark.mjs` 是 Planner/Executor 切片，不是完整 `Agent.execute()`。现在文档中明确区分两类 benchmark。
+2. **RAG/知识库检索必须作为一等阶段**：真实入口 query 场景中 `rag_retrieve` 平均约 `13.85s`，create 样本约 `12.28s`。这是用户指出的遗漏项，已补齐。
+3. **最终回答合成是 query 任务主耗时**：query 场景 `final_output` 平均约 `28.26s`，超过 RAG 检索。
+4. **真实 Planner 仍是 create 类任务高风险瓶颈**：create 样本 Planner 约 `51.07s`，且生成 15 个 step，包括浏览器验证和多个 shell 命令。
+5. **Executor create/modify 的真实代码生成仍明显**：`create_file` / `apply_patch` 会触发真实 LLM 生成，单次约数秒到十几秒。
+6. **Filesense 结论继续成立**：真实入口下 `filesense_navigate` 约 `3.16ms`（query）/ `10.49ms`（create），不是主瓶颈。
+7. **运行时集成修复**：`runtime-node` 的 `FileMCPClient` 现在显式支持 Filesense tools，并且 `registerFileTools()` 注册 `filesense_navigate` 等工具。否则真实入口下 Planner 生成的 Filesense step 会因为没有 MCP client 映射而被跳过。
+
+### 下一步优化优先级
+
+基于真实入口数据，优化优先级应调整为：
+
+1. **RAG 快路径**：缓存可用时避免每次 query 都做重检索；对 keyword-only、本地缓存、空命中/低相关性做早停。
+2. **Query 最终回答压缩**：限制证据拼接长度，减少 `generateQueryAnswer()` prompt 与输出 token；必要时支持非 LLM 摘要 fallback。
+3. **Planner 瘦身**：create 默认不启用浏览器验证/多轮 shell 验证，除非任务明确要求；限制 step 数与高风险工具。
+4. **真实代码生成观测继续下钻**：把 `create_file.prepare_tool_params` 与 `apply_patch.prepare_tool_params` 的真实 LLM 输入 token、输出 token、首包耗时纳入 trace。
+5. **环境依赖降级**：浏览器二进制缺失时，Planner/Executor 应降级为静态验证，而不是让 create 任务最终失败。
