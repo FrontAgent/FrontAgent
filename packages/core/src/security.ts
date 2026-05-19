@@ -42,6 +42,8 @@ const READ_TOOLS = new Set([
   'browser_screenshot',
   'screenshot',
   'rag_query',
+  'filesense_navigate',
+  'filesense_query',
 ]);
 
 const WRITE_TOOLS = new Set(['create_file', 'apply_patch']);

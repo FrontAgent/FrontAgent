@@ -71,6 +71,8 @@ export interface ExecutorConfig {
   approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
   /** Emits allow/ask/deny decisions for audit/debug surfaces */
   onSecurityDecision?: (decision: SecurityDecision) => void;
+  /** Optional low-overhead execution trace hooks for profiling and benchmarks */
+  trace?: ExecutorTraceConfig;
   /** 执行流引擎（默认 native） */
   executionEngine?: 'native' | 'langgraph';
   /** LangGraph 相关配置 */
@@ -88,6 +90,37 @@ interface PhaseExecutionGroup {
   dependencies: Set<string>;
   firstSeenIndex: number;
   priority: number;
+}
+
+export interface ExecutorTraceStage {
+  name:
+    | 'validate_params'
+    | 'validate_before'
+    | 'prepare_tool_params'
+    | 'call_tool'
+    | 'validate_after'
+    | 'handle_tool_result'
+    | 'catch';
+  durationMs: number;
+  success: boolean;
+  error?: string;
+}
+
+export interface ExecutorStepTrace {
+  taskId?: string;
+  stepId: string;
+  action: string;
+  tool: string;
+  totalMs: number;
+  success: boolean;
+  skipped?: boolean;
+  error?: string;
+  stages: ExecutorTraceStage[];
+}
+
+export interface ExecutorTraceConfig {
+  enabled?: boolean;
+  onStepTrace?: (trace: ExecutorStepTrace) => void;
 }
 
 interface SerializablePhaseExecutionGroup {
@@ -157,6 +190,28 @@ export class Executor {
     }
   }
 
+  private nowMs(): number {
+    return Number(process.hrtime.bigint()) / 1_000_000;
+  }
+
+  private isTraceEnabled(): boolean {
+    return Boolean(this.config.trace?.enabled || this.config.trace?.onStepTrace);
+  }
+
+  private createTraceStage(
+    name: ExecutorTraceStage['name'],
+    startedAtMs: number,
+    success: boolean,
+    error?: string,
+  ): ExecutorTraceStage {
+    return {
+      name,
+      durationMs: this.nowMs() - startedAtMs,
+      success,
+      error,
+    };
+  }
+
   /**
    * 注册 MCP 客户端
    */
@@ -196,15 +251,52 @@ export class Executor {
     }
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
+    const traceEnabled = this.isTraceEnabled();
+    const traceStartedAt = traceEnabled ? this.nowMs() : 0;
+    const traceStages: ExecutorTraceStage[] = [];
+
+    const finish = (output: ExecutorOutput): ExecutorOutput => {
+      if (traceEnabled) {
+        const stepResult = output.stepResult;
+        this.config.trace?.onStepTrace?.({
+          taskId: context.task.id,
+          stepId: step.stepId,
+          action: step.action,
+          tool: step.tool,
+          totalMs: this.nowMs() - traceStartedAt,
+          success: stepResult.success,
+          skipped: typeof stepResult.output === 'object' && stepResult.output !== null && Boolean((stepResult.output as { skipped?: boolean }).skipped),
+          error: stepResult.error,
+          stages: traceStages,
+        });
+      }
+      return output;
+    };
+
+    const withStage = async <T>(name: ExecutorTraceStage['name'], fn: () => Promise<T> | T): Promise<T> => {
+      if (!traceEnabled) {
+        return fn();
+      }
+
+      const stageStartedAt = this.nowMs();
+      try {
+        const result = await fn();
+        traceStages.push(this.createTraceStage(name, stageStartedAt, true));
+        return result;
+      } catch (error) {
+        traceStages.push(this.createTraceStage(name, stageStartedAt, false, error instanceof Error ? error.message : String(error)));
+        throw error;
+      }
+    };
 
     try {
       // 0. 参数有效性检查（检查关键参数是否为空）
-      const paramValidation = this.validateStepParams(step);
+      const paramValidation = await withStage('validate_params', () => this.validateStepParams(step));
       if (!paramValidation.valid) {
         if (this.config.debug) {
           console.log(`[Executor] Skipping step due to invalid params: ${paramValidation.reason}`);
         }
-        return {
+        return finish({
           stepResult: {
             success: true,
             output: { skipped: true, reason: paramValidation.reason },
@@ -212,11 +304,11 @@ export class Executor {
           },
           validation: { pass: true, results: [] },
           needsRollback: false
-        };
+        });
       }
 
       // 1. 执行前验证
-      const preValidation = await this.validateBeforeExecution(step, context);
+      const preValidation = await withStage('validate_before', () => this.validateBeforeExecution(step, context));
       if (!preValidation.pass) {
         // 检查是否是可以跳过的错误
         const errorMsg = preValidation.blockedBy?.join('; ') || '';
@@ -230,7 +322,7 @@ export class Executor {
           if (this.config.debug) {
             console.log(`[Executor] Skipping step due to validation: ${errorMsg}`);
           }
-          return {
+          return finish({
             stepResult: {
               success: true, // 标记为成功，这样不会阻塞后续步骤
               output: { skipped: true, reason: errorMsg, exists: false },
@@ -238,11 +330,11 @@ export class Executor {
             },
             validation: { pass: true, results: [] },
             needsRollback: false
-          };
+          });
         }
 
         // 其他验证失败仍然返回错误
-        return {
+        return finish({
           stepResult: {
             success: false,
             error: `Pre-execution validation failed: ${errorMsg}`,
@@ -250,7 +342,7 @@ export class Executor {
           },
           validation: preValidation,
           needsRollback: false
-        };
+        });
       }
 
       // 2. 通过 action skills 生成/调整工具参数（含动态代码生成）
@@ -264,14 +356,14 @@ export class Executor {
         console.log(`[Executor] Step params:`, toolParams);
       }
 
-      toolParams = await this.actionSkills.prepareToolParams({
+      toolParams = await withStage('prepare_tool_params', () => this.actionSkills.prepareToolParams({
         step,
         params: toolParams,
         context,
-      });
+      }));
 
       // 3. 调用 MCP 工具
-      const toolResult = await this.callTool(step.tool, toolParams);
+      const toolResult = await withStage('call_tool', () => this.callTool(step.tool, toolParams));
 
       // 3.5. 检查工具执行结果是否是可跳过的错误
       if (typeof toolResult === 'object' && toolResult !== null) {
@@ -285,7 +377,7 @@ export class Executor {
             if (this.config.debug) {
               console.log(`[Executor] Skipping step due to tool error: ${errorMsg}`);
             }
-            return {
+            return finish({
               stepResult: {
                 success: true, // 标记为成功，不阻塞后续步骤
                 output: { skipped: true, reason: errorMsg },
@@ -293,13 +385,13 @@ export class Executor {
               },
               validation: { pass: true, results: [] },
               needsRollback: false
-            };
+            });
           }
         }
       }
 
       // 4. 执行后验证
-      const postValidation = await this.validateAfterExecution(step, toolResult);
+      const postValidation = await withStage('validate_after', () => this.validateAfterExecution(step, toolResult, toolParams));
 
       // 5. 构建结果
       const stepResult: StepResult = {
@@ -310,13 +402,16 @@ export class Executor {
         snapshotId: (toolResult as { snapshotId?: string })?.snapshotId
       };
 
-      return {
+      return finish({
         stepResult,
         validation: postValidation,
         needsRollback: !postValidation.pass && step.validation.some(v => v.required)
-      };
+      });
     } catch (error) {
-      return {
+      if (traceEnabled && traceStages.length === 0) {
+        traceStages.push(this.createTraceStage('catch', traceStartedAt, false, error instanceof Error ? error.message : String(error)));
+      }
+      return finish({
         stepResult: {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -328,7 +423,7 @@ export class Executor {
           blockedBy: [error instanceof Error ? error.message : String(error)]
         },
         needsRollback: true
-      };
+      });
     }
   }
 
@@ -607,7 +702,8 @@ export class Executor {
    */
   private async validateAfterExecution(
     step: ExecutionStep,
-    result: unknown
+    result: unknown,
+    toolParams?: Record<string, unknown>,
   ): Promise<ValidationResult> {
     // 检查工具调用是否成功
     if (typeof result === 'object' && result !== null) {
@@ -623,7 +719,8 @@ export class Executor {
 
     // 对于代码修改操作，进行额外验证
     if (['apply_patch', 'create_file'].includes(step.action)) {
-      const content = (result as { content?: string })?.content ?? 
+      const content = (result as { content?: string })?.content ??
+                     (toolParams?.content as string | undefined) ??
                      step.params.content as string | undefined;
       const path = step.params.path as string;
 

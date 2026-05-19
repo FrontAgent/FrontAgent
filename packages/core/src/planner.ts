@@ -558,7 +558,7 @@ export class Planner {
       description: `创建文件 ${targetPath}`,
       action: 'create_file',
       tool: 'create_file',
-      params: { path: targetPath, content: '' }, // 内容由 Executor 填充
+      params: { path: targetPath, codeDescription: task.description },
       dependencies: [steps[0].stepId],
       validation: [
         { type: 'syntax_valid', required: true },
