@@ -9,7 +9,7 @@ import {
   SnapshotManager,
 } from '@frontagent/mcp-file';
 import { handleFilesenseTool } from '@frontagent/mcp-filesense';
-import { ragQuery, type KnowledgeBaseConfig } from '@frontagent/mcp-memory';
+import { createKnowledgeBase, type KnowledgeBaseConfig } from '@frontagent/mcp-memory';
 import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 export class FileMCPClient implements MCPClient {
@@ -150,12 +150,16 @@ export class WebMCPClient implements MCPClient {
 }
 
 export class MemoryMCPClient implements MCPClient {
-  constructor(private readonly knowledgeBaseConfig: KnowledgeBaseConfig) {}
+  private readonly knowledgeBase: ReturnType<typeof createKnowledgeBase>;
+
+  constructor(knowledgeBaseConfig: KnowledgeBaseConfig) {
+    this.knowledgeBase = createKnowledgeBase(knowledgeBaseConfig);
+  }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'rag_query':
-        return ragQuery(args as any, this.knowledgeBaseConfig);
+        return this.knowledgeBase.query(args as any);
       default:
         throw new Error(`Unknown memory tool: ${name}`);
     }
