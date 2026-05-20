@@ -176,11 +176,13 @@ export function assertWritableByPolicy(input: {
 }
 
 export function isRegularFile(path: string): boolean {
-  return statSync(path).isFile();
+  const stat = statSync(path, { throwIfNoEntry: false });
+  return stat?.isFile() ?? false;
 }
 
 export function isDirectory(path: string): boolean {
-  return statSync(path).isDirectory();
+  const stat = statSync(path, { throwIfNoEntry: false });
+  return stat?.isDirectory() ?? false;
 }
 
 export function isUnsafeGlobPattern(pattern: string): boolean {
