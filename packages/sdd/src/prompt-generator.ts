@@ -294,14 +294,14 @@ ${modificationRules.requireApproval.map((r) => `- \`${r.pattern}\`: ${r.reason}`
    */
   private generateMigrationSection(): string | null {
     const isZh = this.options.language === 'zh';
-    const config = this.config as any;
+    const config = this.config as unknown as Record<string, unknown>;
 
-    // 检查是否有迁移相关的配置
-    if (!config.migration_requirements && !config.migrationRequirements) {
+    const migrationReqs = (config.migration_requirements || config.migrationRequirements) as
+      | Record<string, unknown>
+      | undefined;
+    if (!migrationReqs) {
       return null;
     }
-
-    const migrationReqs = config.migration_requirements || config.migrationRequirements;
 
     let section = `### ${isZh ? '🔄 迁移任务要求' : '🔄 Migration Task Requirements'}\n\n`;
 
@@ -358,7 +358,7 @@ ${modificationRules.requireApproval.map((r) => `- \`${r.pattern}\`: ${r.reason}`
    * 🔧 修复问题3：生成其他自定义字段部分（通用处理）
    */
   private generateCustomFieldsSection(): string | null {
-    const config = this.config as any;
+    const config = this.config as unknown as Record<string, unknown>;
     const knownFields = new Set([
       'project',
       'techStack',

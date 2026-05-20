@@ -6,6 +6,7 @@
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
 import type {
+  ActionType,
   AgentTask,
   ExecutionPlan,
   ExecutionStep,
@@ -41,6 +42,7 @@ import type {
   AgentEventListener,
   AgentExecutionResult,
   AgentPlanResult,
+  FilesenseNavigationIntent,
   ProjectFactsUpdate,
 } from '../types.js';
 import { WorkflowIntegration } from '../workflow-integration.js';
@@ -873,11 +875,11 @@ export class FrontAgent {
         this.emit({ type: 'step_started', step });
       },
       (step, output) => {
-        const toolResult = output.stepResult.output as any;
-        const resultWithStatus = {
+        const toolResult = output.stepResult.output as Record<string, unknown> | undefined;
+        const resultWithStatus: Record<string, unknown> = {
+          ...toolResult,
           success: output.stepResult.success,
           error: output.stepResult.error,
-          ...toolResult,
         };
 
         this.contextManager.updateFileSystemFacts(
@@ -902,7 +904,7 @@ export class FrontAgent {
 
         if (output.stepResult.success && step.tool === 'filesense_navigate') {
           this.contextManager.updateFilesenseNavigation(task.id, {
-            intent: step.params.intent as any,
+            intent: step.params.intent as FilesenseNavigationIntent | undefined,
             paths: Array.isArray(step.params.paths) ? (step.params.paths as string[]) : undefined,
             data: resultWithStatus.data ?? resultWithStatus,
           });
@@ -926,18 +928,18 @@ export class FrontAgent {
           this.emit({ type: 'step_completed', step, result: output.stepResult });
 
           if (step.action === 'read_file' && output.stepResult.output) {
-            const result = output.stepResult.output as any;
+            const result = output.stepResult.output as Record<string, unknown>;
             if (result.content && step.params.path) {
               const filePath = step.params.path as string;
-              executionContext.collectedContext.files.set(filePath, result.content);
+              executionContext.collectedContext.files.set(filePath, result.content as string);
               this.debugLog(`[Agent] Added read file to context: ${filePath}`);
             }
           }
 
           if (step.action === 'create_file' && step.params.path) {
             const filePath = step.params.path as string;
-            const result = output.stepResult.output as any;
-            const content = result?.content || (step.params.content as string) || '';
+            const result = output.stepResult.output as Record<string, unknown> | undefined;
+            const content = (result?.content as string) || (step.params.content as string) || '';
             if (content) {
               executionContext.collectedContext.files.set(filePath, content);
               this.debugLog(`[Agent] Added created file to context: ${filePath}`);
@@ -1016,7 +1018,7 @@ export class FrontAgent {
         const recoverySteps: ExecutionStep[] = recoveryPlan.recoverySteps.map((step, idx) => ({
           stepId: recoveryStepIds[idx],
           description: step.description,
-          action: step.action as any,
+          action: step.action as ActionType,
           tool: step.tool,
           params: step.params as Record<string, unknown>,
           dependencies: idx > 0 ? [recoveryStepIds[idx - 1]] : [],

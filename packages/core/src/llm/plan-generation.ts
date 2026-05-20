@@ -17,17 +17,20 @@ export interface PlanGenerationDeps {
   }) => Promise<T>;
 }
 
-export function normalizePlan(rawPlan: any, deps: PlanGenerationDeps): GeneratedPlan {
+export function normalizePlan(
+  rawPlan: Record<string, unknown>,
+  deps: PlanGenerationDeps,
+): GeneratedPlan {
   const summary = typeof rawPlan.summary === 'string' ? rawPlan.summary : 'Generated Plan';
 
-  let steps = Array.isArray(rawPlan.steps) ? rawPlan.steps : [];
+  let steps: Record<string, unknown>[] = Array.isArray(rawPlan.steps) ? rawPlan.steps : [];
 
   if (typeof rawPlan.steps === 'string') {
     deps.debugWarn('[LLM] Warning: steps is a string, expected array. Creating default step.');
     steps = [];
   }
 
-  steps = steps.map((step: any, index: number) => {
+  steps = steps.map((step: Record<string, unknown>, index: number) => {
     let params = step.params;
     if (typeof params === 'string') {
       deps.debugWarn(
@@ -68,7 +71,12 @@ export function normalizePlan(rawPlan: any, deps: PlanGenerationDeps): Generated
     alternatives = [];
   }
 
-  return { summary, steps, risks, alternatives };
+  return {
+    summary,
+    steps: steps as GeneratedPlan['steps'],
+    risks: risks as string[],
+    alternatives: alternatives as string[],
+  };
 }
 
 export async function generatePlanInTwoPhases(
@@ -278,7 +286,7 @@ ${options.sddConstraints ?? '无特殊约束'}
 ${options.skillContext ?? '无已激活内容技能'}`;
 
   const batchSize = 10;
-  const allSteps = [];
+  const allSteps: GeneratedPlan['steps'] = [];
 
   for (let i = 0; i < outline.stepOutlines.length; i += batchSize) {
     const batch = outline.stepOutlines.slice(i, i + batchSize);
@@ -349,7 +357,7 @@ ${JSON.stringify(batch, null, 2)}
 
   const finalPlan: GeneratedPlan = {
     summary: outline.summary,
-    steps: allSteps as any,
+    steps: allSteps,
     risks: outline.risks,
     alternatives: outline.alternatives,
   };

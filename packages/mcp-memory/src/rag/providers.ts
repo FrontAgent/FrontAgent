@@ -83,12 +83,16 @@ export function normalizeOpenVikingMatches(
   config: RequiredOpenVikingConfig,
   maxResults?: number,
 ): RagQueryMatch[] {
-  const rawItems = Array.isArray((payload as any)?.results)
-    ? (payload as any).results
-    : Array.isArray((payload as any)?.matches)
-      ? (payload as any).matches
-      : Array.isArray((payload as any)?.data)
-        ? (payload as any).data
+  const record =
+    typeof payload === 'object' && payload !== null
+      ? (payload as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
+  const rawItems = Array.isArray(record.results)
+    ? record.results
+    : Array.isArray(record.matches)
+      ? record.matches
+      : Array.isArray(record.data)
+        ? record.data
         : [];
 
   return rawItems.slice(0, maxResults ?? rawItems.length).map((item: any, index: number) => {
@@ -247,15 +251,19 @@ class OpenVikingKnowledgeProvider implements KnowledgeProvider {
       }
 
       const payload = (await response.json()) as unknown;
+      const payloadRecord =
+        typeof payload === 'object' && payload !== null
+          ? (payload as Record<string, unknown>)
+          : ({} as Record<string, unknown>);
       const matches = normalizeOpenVikingMatches(payload, this.config, params.maxResults);
       return {
         success: true,
-        syncedAt: getString((payload as any)?.syncedAt) ?? new Date().toISOString(),
+        syncedAt: getString(payloadRecord.syncedAt) ?? new Date().toISOString(),
         sourceRevision:
-          getString((payload as any)?.sourceRevision) ?? getString((payload as any)?.revision),
+          getString(payloadRecord.sourceRevision) ?? getString(payloadRecord.revision),
         searchMode: 'openviking',
-        reranked: Boolean((payload as any)?.reranked),
-        warnings: normalizeWarnings((payload as any)?.warnings),
+        reranked: Boolean(payloadRecord.reranked),
+        warnings: normalizeWarnings(payloadRecord.warnings),
         results: matches,
         timing: createOpenVikingTiming(startedAt),
       };
