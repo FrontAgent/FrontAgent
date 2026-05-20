@@ -42,7 +42,7 @@ export {
   type GeneratedPlan,
   type GeneratedCode,
   type GeneratedPatch,
-} from './llm.js';
+} from './llm/index.js';
 export { MemoryStore } from './memory/index.js';
 export {
   SecurityManager,
