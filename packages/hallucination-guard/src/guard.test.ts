@@ -1,20 +1,26 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { checkFileExistence } from './checks/file-existence.js';
-import { checkSyntaxValidity } from './checks/syntax-validity.js';
 import { checkAllImports, extractImports } from './checks/import-validity.js';
+import { checkSyntaxValidity } from './checks/syntax-validity.js';
 import { HallucinationGuard } from './guard.js';
 
-const TEST_ROOT = join(tmpdir(), 'frontagent-guard-test-' + Date.now());
+const TEST_ROOT = join(tmpdir(), `frontagent-guard-test-${Date.now()}`);
 
 beforeAll(() => {
   mkdirSync(TEST_ROOT, { recursive: true });
   writeFileSync(join(TEST_ROOT, 'existing.ts'), 'export const x = 1;\n');
   mkdirSync(join(TEST_ROOT, 'src'), { recursive: true });
-  writeFileSync(join(TEST_ROOT, 'src', 'utils.ts'), 'export function add(a: number, b: number) { return a + b; }\n');
-  writeFileSync(join(TEST_ROOT, 'package.json'), JSON.stringify({ dependencies: { zod: '^3.0.0' } }));
+  writeFileSync(
+    join(TEST_ROOT, 'src', 'utils.ts'),
+    'export function add(a: number, b: number) { return a + b; }\n',
+  );
+  writeFileSync(
+    join(TEST_ROOT, 'package.json'),
+    JSON.stringify({ dependencies: { zod: '^3.0.0' } }),
+  );
 });
 
 afterAll(() => {
