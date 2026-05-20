@@ -5,7 +5,7 @@ import {
   normalizeKnowledgeBaseSource,
   normalizeOpenVikingConfig,
   normalizeOpenVikingMatches,
-} from './rag.js';
+} from './rag/index.js';
 
 function baseConfig(overrides: Partial<KnowledgeBaseConfig> = {}): KnowledgeBaseConfig {
   return {
