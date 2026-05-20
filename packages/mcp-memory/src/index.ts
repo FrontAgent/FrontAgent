@@ -11,4 +11,4 @@ export {
   type RagQueryParams,
   type RagQueryResult,
   type RagQueryMatch,
-} from './rag.js';
+} from './rag/index.js';
