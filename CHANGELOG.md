@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-05-19
+
+### Added
+- Added RAG query sub-stage timing in agent benchmark output and summaries.
+- Added RAG query result cache hit reporting for quantitative cold/warm analysis.
+
+### Changed
+- Optimized warm RAG retrieval by reusing local knowledge-base indexes when `syncOnQuery` is disabled.
+- Reused the runtime knowledge-base instance so in-process RAG query caching can take effect.
+- Updated the agent-flow benchmark so `BENCH_CLEAR_CACHE=0` preserves `.frontagent` cache for warm-cache measurements.
+
+### Fixed
+- Avoided repeatedly treating warm RAG benchmark runs as cold starts by preserving the benchmark workspace cache.
+
 ## [1.0.1] - 2026-04-30
 
 ### Added
