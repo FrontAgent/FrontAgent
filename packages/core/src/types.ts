@@ -36,6 +36,8 @@ export interface AgentConfig {
   subAgents?: SubAgentConfig;
   /** RAG 配置 */
   rag?: RagConfig;
+  /** Filesense 轻量目录导航配置 */
+  filesense?: FilesenseConfig;
   /** 内容层 skill 配置 */
   skillContent?: SkillContentConfig;
   /** 跨会话记忆配置 */
@@ -76,6 +78,56 @@ export interface SkillContentConfig {
   maxReferenceFiles?: number;
   /** 注入 prompt 时每个 skill 文件的最大字符数 */
   maxCharsPerFile?: number;
+}
+
+export type FilesenseNavigationIntent =
+  | 'locate'
+  | 'understand_structure'
+  | 'find_conventions'
+  | 'prepare_refactor'
+  | 'prepare_create'
+  | 'validate_freshness';
+
+export interface FilesenseConfig {
+  /** 是否启用 Filesense 轻量导航（默认 true） */
+  enabled?: boolean;
+  /** 默认返回形式（默认 summary） */
+  output?: 'summary' | 'candidates' | 'verbose';
+  /** 写入模式；navigate 默认不写业务目录（默认 cache） */
+  writeMode?: 'cache' | 'workspace' | 'none';
+  /** 默认最大扫描条目数 */
+  maxEntries?: number;
+  /** 默认返回字节预算 */
+  maxBytes?: number;
+  /** 默认扫描超时毫秒 */
+  timeoutMs?: number;
+}
+
+export interface FilesenseNavigationCandidate {
+  path: string;
+  type: 'file' | 'dir';
+  reason: string;
+  score: number;
+}
+
+export interface FilesenseNavigationContext {
+  intent?: FilesenseNavigationIntent;
+  paths: string[];
+  scanned: {
+    entries: number;
+    elapsedMs: number;
+    truncated: boolean;
+  };
+  summary?: {
+    projectType?: string;
+    packageManager?: string;
+    mainEntrypoints: string[];
+    importantDirs: Array<{ path: string; purpose: string; confidence: number }>;
+    conventions: string[];
+    risks: string[];
+  };
+  candidates: FilesenseNavigationCandidate[];
+  warnings: string[];
 }
 
 /**
@@ -514,6 +566,8 @@ export interface ContextInfo {
   matchedSkillNames?: string[];
   /** 跨会话记忆内容（Phase 1 preload） */
   memoryContext?: string;
+  /** 结构化 Filesense 目录导航上下文 */
+  filesenseNavigation?: FilesenseNavigationContext;
   /** Filesense 目录索引上下文 */
   filesenseContext?: string;
   /** 其他元数据 */
@@ -641,6 +695,16 @@ export type AgentEvent =
       warnings?: string[];
       timing?: RagQueryTiming;
       matches: RagContextMatch[];
+    }
+  | {
+      type: 'filesense_navigated';
+      intent?: FilesenseNavigationIntent;
+      paths: string[];
+      entries: number;
+      elapsedMs: number;
+      truncated: boolean;
+      candidateCount: number;
+      warnings?: string[];
     }
   | { type: 'planning_completed'; plan: ExecutionPlan }
   | { type: 'phase_started'; phase: string; stepCount: number }

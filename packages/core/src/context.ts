@@ -17,7 +17,112 @@ import type {
   ProjectFactsSnapshot,
   ProjectFactsUpdate,
   RagContextMatch,
+  FilesenseNavigationContext,
+  FilesenseNavigationIntent,
 } from './types.js';
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function normalizeFilesenseNavigation(
+  value: unknown,
+  intent?: FilesenseNavigationIntent,
+  paths: string[] = ['.'],
+): FilesenseNavigationContext | undefined {
+  const data = asRecord(value);
+  if (!data) return undefined;
+
+  const scannedInput = asRecord(data.scanned);
+  const summaryInput = asRecord(data.summary);
+  const candidates = Array.isArray(data.candidates)
+    ? data.candidates
+        .map((item) => asRecord(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => ({
+          path: typeof item.path === 'string' ? item.path : '',
+          type: item.type === 'dir' ? 'dir' as const : 'file' as const,
+          reason: typeof item.reason === 'string' ? item.reason : 'Filesense candidate',
+          score: typeof item.score === 'number' ? item.score : 0,
+        }))
+        .filter((item) => item.path)
+        .slice(0, 15)
+    : [];
+
+  const importantDirs = Array.isArray(summaryInput?.importantDirs)
+    ? summaryInput.importantDirs
+        .map((item) => asRecord(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => ({
+          path: typeof item.path === 'string' ? item.path : '',
+          purpose: typeof item.purpose === 'string' ? item.purpose : 'Directory',
+          confidence: typeof item.confidence === 'number' ? item.confidence : 0,
+        }))
+        .filter((item) => item.path)
+        .slice(0, 10)
+    : [];
+
+  return {
+    intent,
+    paths: stringArray(scannedInput?.paths).length > 0 ? stringArray(scannedInput?.paths) : paths,
+    scanned: {
+      entries: typeof scannedInput?.entries === 'number' ? scannedInput.entries : 0,
+      elapsedMs: typeof scannedInput?.elapsedMs === 'number' ? scannedInput.elapsedMs : 0,
+      truncated: scannedInput?.truncated === true,
+    },
+    summary: summaryInput
+      ? {
+          projectType: typeof summaryInput.projectType === 'string' ? summaryInput.projectType : undefined,
+          packageManager: typeof summaryInput.packageManager === 'string' ? summaryInput.packageManager : undefined,
+          mainEntrypoints: stringArray(summaryInput.mainEntrypoints).slice(0, 8),
+          importantDirs,
+          conventions: stringArray(summaryInput.conventions).slice(0, 8),
+          risks: stringArray(summaryInput.risks).slice(0, 8),
+        }
+      : undefined,
+    candidates,
+    warnings: [
+      ...stringArray(data.warnings),
+      ...stringArray(summaryInput?.risks),
+    ].slice(0, 8),
+  };
+}
+
+function formatFilesenseNavigationContext(navigation: FilesenseNavigationContext): string {
+  const lines: string[] = [];
+  lines.push(`- intent: ${navigation.intent ?? 'unknown'}`);
+  lines.push(`- paths: ${navigation.paths.join(', ')}`);
+  lines.push(`- scanned: ${navigation.scanned.entries} entries, ${navigation.scanned.elapsedMs}ms${navigation.scanned.truncated ? ', truncated' : ''}`);
+
+  if (navigation.summary?.projectType) lines.push(`- projectType: ${navigation.summary.projectType}`);
+  if (navigation.summary?.packageManager) lines.push(`- packageManager: ${navigation.summary.packageManager}`);
+  if (navigation.summary?.mainEntrypoints.length) {
+    lines.push('- mainEntrypoints:');
+    for (const item of navigation.summary.mainEntrypoints.slice(0, 6)) lines.push(`  - ${item}`);
+  }
+  if (navigation.summary?.importantDirs.length) {
+    lines.push('- importantDirs:');
+    for (const item of navigation.summary.importantDirs.slice(0, 6)) lines.push(`  - ${item.path}: ${item.purpose}`);
+  }
+  if (navigation.summary?.conventions.length) {
+    lines.push('- conventions:');
+    for (const item of navigation.summary.conventions.slice(0, 6)) lines.push(`  - ${item}`);
+  }
+  if (navigation.candidates.length) {
+    lines.push('- candidates:');
+    for (const item of navigation.candidates.slice(0, 10)) lines.push(`  - ${item.path} (${item.type}, score=${item.score}): ${item.reason}`);
+  }
+  if (navigation.warnings.length) {
+    lines.push('- warnings:');
+    for (const item of navigation.warnings.slice(0, 6)) lines.push(`  - ${item}`);
+  }
+
+  return lines.join('\n');
+}
 
 /**
  * 解析代码中的导入语句
@@ -328,6 +433,24 @@ export class ContextManager {
     }
   }
 
+  updateFilesenseNavigation(
+    taskId: string,
+    input: {
+      intent?: FilesenseNavigationIntent;
+      paths?: string[];
+      data?: unknown;
+    }
+  ): void {
+    const ctx = this.contexts.get(taskId);
+    if (!ctx) return;
+
+    const navigation = normalizeFilesenseNavigation(input.data, input.intent, input.paths);
+    if (!navigation) return;
+
+    ctx.collectedContext.filesenseNavigation = navigation;
+    ctx.collectedContext.filesenseContext = formatFilesenseNavigationContext(navigation);
+  }
+
   /**
    * 添加消息
    */
@@ -378,7 +501,7 @@ export class ContextManager {
 
     // --- Zone 2.5: Filesense (directory structure awareness) ---
     if (context.collectedContext.filesenseContext) {
-      zones.push('\n## 目录索引 (Filesense)\n' + context.collectedContext.filesenseContext);
+      zones.push('\n## 目录导航 (Filesense)\n' + context.collectedContext.filesenseContext);
     }
 
     // --- Zone 3: Context (dynamic per-task data) ---

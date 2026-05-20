@@ -53,11 +53,12 @@ export class PlannerSkillRegistry {
     task: AgentTask,
     steps: ExecutionStep[],
     stepFactory: PlannerStepFactory,
+    filesense?: import('../types.js').FilesenseConfig,
   ): ExecutionStep[] {
     let nextSteps = [...steps];
 
     for (const skill of this.phaseSkills) {
-      if (!skill.shouldInject({ task, steps: nextSteps })) {
+      if (!skill.shouldInject({ task, steps: nextSteps, filesense })) {
         continue;
       }
 
@@ -65,6 +66,7 @@ export class PlannerSkillRegistry {
         task,
         steps: nextSteps,
         stepFactory,
+        filesense,
       });
     }
 
@@ -128,8 +130,8 @@ export function createDefaultPlannerSkillRegistry(
   const phaseSkills: PhaseInjectionSkill[] = [
     {
       name: 'phase.filesense-navigate',
-      shouldInject: ({ task, steps }) => decideFilesense(task, steps).enabled,
-      apply: ({ task, steps, stepFactory }) => {
+      shouldInject: ({ task, steps, filesense }) => filesense?.enabled !== false && decideFilesense(task, steps).enabled,
+      apply: ({ task, steps, stepFactory, filesense }) => {
         const decision = decideFilesense(task, steps);
         if (!decision.enabled) return steps;
 
@@ -141,10 +143,11 @@ export function createDefaultPlannerSkillRegistry(
             intent: decision.intent,
             paths: decision.paths,
             depth: decision.depth,
-            maxEntries: decision.maxEntries,
-            maxBytes: decision.maxBytes,
-            output: 'summary',
-            writeMode: 'cache',
+            maxEntries: filesense?.maxEntries ?? decision.maxEntries,
+            maxBytes: filesense?.maxBytes ?? decision.maxBytes,
+            timeoutMs: filesense?.timeoutMs ?? decision.timeoutMs,
+            output: filesense?.output ?? 'summary',
+            writeMode: filesense?.writeMode ?? 'cache',
           },
           phase: 'preparation',
         });

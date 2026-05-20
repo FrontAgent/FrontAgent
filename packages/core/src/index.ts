@@ -80,6 +80,7 @@ export type {
   LLMGenerateObjectOptions,
   MCPConfig,
   RagConfig,
+  FilesenseConfig,
   SkillContentConfig,
   HallucinationGuardConfig,
   SubAgentConfig,

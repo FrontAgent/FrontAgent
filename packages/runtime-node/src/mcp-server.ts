@@ -229,6 +229,12 @@ function toRuntimeInput(args: Record<string, unknown>, defaults: FrontAgentMcpSe
     openVikingL1Entry: stringValue(args.openVikingL1Entry) ?? defaults.openVikingL1Entry,
     openVikingTimeoutMs: (args.openVikingTimeoutMs as string | number | undefined) ?? defaults.openVikingTimeoutMs,
     disableOpenVikingFallback: boolValue(args.disableOpenVikingFallback, Boolean(defaults.disableOpenVikingFallback ?? false)),
+    filesenseEnabled: boolValue(args.filesenseEnabled, Boolean(defaults.filesenseEnabled ?? true)),
+    filesenseOutput: stringValue(args.filesenseOutput) ?? defaults.filesenseOutput,
+    filesenseWriteMode: stringValue(args.filesenseWriteMode) ?? defaults.filesenseWriteMode,
+    filesenseMaxEntries: (args.filesenseMaxEntries as string | number | undefined) ?? defaults.filesenseMaxEntries,
+    filesenseMaxBytes: (args.filesenseMaxBytes as string | number | undefined) ?? defaults.filesenseMaxBytes,
+    filesenseTimeoutMs: (args.filesenseTimeoutMs as string | number | undefined) ?? defaults.filesenseTimeoutMs,
   };
 }
 
@@ -291,6 +297,12 @@ const sharedTaskProperties = {
   openVikingCorpus: { type: 'string', description: 'OpenViking corpus name.' },
   openVikingNamespace: { type: 'string', description: 'OpenViking namespace.' },
   openVikingL1Entry: { type: 'string', description: 'OpenViking L1 navigation entry path.' },
+  filesenseEnabled: { type: 'boolean', description: 'Enable lightweight Filesense navigation. Defaults to true.' },
+  filesenseOutput: { type: 'string', enum: ['summary', 'candidates', 'verbose'], description: 'Filesense navigate output shape. Defaults to summary.' },
+  filesenseWriteMode: { type: 'string', enum: ['cache', 'workspace', 'none'], description: 'Filesense navigate write mode. Defaults to cache.' },
+  filesenseMaxEntries: { type: ['string', 'number'], description: 'Default Filesense navigate max entries budget.' },
+  filesenseMaxBytes: { type: ['string', 'number'], description: 'Default Filesense navigate max bytes budget.' },
+  filesenseTimeoutMs: { type: ['string', 'number'], description: 'Default Filesense navigate timeout in milliseconds.' },
   runLog: { type: 'boolean', description: 'Write FrontAgent run log. Defaults to true.' },
   logFile: { type: 'string', description: 'Optional FrontAgent run log path.' },
   debug: { type: 'boolean', description: 'Enable debug behavior for this call.' },
@@ -430,6 +442,7 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
                 fallbackToGit: resolved.rag.openViking?.fallbackToGit ?? true,
               },
             },
+            filesense: resolved.filesense,
             runLogs: {
               directory: resolve(projectRoot, '.frontagent', 'runs'),
             },

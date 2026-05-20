@@ -121,6 +121,7 @@ export async function runFrontAgentTask(
     },
     execution: resolved.execution,
     rag: resolved.rag,
+    filesense: resolved.filesense,
     skillContent: {
       builtInSkillRoots: resolveBuiltInSkillRoots(options.builtInSkillRoots),
     },
@@ -283,6 +284,7 @@ export async function planFrontAgentTask(
     },
     execution: resolved.execution,
     rag: resolved.rag,
+    filesense: resolved.filesense,
     skillContent: {
       builtInSkillRoots: resolveBuiltInSkillRoots(options.builtInSkillRoots),
     },
