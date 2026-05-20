@@ -1,13 +1,13 @@
 {
   "repoPath": "/Users/ceilf6/Desktop/myrepos/Wiki/AI/3-Application/FrontAgent-app",
-  "lastCommit": "a54547a1189f787c1ca7db76620fa53ca8b5ef17",
-  "indexedAt": "2026-05-20T02:13:48.456Z",
+  "lastCommit": "5ab6ada46fd622e0f9d24ad8b74e186986df81e0",
+  "indexedAt": "2026-05-20T07:24:16.105Z",
   "remoteUrl": "https://github.com/ceilf6/FrontAgent",
   "stats": {
-    "files": 201,
-    "nodes": 4936,
-    "edges": 9018,
-    "communities": 146,
+    "files": 274,
+    "nodes": 5518,
+    "edges": 9866,
+    "communities": 170,
     "processes": 300,
     "embeddings": 0
   }
