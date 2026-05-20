@@ -43,11 +43,9 @@ export class VerificationCollector {
     };
   }
 
-  collectFromPhase(
-    steps: ExecutionStepResult[]
-  ): VerificationEvidence[] {
+  collectFromPhase(steps: ExecutionStepResult[]): VerificationEvidence[] {
     return steps
-      .map(step => this.collectFromStep(step))
+      .map((step) => this.collectFromStep(step))
       .filter((e): e is VerificationEvidence => e !== null);
   }
 
@@ -58,9 +56,10 @@ export class VerificationCollector {
     const action = step.action.toLowerCase();
 
     if (tool === 'run_command') {
-      const output = typeof step.output === 'object' && step.output !== null
-        ? step.output as Record<string, unknown>
-        : {};
+      const output =
+        typeof step.output === 'object' && step.output !== null
+          ? (step.output as Record<string, unknown>)
+          : {};
       const command = typeof output.command === 'string' ? output.command : '';
 
       if (/\b(jest|vitest|mocha|pytest|test)\b/.test(command)) return 'test_pass';

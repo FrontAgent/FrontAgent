@@ -56,7 +56,7 @@ function detectLanguage(filePath: string): string {
     '.zsh': 'shell',
     '.sql': 'sql',
     '.graphql': 'graphql',
-    '.gql': 'graphql'
+    '.gql': 'graphql',
   };
 
   return languageMap[ext] ?? 'plaintext';
@@ -72,7 +72,7 @@ export function readFile(params: ReadFileParams, projectRoot: string): ReadFileR
   if (!safePath.ok) {
     return {
       success: false,
-      error: safePath.error
+      error: safePath.error,
     };
   }
 
@@ -81,7 +81,7 @@ export function readFile(params: ReadFileParams, projectRoot: string): ReadFileR
   if (!stat.isFile()) {
     return {
       success: false,
-      error: `Not a file: ${filePath}`
+      error: `Not a file: ${filePath}`,
     };
   }
 
@@ -103,12 +103,12 @@ export function readFile(params: ReadFileParams, projectRoot: string): ReadFileR
       content,
       lines,
       language: detectLanguage(safePath.fullPath),
-      size: stat.size
+      size: stat.size,
     };
   } catch (error) {
     return {
       success: false,
-      error: `Failed to read file: ${error instanceof Error ? error.message : String(error)}`
+      error: `Failed to read file: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -124,22 +124,22 @@ export const readFileSchema = {
     properties: {
       path: {
         type: 'string',
-        description: '相对于项目根目录的文件路径'
+        description: '相对于项目根目录的文件路径',
       },
       encoding: {
         type: 'string',
         description: '文件编码，默认 utf-8',
-        default: 'utf-8'
+        default: 'utf-8',
       },
       startLine: {
         type: 'number',
-        description: '起始行号（1-based），可选'
+        description: '起始行号（1-based），可选',
       },
       endLine: {
         type: 'number',
-        description: '结束行号（1-based，包含），可选'
-      }
+        description: '结束行号（1-based，包含），可选',
+      },
     },
-    required: ['path']
-  }
+    required: ['path'],
+  },
 };

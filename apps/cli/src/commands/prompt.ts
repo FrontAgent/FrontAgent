@@ -1,7 +1,7 @@
-import chalk from 'chalk';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
+import { createPromptGenerator, createSDDParser } from '@frontagent/sdd';
+import chalk from 'chalk';
 
 export default async function promptCommand(
   sddPath: string,

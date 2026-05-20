@@ -3,13 +3,13 @@
  * 根据 SDD 配置验证 Agent 的操作是否符合约束
  */
 
-import { minimatch } from 'minimatch';
 import {
-  type SDDConfig,
-  type ConstraintViolation,
   type ActionType,
+  type ConstraintViolation,
+  type SDDConfig,
   normalizePath,
 } from '@frontagent/shared';
+import { minimatch } from 'minimatch';
 
 /**
  * Agent 操作描述
@@ -88,13 +88,13 @@ export class SDDValidator {
       violations.push(...directoryViolations);
     }
 
-    const hasErrors = violations.some(v => v.type === 'error');
+    const hasErrors = violations.some((v) => v.type === 'error');
 
     return {
       valid: !hasErrors,
       violations,
       requiresApproval: approvalReasons.length > 0,
-      approvalReasons
+      approvalReasons,
     };
   }
 
@@ -117,7 +117,7 @@ export class SDDValidator {
           rule: 'protected_directory',
           message: `Cannot modify files in protected directory: ${dir}`,
           location: targetPath,
-          suggestion: 'This directory is protected by SDD configuration'
+          suggestion: 'This directory is protected by SDD configuration',
         });
       }
     }
@@ -130,7 +130,7 @@ export class SDDValidator {
           rule: 'protected_file',
           message: `Cannot modify protected file: ${file}`,
           location: targetPath,
-          suggestion: 'This file is protected and requires manual modification'
+          suggestion: 'This file is protected and requires manual modification',
         });
       }
     }
@@ -156,7 +156,7 @@ export class SDDValidator {
       if (minimatch(normalizedSource, boundary.from)) {
         for (const importPath of imports) {
           const normalizedImport = normalizePath(importPath);
-          
+
           // 检查是否在禁止导入列表中
           for (const forbidden of boundary.cannotImport) {
             if (minimatch(normalizedImport, forbidden)) {
@@ -165,26 +165,27 @@ export class SDDValidator {
                 rule: 'module_boundary',
                 message: `Module ${sourcePath} cannot import from ${importPath}`,
                 location: sourcePath,
-                suggestion: `According to SDD, files in ${boundary.from} cannot import from ${forbidden}`
+                suggestion: `According to SDD, files in ${boundary.from} cannot import from ${forbidden}`,
               });
             }
           }
 
           // 如果定义了允许列表，检查是否在其中
           if (boundary.canImport.length > 0) {
-            const isAllowed = boundary.canImport.some(allowed => 
-              minimatch(normalizedImport, allowed) || 
-              normalizedImport.startsWith('node:') ||
-              !normalizedImport.startsWith('.')  // 外部包
+            const isAllowed = boundary.canImport.some(
+              (allowed) =>
+                minimatch(normalizedImport, allowed) ||
+                normalizedImport.startsWith('node:') ||
+                !normalizedImport.startsWith('.'), // 外部包
             );
-            
+
             if (!isAllowed && normalizedImport.startsWith('.')) {
               violations.push({
                 type: 'warning',
                 rule: 'module_boundary',
                 message: `Import ${importPath} is not in allowed list for ${sourcePath}`,
                 location: sourcePath,
-                suggestion: `Allowed imports: ${boundary.canImport.join(', ')}`
+                suggestion: `Allowed imports: ${boundary.canImport.join(', ')}`,
               });
             }
           }
@@ -207,7 +208,7 @@ export class SDDValidator {
           type: 'error',
           rule: 'forbidden_package',
           message: `Package "${dep}" is forbidden by SDD configuration`,
-          suggestion: 'Please use an alternative package allowed by the project'
+          suggestion: 'Please use an alternative package allowed by the project',
         });
       }
     }
@@ -229,16 +230,16 @@ export class SDDValidator {
         rule: 'max_file_lines',
         message: `File exceeds maximum lines (${lines.length} > ${this.config.codeQuality.maxFileLines})`,
         location: targetPath,
-        suggestion: 'Consider splitting this file into smaller modules'
+        suggestion: 'Consider splitting this file into smaller modules',
       });
     }
 
     // 检查禁止的模式
     for (const pattern of this.config.codeQuality.forbiddenPatterns) {
       const regex = new RegExp(pattern, 'g');
-      let match;
+      let match: RegExpExecArray | null;
       let lineNum = 1;
-      
+
       for (const line of lines) {
         if ((match = regex.exec(line)) !== null) {
           violations.push({
@@ -246,7 +247,7 @@ export class SDDValidator {
             rule: 'forbidden_pattern',
             message: `Forbidden pattern "${pattern}" found`,
             location: targetPath ? `${targetPath}:${lineNum}` : `line ${lineNum}`,
-            suggestion: `Remove or replace the forbidden pattern: ${match[0]}`
+            suggestion: `Remove or replace the forbidden pattern: ${match[0]}`,
           });
         }
         lineNum++;
@@ -274,7 +275,7 @@ export class SDDValidator {
           rule: 'naming_convention',
           message: `Component file "${fileName}" should be PascalCase`,
           location: targetPath,
-          suggestion: `Rename to ${this.toPascalCase(fileNameWithoutExt)}`
+          suggestion: `Rename to ${this.toPascalCase(fileNameWithoutExt)}`,
         });
       }
     }
@@ -287,7 +288,7 @@ export class SDDValidator {
           rule: 'naming_convention',
           message: `Hook file "${fileName}" should start with "use"`,
           location: targetPath,
-          suggestion: `Rename to use${this.toPascalCase(fileNameWithoutExt)}`
+          suggestion: `Rename to use${this.toPascalCase(fileNameWithoutExt)}`,
         });
       }
     }
@@ -300,7 +301,7 @@ export class SDDValidator {
           rule: 'naming_convention',
           message: `Utility file "${fileName}" should be camelCase`,
           location: targetPath,
-          suggestion: `Rename to ${this.toCamelCase(fileNameWithoutExt)}`
+          suggestion: `Rename to ${this.toCamelCase(fileNameWithoutExt)}`,
         });
       }
     }
@@ -325,7 +326,7 @@ export class SDDValidator {
               type: 'warning',
               rule: 'directory_max_lines',
               message: `File in ${dirPath}/ exceeds max lines (${lines} > ${rules.maxLines})`,
-              location: targetPath
+              location: targetPath,
             });
           }
         }
@@ -338,7 +339,7 @@ export class SDDValidator {
                 type: 'warning',
                 rule: 'directory_forbidden',
                 message: `Files in ${dirPath}/ should not contain: ${forbidden}`,
-                location: targetPath
+                location: targetPath,
               });
             }
           }
@@ -391,4 +392,3 @@ export class SDDValidator {
 export function createSDDValidator(config: SDDConfig): SDDValidator {
   return new SDDValidator(config);
 }
-

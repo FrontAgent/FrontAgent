@@ -3,4 +3,3 @@
  */
 
 export { BrowserManager, createBrowserManager, type BrowserConfig } from './browser.js';
-

@@ -1,6 +1,6 @@
+import type { LLMBackend } from '@frontagent/core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { LLMBackend } from '@frontagent/core';
 import { SamplingLLMBackend } from './sampling-llm.js';
 
 function createFallback(overrides: Partial<LLMBackend> = {}): LLMBackend {
@@ -39,14 +39,18 @@ describe('SamplingLLMBackend', () => {
       fallback,
     });
 
-    await expect(backend.generateText({
-      messages: [{ role: 'user', content: 'hello' }],
-    })).resolves.toBe('sampled text');
+    await expect(
+      backend.generateText({
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    ).resolves.toBe('sampled text');
 
-    await expect(backend.generateObject({
-      messages: [{ role: 'user', content: 'json' }],
-      schema: z.object({ ok: z.boolean() }),
-    })).resolves.toEqual({ ok: true });
+    await expect(
+      backend.generateObject({
+        messages: [{ role: 'user', content: 'json' }],
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).resolves.toEqual({ ok: true });
 
     expect(createMessage).toHaveBeenCalledTimes(2);
     expect(fallback.generateText).not.toHaveBeenCalled();
@@ -63,9 +67,11 @@ describe('SamplingLLMBackend', () => {
       fallback,
     });
 
-    await expect(backend.generateText({
-      messages: [{ role: 'user', content: 'hello' }],
-    })).resolves.toBe('direct text');
+    await expect(
+      backend.generateText({
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    ).resolves.toBe('direct text');
 
     expect(fallback.generateText).toHaveBeenCalledTimes(1);
   });

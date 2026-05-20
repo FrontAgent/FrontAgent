@@ -7,17 +7,17 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type {
-  FilesenseConfig,
-  ChildEntry,
-  IndexFile,
-  NotesFile,
-  SyncSummary,
-  SummarizeSummary,
   CheckSummary,
-  QueryResult,
+  ChildEntry,
+  FilesenseConfig,
+  IgnoreMatcher,
+  IndexFile,
   NavigateOptions,
   NavigateResult,
-  IgnoreMatcher,
+  NotesFile,
+  QueryResult,
+  SummarizeSummary,
+  SyncSummary,
 } from './types.js';
 import { DEFAULT_CONFIG, INTERNAL_FILES } from './types.js';
 
@@ -38,7 +38,7 @@ async function readJson(targetPath: string): Promise<unknown> {
 
 async function writeJson(targetPath: string, value: unknown): Promise<void> {
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
-  await fs.writeFile(targetPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  await fs.writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
 async function hashFile(targetPath: string, algorithm: 'sha1'): Promise<string> {
@@ -96,7 +96,10 @@ export async function findConfigRoot(startPath: string): Promise<string> {
   }
 }
 
-export async function loadIgnoreMatcher(root: string, config: FilesenseConfig): Promise<IgnoreMatcher> {
+export async function loadIgnoreMatcher(
+  root: string,
+  config: FilesenseConfig,
+): Promise<IgnoreMatcher> {
   const patterns = new Set(config.exclude);
   const ignorePath = path.join(root, config.ignoreFile);
   if (await exists(ignorePath)) {
@@ -115,9 +118,9 @@ export async function loadIgnoreMatcher(root: string, config: FilesenseConfig): 
       const clean = pattern.replace(/\\/g, '/');
       if (clean.endsWith('/')) {
         const prefix = clean.slice(0, -1);
-        if (normalized === prefix || normalized.startsWith(prefix + '/')) return true;
+        if (normalized === prefix || normalized.startsWith(`${prefix}/`)) return true;
       } else if (clean.includes('/')) {
-        if (normalized === clean || normalized.startsWith(clean + '/')) return true;
+        if (normalized === clean || normalized.startsWith(`${clean}/`)) return true;
       } else if (parts.includes(clean)) {
         return true;
       } else if (!isDirectory && path.basename(normalized) === clean) {
@@ -154,13 +157,23 @@ async function ensureSchemaFiles(root: string, config: FilesenseConfig): Promise
   const notesSchema = buildNotesSchema(config);
 
   const readSafe = async (p: string) => {
-    try { return await readJson(p); } catch { return null; }
+    try {
+      return await readJson(p);
+    } catch {
+      return null;
+    }
   };
 
-  if (!(await exists(paths.indexSchemaPath)) || stableStringify(await readSafe(paths.indexSchemaPath)) !== stableStringify(indexSchema)) {
+  if (
+    !(await exists(paths.indexSchemaPath)) ||
+    stableStringify(await readSafe(paths.indexSchemaPath)) !== stableStringify(indexSchema)
+  ) {
     await writeJson(paths.indexSchemaPath, indexSchema);
   }
-  if (!(await exists(paths.notesSchemaPath)) || stableStringify(await readSafe(paths.notesSchemaPath)) !== stableStringify(notesSchema)) {
+  if (
+    !(await exists(paths.notesSchemaPath)) ||
+    stableStringify(await readSafe(paths.notesSchemaPath)) !== stableStringify(notesSchema)
+  ) {
     await writeJson(paths.notesSchemaPath, notesSchema);
   }
 }
@@ -171,7 +184,14 @@ function buildIndexSchema(config: FilesenseConfig): Record<string, unknown> {
     $id: `https://filesense.dev/schema/${config.schemaVersion}/FILES.schema.json`,
     title: 'FILES.json',
     type: 'object',
-    required: ['schema_version', 'generated_at', 'root_relative_path', 'directory', 'children', 'sync'],
+    required: [
+      'schema_version',
+      'generated_at',
+      'root_relative_path',
+      'directory',
+      'children',
+      'sync',
+    ],
     additionalProperties: false,
     properties: {
       $schema: { type: 'string' },
@@ -179,29 +199,56 @@ function buildIndexSchema(config: FilesenseConfig): Record<string, unknown> {
       generated_at: { type: 'string' },
       root_relative_path: { type: 'string' },
       directory: {
-        type: 'object', required: ['name', 'path'], additionalProperties: false,
+        type: 'object',
+        required: ['name', 'path'],
+        additionalProperties: false,
         properties: { name: { type: 'string' }, path: { type: 'string' } },
       },
       children: {
         type: 'array',
         items: {
           type: 'object',
-          required: ['name', 'type', 'path', 'ext', 'size', 'mtimeMs', 'hash', 'summary', 'importance', 'status'],
+          required: [
+            'name',
+            'type',
+            'path',
+            'ext',
+            'size',
+            'mtimeMs',
+            'hash',
+            'summary',
+            'importance',
+            'status',
+          ],
           additionalProperties: false,
           properties: {
-            name: { type: 'string' }, type: { enum: ['file', 'dir'] }, path: { type: 'string' },
-            ext: { type: 'string' }, size: { type: 'number' }, mtimeMs: { type: 'number' },
+            name: { type: 'string' },
+            type: { enum: ['file', 'dir'] },
+            path: { type: 'string' },
+            ext: { type: 'string' },
+            size: { type: 'number' },
+            mtimeMs: { type: 'number' },
             hash: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-            summary: { type: 'string' }, importance: { enum: ['high', 'normal'] }, status: { enum: ['active'] },
+            summary: { type: 'string' },
+            importance: { enum: ['high', 'normal'] },
+            status: { enum: ['active'] },
           },
         },
       },
       sync: {
         type: 'object',
-        required: ['child_count', 'file_count', 'dir_count', 'last_full_sync', 'last_incremental_sync'],
+        required: [
+          'child_count',
+          'file_count',
+          'dir_count',
+          'last_full_sync',
+          'last_incremental_sync',
+        ],
         additionalProperties: false,
         properties: {
-          child_count: { type: 'number' }, file_count: { type: 'number' }, dir_count: { type: 'number' },
+          child_count: { type: 'number' },
+          file_count: { type: 'number' },
+          dir_count: { type: 'number' },
           last_full_sync: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           last_incremental_sync: { anyOf: [{ type: 'string' }, { type: 'null' }] },
         },
@@ -230,18 +277,30 @@ function buildNotesSchema(config: FilesenseConfig): Record<string, unknown> {
 // ─── Directory Walking ─────────────────────────────────────────────────────────
 
 async function listTrackedEntries(
-  root: string, dirPath: string, config: FilesenseConfig, ignores: IgnoreMatcher
+  root: string,
+  dirPath: string,
+  config: FilesenseConfig,
+  ignores: IgnoreMatcher,
 ) {
   const items = await fs.readdir(dirPath, { withFileTypes: true });
-  const output: Array<{ name: string; type: 'file' | 'dir'; stat: Awaited<ReturnType<typeof fs.stat>> }> = [];
+  const output: Array<{
+    name: string;
+    type: 'file' | 'dir';
+    stat: Awaited<ReturnType<typeof fs.stat>>;
+  }> = [];
 
   for (const item of items) {
-    if (item.name === config.indexFile || item.name === config.notesFile || item.name === config.ignoreFile) continue;
+    if (
+      item.name === config.indexFile ||
+      item.name === config.notesFile ||
+      item.name === config.ignoreFile
+    )
+      continue;
     if (INTERNAL_FILES.has(item.name)) continue;
 
     const absolutePath = path.join(dirPath, item.name);
     const relative = relativeToRoot(root, absolutePath);
-    if (relative === config.schemaDir || relative.startsWith(config.schemaDir + '/')) continue;
+    if (relative === config.schemaDir || relative.startsWith(`${config.schemaDir}/`)) continue;
     if (ignores(relative, item.isDirectory())) continue;
     if (!item.isFile() && !item.isDirectory()) continue;
 
@@ -252,7 +311,10 @@ async function listTrackedEntries(
 }
 
 async function walkDirectories(
-  root: string, startDir: string, config: FilesenseConfig, ignores: IgnoreMatcher,
+  root: string,
+  startDir: string,
+  config: FilesenseConfig,
+  ignores: IgnoreMatcher,
   onDirectory: (dirPath: string) => Promise<void>,
   onSkip: () => void,
   options: { maxDepth?: number; startDepth?: number; shouldStop?: () => boolean } = {},
@@ -270,8 +332,14 @@ async function walkDirectories(
     if (!item.isDirectory()) continue;
     const absolutePath = path.join(startDir, item.name);
     const relative = relativeToRoot(root, absolutePath);
-    if (relative === config.schemaDir || relative.startsWith(config.schemaDir + '/')) { onSkip(); continue; }
-    if (ignores(relative, true)) { onSkip(); continue; }
+    if (relative === config.schemaDir || relative.startsWith(`${config.schemaDir}/`)) {
+      onSkip();
+      continue;
+    }
+    if (ignores(relative, true)) {
+      onSkip();
+      continue;
+    }
     await walkDirectories(root, absolutePath, config, ignores, onDirectory, onSkip, {
       ...options,
       startDepth: currentDepth + 1,
@@ -304,10 +372,13 @@ function inferImportance(name: string): 'high' | 'normal' {
 
 function inferDirectoryPurpose(index: IndexFile): string {
   const dirName = index.directory.name.toLowerCase();
-  if (index.directory.path === '.') return 'Project root directory containing source code, configuration, and supporting files.';
+  if (index.directory.path === '.')
+    return 'Project root directory containing source code, configuration, and supporting files.';
   if (dirName === 'src') return 'Primary application source directory.';
-  if (dirName === 'docs') return 'Documentation directory for project guides and reference material.';
-  if (dirName === 'test' || dirName === 'tests' || dirName === '__tests__') return 'Automated test directory.';
+  if (dirName === 'docs')
+    return 'Documentation directory for project guides and reference material.';
+  if (dirName === 'test' || dirName === 'tests' || dirName === '__tests__')
+    return 'Automated test directory.';
   if (dirName === 'scripts') return 'Automation scripts directory.';
   if (dirName === 'components') return 'Reusable component directory.';
   if (dirName === 'lib') return 'Shared library code directory.';
@@ -320,48 +391,86 @@ function inferDirectoryPurpose(index: IndexFile): string {
   if (dirName === 'assets') return 'Static assets directory.';
   if (dirName === 'types') return 'TypeScript type definitions directory.';
 
-  const fileCount = index.children.filter(c => c.type === 'file').length;
-  const dirCount = index.children.filter(c => c.type === 'dir').length;
+  const fileCount = index.children.filter((c) => c.type === 'file').length;
+  const dirCount = index.children.filter((c) => c.type === 'dir').length;
   if (fileCount === 0 && dirCount > 0) return 'Grouping directory for related subdirectories.';
-  const hasTS = index.children.some(c => ['.ts', '.tsx', '.js', '.jsx'].includes(c.ext));
+  const hasTS = index.children.some((c) => ['.ts', '.tsx', '.js', '.jsx'].includes(c.ext));
   if (hasTS) return 'Source directory for related implementation files.';
-  if (index.children.some(c => c.ext === '.md')) return 'Documentation-focused directory.';
+  if (index.children.some((c) => c.ext === '.md')) return 'Documentation-focused directory.';
   return 'Directory for related project files.';
 }
 
 function inferAgentHints(index: IndexFile): string[] {
   const hints: string[] = [];
-  const names = new Set(index.children.map(c => c.name));
+  const names = new Set(index.children.map((c) => c.name));
   const entrypoints = inferKeyEntrypoints(index);
-  if (entrypoints.length > 0) hints.push(`Read ${entrypoints.slice(0, 3).join(', ')} first for local entrypoints and conventions.`);
-  if (names.has('package.json')) hints.push('Inspect package.json before changing scripts, package metadata, or dependencies.');
-  if (names.has('tsconfig.json')) hints.push('Respect tsconfig.json compiler settings when adding or moving TypeScript files.');
-  if (index.children.some(c => c.type === 'dir') && index.children.filter(c => c.type === 'file').length <= 2) {
-    hints.push('Descend into child directories before making edits here; this level is mostly structural.');
+  if (entrypoints.length > 0)
+    hints.push(
+      `Read ${entrypoints.slice(0, 3).join(', ')} first for local entrypoints and conventions.`,
+    );
+  if (names.has('package.json'))
+    hints.push('Inspect package.json before changing scripts, package metadata, or dependencies.');
+  if (names.has('tsconfig.json'))
+    hints.push('Respect tsconfig.json compiler settings when adding or moving TypeScript files.');
+  if (
+    index.children.some((c) => c.type === 'dir') &&
+    index.children.filter((c) => c.type === 'file').length <= 2
+  ) {
+    hints.push(
+      'Descend into child directories before making edits here; this level is mostly structural.',
+    );
   }
-  if (hints.length === 0) hints.push('Start from high-importance files before editing lower-level implementation details.');
+  if (hints.length === 0)
+    hints.push(
+      'Start from high-importance files before editing lower-level implementation details.',
+    );
   return hints.slice(0, 4);
 }
 
 function inferConventions(index: IndexFile): string[] {
   const conventions: string[] = [];
-  if (index.children.some(c => ['.ts', '.tsx'].includes(c.ext))) conventions.push('Prefer TypeScript for new source files in this directory.');
-  if (index.children.some(c => c.ext === '.tsx' && /^[A-Z]/.test(c.name))) conventions.push('Component-like files use PascalCase filenames.');
-  if (index.children.some(c => /test|spec/i.test(c.name))) conventions.push('Keep tests close to the implementation they validate.');
-  if (index.children.some(c => c.name === 'README.md')) conventions.push('Update README.md when directory-level usage or setup changes.');
-  if (conventions.length === 0) conventions.push('Preserve the local naming and file-placement patterns already present here.');
+  if (index.children.some((c) => ['.ts', '.tsx'].includes(c.ext)))
+    conventions.push('Prefer TypeScript for new source files in this directory.');
+  if (index.children.some((c) => c.ext === '.tsx' && /^[A-Z]/.test(c.name)))
+    conventions.push('Component-like files use PascalCase filenames.');
+  if (index.children.some((c) => /test|spec/i.test(c.name)))
+    conventions.push('Keep tests close to the implementation they validate.');
+  if (index.children.some((c) => c.name === 'README.md'))
+    conventions.push('Update README.md when directory-level usage or setup changes.');
+  if (conventions.length === 0)
+    conventions.push('Preserve the local naming and file-placement patterns already present here.');
   return conventions.slice(0, 4);
 }
 
 function inferKeyEntrypoints(index: IndexFile): string[] {
-  const preferred = ['README.md', 'package.json', 'tsconfig.json', 'index.ts', 'index.tsx', 'main.ts', 'main.js', 'App.tsx', 'App.vue'];
-  const names = index.children.map(c => c.name);
-  const selected = preferred.filter(n => names.includes(n));
+  const preferred = [
+    'README.md',
+    'package.json',
+    'tsconfig.json',
+    'index.ts',
+    'index.tsx',
+    'main.ts',
+    'main.js',
+    'App.tsx',
+    'App.vue',
+  ];
+  const names = index.children.map((c) => c.name);
+  const selected = preferred.filter((n) => names.includes(n));
   if (selected.length > 0) return selected.slice(0, 6);
-  return index.children.filter(c => c.type === 'file' && c.importance === 'high').map(c => c.name).slice(0, 6);
+  return index.children
+    .filter((c) => c.type === 'file' && c.importance === 'high')
+    .map((c) => c.name)
+    .slice(0, 6);
 }
 
-function buildNotesFile(root: string, dirPath: string, config: FilesenseConfig, index: IndexFile, previous: NotesFile | null, force: boolean): NotesFile {
+function buildNotesFile(
+  root: string,
+  dirPath: string,
+  config: FilesenseConfig,
+  index: IndexFile,
+  previous: NotesFile | null,
+  force: boolean,
+): NotesFile {
   const inferred: NotesFile = {
     $schema: relativeSchemaRef(dirPath, schemaPathsForRoot(root, config).notesSchemaPath),
     directory_purpose: inferDirectoryPurpose(index),
@@ -375,7 +484,9 @@ function buildNotesFile(root: string, dirPath: string, config: FilesenseConfig, 
     directory_purpose: previous.directory_purpose || inferred.directory_purpose,
     agent_hints: previous.agent_hints?.length ? previous.agent_hints : inferred.agent_hints,
     conventions: previous.conventions?.length ? previous.conventions : inferred.conventions,
-    key_entrypoints: previous.key_entrypoints?.length ? previous.key_entrypoints : inferred.key_entrypoints,
+    key_entrypoints: previous.key_entrypoints?.length
+      ? previous.key_entrypoints
+      : inferred.key_entrypoints,
   };
 }
 
@@ -397,14 +508,24 @@ function comparableIndex(index: IndexFile): ComparableIndex {
     root_relative_path: index.root_relative_path,
     directory: index.directory,
     children: index.children,
-    sync: { child_count: index.sync.child_count, file_count: index.sync.file_count, dir_count: index.sync.dir_count },
+    sync: {
+      child_count: index.sync.child_count,
+      file_count: index.sync.file_count,
+      dir_count: index.sync.dir_count,
+    },
   };
 }
 
-async function writeDirectoryIndex(root: string, dirPath: string, config: FilesenseConfig, ignores: IgnoreMatcher, forceFull: boolean) {
+async function writeDirectoryIndex(
+  root: string,
+  dirPath: string,
+  config: FilesenseConfig,
+  ignores: IgnoreMatcher,
+  forceFull: boolean,
+) {
   const indexPath = path.join(dirPath, config.indexFile);
   const previous = (await exists(indexPath)) ? ((await readJson(indexPath)) as IndexFile) : null;
-  const previousMap = new Map(previous?.children.map(c => [c.name, c]) ?? []);
+  const previousMap = new Map(previous?.children.map((c) => [c.name, c]) ?? []);
   const entries = await listTrackedEntries(root, dirPath, config, ignores);
   const children: ChildEntry[] = [];
   let filesHashed = 0;
@@ -414,8 +535,16 @@ async function writeDirectoryIndex(root: string, dirPath: string, config: Filese
     const entryMtimeMs = Number(entry.stat.mtimeMs);
     if (entry.type === 'dir') {
       children.push({
-        name: entry.name, type: 'dir', path: relativeToRoot(root, absolutePath),
-        ext: '', size: 0, mtimeMs: entryMtimeMs, hash: null, summary: 'Directory', importance: 'normal', status: 'active',
+        name: entry.name,
+        type: 'dir',
+        path: relativeToRoot(root, absolutePath),
+        ext: '',
+        size: 0,
+        mtimeMs: entryMtimeMs,
+        hash: null,
+        summary: 'Directory',
+        importance: 'normal',
+        status: 'active',
       });
       continue;
     }
@@ -423,14 +552,27 @@ async function writeDirectoryIndex(root: string, dirPath: string, config: Filese
     const entrySize = Number(entry.stat.size);
     const prev = previousMap.get(entry.name);
     let hash = prev?.hash ?? null;
-    const unchanged = !forceFull && prev?.size === entrySize && prev?.mtimeMs === entryMtimeMs && prev?.type === 'file';
-    if (!unchanged) { hash = await hashFile(absolutePath, config.hashAlgorithm); filesHashed += 1; }
+    const unchanged =
+      !forceFull &&
+      prev?.size === entrySize &&
+      prev?.mtimeMs === entryMtimeMs &&
+      prev?.type === 'file';
+    if (!unchanged) {
+      hash = await hashFile(absolutePath, config.hashAlgorithm);
+      filesHashed += 1;
+    }
 
     children.push({
-      name: entry.name, type: 'file', path: relativeToRoot(root, absolutePath),
-      ext: path.extname(entry.name), size: entrySize, mtimeMs: entryMtimeMs, hash,
+      name: entry.name,
+      type: 'file',
+      path: relativeToRoot(root, absolutePath),
+      ext: path.extname(entry.name),
+      size: entrySize,
+      mtimeMs: entryMtimeMs,
+      hash,
       summary: prev?.summary ?? inferSummary(entry.name),
-      importance: inferImportance(entry.name), status: 'active',
+      importance: inferImportance(entry.name),
+      status: 'active',
     });
   }
 
@@ -439,22 +581,36 @@ async function writeDirectoryIndex(root: string, dirPath: string, config: Filese
   const nextSchema = relativeSchemaRef(dirPath, schemaPathsForRoot(root, config).indexSchemaPath);
   const previousComparable = previous ? comparableIndex(previous) : null;
   const nextComparable: ComparableIndex = {
-    $schema: nextSchema, schema_version: config.schemaVersion, root_relative_path: relativePath,
-    directory: { name: path.basename(dirPath), path: relativePath }, children,
-    sync: { child_count: children.length, file_count: children.filter(c => c.type === 'file').length, dir_count: children.filter(c => c.type === 'dir').length },
+    $schema: nextSchema,
+    schema_version: config.schemaVersion,
+    root_relative_path: relativePath,
+    directory: { name: path.basename(dirPath), path: relativePath },
+    children,
+    sync: {
+      child_count: children.length,
+      file_count: children.filter((c) => c.type === 'file').length,
+      dir_count: children.filter((c) => c.type === 'dir').length,
+    },
   };
 
-  if (previousComparable && stableStringify(previousComparable) === stableStringify(nextComparable)) {
+  if (
+    previousComparable &&
+    stableStringify(previousComparable) === stableStringify(nextComparable)
+  ) {
     return { filesHashed, wroteIndex: false };
   }
 
   const timestamp = new Date().toISOString();
   const nextIndex: IndexFile = {
-    $schema: nextSchema, schema_version: config.schemaVersion, generated_at: timestamp,
-    root_relative_path: relativePath, directory: { name: path.basename(dirPath), path: relativePath }, children,
+    $schema: nextSchema,
+    schema_version: config.schemaVersion,
+    generated_at: timestamp,
+    root_relative_path: relativePath,
+    directory: { name: path.basename(dirPath), path: relativePath },
+    children,
     sync: {
       ...nextComparable.sync,
-      last_full_sync: forceFull ? timestamp : previous?.sync.last_full_sync ?? null,
+      last_full_sync: forceFull ? timestamp : (previous?.sync.last_full_sync ?? null),
       last_incremental_sync: timestamp,
     },
   };
@@ -476,9 +632,19 @@ export async function init(targetPath: string): Promise<SyncSummary> {
   }
   const ignorePath = path.join(root, '.filesignore');
   if (!(await exists(ignorePath))) {
-    await fs.writeFile(ignorePath, [
-      '# One pattern per line', '.git', 'node_modules', 'dist', 'build', '.next', 'coverage',
-    ].join('\n') + '\n', 'utf8');
+    await fs.writeFile(
+      ignorePath,
+      `${[
+        '# One pattern per line',
+        '.git',
+        'node_modules',
+        'dist',
+        'build',
+        '.next',
+        'coverage',
+      ].join('\n')}\n`,
+      'utf8',
+    );
   }
   const config = await loadConfig(root);
   await ensureSchemaFiles(root, config);
@@ -488,23 +654,43 @@ export async function init(targetPath: string): Promise<SyncSummary> {
 /**
  * Sync (write/update) FILES.json indexes recursively
  */
-export async function syncIndexes(targetPath: string, forceFull: boolean = false, options: { depth?: number; maxEntries?: number; timeoutMs?: number } = {}): Promise<SyncSummary> {
+export async function syncIndexes(
+  targetPath: string,
+  forceFull = false,
+  options: { depth?: number; maxEntries?: number; timeoutMs?: number } = {},
+): Promise<SyncSummary> {
   const { root, config, ignores } = await resolveRootAndConfig(targetPath);
   await ensureSchemaFiles(root, config);
-  const summary: SyncSummary = { root, directoriesScanned: 0, indexesWritten: 0, filesHashed: 0, directoriesSkipped: 0 };
+  const summary: SyncSummary = {
+    root,
+    directoriesScanned: 0,
+    indexesWritten: 0,
+    filesHashed: 0,
+    directoriesSkipped: 0,
+  };
   const startedAt = Date.now();
 
-  await walkDirectories(root, root, config, ignores, async (dirPath) => {
-    summary.directoriesScanned += 1;
-    const result = await writeDirectoryIndex(root, dirPath, config, ignores, forceFull);
-    summary.filesHashed += result.filesHashed;
-    if (result.wroteIndex) summary.indexesWritten += 1;
-  }, () => { summary.directoriesSkipped += 1; }, {
-    maxDepth: options.depth,
-    shouldStop: () =>
-      (options.maxEntries !== undefined && summary.directoriesScanned >= options.maxEntries) ||
-      (options.timeoutMs !== undefined && Date.now() - startedAt >= options.timeoutMs),
-  });
+  await walkDirectories(
+    root,
+    root,
+    config,
+    ignores,
+    async (dirPath) => {
+      summary.directoriesScanned += 1;
+      const result = await writeDirectoryIndex(root, dirPath, config, ignores, forceFull);
+      summary.filesHashed += result.filesHashed;
+      if (result.wroteIndex) summary.indexesWritten += 1;
+    },
+    () => {
+      summary.directoriesSkipped += 1;
+    },
+    {
+      maxDepth: options.depth,
+      shouldStop: () =>
+        (options.maxEntries !== undefined && summary.directoriesScanned >= options.maxEntries) ||
+        (options.timeoutMs !== undefined && Date.now() - startedAt >= options.timeoutMs),
+    },
+  );
 
   return summary;
 }
@@ -512,25 +698,45 @@ export async function syncIndexes(targetPath: string, forceFull: boolean = false
 /**
  * Summarize directories with heuristic FILES.notes.json
  */
-export async function summarize(targetPath: string, force: boolean = false): Promise<SummarizeSummary> {
+export async function summarize(targetPath: string, force = false): Promise<SummarizeSummary> {
   const { root, config, ignores } = await resolveRootAndConfig(targetPath);
   await ensureSchemaFiles(root, config);
-  const summary: SummarizeSummary = { root, directoriesScanned: 0, notesWritten: 0, notesSkipped: 0 };
+  const summary: SummarizeSummary = {
+    root,
+    directoriesScanned: 0,
+    notesWritten: 0,
+    notesSkipped: 0,
+  };
 
-  await walkDirectories(root, root, config, ignores, async (dirPath) => {
-    summary.directoriesScanned += 1;
-    const indexPath = path.join(dirPath, config.indexFile);
-    if (!(await exists(indexPath))) { summary.notesSkipped += 1; return; }
+  await walkDirectories(
+    root,
+    root,
+    config,
+    ignores,
+    async (dirPath) => {
+      summary.directoriesScanned += 1;
+      const indexPath = path.join(dirPath, config.indexFile);
+      if (!(await exists(indexPath))) {
+        summary.notesSkipped += 1;
+        return;
+      }
 
-    const index = (await readJson(indexPath)) as IndexFile;
-    const notesPath = path.join(dirPath, config.notesFile);
-    const previous = (await exists(notesPath)) ? ((await readJson(notesPath)) as NotesFile) : null;
-    const next = buildNotesFile(root, dirPath, config, index, previous, force);
+      const index = (await readJson(indexPath)) as IndexFile;
+      const notesPath = path.join(dirPath, config.notesFile);
+      const previous = (await exists(notesPath))
+        ? ((await readJson(notesPath)) as NotesFile)
+        : null;
+      const next = buildNotesFile(root, dirPath, config, index, previous, force);
 
-    if (previous && stableStringify(previous) === stableStringify(next)) { summary.notesSkipped += 1; return; }
-    await writeJson(notesPath, next);
-    summary.notesWritten += 1;
-  }, () => undefined);
+      if (previous && stableStringify(previous) === stableStringify(next)) {
+        summary.notesSkipped += 1;
+        return;
+      }
+      await writeJson(notesPath, next);
+      summary.notesWritten += 1;
+    },
+    () => undefined,
+  );
 
   return summary;
 }
@@ -540,27 +746,58 @@ export async function summarize(targetPath: string, force: boolean = false): Pro
  */
 export async function check(targetPath: string): Promise<CheckSummary> {
   const { root, config, ignores } = await resolveRootAndConfig(targetPath);
-  const summary: CheckSummary = { root, checkedDirectories: 0, missingIndexes: [], staleIndexes: [], invalidIndexes: [], invalidNotes: [], missingSchemas: [] };
+  const summary: CheckSummary = {
+    root,
+    checkedDirectories: 0,
+    missingIndexes: [],
+    staleIndexes: [],
+    invalidIndexes: [],
+    invalidNotes: [],
+    missingSchemas: [],
+  };
 
   const schemaPaths = schemaPathsForRoot(root, config);
   for (const sp of [schemaPaths.indexSchemaPath, schemaPaths.notesSchemaPath]) {
-    if (!(await exists(sp))) { summary.missingSchemas.push(relativeToRoot(root, sp)); continue; }
-    try { await readJson(sp); } catch { summary.missingSchemas.push(relativeToRoot(root, sp)); }
+    if (!(await exists(sp))) {
+      summary.missingSchemas.push(relativeToRoot(root, sp));
+      continue;
+    }
+    try {
+      await readJson(sp);
+    } catch {
+      summary.missingSchemas.push(relativeToRoot(root, sp));
+    }
   }
 
-  await walkDirectories(root, root, config, ignores, async (dirPath) => {
-    summary.checkedDirectories += 1;
-    const indexPath = path.join(dirPath, config.indexFile);
-    if (!(await exists(indexPath))) { summary.missingIndexes.push(relativeToRoot(root, dirPath)); return; }
+  await walkDirectories(
+    root,
+    root,
+    config,
+    ignores,
+    async (dirPath) => {
+      summary.checkedDirectories += 1;
+      const indexPath = path.join(dirPath, config.indexFile);
+      if (!(await exists(indexPath))) {
+        summary.missingIndexes.push(relativeToRoot(root, dirPath));
+        return;
+      }
 
-    let index: IndexFile;
-    try { index = (await readJson(indexPath)) as IndexFile; } catch { summary.invalidIndexes.push(relativeToRoot(root, indexPath)); return; }
+      let index: IndexFile;
+      try {
+        index = (await readJson(indexPath)) as IndexFile;
+      } catch {
+        summary.invalidIndexes.push(relativeToRoot(root, indexPath));
+        return;
+      }
 
-    const actualEntries = await listTrackedEntries(root, dirPath, config, ignores);
-    const indexedNames = new Set(index.children.map(e => e.name));
-    const actualNames = new Set(actualEntries.map(e => e.name));
-    if (!sameSet(indexedNames, actualNames)) summary.staleIndexes.push(relativeToRoot(root, dirPath));
-  }, () => undefined);
+      const actualEntries = await listTrackedEntries(root, dirPath, config, ignores);
+      const indexedNames = new Set(index.children.map((e) => e.name));
+      const actualNames = new Set(actualEntries.map((e) => e.name));
+      if (!sameSet(indexedNames, actualNames))
+        summary.staleIndexes.push(relativeToRoot(root, dirPath));
+    },
+    () => undefined,
+  );
 
   return summary;
 }
@@ -573,7 +810,8 @@ export async function query(targetPath: string): Promise<QueryResult> {
   const { root, config } = await resolveRootAndConfig(target);
   const relative = path.relative(root, target);
   const indexPath = path.join(target, config.indexFile);
-  if (!(await exists(indexPath))) throw new Error(`No ${config.indexFile} found in ${target}. Run sync first.`);
+  if (!(await exists(indexPath)))
+    throw new Error(`No ${config.indexFile} found in ${target}. Run sync first.`);
 
   const index = (await readJson(indexPath)) as IndexFile;
   const notesPath = path.join(target, config.notesFile);
@@ -583,7 +821,7 @@ export async function query(targetPath: string): Promise<QueryResult> {
 }
 
 function detectPackageManager(indexes: IndexFile[]): string | undefined {
-  const names = new Set(indexes.flatMap(index => index.children.map(child => child.name)));
+  const names = new Set(indexes.flatMap((index) => index.children.map((child) => child.name)));
   if (names.has('pnpm-lock.yaml')) return 'pnpm';
   if (names.has('yarn.lock')) return 'yarn';
   if (names.has('package-lock.json')) return 'npm';
@@ -592,24 +830,40 @@ function detectPackageManager(indexes: IndexFile[]): string | undefined {
 }
 
 function detectProjectType(indexes: IndexFile[]): string | undefined {
-  const names = new Set(indexes.flatMap(index => index.children.map(child => child.name.toLowerCase())));
+  const names = new Set(
+    indexes.flatMap((index) => index.children.map((child) => child.name.toLowerCase())),
+  );
   if (names.has('vite.config.ts') || names.has('vite.config.js')) return 'Vite frontend project';
-  if (names.has('next.config.js') || names.has('next.config.mjs')) return 'Next.js frontend project';
+  if (names.has('next.config.js') || names.has('next.config.mjs'))
+    return 'Next.js frontend project';
   if (names.has('package.json')) return 'Node.js / frontend project';
-  if (indexes.some(index => index.children.some(child => ['.tsx', '.jsx', '.vue', '.svelte'].includes(child.ext)))) return 'Frontend source project';
+  if (
+    indexes.some((index) =>
+      index.children.some((child) => ['.tsx', '.jsx', '.vue', '.svelte'].includes(child.ext)),
+    )
+  )
+    return 'Frontend source project';
   return undefined;
 }
 
 function scoreCandidate(entry: ChildEntry, intent: NavigateOptions['intent']): number {
   let score = entry.importance === 'high' ? 80 : 40;
   const name = entry.name.toLowerCase();
-  if (entry.type === 'dir' && ['src', 'components', 'pages', 'views', 'hooks', 'api', 'services'].includes(name)) score += 30;
-  if (intent === 'find_conventions' && (name === 'readme.md' || name.includes('config'))) score += 25;
+  if (
+    entry.type === 'dir' &&
+    ['src', 'components', 'pages', 'views', 'hooks', 'api', 'services'].includes(name)
+  )
+    score += 30;
+  if (intent === 'find_conventions' && (name === 'readme.md' || name.includes('config')))
+    score += 25;
   if (intent === 'locate' && entry.importance === 'high') score += 20;
   return score;
 }
 
-export async function navigate(targetPath: string, options: NavigateOptions = {}): Promise<NavigateResult> {
+export async function navigate(
+  targetPath: string,
+  options: NavigateOptions = {},
+): Promise<NavigateResult> {
   const startedAt = Date.now();
   const depth = options.depth ?? 2;
   const maxEntries = options.maxEntries ?? 300;
@@ -639,54 +893,70 @@ export async function navigate(targetPath: string, options: NavigateOptions = {}
     const stat = await fs.stat(startDir);
     const dir = stat.isDirectory() ? startDir : path.dirname(startDir);
 
-    await walkDirectories(root, dir, config, ignores, async (dirPath) => {
-      if (stop()) return;
-      const children = await listTrackedEntries(root, dirPath, config, ignores);
-      const childEntries: ChildEntry[] = children.map(entry => {
-        const absolutePath = path.join(dirPath, entry.name);
-        return {
-          name: entry.name,
-          type: entry.type,
-          path: relativeToRoot(root, absolutePath),
-          ext: entry.type === 'file' ? path.extname(entry.name) : '',
-          size: entry.type === 'file' ? Number(entry.stat.size) : 0,
-          mtimeMs: Number(entry.stat.mtimeMs),
-          hash: null,
-          summary: entry.type === 'dir' ? 'Directory' : inferSummary(entry.name),
-          importance: entry.type === 'file' ? inferImportance(entry.name) : 'normal',
-          status: 'active' as const,
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name));
-      entries += childEntries.length;
-      indexes.push({
-        schema_version: config.schemaVersion,
-        generated_at: new Date().toISOString(),
-        root_relative_path: relativeToRoot(root, dirPath),
-        directory: { name: path.basename(dirPath), path: relativeToRoot(root, dirPath) },
-        children: childEntries,
-        sync: {
-          child_count: childEntries.length,
-          file_count: childEntries.filter(child => child.type === 'file').length,
-          dir_count: childEntries.filter(child => child.type === 'dir').length,
-          last_full_sync: null,
-          last_incremental_sync: null,
-        },
-      });
-    }, () => undefined, { maxDepth: depth, shouldStop: stop });
+    await walkDirectories(
+      root,
+      dir,
+      config,
+      ignores,
+      async (dirPath) => {
+        if (stop()) return;
+        const children = await listTrackedEntries(root, dirPath, config, ignores);
+        const childEntries: ChildEntry[] = children
+          .map((entry) => {
+            const absolutePath = path.join(dirPath, entry.name);
+            return {
+              name: entry.name,
+              type: entry.type,
+              path: relativeToRoot(root, absolutePath),
+              ext: entry.type === 'file' ? path.extname(entry.name) : '',
+              size: entry.type === 'file' ? Number(entry.stat.size) : 0,
+              mtimeMs: Number(entry.stat.mtimeMs),
+              hash: null,
+              summary: entry.type === 'dir' ? 'Directory' : inferSummary(entry.name),
+              importance: entry.type === 'file' ? inferImportance(entry.name) : 'normal',
+              status: 'active' as const,
+            };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
+        entries += childEntries.length;
+        indexes.push({
+          schema_version: config.schemaVersion,
+          generated_at: new Date().toISOString(),
+          root_relative_path: relativeToRoot(root, dirPath),
+          directory: { name: path.basename(dirPath), path: relativeToRoot(root, dirPath) },
+          children: childEntries,
+          sync: {
+            child_count: childEntries.length,
+            file_count: childEntries.filter((child) => child.type === 'file').length,
+            dir_count: childEntries.filter((child) => child.type === 'dir').length,
+            last_full_sync: null,
+            last_incremental_sync: null,
+          },
+        });
+      },
+      () => undefined,
+      { maxDepth: depth, shouldStop: stop },
+    );
   }
 
-  const allChildren = indexes.flatMap(index => index.children);
+  const allChildren = indexes.flatMap((index) => index.children);
   const mainEntrypoints = allChildren
-    .filter(child => child.type === 'file' && child.importance === 'high')
-    .map(child => child.path)
+    .filter((child) => child.type === 'file' && child.importance === 'high')
+    .map((child) => child.path)
     .slice(0, 8);
   const importantDirs = indexes
-    .filter(index => index.root_relative_path !== '.')
-    .map(index => ({ path: index.root_relative_path, purpose: inferDirectoryPurpose(index), confidence: 0.75 }))
+    .filter((index) => index.root_relative_path !== '.')
+    .map((index) => ({
+      path: index.root_relative_path,
+      purpose: inferDirectoryPurpose(index),
+      confidence: 0.75,
+    }))
     .slice(0, 10);
-  const conventions = Array.from(new Set(indexes.flatMap(index => inferConventions(index)))).slice(0, 8);
+  const conventions = Array.from(
+    new Set(indexes.flatMap((index) => inferConventions(index))),
+  ).slice(0, 8);
   const candidates = allChildren
-    .map(child => ({
+    .map((child) => ({
       path: child.path,
       type: child.type,
       reason: child.importance === 'high' ? 'high-importance entrypoint/config' : child.summary,
@@ -710,12 +980,20 @@ export async function navigate(targetPath: string, options: NavigateOptions = {}
       mainEntrypoints,
       importantDirs,
       conventions,
-      risks: truncated ? ['Filesense navigation was truncated by budget; expand depth/maxEntries if more coverage is needed.'] : [],
+      risks: truncated
+        ? [
+            'Filesense navigation was truncated by budget; expand depth/maxEntries if more coverage is needed.',
+          ]
+        : [],
     },
     candidates,
     factsDelta: {
-      existingFiles: Array.from(new Set(allChildren.filter(child => child.type === 'file').map(child => child.path))).slice(0, 200),
-      existingDirectories: Array.from(new Set(allChildren.filter(child => child.type === 'dir').map(child => child.path))).slice(0, 200),
+      existingFiles: Array.from(
+        new Set(allChildren.filter((child) => child.type === 'file').map((child) => child.path)),
+      ).slice(0, 200),
+      existingDirectories: Array.from(
+        new Set(allChildren.filter((child) => child.type === 'dir').map((child) => child.path)),
+      ).slice(0, 200),
     },
     warnings,
   };
@@ -726,11 +1004,13 @@ export async function navigate(targetPath: string, options: NavigateOptions = {}
 
   const maxBytes = options.maxBytes;
   if (maxBytes !== undefined && Buffer.byteLength(JSON.stringify(result), 'utf8') > maxBytes) {
-    result.warnings.push(`Navigation result exceeded maxBytes=${maxBytes}; returning compact summary.`);
+    result.warnings.push(
+      `Navigation result exceeded maxBytes=${maxBytes}; returning compact summary.`,
+    );
     result.candidates = result.candidates.slice(0, 10);
     result.factsDelta.existingFiles = result.factsDelta.existingFiles.slice(0, 80);
     result.factsDelta.existingDirectories = result.factsDelta.existingDirectories.slice(0, 80);
-    delete result.indexes;
+    result.indexes = undefined;
   }
 
   return result;
@@ -739,7 +1019,10 @@ export async function navigate(targetPath: string, options: NavigateOptions = {}
 /**
  * Sync + Summarize in one call (most common agent usage)
  */
-export async function syncAndSummarize(targetPath: string, forceFull: boolean = false): Promise<{ sync: SyncSummary; summarize: SummarizeSummary }> {
+export async function syncAndSummarize(
+  targetPath: string,
+  forceFull = false,
+): Promise<{ sync: SyncSummary; summarize: SummarizeSummary }> {
   const syncResult = await syncIndexes(targetPath, forceFull);
   const summarizeResult = await summarize(targetPath, false);
   return { sync: syncResult, summarize: summarizeResult };

@@ -1,5 +1,5 @@
-import { useSyncExternalStore, useCallback, useRef } from 'react';
-import type { Store, AgentUIState } from './store.js';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
+import type { AgentUIState, Store } from './store.js';
 
 /**
  * Subscribe to the full store snapshot.
@@ -13,17 +13,11 @@ export function useStore(store: Store): AgentUIState {
  * Subscribe to a stable slice of the store.
  * The selector should return a primitive or a structurally-stable reference.
  */
-export function useStoreSelector<T>(
-  store: Store,
-  selector: (s: AgentUIState) => T,
-): T {
+export function useStoreSelector<T>(store: Store, selector: (s: AgentUIState) => T): T {
   const selectorRef = useRef(selector);
   selectorRef.current = selector;
 
-  const getSnapshot = useCallback(
-    () => selectorRef.current(store.getSnapshot()),
-    [store],
-  );
+  const getSnapshot = useCallback(() => selectorRef.current(store.getSnapshot()), [store]);
 
   return useSyncExternalStore(store.subscribe, getSnapshot);
 }

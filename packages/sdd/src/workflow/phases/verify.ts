@@ -22,7 +22,7 @@ export interface VerifyOutput {
 
 export function generateVerifyPrompt(state: WorkflowState, requirements: string[]): string {
   const evidenceSummary = state.verificationEvidence
-    .map(e => `- [${e.type}] ${e.source}: ${e.details} (fresh: ${e.fresh})`)
+    .map((e) => `- [${e.type}] ${e.source}: ${e.details} (fresh: ${e.fresh})`)
     .join('\n');
 
   const parts: string[] = [
@@ -60,17 +60,17 @@ export function evaluateVerification(input: VerifyInput): VerifyOutput {
     };
   }
 
-  const freshEvidence = policy.requireFreshEvidence
-    ? evidence.filter(e => e.fresh)
-    : evidence;
+  const freshEvidence = policy.requireFreshEvidence ? evidence.filter((e) => e.fresh) : evidence;
 
   const coveredRequirements: string[] = [];
   const uncoveredRequirements: string[] = [];
 
   for (const req of requirements) {
     const reqLower = req.toLowerCase();
-    const covered = freshEvidence.some(e =>
-      e.relatedRequirements.some(r => r.toLowerCase().includes(reqLower) || reqLower.includes(r.toLowerCase()))
+    const covered = freshEvidence.some((e) =>
+      e.relatedRequirements.some(
+        (r) => r.toLowerCase().includes(reqLower) || reqLower.includes(r.toLowerCase()),
+      ),
     );
     if (covered) {
       coveredRequirements.push(req);
@@ -90,9 +90,7 @@ export function evaluateVerification(input: VerifyInput): VerifyOutput {
     verdict = 'unverified';
   }
 
-  const suggestedActions = uncoveredRequirements.map(req =>
-    `Run verification for: "${req}"`
-  );
+  const suggestedActions = uncoveredRequirements.map((req) => `Run verification for: "${req}"`);
 
   return { verdict, coverageRatio, coveredRequirements, uncoveredRequirements, suggestedActions };
 }

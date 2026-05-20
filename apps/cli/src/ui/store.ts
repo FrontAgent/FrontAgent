@@ -5,8 +5,8 @@
  * Compatible with React 18's useSyncExternalStore.
  */
 
-import type { ExecutionPlan } from '@frontagent/shared';
 import type { AgentExecutionResult } from '@frontagent/core';
+import type { ExecutionPlan } from '@frontagent/shared';
 
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 export const RUN_STALL_THRESHOLD_MS = 30_000;
@@ -142,16 +142,10 @@ export function createStore() {
     return Array.from(phaseMap.values());
   }
 
-  function updateStepStatus(
-    stepId: string,
-    status: StepStatus,
-    error?: string,
-  ) {
+  function updateStepStatus(stepId: string, status: StepStatus, error?: string) {
     const phases = state.phases.map((phase) => ({
       ...phase,
-      steps: phase.steps.map((s) =>
-        s.stepId === stepId ? { ...s, status, error } : s,
-      ),
+      steps: phase.steps.map((s) => (s.stepId === stepId ? { ...s, status, error } : s)),
     }));
     setState({ phases });
   }
@@ -185,7 +179,7 @@ export function createStore() {
           ...phases,
           {
             name: phaseName,
-            status: state.currentPhase === phaseName ? 'active' as const : 'pending' as const,
+            status: state.currentPhase === phaseName ? ('active' as const) : ('pending' as const),
             steps: [{ ...step, status, error }],
           },
         ];
@@ -204,7 +198,12 @@ export function createStore() {
   function markPhaseActive(phaseName: string) {
     const phases = state.phases.map((p) => ({
       ...p,
-      status: p.name === phaseName ? 'active' as const : p.status === 'active' ? 'done' as const : p.status,
+      status:
+        p.name === phaseName
+          ? ('active' as const)
+          : p.status === 'active'
+            ? ('done' as const)
+            : p.status,
     }));
     setState({ phases, currentPhase: phaseName });
   }
@@ -212,9 +211,9 @@ export function createStore() {
   function markPhaseDone(phaseName: string) {
     const phases = state.phases.map((p) => ({
       ...p,
-      status: p.name === phaseName ? 'done' as const : p.status,
+      status: p.name === phaseName ? ('done' as const) : p.status,
     }));
-    const nextActive = phases.find(p => p.status !== 'done')?.name ?? null;
+    const nextActive = phases.find((p) => p.status !== 'done')?.name ?? null;
     setState({ phases, currentPhase: nextActive });
   }
 

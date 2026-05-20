@@ -10,22 +10,13 @@
     "type": "git",
     "url": "https://github.com/ceilf6/FrontAgent.git"
   },
-  "keywords": [
-    "frontagent",
-    "ai",
-    "agent",
-    "frontend",
-    "coding"
-  ],
+  "keywords": ["frontagent", "ai", "agent", "frontend", "coding"],
   "type": "module",
   "main": "./dist/extension.cjs",
   "engines": {
     "vscode": "^1.95.0"
   },
-  "categories": [
-    "AI",
-    "Other"
-  ],
+  "categories": ["AI", "Other"],
   "activationEvents": [
     "onView:frontagent.taskView",
     "onCommand:frontagent.run",
@@ -134,11 +125,7 @@
       "properties": {
         "frontagent.provider": {
           "type": "string",
-          "enum": [
-            "",
-            "anthropic",
-            "openai"
-          ],
+          "enum": ["", "anthropic", "openai"],
           "default": "",
           "description": "LLM provider used by FrontAgent. Leave empty to read PROVIDER from the environment."
         },
@@ -172,11 +159,7 @@
         },
         "frontagent.securityMode": {
           "type": "string",
-          "enum": [
-            "balanced",
-            "strict",
-            "developer"
-          ],
+          "enum": ["balanced", "strict", "developer"],
           "default": "balanced",
           "description": "Tool execution security mode."
         },

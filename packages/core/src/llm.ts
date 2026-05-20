@@ -3,9 +3,9 @@
  * 封装与 LLM API 的交互
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { generateText, generateObject, streamText, type CoreMessage, type LanguageModel } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { type CoreMessage, type LanguageModel, generateObject, generateText, streamText } from 'ai';
 import { z } from 'zod';
 import type { LLMConfig, Message } from './types.js';
 
@@ -50,9 +50,9 @@ export class LLMService {
       unwrapDollarKeys: 0,
       deepParseStringified: 0,
       combined: 0,
-      parseFromText: 0
+      parseFromText: 0,
     },
-    unfixedErrors: 0
+    unfixedErrors: 0,
   };
 
   constructor(config: LLMConfig) {
@@ -104,9 +104,9 @@ export class LLMService {
         unwrapDollarKeys: 0,
         deepParseStringified: 0,
         combined: 0,
-        parseFromText: 0
+        parseFromText: 0,
       },
-      unfixedErrors: 0
+      unfixedErrors: 0,
     };
   }
 
@@ -164,7 +164,7 @@ export class LLMService {
         // 只有在有 beta headers 时才添加
         if (betaHeaders.length > 0) {
           anthropicConfig.headers = {
-            'anthropic-beta': betaHeaders.join(',')
+            'anthropic-beta': betaHeaders.join(','),
           };
           this.debugLog('[LLMService] Using Anthropic beta headers:', betaHeaders.join(','));
         }
@@ -181,7 +181,7 @@ export class LLMService {
    * 转换消息格式
    */
   private convertMessages(messages: Message[]): CoreMessage[] {
-    return messages.map(msg => ({
+    return messages.map((msg) => ({
       role: msg.role as 'system' | 'user' | 'assistant',
       content: msg.content,
     }));
@@ -289,12 +289,15 @@ export class LLMService {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // 对于重试，逐渐降低温度以获得更确定性的输出
-        const temperature = attempt === 0
-          ? (options.temperature ?? this.config.temperature ?? 0.3)
-          : Math.max(0.1, (options.temperature ?? 0.3) - (attempt * 0.1));
+        const temperature =
+          attempt === 0
+            ? (options.temperature ?? this.config.temperature ?? 0.3)
+            : Math.max(0.1, (options.temperature ?? 0.3) - attempt * 0.1);
 
         if (attempt > 0) {
-          this.debugLog(`[LLMService] Retry attempt ${attempt}/${maxRetries} with temperature ${temperature.toFixed(2)}`);
+          this.debugLog(
+            `[LLMService] Retry attempt ${attempt}/${maxRetries} with temperature ${temperature.toFixed(2)}`,
+          );
         }
 
         const result = await generateObject({
@@ -318,7 +321,9 @@ export class LLMService {
       } catch (error: any) {
         const isLastAttempt = attempt === maxRetries;
 
-        this.debugLog(`[LLMService] generateObject failed (attempt ${attempt + 1}/${maxRetries + 1}), attempting to fix...`);
+        this.debugLog(
+          `[LLMService] generateObject failed (attempt ${attempt + 1}/${maxRetries + 1}), attempting to fix...`,
+        );
 
         // 统计错误（只在最后一次尝试时统计）
         if (isLastAttempt) {
@@ -338,7 +343,7 @@ export class LLMService {
 
         // 如果修复失败，且还有重试机会，继续重试
         if (!isLastAttempt) {
-          this.debugLog(`[LLMService] Fix failed, will retry with lower temperature...`);
+          this.debugLog('[LLMService] Fix failed, will retry with lower temperature...');
           await this.sleep(1000 * (attempt + 1)); // 指数退避
           continue;
         }
@@ -359,7 +364,7 @@ export class LLMService {
    * 简单的延迟函数
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -382,7 +387,10 @@ export class LLMService {
     this.debugLog('[LLMService] Error type:', error.constructor.name);
     this.debugLog('[LLMService] Has cause:', !!error.cause);
     this.debugLog('[LLMService] Original value keys:', Object.keys(errorToCheck.value));
-    this.debugLog('[LLMService] Original value structure:', JSON.stringify(errorToCheck.value, null, 2).substring(0, 500) + '...');
+    this.debugLog(
+      '[LLMService] Original value structure:',
+      `${JSON.stringify(errorToCheck.value, null, 2).substring(0, 500)}...`,
+    );
 
     // 如果有 Zod 错误信息，打印出来
     if (errorToCheck.cause?.issues) {
@@ -392,7 +400,7 @@ export class LLMService {
           path: issue.path.join('.'),
           message: issue.message,
           expected: issue.expected,
-          received: issue.received
+          received: issue.received,
         });
       });
     }
@@ -406,7 +414,7 @@ export class LLMService {
         LLMService.errorStats.fixStrategies.unwrapDollarKeys++;
         this.debugLog('[LLMService] ✅ Strategy 1 succeeded');
         return validated as T;
-      } catch (validationError) {
+      } catch (_validationError) {
         this.debugLog('[LLMService] Strategy 1 failed, trying next...');
       }
     }
@@ -420,7 +428,7 @@ export class LLMService {
         LLMService.errorStats.fixStrategies.deepParseStringified++;
         this.debugLog('[LLMService] ✅ Strategy 2 succeeded');
         return validated as T;
-      } catch (validationError) {
+      } catch (_validationError) {
         this.debugLog('[LLMService] Strategy 2 failed, trying next...');
       }
     }
@@ -434,7 +442,7 @@ export class LLMService {
         LLMService.errorStats.fixStrategies.combined++;
         this.debugLog('[LLMService] ✅ Strategy 3 succeeded');
         return validated as T;
-      } catch (validationError) {
+      } catch (_validationError) {
         this.debugLog('[LLMService] Strategy 3 failed, trying next...');
       }
     }
@@ -449,7 +457,7 @@ export class LLMService {
         LLMService.errorStats.fixStrategies.parseFromText++;
         this.debugLog('[LLMService] ✅ Strategy 4 succeeded');
         return validated as T;
-      } catch (parseError) {
+      } catch (_parseError) {
         this.debugLog('[LLMService] Strategy 4 failed');
       }
     }
@@ -467,11 +475,11 @@ export class LLMService {
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => this.unwrapDollarKeys(item));
+      return obj.map((item) => this.unwrapDollarKeys(item));
     }
 
     // 查找 $ 开头的键
-    const dollarKeys = Object.keys(obj).filter(key => key.startsWith('$'));
+    const dollarKeys = Object.keys(obj).filter((key) => key.startsWith('$'));
 
     if (dollarKeys.length === 1 && Object.keys(obj).length === 1) {
       // 如果只有一个 $ 键，解包它
@@ -499,7 +507,7 @@ export class LLMService {
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => this.deepParseStringifiedFields(item));
+      return obj.map((item) => this.deepParseStringifiedFields(item));
     }
 
     const result: any = {};
@@ -513,7 +521,7 @@ export class LLMService {
             this.debugLog(`[LLMService] Parsed string field "${key}"`);
             result[key] = this.deepParseStringifiedFields(parsed);
             continue;
-          } catch (parseError) {
+          } catch (_parseError) {
             // 无法解析，保持原样
           }
         }
@@ -532,9 +540,7 @@ export class LLMService {
    */
   private normalizePlan(rawPlan: any): GeneratedPlan {
     // 确保 summary 是字符串
-    const summary = typeof rawPlan.summary === 'string'
-      ? rawPlan.summary
-      : 'Generated Plan';
+    const summary = typeof rawPlan.summary === 'string' ? rawPlan.summary : 'Generated Plan';
 
     // 确保 steps 是数组
     let steps = Array.isArray(rawPlan.steps) ? rawPlan.steps : [];
@@ -550,7 +556,9 @@ export class LLMService {
       // 确保 params 是对象
       let params = step.params;
       if (typeof params === 'string') {
-        this.debugWarn(`[LLM] Warning: step[${index}].params is a string, expected object. Converting.`);
+        this.debugWarn(
+          `[LLM] Warning: step[${index}].params is a string, expected object. Converting.`,
+        );
         // 尝试解析 JSON 字符串
         try {
           params = JSON.parse(params);
@@ -573,7 +581,7 @@ export class LLMService {
       return {
         ...step,
         params,
-        needsCodeGeneration
+        needsCodeGeneration,
       };
     });
 
@@ -589,7 +597,9 @@ export class LLMService {
     // 确保 alternatives 是数组
     let alternatives = rawPlan.alternatives;
     if (typeof alternatives === 'string') {
-      this.debugWarn('[LLM] Warning: alternatives is a string, expected array. Converting to array.');
+      this.debugWarn(
+        '[LLM] Warning: alternatives is a string, expected array. Converting to array.',
+      );
       alternatives = [alternatives];
     } else if (!Array.isArray(alternatives)) {
       alternatives = [];
@@ -599,7 +609,7 @@ export class LLMService {
       summary,
       steps,
       risks,
-      alternatives
+      alternatives,
     };
   }
 
@@ -680,8 +690,8 @@ ${options.skillContext ?? '无已激活内容技能'}
       messages: [
         {
           role: 'user',
-          content: `任务：${options.task}\n\n项目上下文：\n${options.context}\n\n🚨 关键提醒：输出的每个步骤都必须包含 phase 字段，且不同类型的步骤应归属不同阶段！`
-        }
+          content: `任务：${options.task}\n\n项目上下文：\n${options.context}\n\n🚨 关键提醒：输出的每个步骤都必须包含 phase 字段，且不同类型的步骤应归属不同阶段！`,
+        },
       ],
       system: outlineSystem,
       schema: PlanOutlineSchema,
@@ -689,12 +699,18 @@ ${options.skillContext ?? '无已激活内容技能'}
       maxTokens: 8192,
     });
 
-    this.debugLog(`[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`);
+    this.debugLog(
+      `[LLMService] Phase 1 complete: ${outline.stepOutlines.length} step outlines generated`,
+    );
 
     // 🔧 Phase 1 后处理：检查并修正"未分组"问题
-    const ungroupedCount = outline.stepOutlines.filter(s => !s.phase || s.phase === '未分组').length;
+    const ungroupedCount = outline.stepOutlines.filter(
+      (s) => !s.phase || s.phase === '未分组',
+    ).length;
     if (ungroupedCount > outline.stepOutlines.length * 0.5) {
-      this.debugWarn(`[LLMService] ⚠️  Detected ${ungroupedCount}/${outline.stepOutlines.length} steps with "未分组" or missing phase`);
+      this.debugWarn(
+        `[LLMService] ⚠️  Detected ${ungroupedCount}/${outline.stepOutlines.length} steps with "未分组" or missing phase`,
+      );
       this.debugLog('[LLMService] 🔧 Auto-fixing phase assignments based on action types...');
 
       // 自动分配阶段
@@ -703,8 +719,11 @@ ${options.skillContext ?? '无已激活内容技能'}
 
         // 如果phase缺失或为"未分组"，根据action类型自动分配
         if (!step.phase || step.phase === '未分组') {
-          if (step.action === 'list_directory' || step.action === 'search_code' ||
-              (step.action === 'read_file' && i < 10)) {
+          if (
+            step.action === 'list_directory' ||
+            step.action === 'search_code' ||
+            (step.action === 'read_file' && i < 10)
+          ) {
             step.phase = '阶段1-分析';
           } else if (step.action === 'create_file') {
             step.phase = '阶段2-创建';
@@ -712,23 +731,38 @@ ${options.skillContext ?? '无已激活内容技能'}
             // 根据描述判断
             if (step.description.includes('安装') || step.description.includes('install')) {
               step.phase = '阶段3-安装';
-            } else if (step.description.includes('类型检查') || step.description.includes('typecheck') ||
-                       step.description.includes('tsc')) {
+            } else if (
+              step.description.includes('类型检查') ||
+              step.description.includes('typecheck') ||
+              step.description.includes('tsc')
+            ) {
               step.phase = '阶段4-验证';
-            } else if (step.description.includes('启动') || step.description.includes('dev') ||
-                       step.description.includes('serve')) {
+            } else if (
+              step.description.includes('启动') ||
+              step.description.includes('dev') ||
+              step.description.includes('serve')
+            ) {
               step.phase = '阶段5-启动';
-            } else if (step.description.includes('仓库') || step.description.includes('repository') ||
-                       step.description.includes('repo') || step.description.includes('git') ||
-                       step.description.includes('gh') || step.description.includes('pull request') ||
-                       step.description.includes('pr')) {
+            } else if (
+              step.description.includes('仓库') ||
+              step.description.includes('repository') ||
+              step.description.includes('repo') ||
+              step.description.includes('git') ||
+              step.description.includes('gh') ||
+              step.description.includes('pull request') ||
+              step.description.includes('pr')
+            ) {
               step.phase = '阶段7-仓库管理';
             } else {
               step.phase = '阶段4-验证';
             }
-          } else if (step.action === 'browser_navigate' || step.action === 'browser_screenshot' ||
-                     step.action === 'get_page_structure' || step.action === 'browser_click' ||
-                     step.action === 'browser_type') {
+          } else if (
+            step.action === 'browser_navigate' ||
+            step.action === 'browser_screenshot' ||
+            step.action === 'get_page_structure' ||
+            step.action === 'browser_click' ||
+            step.action === 'browser_type'
+          ) {
             step.phase = '阶段6-浏览器验证';
           } else if (step.action === 'apply_patch') {
             step.phase = '阶段2-创建';
@@ -736,7 +770,9 @@ ${options.skillContext ?? '无已激活内容技能'}
             step.phase = '阶段1-分析';
           }
 
-          this.debugLog(`[LLMService]   Fixed step ${i + 1}: "${step.description}" → ${step.phase}`);
+          this.debugLog(
+            `[LLMService]   Fixed step ${i + 1}: "${step.description}" → ${step.phase}`,
+          );
         }
       }
 
@@ -830,12 +866,12 @@ ${JSON.stringify(batch, null, 2)}
       // 修正可能的格式错误：如果 steps 是字符串，尝试解析为数组
       let steps = expansion.steps;
       if (typeof steps === 'string') {
-        this.debugWarn(`[LLMService] Warning: expansion.steps is a string, parsing as JSON`);
+        this.debugWarn('[LLMService] Warning: expansion.steps is a string, parsing as JSON');
         try {
           steps = JSON.parse(steps);
         } catch (error) {
-          this.debugError(`[LLMService] Failed to parse steps string:`, error);
-          throw new Error(`Invalid steps format: expected array, got string that cannot be parsed`);
+          this.debugError('[LLMService] Failed to parse steps string:', error);
+          throw new Error('Invalid steps format: expected array, got string that cannot be parsed');
         }
       }
 
@@ -854,14 +890,16 @@ ${JSON.stringify(batch, null, 2)}
             this.debugWarn(`[LLMService] Restoring missing phase for step: ${batchItem.phase}`);
             step.phase = batchItem.phase;
           } else {
-            this.debugWarn(`[LLMService] Both step and batch item missing phase, using default`);
+            this.debugWarn('[LLMService] Both step and batch item missing phase, using default');
             step.phase = '未分组';
           }
         }
       }
 
       allSteps.push(...steps);
-      this.debugLog(`[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${steps.length} steps expanded`);
+      this.debugLog(
+        `[LLMService] Phase 2 batch ${Math.floor(i / batchSize) + 1} complete: ${steps.length} steps expanded`,
+      );
     }
 
     const finalPlan: GeneratedPlan = {
@@ -893,7 +931,10 @@ ${JSON.stringify(batch, null, 2)}
     try {
       return await this.generatePlanInTwoPhases(options);
     } catch (error) {
-      this.debugWarn('[LLMService] Two-phase generation failed, falling back to single-phase:', error);
+      this.debugWarn(
+        '[LLMService] Two-phase generation failed, falling back to single-phase:',
+        error,
+      );
       // 如果两阶段失败，回退到原来的单阶段方法
       return await this.generatePlanSinglePhase(options);
     }
@@ -964,8 +1005,8 @@ ${options.skillContext ?? '无已激活内容技能'}
     const messages: Message[] = [
       {
         role: 'user',
-        content: `任务: ${options.task}\n\n上下文:\n${options.context}\n\n请生成执行计划。`
-      }
+        content: `任务: ${options.task}\n\n上下文:\n${options.context}\n\n请生成执行计划。`,
+      },
     ];
 
     // 生成原始计划
@@ -1001,16 +1042,14 @@ ${options.skillContext ?? '无已激活内容技能'}
   }): Promise<string> {
     // 提取上下文中已存在的模块
     const existingModulesInfo = options.existingModules?.length
-      ? `\n# 可用模块\n以下模块已创建，可以导入使用：\n${options.existingModules.map(m => `- ${m}`).join('\n')}\n\n外部 npm 包（react、tailwindcss 等）可以正常使用。未列出的内部模块不存在，如需相关功能请在当前文件中实现。`
+      ? `\n# 可用模块\n以下模块已创建，可以导入使用：\n${options.existingModules.map((m) => `- ${m}`).join('\n')}\n\n外部 npm 包（react、tailwindcss 等）可以正常使用。未列出的内部模块不存在，如需相关功能请在当前文件中实现。`
       : '';
 
     // 添加 SDD 约束信息
     const sddConstraintsInfo = options.sddConstraints
       ? `\n# 项目约束\n${options.sddConstraints}\n`
       : '';
-    const skillContextInfo = options.skillContext
-      ? `\n# 内容技能\n${options.skillContext}\n`
-      : '';
+    const skillContextInfo = options.skillContext ? `\n# 内容技能\n${options.skillContext}\n` : '';
 
     const system = `你是一位经验丰富的软件工程师。直接输出代码，不要任何解释或 markdown 标记。
 
@@ -1021,13 +1060,17 @@ ${options.skillContext ?? '无已激活内容技能'}
 ${existingModulesInfo}
 ${sddConstraintsInfo}
 ${skillContextInfo}
-${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
+${
+  options.filePath.match(/\.(json|config\.(js|ts|mjs))$/)
+    ? `
 # 配置文件格式
 直接输出标准格式，如：
 - tsconfig.json: { "compilerOptions": {...}, "include": [...] }
 - package.json: { "name": "...", "dependencies": {...} }（建议包含 "typecheck" 脚本）
 - vite.config.ts: export default defineConfig({...})
-` : ''}
+`
+    : ''
+}
 # 代码质量
 - 遵循最佳实践
 - 代码清晰可维护
@@ -1037,8 +1080,8 @@ ${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
     const messages: Message[] = [
       {
         role: 'user',
-        content: `${options.context ? `上下文:\n${options.context}\n\n` : ''}${options.existingCode ? `现有代码:\n${options.existingCode}\n\n` : ''}请生成代码。`
-      }
+        content: `${options.context ? `上下文:\n${options.context}\n\n` : ''}${options.existingCode ? `现有代码:\n${options.existingCode}\n\n` : ''}请生成代码。`,
+      },
     ];
 
     const code = await this.generateText({
@@ -1104,8 +1147,8 @@ ${options.filePath.match(/\.(json|config\.(js|ts|mjs))$/) ? `
 ${options.code}
 \`\`\`
 
-问题: ${options.question}`
-      }
+问题: ${options.question}`,
+      },
     ];
 
     return this.generateText({
@@ -1144,8 +1187,8 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
     const messages: Message[] = [
       {
         role: 'user',
-        content: `原始代码:\n${options.originalCode}\n\n请按要求修改并输出完整代码。`
-      }
+        content: `原始代码:\n${options.originalCode}\n\n请按要求修改并输出完整代码。`,
+      },
     ];
 
     const code = await this.generateText({
@@ -1212,7 +1255,9 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
   /**
    * 解析 TypeScript 编译错误
    */
-  private parseTypeScriptErrors(failedSteps: Array<{ error: string; params: Record<string, unknown> }>): Array<{
+  private parseTypeScriptErrors(
+    failedSteps: Array<{ error: string; params: Record<string, unknown> }>,
+  ): Array<{
     file: string;
     line: number;
     column: number;
@@ -1244,11 +1289,11 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
       while ((match = tsErrorRegex.exec(step.error)) !== null) {
         tsErrors.push({
           file: match[1],
-          line: parseInt(match[2], 10),
-          column: parseInt(match[3], 10),
+          line: Number.parseInt(match[2], 10),
+          column: Number.parseInt(match[3], 10),
           errorCode: match[4],
           message: match[5],
-          rawError: match[0]
+          rawError: match[0],
         });
       }
 
@@ -1258,11 +1303,11 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
       while ((match = altFormatRegex.exec(step.error)) !== null) {
         tsErrors.push({
           file: match[1],
-          line: parseInt(match[2], 10),
-          column: parseInt(match[3], 10),
+          line: Number.parseInt(match[2], 10),
+          column: Number.parseInt(match[3], 10),
           errorCode: match[4],
           message: match[5],
-          rawError: match[0]
+          rawError: match[0],
         });
       }
     }
@@ -1293,7 +1338,9 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
       this.debugLog(`[LLMService] Detected ${tsErrors.length} TypeScript errors`);
       this.debugLog('[LLMService] ========================================');
       for (const err of tsErrors) {
-        this.debugLog(`[LLMService] ${err.file}:${err.line}:${err.column} - ${err.errorCode}: ${err.message}`);
+        this.debugLog(
+          `[LLMService] ${err.file}:${err.line}:${err.column} - ${err.errorCode}: ${err.message}`,
+        );
       }
       this.debugLog('[LLMService] Generating intelligent fix steps...');
       this.debugLog('[LLMService] ========================================');
@@ -1433,17 +1480,21 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
 - recoverySteps: 修复步骤数组（按执行顺序排列）
 - recommendation: 给出建议`;
 
-    const errorSummary = options.failedSteps.map((step, idx) =>
-      `${idx + 1}. [${step.action}] ${step.description}
+    const errorSummary = options.failedSteps
+      .map(
+        (step, idx) =>
+          `${idx + 1}. [${step.action}] ${step.description}
    参数: ${JSON.stringify(step.params, null, 2)}
-   错误: ${step.error}`
-    ).join('\n\n');
+   错误: ${step.error}`,
+      )
+      .join('\n\n');
 
     // Add TypeScript error details if present
     let tsErrorDetails = '';
     if (hasTsErrors && tsErrors.length > 0) {
       tsErrorDetails = `\n\n🔥 检测到 ${tsErrors.length} 个 TypeScript 编译错误 🔥\n`;
-      tsErrorDetails += '请为这些错误生成实际的代码修复步骤（apply_patch），而不是仅仅查看错误。\n\n';
+      tsErrorDetails +=
+        '请为这些错误生成实际的代码修复步骤（apply_patch），而不是仅仅查看错误。\n\n';
 
       // Group errors by file
       const errorsByFile = new Map<string, typeof tsErrors>();
@@ -1481,8 +1532,8 @@ ${options.context}
 以下步骤执行失败:
 ${errorSummary}${tsErrorDetails}
 
-请分析这些错误并生成修复计划。`
-      }
+请分析这些错误并生成修复计划。`,
+      },
     ];
 
     return this.generateObject({
@@ -1505,24 +1556,34 @@ ${errorSummary}${tsErrorDetails}
  */
 const PlanOutlineSchema = z.object({
   summary: z.string().describe('计划的简要描述'),
-  stepOutlines: z.array(z.object({
-    description: z.string().describe('步骤简要描述'),
-    action: z.enum([
-      'read_file',
-      'list_directory',
-      'create_file',
-      'apply_patch',
-      'search_code',
-      'get_ast',
-      'run_command',
-      'browser_navigate',
-      'get_page_structure',
-      'browser_click',
-      'browser_type',
-      'browser_screenshot'
-    ]).describe('执行动作类型'),
-    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段7-仓库管理）'),
-  })).describe('步骤概要列表 - 只需简单描述每个步骤要做什么'),
+  stepOutlines: z
+    .array(
+      z.object({
+        description: z.string().describe('步骤简要描述'),
+        action: z
+          .enum([
+            'read_file',
+            'list_directory',
+            'create_file',
+            'apply_patch',
+            'search_code',
+            'get_ast',
+            'run_command',
+            'browser_navigate',
+            'get_page_structure',
+            'browser_click',
+            'browser_type',
+            'browser_screenshot',
+          ])
+          .describe('执行动作类型'),
+        phase: z
+          .string()
+          .describe(
+            '所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段7-仓库管理）',
+          ),
+      }),
+    )
+    .describe('步骤概要列表 - 只需简单描述每个步骤要做什么'),
   risks: z.array(z.string()).describe('潜在风险（可为空数组）'),
   alternatives: z.array(z.string()).describe('备选方案（可为空数组）'),
 });
@@ -1534,93 +1595,113 @@ export type PlanOutline = z.infer<typeof PlanOutlineSchema>;
  * 将简化的步骤概要展开为详细的可执行步骤
  */
 const StepExpansionSchema = z.object({
-  steps: z.array(z.object({
-    description: z.string().describe('步骤描述 - 说明要做什么'),
-    action: z.enum([
-      'read_file',
-      'list_directory',
-      'create_file',
-      'apply_patch',
-      'search_code',
-      'get_ast',
-      'run_command',
-      'browser_navigate',
-      'get_page_structure',
-      'browser_click',
-      'browser_type',
-      'browser_screenshot'
-    ]).describe('执行动作'),
-    tool: z.string().describe('要调用的工具'),
-    phase: z.string().describe('所属阶段名称（与Phase 1中的阶段名称保持一致）'),
-    params: z.object({
-      path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
-      recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
-      query: z.string().describe('文本搜索查询（不适用时填空字符串）'),
-      pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
-      filePattern: z.string().describe('文件 glob 模式（不适用时填空字符串）'),
-      globOnly: z.boolean().describe('是否仅执行 glob 文件发现，不适用时填false'),
-      maxResults: z.number().describe('最大返回结果数，不适用时填0'),
-      directory: z.string().describe('搜索目录（不适用时填空字符串）'),
-      command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
-      url: z.string().describe('URL（不适用时填空字符串）'),
-      selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
-      text: z.string().describe('输入文本（不适用时填空字符串）'),
-      fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
-      codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
-      changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
-    }).describe('工具参数 - 所有字段必填，不适用的字符串填空字符串，布尔值填false，数字填0'),
-    reasoning: z.string().describe('为什么需要这个步骤'),
-    needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
-  })).describe('展开后的详细步骤列表'),
+  steps: z
+    .array(
+      z.object({
+        description: z.string().describe('步骤描述 - 说明要做什么'),
+        action: z
+          .enum([
+            'read_file',
+            'list_directory',
+            'create_file',
+            'apply_patch',
+            'search_code',
+            'get_ast',
+            'run_command',
+            'browser_navigate',
+            'get_page_structure',
+            'browser_click',
+            'browser_type',
+            'browser_screenshot',
+          ])
+          .describe('执行动作'),
+        tool: z.string().describe('要调用的工具'),
+        phase: z.string().describe('所属阶段名称（与Phase 1中的阶段名称保持一致）'),
+        params: z
+          .object({
+            path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
+            recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+            query: z.string().describe('文本搜索查询（不适用时填空字符串）'),
+            pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+            filePattern: z.string().describe('文件 glob 模式（不适用时填空字符串）'),
+            globOnly: z.boolean().describe('是否仅执行 glob 文件发现，不适用时填false'),
+            maxResults: z.number().describe('最大返回结果数，不适用时填0'),
+            directory: z.string().describe('搜索目录（不适用时填空字符串）'),
+            command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
+            url: z.string().describe('URL（不适用时填空字符串）'),
+            selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
+            text: z.string().describe('输入文本（不适用时填空字符串）'),
+            fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
+            codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
+            changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
+          })
+          .describe('工具参数 - 所有字段必填，不适用的字符串填空字符串，布尔值填false，数字填0'),
+        reasoning: z.string().describe('为什么需要这个步骤'),
+        needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
+      }),
+    )
+    .describe('展开后的详细步骤列表'),
 });
 
 const GeneratedPlanSchema = z.object({
   summary: z.string().describe('计划的简要描述'),
-  steps: z.array(z.object({
-    description: z.string().describe('步骤描述 - 说明要做什么'),
-    action: z.enum([
-      'read_file',
-      'list_directory',
-      'create_file',
-      'apply_patch',
-      'search_code',
-      'get_ast',
-      'run_command',
-      'browser_navigate',
-      'get_page_structure',
-      'browser_click',
-      'browser_type',
-      'browser_screenshot'
-    ]).describe('执行动作'),
-    tool: z.string().describe('要调用的工具'),
-    phase: z.string().describe('所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段7-仓库管理）'),
-    // 参数说明：
-    // - 对于 read_file: { path: string }
-    // - 对于 list_directory: { path: string, recursive?: boolean }
-    // - 对于 search_code: { query?: string, pattern?: string, filePattern?: string, globOnly?: boolean, maxResults?: number }
-    // - 对于 create_file: { path: string, codeDescription: string } (不包含实际代码)
-    // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
-    // - 对于 run_command: { command: string, description: string }
-    params: z.object({
-      path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
-      recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
-      query: z.string().describe('文本搜索查询（不适用时填空字符串）'),
-      pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
-      filePattern: z.string().describe('文件 glob 模式（不适用时填空字符串）'),
-      globOnly: z.boolean().describe('是否仅执行 glob 文件发现，不适用时填false'),
-      maxResults: z.number().describe('最大返回结果数，不适用时填0'),
-      directory: z.string().describe('搜索目录（不适用时填空字符串）'),
-      command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
-      url: z.string().describe('URL（不适用时填空字符串）'),
-      selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
-      text: z.string().describe('输入文本（不适用时填空字符串）'),
-      fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
-      codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
-      changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
-    }).describe('工具参数 - 所有字段必填，不适用的字符串填空字符串，布尔值填false，数字填0'),
-    reasoning: z.string().describe('为什么需要这个步骤'),
-    needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
-  })).describe('执行步骤列表'),
+  steps: z
+    .array(
+      z.object({
+        description: z.string().describe('步骤描述 - 说明要做什么'),
+        action: z
+          .enum([
+            'read_file',
+            'list_directory',
+            'create_file',
+            'apply_patch',
+            'search_code',
+            'get_ast',
+            'run_command',
+            'browser_navigate',
+            'get_page_structure',
+            'browser_click',
+            'browser_type',
+            'browser_screenshot',
+          ])
+          .describe('执行动作'),
+        tool: z.string().describe('要调用的工具'),
+        phase: z
+          .string()
+          .describe(
+            '所属阶段名称（如：阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段7-仓库管理）',
+          ),
+        // 参数说明：
+        // - 对于 read_file: { path: string }
+        // - 对于 list_directory: { path: string, recursive?: boolean }
+        // - 对于 search_code: { query?: string, pattern?: string, filePattern?: string, globOnly?: boolean, maxResults?: number }
+        // - 对于 create_file: { path: string, codeDescription: string } (不包含实际代码)
+        // - 对于 apply_patch: { path: string, changeDescription: string } (不包含实际代码)
+        // - 对于 run_command: { command: string, description: string }
+        params: z
+          .object({
+            path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
+            recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+            query: z.string().describe('文本搜索查询（不适用时填空字符串）'),
+            pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+            filePattern: z.string().describe('文件 glob 模式（不适用时填空字符串）'),
+            globOnly: z.boolean().describe('是否仅执行 glob 文件发现，不适用时填false'),
+            maxResults: z.number().describe('最大返回结果数，不适用时填0'),
+            directory: z.string().describe('搜索目录（不适用时填空字符串）'),
+            command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
+            url: z.string().describe('URL（不适用时填空字符串）'),
+            selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
+            text: z.string().describe('输入文本（不适用时填空字符串）'),
+            fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
+            codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
+            changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
+          })
+          .describe('工具参数 - 所有字段必填，不适用的字符串填空字符串，布尔值填false，数字填0'),
+        reasoning: z.string().describe('为什么需要这个步骤'),
+        needsCodeGeneration: z.boolean().describe('此步骤是否需要在执行时生成代码，默认false'),
+      }),
+    )
+    .describe('执行步骤列表'),
   risks: z.array(z.string()).describe('潜在风险（可为空数组）'),
   alternatives: z.array(z.string()).describe('备选方案（可为空数组）'),
 });
@@ -1633,40 +1714,48 @@ export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
 const ErrorRecoveryPlanSchema = z.object({
   canRecover: z.boolean().describe('是否可以通过生成修复步骤来解决问题'),
   analysis: z.string().describe('错误分析：为什么会出现这些错误'),
-  recoverySteps: z.array(z.object({
-    description: z.string().describe('修复步骤描述'),
-    action: z.enum([
-      'read_file',
-      'list_directory',
-      'create_file',
-      'apply_patch',
-      'search_code',
-      'get_ast',
-      'run_command',
-      'browser_navigate',
-      'get_page_structure',
-      'browser_click',
-      'browser_type',
-      'browser_screenshot'
-    ]).describe('修复动作'),
-    tool: z.string().describe('工具名称'),
-    phase: z.string().describe('所属阶段'),
-    params: z.object({
-      path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
-      recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
-      pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
-      directory: z.string().describe('搜索目录（不适用时填空字符串）'),
-      command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
-      url: z.string().describe('URL（不适用时填空字符串）'),
-      selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
-      text: z.string().describe('输入文本（不适用时填空字符串）'),
-      fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
-      codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
-      changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
-    }).describe('工具参数'),
-    reasoning: z.string().describe('为什么需要这个修复步骤'),
-    needsCodeGeneration: z.boolean().describe('是否需要代码生成'),
-  })).describe('修复步骤列表（如果canRecover为false则为空数组）'),
+  recoverySteps: z
+    .array(
+      z.object({
+        description: z.string().describe('修复步骤描述'),
+        action: z
+          .enum([
+            'read_file',
+            'list_directory',
+            'create_file',
+            'apply_patch',
+            'search_code',
+            'get_ast',
+            'run_command',
+            'browser_navigate',
+            'get_page_structure',
+            'browser_click',
+            'browser_type',
+            'browser_screenshot',
+          ])
+          .describe('修复动作'),
+        tool: z.string().describe('工具名称'),
+        phase: z.string().describe('所属阶段'),
+        params: z
+          .object({
+            path: z.string().describe('文件或目录路径（不适用时填空字符串）'),
+            recursive: z.boolean().describe('是否递归列出子目录，不适用时填false'),
+            pattern: z.string().describe('搜索模式（不适用时填空字符串）'),
+            directory: z.string().describe('搜索目录（不适用时填空字符串）'),
+            command: z.string().describe('要执行的终端命令（不适用时填空字符串）'),
+            url: z.string().describe('URL（不适用时填空字符串）'),
+            selector: z.string().describe('CSS选择器（不适用时填空字符串）'),
+            text: z.string().describe('输入文本（不适用时填空字符串）'),
+            fullPage: z.boolean().describe('是否全页截图，不适用时填false'),
+            codeDescription: z.string().describe('要生成的代码的描述（不适用时填空字符串）'),
+            changeDescription: z.string().describe('要做的修改描述（不适用时填空字符串）'),
+          })
+          .describe('工具参数'),
+        reasoning: z.string().describe('为什么需要这个修复步骤'),
+        needsCodeGeneration: z.boolean().describe('是否需要代码生成'),
+      }),
+    )
+    .describe('修复步骤列表（如果canRecover为false则为空数组）'),
   recommendation: z.string().describe('建议：如何避免类似错误，或者如果无法修复应该如何处理'),
 });
 
@@ -1688,12 +1777,16 @@ export type GeneratedCode = z.infer<typeof GeneratedCodeSchema>;
  * 生成的补丁 Schema
  */
 const GeneratedPatchSchema = z.object({
-  patches: z.array(z.object({
-    startLine: z.number().describe('起始行号 (1-based)'),
-    endLine: z.number().describe('结束行号 (1-based)'),
-    content: z.string().describe('替换内容'),
-    reason: z.string().describe('修改原因'),
-  })).describe('补丁列表'),
+  patches: z
+    .array(
+      z.object({
+        startLine: z.number().describe('起始行号 (1-based)'),
+        endLine: z.number().describe('结束行号 (1-based)'),
+        content: z.string().describe('替换内容'),
+        reason: z.string().describe('修改原因'),
+      }),
+    )
+    .describe('补丁列表'),
   newCode: z.string().describe('修改后的完整代码'),
   summary: z.string().describe('修改摘要'),
 });

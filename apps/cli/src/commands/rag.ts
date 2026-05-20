@@ -1,19 +1,19 @@
-import chalk from 'chalk';
-import ora from 'ora';
+import { execFile } from 'node:child_process';
 import {
   cpSync,
   existsSync,
-  mkdtempSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import chalk from 'chalk';
 import type { Command } from 'commander';
+import ora from 'ora';
 import { getDefaultRagCacheDir } from '../bootstrap.js';
 
 const execFileAsync = promisify(execFile);
@@ -126,7 +126,9 @@ async function createRagCacheBundle(input: {
   }
 }
 
-async function downloadRagBundle(sourceUrl: string): Promise<{ archivePath: string; cleanupPath: string }> {
+async function downloadRagBundle(
+  sourceUrl: string,
+): Promise<{ archivePath: string; cleanupPath: string }> {
   const response = await fetch(sourceUrl);
   if (!response.ok) {
     throw new Error(`Failed to download bundle: ${response.status} ${response.statusText}`);
@@ -178,7 +180,9 @@ async function importRagCacheBundle(input: {
 
     if (existsSync(input.cacheDir)) {
       if (!input.force) {
-        throw new Error(`RAG cache already exists at ${input.cacheDir}; rerun with --force to replace it`);
+        throw new Error(
+          `RAG cache already exists at ${input.cacheDir}; rerun with --force to replace it`,
+        );
       }
       rmSync(input.cacheDir, { recursive: true, force: true });
     }
@@ -210,9 +214,7 @@ function printManifest(manifest: RagCacheBundleManifest) {
 }
 
 export function registerRagCommand(parent: Command) {
-  const ragCommand = parent
-    .command('rag')
-    .description('管理预构建 RAG 缓存包');
+  const ragCommand = parent.command('rag').description('管理预构建 RAG 缓存包');
 
   ragCommand
     .command('export')

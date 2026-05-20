@@ -1,16 +1,16 @@
 import type { MCPClient } from '@frontagent/core';
 import {
-  readFile,
+  SnapshotManager,
   applyPatch,
   createFile,
-  searchCode,
-  listDirectory,
   getAST,
-  SnapshotManager,
+  listDirectory,
+  readFile,
+  searchCode,
 } from '@frontagent/mcp-file';
 import { handleFilesenseTool } from '@frontagent/mcp-filesense';
-import { createKnowledgeBase, type KnowledgeBaseConfig } from '@frontagent/mcp-memory';
-import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
+import { type KnowledgeBaseConfig, createKnowledgeBase } from '@frontagent/mcp-memory';
+import { type BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 export class FileMCPClient implements MCPClient {
   private readonly snapshotManager: SnapshotManager;
@@ -166,8 +166,6 @@ export class MemoryMCPClient implements MCPClient {
   }
 
   async listTools() {
-    return [
-      { name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' },
-    ];
+    return [{ name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' }];
   }
 }

@@ -1,6 +1,6 @@
+import type { AgentTask } from '@frontagent/shared';
 import { describe, expect, it } from 'vitest';
 import { ContextManager } from './context.js';
-import type { AgentTask } from '@frontagent/shared';
 
 function task(): AgentTask {
   return {

@@ -21,7 +21,7 @@ interface SyntaxError {
  * 检查代码语法有效性
  */
 export async function checkSyntaxValidity(
-  input: SyntaxValidityCheckInput
+  input: SyntaxValidityCheckInput,
 ): Promise<HallucinationCheckResult> {
   const { code, language, filePath } = input;
 
@@ -48,7 +48,7 @@ export async function checkSyntaxValidity(
         type: 'syntax_validity',
         severity: 'block',
         message: `Syntax errors found in ${filePath ?? 'code'}`,
-        details: { errors, language }
+        details: { errors, language },
       };
     }
 
@@ -56,7 +56,7 @@ export async function checkSyntaxValidity(
       pass: true,
       type: 'syntax_validity',
       severity: 'info',
-      message: `Syntax is valid for ${language}`
+      message: `Syntax is valid for ${language}`,
     };
   } catch (error) {
     return {
@@ -64,7 +64,7 @@ export async function checkSyntaxValidity(
       type: 'syntax_validity',
       severity: 'block',
       message: `Syntax check failed: ${error instanceof Error ? error.message : String(error)}`,
-      details: { error: String(error) }
+      details: { error: String(error) },
     };
   }
 }
@@ -103,7 +103,7 @@ function checkBrackets(code: string): SyntaxError[] {
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
-    
+
     for (let colIdx = 0; colIdx < line.length; colIdx++) {
       const char = line[colIdx];
       const prevChar = colIdx > 0 ? line[colIdx - 1] : '';
@@ -148,12 +148,12 @@ function checkBrackets(code: string): SyntaxError[] {
           errors.push({
             line: lineIdx + 1,
             column: colIdx + 1,
-            message: `Unmatched closing bracket: ${char}`
+            message: `Unmatched closing bracket: ${char}`,
           });
         }
       }
     }
-    
+
     inComment = false;
   }
 
@@ -162,7 +162,7 @@ function checkBrackets(code: string): SyntaxError[] {
     errors.push({
       line: item.line,
       column: item.column,
-      message: `Unclosed bracket: ${item.char}`
+      message: `Unclosed bracket: ${item.char}`,
     });
   }
 
@@ -195,7 +195,7 @@ function checkCommonPatterns(code: string): SyntaxError[] {
       errors.push({
         line: lineIdx + 1,
         column: 1,
-        message: 'Possible unclosed single-quoted string'
+        message: 'Possible unclosed single-quoted string',
       });
     }
 
@@ -203,7 +203,7 @@ function checkCommonPatterns(code: string): SyntaxError[] {
       errors.push({
         line: lineIdx + 1,
         column: 1,
-        message: 'Possible unclosed double-quoted string'
+        message: 'Possible unclosed double-quoted string',
       });
     }
 
@@ -211,7 +211,7 @@ function checkCommonPatterns(code: string): SyntaxError[] {
       errors.push({
         line: lineIdx + 1,
         column: 1,
-        message: 'Possible unclosed template literal'
+        message: 'Possible unclosed template literal',
       });
     }
   }
@@ -230,8 +230,8 @@ function checkJsonSyntax(code: string): SyntaxError[] {
     if (error instanceof SyntaxError) {
       // 尝试从错误消息中提取位置
       const match = error.message.match(/at position (\d+)/);
-      const position = match ? parseInt(match[1], 10) : 0;
-      
+      const position = match ? Number.parseInt(match[1], 10) : 0;
+
       // 将位置转换为行号和列号
       let line = 1;
       let column = 1;
@@ -244,17 +244,20 @@ function checkJsonSyntax(code: string): SyntaxError[] {
         }
       }
 
-      return [{
-        line,
-        column,
-        message: error.message
-      }];
+      return [
+        {
+          line,
+          column,
+          message: error.message,
+        },
+      ];
     }
-    return [{
-      line: 1,
-      column: 1,
-      message: String(error)
-    }];
+    return [
+      {
+        line: 1,
+        column: 1,
+        message: String(error),
+      },
+    ];
   }
 }
-

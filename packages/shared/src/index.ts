@@ -9,23 +9,23 @@
 /**
  * Agent 任务类型
  */
-export type TaskType = 
-  | 'create'    // 创建新文件/组件
-  | 'modify'    // 修改现有代码
-  | 'debug'     // 调试问题
-  | 'query'     // 查询信息
-  | 'refactor'  // 重构代码
-  | 'test';     // 测试相关
+export type TaskType =
+  | 'create' // 创建新文件/组件
+  | 'modify' // 修改现有代码
+  | 'debug' // 调试问题
+  | 'query' // 查询信息
+  | 'refactor' // 重构代码
+  | 'test'; // 测试相关
 
 /**
  * 执行步骤状态
  */
-export type StepStatus = 
-  | 'pending'     // 待执行
-  | 'running'     // 执行中
-  | 'completed'   // 已完成
-  | 'failed'      // 失败
-  | 'skipped'     // 跳过
+export type StepStatus =
+  | 'pending' // 待执行
+  | 'running' // 执行中
+  | 'completed' // 已完成
+  | 'failed' // 失败
+  | 'skipped' // 跳过
   | 'rolled_back'; // 已回滚
 
 /**
@@ -94,13 +94,41 @@ export interface DangerousShellCommandResult {
 }
 
 const SHELL_OPERATOR_PATTERNS: Array<{ pattern: RegExp; reasonCode: string; reason: string }> = [
-  { pattern: /\|\|?/, reasonCode: 'shell_operator', reason: 'Shell pipes require full-command review.' },
-  { pattern: /&&/, reasonCode: 'shell_operator', reason: 'Compound shell operators require full-command review.' },
-  { pattern: /[<>]/, reasonCode: 'shell_redirect', reason: 'Shell redirects can read or write paths outside argument parsing.' },
-  { pattern: /;/, reasonCode: 'shell_sequence', reason: 'Command sequences are context-coupled and require review.' },
-  { pattern: /\r|\n/, reasonCode: 'shell_multiline', reason: 'Multiline shell commands require review.' },
-  { pattern: /\$\(/, reasonCode: 'shell_substitution', reason: 'Command substitution requires review.' },
-  { pattern: /`/, reasonCode: 'shell_substitution', reason: 'Backtick command substitution requires review.' },
+  {
+    pattern: /\|\|?/,
+    reasonCode: 'shell_operator',
+    reason: 'Shell pipes require full-command review.',
+  },
+  {
+    pattern: /&&/,
+    reasonCode: 'shell_operator',
+    reason: 'Compound shell operators require full-command review.',
+  },
+  {
+    pattern: /[<>]/,
+    reasonCode: 'shell_redirect',
+    reason: 'Shell redirects can read or write paths outside argument parsing.',
+  },
+  {
+    pattern: /;/,
+    reasonCode: 'shell_sequence',
+    reason: 'Command sequences are context-coupled and require review.',
+  },
+  {
+    pattern: /\r|\n/,
+    reasonCode: 'shell_multiline',
+    reason: 'Multiline shell commands require review.',
+  },
+  {
+    pattern: /\$\(/,
+    reasonCode: 'shell_substitution',
+    reason: 'Command substitution requires review.',
+  },
+  {
+    pattern: /`/,
+    reasonCode: 'shell_substitution',
+    reason: 'Backtick command substitution requires review.',
+  },
 ];
 
 function splitSimpleShellCommand(command: string): { tokens: string[]; error?: string } {
@@ -232,7 +260,9 @@ export function analyzeShellCommand(command: string): ShellCommandAnalysis {
 }
 
 function commandIncludesPipeToInterpreter(command: string): boolean {
-  return /\b(curl|wget)\b[\s\S]*\|[\s\S]*\b(sh|bash|zsh|node|python|python3|ruby|perl)\b/i.test(command);
+  return /\b(curl|wget)\b[\s\S]*\|[\s\S]*\b(sh|bash|zsh|node|python|python3|ruby|perl)\b/i.test(
+    command,
+  );
 }
 
 function hasRecursiveFlag(argv: string[]): boolean {
@@ -269,7 +299,12 @@ export function detectDangerousShellCommand(
     };
   }
 
-  if (base === 'rm' && args.some((arg) => /^-[A-Za-z]*r[A-Za-z]*f[A-Za-z]*$|^-[A-Za-z]*f[A-Za-z]*r[A-Za-z]*$/i.test(arg))) {
+  if (
+    base === 'rm' &&
+    args.some((arg) =>
+      /^-[A-Za-z]*r[A-Za-z]*f[A-Za-z]*$|^-[A-Za-z]*f[A-Za-z]*r[A-Za-z]*$/i.test(arg),
+    )
+  ) {
     return {
       dangerous: true,
       reasonCode: 'shell_dangerous_delete',
@@ -463,7 +498,7 @@ export interface ValidationRule {
   required: boolean;
 }
 
-export type ValidationType = 
+export type ValidationType =
   | 'file_exists'
   | 'syntax_valid'
   | 'lint_pass'
@@ -718,7 +753,7 @@ export const DEFAULT_LLM_MAX_TOKENS = 4096;
 /**
  * 生成唯一 ID
  */
-export function generateId(prefix: string = ''): string {
+export function generateId(prefix = ''): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 8);
   return prefix ? `${prefix}_${timestamp}_${random}` : `${timestamp}_${random}`;
@@ -728,7 +763,7 @@ export function generateId(prefix: string = ''): string {
  * 延迟执行
  */
 export function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -762,7 +797,7 @@ export function deepMerge<T extends Record<string, unknown>>(target: T, source: 
       ) {
         result[key] = deepMerge(
           targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>
+          sourceValue as Record<string, unknown>,
         ) as T[Extract<keyof T, string>];
       } else {
         result[key] = sourceValue as T[Extract<keyof T, string>];

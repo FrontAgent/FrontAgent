@@ -3,10 +3,10 @@
  * 创建新文件
  */
 
-import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { SnapshotManager } from '../snapshot.js';
 import { assertWritableByPolicy, resolveWritePath } from '../path-safety.js';
+import type { SnapshotManager } from '../snapshot.js';
 
 export interface CreateFileParams {
   path: string;
@@ -28,7 +28,7 @@ export interface CreateFileResult {
 export function createFile(
   params: CreateFileParams,
   projectRoot: string,
-  snapshotManager: SnapshotManager
+  snapshotManager: SnapshotManager,
 ): CreateFileResult {
   const {
     path: filePath,
@@ -41,7 +41,7 @@ export function createFile(
   if (!safePath.ok) {
     return {
       success: false,
-      error: safePath.error
+      error: safePath.error,
     };
   }
 
@@ -61,7 +61,7 @@ export function createFile(
   if (existsSync(safePath.fullPath) && !overwrite) {
     return {
       success: false,
-      error: `File already exists: ${filePath}. Set overwrite=true to overwrite.`
+      error: `File already exists: ${filePath}. Set overwrite=true to overwrite.`,
     };
   }
 
@@ -85,15 +85,15 @@ export function createFile(
     return {
       success: true,
       path: filePath,
-      snapshotId
+      snapshotId,
     };
   } catch (error) {
     // 回滚快照
     snapshotManager.rollback(snapshotId);
-    
+
     return {
       success: false,
-      error: `Failed to create file: ${error instanceof Error ? error.message : String(error)}`
+      error: `Failed to create file: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -109,18 +109,18 @@ export const createFileSchema = {
     properties: {
       path: {
         type: 'string',
-        description: '相对于项目根目录的文件路径'
+        description: '相对于项目根目录的文件路径',
       },
       content: {
         type: 'string',
-        description: '文件内容'
+        description: '文件内容',
       },
       overwrite: {
         type: 'boolean',
         description: '是否覆盖已存在的文件，默认 false',
-        default: false
-      }
+        default: false,
+      },
     },
-    required: ['path', 'content']
-  }
+    required: ['path', 'content'],
+  },
 };

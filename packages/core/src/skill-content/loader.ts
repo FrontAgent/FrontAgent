@@ -1,4 +1,4 @@
-import { Dirent, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { type Dirent, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type {
   SkillContentLoaderConfig,

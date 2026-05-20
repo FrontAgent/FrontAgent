@@ -3,16 +3,16 @@
  * Reads one JSON request from stdin and writes one JSON response to stdout.
  */
 
-import { generateId } from "@frontagent/shared";
-import { A2A_PROTOCOL_NAME, A2A_PROTOCOL_VERSION } from "../a2a.js";
-import { LLMService } from "../llm.js";
-import type { LLMConfig } from "../types.js";
+import { generateId } from '@frontagent/shared';
+import { A2A_PROTOCOL_NAME, A2A_PROTOCOL_VERSION } from '../a2a.js';
+import type { A2ARequest, A2AResponse } from '../a2a.js';
+import { LLMService } from '../llm.js';
+import type { LLMConfig } from '../types.js';
 import {
-  CodeQualitySubAgent,
   type CodeQualityReviewRequest,
   type CodeQualityReviewResponse,
-} from "./code-quality-subagent.js";
-import type { A2ARequest, A2AResponse } from "../a2a.js";
+  CodeQualitySubAgent,
+} from './code-quality-subagent.js';
 
 interface WorkerInput {
   request: A2ARequest<CodeQualityReviewRequest>;
@@ -29,19 +29,19 @@ interface WorkerInput {
 // Keep stdout clean for machine-readable JSON responses.
 const originalConsoleLog = console.log;
 console.log = (...args: unknown[]) => {
-  const text = args.map(arg => String(arg)).join(" ");
+  const text = args.map((arg) => String(arg)).join(' ');
   process.stderr.write(`${text}\n`);
 };
 
 async function readStdin(): Promise<string> {
   return new Promise((resolve, reject) => {
-    let raw = "";
-    process.stdin.setEncoding("utf-8");
-    process.stdin.on("data", chunk => {
+    let raw = '';
+    process.stdin.setEncoding('utf-8');
+    process.stdin.on('data', (chunk) => {
       raw += chunk;
     });
-    process.stdin.on("end", () => resolve(raw));
-    process.stdin.on("error", reject);
+    process.stdin.on('end', () => resolve(raw));
+    process.stdin.on('error', reject);
   });
 }
 
@@ -52,13 +52,13 @@ function buildErrorResponse(
   return {
     protocol: A2A_PROTOCOL_NAME,
     version: A2A_PROTOCOL_VERSION,
-    kind: "response",
-    messageId: generateId("a2a-res"),
-    inReplyTo: request?.messageId ?? "",
+    kind: 'response',
+    messageId: generateId('a2a-res'),
+    inReplyTo: request?.messageId ?? '',
     timestamp: Date.now(),
-    from: "subagent.code-quality",
-    to: request?.from ?? "frontagent.main",
-    intent: request?.intent ?? "code_quality.review_generated_files",
+    from: 'subagent.code-quality',
+    to: request?.from ?? 'frontagent.main',
+    intent: request?.intent ?? 'code_quality.review_generated_files',
     success: false,
     error: message,
   };

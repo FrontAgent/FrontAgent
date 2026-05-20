@@ -32,7 +32,7 @@ export class SDDPromptGenerator {
       verbose: options.verbose ?? true,
       language: options.language ?? 'zh',
       prefix: options.prefix ?? '',
-      suffix: options.suffix ?? ''
+      suffix: options.suffix ?? '',
     };
   }
 
@@ -44,15 +44,17 @@ export class SDDPromptGenerator {
     const sections: string[] = [];
 
     // 标题
-    sections.push(isZh
-      ? '## 📋 项目约束（来自 SDD - Specification Driven Development）'
-      : '## 📋 Project Constraints (from SDD - Specification Driven Development)'
+    sections.push(
+      isZh
+        ? '## 📋 项目约束（来自 SDD - Specification Driven Development）'
+        : '## 📋 Project Constraints (from SDD - Specification Driven Development)',
     );
 
     sections.push('');
-    sections.push(isZh
-      ? '以下约束是**强制性的**，你的所有操作必须严格遵守：'
-      : 'The following constraints are **mandatory**. All your actions must strictly comply:'
+    sections.push(
+      isZh
+        ? '以下约束是**强制性的**，你的所有操作必须严格遵守：'
+        : 'The following constraints are **mandatory**. All your actions must strictly comply:',
     );
 
     // 1. 项目信息
@@ -91,11 +93,9 @@ export class SDDPromptGenerator {
     // 10. 重要提醒
     sections.push(this.generateReminders());
 
-    return [
-      this.options.prefix,
-      sections.join('\n\n'),
-      this.options.suffix
-    ].filter(Boolean).join('\n\n');
+    return [this.options.prefix, sections.join('\n\n'), this.options.suffix]
+      .filter(Boolean)
+      .join('\n\n');
   }
 
   /**
@@ -146,14 +146,14 @@ ${this.config.project.description ? `- **${isZh ? '描述' : 'Description'}**: $
     // 🚨 关键修复：生成必需依赖列表
     if (techStack.requiredPackages && techStack.requiredPackages.length > 0) {
       section += `\n\n📦 **${isZh ? '必需的依赖包（package.json 中必须包含）' : 'Required Packages (Must be in package.json)'}**:
-${techStack.requiredPackages.map(pkg => `- \`${pkg}\``).join('\n')}
+${techStack.requiredPackages.map((pkg) => `- \`${pkg}\``).join('\n')}
 
 ⚠️ ${isZh ? '重要提醒：生成 package.json 时，dependencies 或 devDependencies 中必须包含上述所有包！' : 'Important: When generating package.json, all packages above MUST be included in dependencies or devDependencies!'}`;
     }
 
     if (techStack.forbiddenPackages.length > 0) {
       section += `\n\n🚫 **${isZh ? '禁止使用的包' : 'Forbidden Packages'}**:
-${techStack.forbiddenPackages.map(pkg => `- \`${pkg}\``).join('\n')}`;
+${techStack.forbiddenPackages.map((pkg) => `- \`${pkg}\``).join('\n')}`;
     }
 
     return section;
@@ -207,17 +207,17 @@ ${techStack.forbiddenPackages.map(pkg => `- \`${pkg}\``).join('\n')}`;
     }
 
     let section = `### ${isZh ? '模块导入边界' : 'Module Import Boundaries'}\n`;
-    section += isZh 
+    section += isZh
       ? '以下是模块间的导入限制：\n'
       : 'The following are import restrictions between modules:\n';
 
     for (const boundary of moduleBoundaries) {
       section += `\n**\`${boundary.from}\`**:\n`;
       if (boundary.canImport.length > 0) {
-        section += `  - ✅ ${isZh ? '可以导入' : 'Can import'}: ${boundary.canImport.map(p => `\`${p}\``).join(', ')}\n`;
+        section += `  - ✅ ${isZh ? '可以导入' : 'Can import'}: ${boundary.canImport.map((p) => `\`${p}\``).join(', ')}\n`;
       }
       if (boundary.cannotImport.length > 0) {
-        section += `  - 🚫 ${isZh ? '不能导入' : 'Cannot import'}: ${boundary.cannotImport.map(p => `\`${p}\``).join(', ')}\n`;
+        section += `  - 🚫 ${isZh ? '不能导入' : 'Cannot import'}: ${boundary.cannotImport.map((p) => `\`${p}\``).join(', ')}\n`;
       }
     }
 
@@ -256,7 +256,7 @@ ${techStack.forbiddenPackages.map(pkg => `- \`${pkg}\``).join('\n')}`;
 
     if (codeQuality.forbiddenPatterns.length > 0) {
       section += `\n\n🚫 **${isZh ? '禁止出现的代码模式' : 'Forbidden Code Patterns'}**:
-${codeQuality.forbiddenPatterns.map(p => `- \`${p}\``).join('\n')}`;
+${codeQuality.forbiddenPatterns.map((p) => `- \`${p}\``).join('\n')}`;
     }
 
     return section;
@@ -273,17 +273,17 @@ ${codeQuality.forbiddenPatterns.map(p => `- \`${p}\``).join('\n')}`;
 
     if (modificationRules.protectedDirectories.length > 0) {
       section += `\n\n🔒 **${isZh ? '受保护目录（禁止修改）' : 'Protected Directories (No Modification)'}**:
-${modificationRules.protectedDirectories.map(d => `- \`${d}/\``).join('\n')}`;
+${modificationRules.protectedDirectories.map((d) => `- \`${d}/\``).join('\n')}`;
     }
 
     if (modificationRules.protectedFiles.length > 0) {
       section += `\n\n🔒 **${isZh ? '受保护文件（禁止修改）' : 'Protected Files (No Modification)'}**:
-${modificationRules.protectedFiles.map(f => `- \`${f}\``).join('\n')}`;
+${modificationRules.protectedFiles.map((f) => `- \`${f}\``).join('\n')}`;
     }
 
     if (modificationRules.requireApproval.length > 0) {
       section += `\n\n⚠️ **${isZh ? '需要人工审批的修改' : 'Modifications Requiring Approval'}**:
-${modificationRules.requireApproval.map(r => `- \`${r.pattern}\`: ${r.reason}`).join('\n')}`;
+${modificationRules.requireApproval.map((r) => `- \`${r.pattern}\`: ${r.reason}`).join('\n')}`;
     }
 
     return section;
@@ -319,7 +319,10 @@ ${modificationRules.requireApproval.map(r => `- \`${r.pattern}\`: ${r.reason}`).
     }
 
     // components_to_refactor - 需要重构的组件
-    if (migrationReqs.components_to_refactor && Array.isArray(migrationReqs.components_to_refactor)) {
+    if (
+      migrationReqs.components_to_refactor &&
+      Array.isArray(migrationReqs.components_to_refactor)
+    ) {
       section += `**${isZh ? '🔧 需要重构的文件' : '🔧 Files to Refactor'}**:\n`;
       for (const component of migrationReqs.components_to_refactor) {
         section += `- \`${component.path}\`:\n`;
@@ -342,9 +345,11 @@ ${modificationRules.requireApproval.map(r => `- \`${r.pattern}\`: ${r.reason}`).
       section += '\n';
     }
 
-    section += `⚠️ **${isZh ? '重要' : 'Important'}**: ${isZh
-      ? '这是一个迁移任务，你需要严格按照上述要求进行文件的删除、重构和修改，而不是创建新的文件！'
-      : 'This is a migration task. You MUST follow the requirements above to delete, refactor and modify files, NOT create new files!'}`;
+    section += `⚠️ **${isZh ? '重要' : 'Important'}**: ${
+      isZh
+        ? '这是一个迁移任务，你需要严格按照上述要求进行文件的删除、重构和修改，而不是创建新的文件！'
+        : 'This is a migration task. You MUST follow the requirements above to delete, refactor and modify files, NOT create new files!'
+    }`;
 
     return section;
   }
@@ -355,20 +360,32 @@ ${modificationRules.requireApproval.map(r => `- \`${r.pattern}\`: ${r.reason}`).
   private generateCustomFieldsSection(): string | null {
     const config = this.config as any;
     const knownFields = new Set([
-      'project', 'techStack', 'directoryStructure', 'moduleBoundaries',
-      'namingConventions', 'codeQuality', 'modificationRules',
-      'migration_requirements', 'migrationRequirements',
-      'migration_steps', 'migrationSteps',
-      'component_migration_rules', 'componentMigrationRules',
-      'acceptance_criteria', 'acceptanceCriteria',
-      'agent_behavior', 'agentBehavior'
+      'project',
+      'techStack',
+      'directoryStructure',
+      'moduleBoundaries',
+      'namingConventions',
+      'codeQuality',
+      'modificationRules',
+      'migration_requirements',
+      'migrationRequirements',
+      'migration_steps',
+      'migrationSteps',
+      'component_migration_rules',
+      'componentMigrationRules',
+      'acceptance_criteria',
+      'acceptanceCriteria',
+      'agent_behavior',
+      'agentBehavior',
     ]);
 
     const customFields: string[] = [];
 
     for (const [key, value] of Object.entries(config)) {
       if (!knownFields.has(key) && value !== null && value !== undefined) {
-        customFields.push(`**${key}**: ${typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}`);
+        customFields.push(
+          `**${key}**: ${typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}`,
+        );
       }
     }
 
@@ -387,16 +404,19 @@ ${modificationRules.requireApproval.map(r => `- \`${r.pattern}\`: ${r.reason}`).
 
     return `### ${isZh ? '⚠️ 重要提醒' : '⚠️ Important Reminders'}
 
-${isZh ? `1. **所有代码修改必须通过 MCP 工具执行**，不要直接输出完整代码
+${
+  isZh
+    ? `1. **所有代码修改必须通过 MCP 工具执行**，不要直接输出完整代码
 2. **遵循最小修改原则**，只修改必要的部分
 3. **在修改前必须先读取文件**，了解现有代码结构
 4. **所有操作必须可追溯到上述 SDD 约束**
 5. **如果操作违反约束，必须明确拒绝并说明原因**`
-: `1. **All code modifications must be executed through MCP tools**, do not output complete code directly
+    : `1. **All code modifications must be executed through MCP tools**, do not output complete code directly
 2. **Follow minimal modification principle**, only change what's necessary
 3. **Must read file before modifying**, understand existing code structure
 4. **All actions must be traceable to the SDD constraints above**
-5. **If an action violates constraints, must explicitly refuse and explain why**`}`;
+5. **If an action violates constraints, must explicitly refuse and explain why**`
+}`;
   }
 
   /**
@@ -420,8 +440,7 @@ ${isZh ? `1. **所有代码修改必须通过 MCP 工具执行**，不要直接�
  */
 export function createPromptGenerator(
   config: SDDConfig,
-  options?: PromptGeneratorOptions
+  options?: PromptGeneratorOptions,
 ): SDDPromptGenerator {
   return new SDDPromptGenerator(config, options);
 }
-

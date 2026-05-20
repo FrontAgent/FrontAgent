@@ -1,6 +1,6 @@
 import { Box, Text, useInput } from 'ink';
-import type { Store } from '../store.js';
 import { useStoreSelector } from '../hooks.js';
+import type { Store } from '../store.js';
 
 interface ApprovalPromptProps {
   store: Store;
@@ -26,13 +26,7 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
   if (!approval) return null;
 
   return (
-    <Box
-      flexDirection="column"
-      marginY={1}
-      borderStyle="round"
-      borderColor="yellow"
-      paddingX={1}
-    >
+    <Box flexDirection="column" marginY={1} borderStyle="round" borderColor="yellow" paddingX={1}>
       <Text color="yellow" bold>
         ⚠ 工具执行审批
       </Text>
@@ -48,9 +42,14 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
       <Box marginTop={1}>
         {canReadInput ? (
           <Text>
-            允许执行? <Text bold color="green">y</Text>
+            允许执行?{' '}
+            <Text bold color="green">
+              y
+            </Text>
             <Text dimColor>/</Text>
-            <Text bold color="red">N</Text>
+            <Text bold color="red">
+              N
+            </Text>
           </Text>
         ) : (
           <Text dimColor>当前终端不可交互，审批请求将被自动拒绝。</Text>

@@ -96,7 +96,13 @@ export interface FilesenseBudget {
 
 export interface NavigateOptions extends FilesenseBudget {
   paths?: string[];
-  intent?: 'locate' | 'understand_structure' | 'find_conventions' | 'prepare_refactor' | 'prepare_create' | 'validate_freshness';
+  intent?:
+    | 'locate'
+    | 'understand_structure'
+    | 'find_conventions'
+    | 'prepare_refactor'
+    | 'prepare_create'
+    | 'validate_freshness';
   output?: 'summary' | 'candidates' | 'verbose';
   writeMode?: 'cache' | 'workspace' | 'none';
 }

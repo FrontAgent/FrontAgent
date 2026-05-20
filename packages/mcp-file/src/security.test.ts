@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -53,10 +53,14 @@ describe('mcp-file security boundaries', () => {
     const root = makeRoot();
     const snapshotManager = new SnapshotManager(root);
 
-    const result = applyPatch({
-      path: 'src/new.ts',
-      patches: [{ operation: 'insert', startLine: 1, content: 'export {};' }],
-    }, root, snapshotManager);
+    const result = applyPatch(
+      {
+        path: 'src/new.ts',
+        patches: [{ operation: 'insert', startLine: 1, content: 'export {};' }],
+      },
+      root,
+      snapshotManager,
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/does not exist/i);
@@ -68,11 +72,15 @@ describe('mcp-file security boundaries', () => {
     writeFileSync(join(root, 'src/app.ts'), 'const value = 1;\n', 'utf-8');
     const snapshotManager = new SnapshotManager(root);
 
-    const result = applyPatch({
-      path: 'src/app.ts',
-      dryRun: true,
-      patches: [{ operation: 'replace', startLine: 1, content: 'const value = 2;' }],
-    }, root, snapshotManager);
+    const result = applyPatch(
+      {
+        path: 'src/app.ts',
+        dryRun: true,
+        patches: [{ operation: 'replace', startLine: 1, content: 'const value = 2;' }],
+      },
+      root,
+      snapshotManager,
+    );
 
     expect(result.success).toBe(true);
     expect(result.snapshotId).toBe('');
@@ -85,20 +93,32 @@ describe('mcp-file security boundaries', () => {
     writeFileSync(join(root, 'package.json'), '{"name":"x"}\n', 'utf-8');
     const snapshotManager = new SnapshotManager(root);
 
-    const deniedPatch = applyPatch({
-      path: 'package.json',
-      patches: [{ operation: 'replace', startLine: 1, content: '{"name":"y"}' }],
-    }, root, snapshotManager);
-    const deniedOverwrite = createFile({
-      path: 'src/app.ts',
-      content: 'export {};',
-      overwrite: true,
-    }, root, snapshotManager);
-    const approvedPatch = applyPatch({
-      path: 'package.json',
-      __frontagentSecurityApproved: true,
-      patches: [{ operation: 'replace', startLine: 1, content: '{"name":"z"}' }],
-    }, root, snapshotManager);
+    const deniedPatch = applyPatch(
+      {
+        path: 'package.json',
+        patches: [{ operation: 'replace', startLine: 1, content: '{"name":"y"}' }],
+      },
+      root,
+      snapshotManager,
+    );
+    const deniedOverwrite = createFile(
+      {
+        path: 'src/app.ts',
+        content: 'export {};',
+        overwrite: true,
+      },
+      root,
+      snapshotManager,
+    );
+    const approvedPatch = applyPatch(
+      {
+        path: 'package.json',
+        __frontagentSecurityApproved: true,
+        patches: [{ operation: 'replace', startLine: 1, content: '{"name":"z"}' }],
+      },
+      root,
+      snapshotManager,
+    );
 
     expect(deniedPatch.success).toBe(false);
     expect(deniedPatch.error).toMatch(/Security approval required/i);

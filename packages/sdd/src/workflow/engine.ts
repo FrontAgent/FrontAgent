@@ -3,11 +3,11 @@
  * 管理阶段转换、guard 评估、状态持久化
  */
 
-import type { VerificationEvidence } from '../verification/types.js';
 import type { ArtifactStore } from '../artifacts/types.js';
+import type { VerificationEvidence } from '../verification/types.js';
 import { BUILT_IN_CHECKLISTS } from './checklist/built-in.js';
-import { ChecklistValidator } from './checklist/validator.js';
 import type { ChecklistResult } from './checklist/types.js';
+import { ChecklistValidator } from './checklist/validator.js';
 import type {
   PhaseGuard,
   PhaseGuardResult,
@@ -25,12 +25,28 @@ export interface WorkflowEngineOptions {
 
 const PHASE_TRANSITIONS: PhaseTransition[] = [
   { from: 'idle', to: 'specify', guard: { type: 'custom', description: 'Always allowed' } },
-  { from: 'specify', to: 'clarify', guard: { type: 'checklist', checklistId: 'spec-completeness' } },
-  { from: 'clarify', to: 'plan', guard: { type: 'custom', description: 'Clarify rounds exhausted or no open questions' } },
+  {
+    from: 'specify',
+    to: 'clarify',
+    guard: { type: 'checklist', checklistId: 'spec-completeness' },
+  },
+  {
+    from: 'clarify',
+    to: 'plan',
+    guard: { type: 'custom', description: 'Clarify rounds exhausted or no open questions' },
+  },
   { from: 'plan', to: 'tasks', guard: { type: 'checklist', checklistId: 'plan-quality' } },
   { from: 'tasks', to: 'implement', guard: { type: 'checklist', checklistId: 'task-readiness' } },
-  { from: 'implement', to: 'verify', guard: { type: 'artifact_exists', artifactType: 'implementation-plan' } },
-  { from: 'verify', to: 'complete', guard: { type: 'checklist', checklistId: 'verification-coverage' } },
+  {
+    from: 'implement',
+    to: 'verify',
+    guard: { type: 'artifact_exists', artifactType: 'implementation-plan' },
+  },
+  {
+    from: 'verify',
+    to: 'complete',
+    guard: { type: 'checklist', checklistId: 'verification-coverage' },
+  },
 ];
 
 export class WorkflowEngine {
@@ -79,7 +95,7 @@ export class WorkflowEngine {
     }
 
     const transition = PHASE_TRANSITIONS.find(
-      t => t.from === this.state!.phase && t.to === targetPhase
+      (t) => t.from === this.state!.phase && t.to === targetPhase,
     );
 
     if (!transition) {
@@ -91,13 +107,20 @@ export class WorkflowEngine {
     }
 
     if (!this.config.enabledPhases.includes(targetPhase)) {
-      return { pass: true, failures: [], warnings: [`Phase "${targetPhase}" is disabled, skipping`] };
+      return {
+        pass: true,
+        failures: [],
+        warnings: [`Phase "${targetPhase}" is disabled, skipping`],
+      };
     }
 
     return this.evaluateGuard(transition.guard, content);
   }
 
-  transition(targetPhase: WorkflowPhase, content: string): { success: boolean; result: PhaseGuardResult } {
+  transition(
+    targetPhase: WorkflowPhase,
+    content: string,
+  ): { success: boolean; result: PhaseGuardResult } {
     const guardResult = this.canTransition(targetPhase, content);
 
     if (!guardResult.pass && this.config.gateMode === 'strict') {
@@ -153,7 +176,7 @@ export class WorkflowEngine {
 
   getNextPhase(): WorkflowPhase | null {
     if (!this.state) return null;
-    const transition = PHASE_TRANSITIONS.find(t => t.from === this.state!.phase);
+    const transition = PHASE_TRANSITIONS.find((t) => t.from === this.state!.phase);
     if (!transition) return null;
 
     if (!this.config.enabledPhases.includes(transition.to)) {
@@ -174,22 +197,30 @@ export class WorkflowEngine {
       case 'checklist': {
         const result = this.runChecklist(guard.checklistId!, content);
         if (!result) {
-          return { pass: true, failures: [], warnings: [`Checklist "${guard.checklistId}" not found, skipping`] };
+          return {
+            pass: true,
+            failures: [],
+            warnings: [`Checklist "${guard.checklistId}" not found, skipping`],
+          };
         }
         const failures = result.items
-          .filter(i => i.required && !i.passed)
-          .map(i => i.suggestion ?? i.question);
+          .filter((i) => i.required && !i.passed)
+          .map((i) => i.suggestion ?? i.question);
         const warnings = result.items
-          .filter(i => !i.required && !i.passed)
-          .map(i => i.suggestion ?? i.question);
+          .filter((i) => !i.required && !i.passed)
+          .map((i) => i.suggestion ?? i.question);
         return { pass: result.passed, failures, warnings };
       }
 
       case 'artifact_exists': {
-        const hasArtifact = this.state!.artifacts.some(a => a.type === guard.artifactType);
+        const hasArtifact = this.state!.artifacts.some((a) => a.type === guard.artifactType);
         return hasArtifact
           ? { pass: true, failures: [], warnings: [] }
-          : { pass: false, failures: [`Required artifact "${guard.artifactType}" not found`], warnings: [] };
+          : {
+              pass: false,
+              failures: [`Required artifact "${guard.artifactType}" not found`],
+              warnings: [],
+            };
       }
 
       case 'evidence_exists': {

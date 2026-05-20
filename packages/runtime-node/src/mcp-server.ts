@@ -3,30 +3,20 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type AgentEvent, type LLMBackend, LLMService, SkillLab } from '@frontagent/core';
+import type { SecurityDecision } from '@frontagent/shared';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import { LLMService, SkillLab, type AgentEvent, type LLMBackend } from '@frontagent/core';
-import type { SecurityDecision } from '@frontagent/shared';
-import {
+  type RuntimeConfigInput,
   getDefaultRagCacheDir,
   resolveBuiltInSkillRoots,
   resolveRuntimeConfig,
-  type RuntimeConfigInput,
 } from './config.js';
-import {
-  initSddConfig,
-  validateSddConfig,
-} from './sdd.js';
-import {
-  planFrontAgentTask,
-  runFrontAgentTask,
-  type RunFrontAgentTaskOptions,
-} from './run.js';
+import { type RunFrontAgentTaskOptions, planFrontAgentTask, runFrontAgentTask } from './run.js';
 import { SamplingLLMBackend } from './sampling-llm.js';
+import { initSddConfig, validateSddConfig } from './sdd.js';
 
 export interface FrontAgentMcpServerOptions extends RuntimeConfigInput {
   projectRoot?: string;
@@ -66,17 +56,21 @@ function stringArrayValue(value: unknown): string[] | undefined {
 }
 
 function samplingSupported(server: Server): boolean {
-  const capabilities = server.getClientCapabilities() as {
-    sampling?: object;
-    tasks?: { requests?: { sampling?: object } };
-  } | undefined;
+  const capabilities = server.getClientCapabilities() as
+    | {
+        sampling?: object;
+        tasks?: { requests?: { sampling?: object } };
+      }
+    | undefined;
   return Boolean(capabilities?.sampling || capabilities?.tasks?.requests?.sampling);
 }
 
 function rootsSupported(server: Server): boolean {
-  const capabilities = server.getClientCapabilities() as {
-    roots?: object;
-  } | undefined;
+  const capabilities = server.getClientCapabilities() as
+    | {
+        roots?: object;
+      }
+    | undefined;
   return Boolean(capabilities?.roots);
 }
 
@@ -116,8 +110,7 @@ async function resolveProjectRoot(
 
       if (fileRoots.length > 1) {
         throw new Error(
-          `Host exposed multiple workspace roots (${fileRoots.join(', ')}). ` +
-          'Start FrontAgent with --project-root to choose one explicitly.',
+          `Host exposed multiple workspace roots (${fileRoots.join(', ')}). Start FrontAgent with --project-root to choose one explicitly.`,
         );
       }
     } catch (error) {
@@ -133,7 +126,11 @@ async function resolveProjectRoot(
   };
 }
 
-function createAutoBackend(server: Server, input: RuntimeConfigInput, projectRoot: string): LLMBackend {
+function createAutoBackend(
+  server: Server,
+  input: RuntimeConfigInput,
+  projectRoot: string,
+): LLMBackend {
   const resolved = resolveRuntimeConfig(input, projectRoot);
   const direct = new LLMService(resolved.llm);
   return new SamplingLLMBackend({
@@ -163,7 +160,10 @@ function summarizeExecutedSteps(result: Awaited<ReturnType<typeof runFrontAgentT
   }));
 }
 
-function collectSecurityDecisions(events: AgentEvent[], decisions: SecurityDecision[]): (event: AgentEvent) => void {
+function collectSecurityDecisions(
+  events: AgentEvent[],
+  decisions: SecurityDecision[],
+): (event: AgentEvent) => void {
   return (event) => {
     events.push(event);
     if (event.type === 'security_decision') {
@@ -172,7 +172,10 @@ function collectSecurityDecisions(events: AgentEvent[], decisions: SecurityDecis
   };
 }
 
-function toRuntimeInput(args: Record<string, unknown>, defaults: FrontAgentMcpServerOptions): RuntimeConfigInput {
+function toRuntimeInput(
+  args: Record<string, unknown>,
+  defaults: FrontAgentMcpServerOptions,
+): RuntimeConfigInput {
   return {
     provider: stringValue(args.provider) ?? defaults.provider,
     model: stringValue(args.model) ?? defaults.model,
@@ -190,51 +193,87 @@ function toRuntimeInput(args: Record<string, unknown>, defaults: FrontAgentMcpSe
     ragBranch: stringValue(args.ragBranch) ?? defaults.ragBranch,
     ragSyncOnQuery: boolValue(args.ragSyncOnQuery, Boolean(defaults.ragSyncOnQuery ?? false)),
     ragMaxResults: (args.ragMaxResults as string | number | undefined) ?? defaults.ragMaxResults,
-    ragKeywordCandidates: (args.ragKeywordCandidates as string | number | undefined) ?? defaults.ragKeywordCandidates,
-    ragSemanticCandidates: (args.ragSemanticCandidates as string | number | undefined) ?? defaults.ragSemanticCandidates,
-    ragKeywordWeight: (args.ragKeywordWeight as string | number | undefined) ?? defaults.ragKeywordWeight,
-    ragSemanticWeight: (args.ragSemanticWeight as string | number | undefined) ?? defaults.ragSemanticWeight,
+    ragKeywordCandidates:
+      (args.ragKeywordCandidates as string | number | undefined) ?? defaults.ragKeywordCandidates,
+    ragSemanticCandidates:
+      (args.ragSemanticCandidates as string | number | undefined) ?? defaults.ragSemanticCandidates,
+    ragKeywordWeight:
+      (args.ragKeywordWeight as string | number | undefined) ?? defaults.ragKeywordWeight,
+    ragSemanticWeight:
+      (args.ragSemanticWeight as string | number | undefined) ?? defaults.ragSemanticWeight,
     ragChunkSize: (args.ragChunkSize as string | number | undefined) ?? defaults.ragChunkSize,
-    ragChunkOverlap: (args.ragChunkOverlap as string | number | undefined) ?? defaults.ragChunkOverlap,
-    ragMaxFileSizeKb: (args.ragMaxFileSizeKb as string | number | undefined) ?? defaults.ragMaxFileSizeKb,
+    ragChunkOverlap:
+      (args.ragChunkOverlap as string | number | undefined) ?? defaults.ragChunkOverlap,
+    ragMaxFileSizeKb:
+      (args.ragMaxFileSizeKb as string | number | undefined) ?? defaults.ragMaxFileSizeKb,
     ragExcludePath: stringArrayValue(args.ragExcludePath) ?? defaults.ragExcludePath,
-    disableRagQueryRewrite: boolValue(args.disableRagQueryRewrite, defaults.disableRagQueryRewrite ?? false),
-    ragQueryRewriteMaxTokens: (args.ragQueryRewriteMaxTokens as string | number | undefined) ?? defaults.ragQueryRewriteMaxTokens,
-    ragQueryRewriteTemperature: (args.ragQueryRewriteTemperature as string | number | undefined) ?? defaults.ragQueryRewriteTemperature,
+    disableRagQueryRewrite: boolValue(
+      args.disableRagQueryRewrite,
+      defaults.disableRagQueryRewrite ?? false,
+    ),
+    ragQueryRewriteMaxTokens:
+      (args.ragQueryRewriteMaxTokens as string | number | undefined) ??
+      defaults.ragQueryRewriteMaxTokens,
+    ragQueryRewriteTemperature:
+      (args.ragQueryRewriteTemperature as string | number | undefined) ??
+      defaults.ragQueryRewriteTemperature,
     disableRagReranker: boolValue(args.disableRagReranker, defaults.disableRagReranker ?? false),
     ragRerankerModel: stringValue(args.ragRerankerModel) ?? defaults.ragRerankerModel,
     ragRerankerBaseUrl: stringValue(args.ragRerankerBaseUrl) ?? defaults.ragRerankerBaseUrl,
     ragRerankerApiKey: stringValue(args.ragRerankerApiKey) ?? defaults.ragRerankerApiKey,
-    ragRerankerCandidateCount: (args.ragRerankerCandidateCount as string | number | undefined) ?? defaults.ragRerankerCandidateCount,
-    ragRerankerMaxDocumentChars: (args.ragRerankerMaxDocumentChars as string | number | undefined) ?? defaults.ragRerankerMaxDocumentChars,
-    ragRerankerTimeoutMs: (args.ragRerankerTimeoutMs as string | number | undefined) ?? defaults.ragRerankerTimeoutMs,
+    ragRerankerCandidateCount:
+      (args.ragRerankerCandidateCount as string | number | undefined) ??
+      defaults.ragRerankerCandidateCount,
+    ragRerankerMaxDocumentChars:
+      (args.ragRerankerMaxDocumentChars as string | number | undefined) ??
+      defaults.ragRerankerMaxDocumentChars,
+    ragRerankerTimeoutMs:
+      (args.ragRerankerTimeoutMs as string | number | undefined) ?? defaults.ragRerankerTimeoutMs,
     disableRagSemantic: boolValue(args.disableRagSemantic, defaults.disableRagSemantic ?? false),
     ragEmbeddingModel: stringValue(args.ragEmbeddingModel) ?? defaults.ragEmbeddingModel,
     ragEmbeddingBaseUrl: stringValue(args.ragEmbeddingBaseUrl) ?? defaults.ragEmbeddingBaseUrl,
     ragEmbeddingApiKey: stringValue(args.ragEmbeddingApiKey) ?? defaults.ragEmbeddingApiKey,
-    ragEmbeddingDimensions: (args.ragEmbeddingDimensions as string | number | undefined) ?? defaults.ragEmbeddingDimensions,
-    ragEmbeddingBatchSize: (args.ragEmbeddingBatchSize as string | number | undefined) ?? defaults.ragEmbeddingBatchSize,
-    ragEmbeddingTimeoutMs: (args.ragEmbeddingTimeoutMs as string | number | undefined) ?? defaults.ragEmbeddingTimeoutMs,
-    ragVectorStoreProvider: stringValue(args.ragVectorStoreProvider) ?? defaults.ragVectorStoreProvider,
+    ragEmbeddingDimensions:
+      (args.ragEmbeddingDimensions as string | number | undefined) ??
+      defaults.ragEmbeddingDimensions,
+    ragEmbeddingBatchSize:
+      (args.ragEmbeddingBatchSize as string | number | undefined) ?? defaults.ragEmbeddingBatchSize,
+    ragEmbeddingTimeoutMs:
+      (args.ragEmbeddingTimeoutMs as string | number | undefined) ?? defaults.ragEmbeddingTimeoutMs,
+    ragVectorStoreProvider:
+      stringValue(args.ragVectorStoreProvider) ?? defaults.ragVectorStoreProvider,
     ragWeaviateUrl: stringValue(args.ragWeaviateUrl) ?? defaults.ragWeaviateUrl,
     ragWeaviateApiKey: stringValue(args.ragWeaviateApiKey) ?? defaults.ragWeaviateApiKey,
-    ragWeaviateCollectionPrefix: stringValue(args.ragWeaviateCollectionPrefix) ?? defaults.ragWeaviateCollectionPrefix,
-    ragWeaviateBatchSize: (args.ragWeaviateBatchSize as string | number | undefined) ?? defaults.ragWeaviateBatchSize,
-    ragWeaviateTimeoutMs: (args.ragWeaviateTimeoutMs as string | number | undefined) ?? defaults.ragWeaviateTimeoutMs,
-    openVikingEnabled: boolValue(args.openVikingEnabled, Boolean(defaults.openVikingEnabled ?? false)),
+    ragWeaviateCollectionPrefix:
+      stringValue(args.ragWeaviateCollectionPrefix) ?? defaults.ragWeaviateCollectionPrefix,
+    ragWeaviateBatchSize:
+      (args.ragWeaviateBatchSize as string | number | undefined) ?? defaults.ragWeaviateBatchSize,
+    ragWeaviateTimeoutMs:
+      (args.ragWeaviateTimeoutMs as string | number | undefined) ?? defaults.ragWeaviateTimeoutMs,
+    openVikingEnabled: boolValue(
+      args.openVikingEnabled,
+      Boolean(defaults.openVikingEnabled ?? false),
+    ),
     openVikingEndpoint: stringValue(args.openVikingEndpoint) ?? defaults.openVikingEndpoint,
     openVikingApiKey: stringValue(args.openVikingApiKey) ?? defaults.openVikingApiKey,
     openVikingCorpus: stringValue(args.openVikingCorpus) ?? defaults.openVikingCorpus,
     openVikingNamespace: stringValue(args.openVikingNamespace) ?? defaults.openVikingNamespace,
     openVikingL1Entry: stringValue(args.openVikingL1Entry) ?? defaults.openVikingL1Entry,
-    openVikingTimeoutMs: (args.openVikingTimeoutMs as string | number | undefined) ?? defaults.openVikingTimeoutMs,
-    disableOpenVikingFallback: boolValue(args.disableOpenVikingFallback, Boolean(defaults.disableOpenVikingFallback ?? false)),
+    openVikingTimeoutMs:
+      (args.openVikingTimeoutMs as string | number | undefined) ?? defaults.openVikingTimeoutMs,
+    disableOpenVikingFallback: boolValue(
+      args.disableOpenVikingFallback,
+      Boolean(defaults.disableOpenVikingFallback ?? false),
+    ),
     filesenseEnabled: boolValue(args.filesenseEnabled, Boolean(defaults.filesenseEnabled ?? true)),
     filesenseOutput: stringValue(args.filesenseOutput) ?? defaults.filesenseOutput,
     filesenseWriteMode: stringValue(args.filesenseWriteMode) ?? defaults.filesenseWriteMode,
-    filesenseMaxEntries: (args.filesenseMaxEntries as string | number | undefined) ?? defaults.filesenseMaxEntries,
-    filesenseMaxBytes: (args.filesenseMaxBytes as string | number | undefined) ?? defaults.filesenseMaxBytes,
-    filesenseTimeoutMs: (args.filesenseTimeoutMs as string | number | undefined) ?? defaults.filesenseTimeoutMs,
+    filesenseMaxEntries:
+      (args.filesenseMaxEntries as string | number | undefined) ?? defaults.filesenseMaxEntries,
+    filesenseMaxBytes:
+      (args.filesenseMaxBytes as string | number | undefined) ?? defaults.filesenseMaxBytes,
+    filesenseTimeoutMs:
+      (args.filesenseTimeoutMs as string | number | undefined) ?? defaults.filesenseTimeoutMs,
   };
 }
 
@@ -290,23 +329,51 @@ const sharedTaskProperties = {
     description: 'Tool security mode. Defaults to balanced.',
   },
   disableRag: { type: 'boolean', description: 'Disable remote knowledge RAG for this call.' },
-  ragSource: { type: 'string', enum: ['git', 'openviking', 'composite'], description: 'RAG knowledge source.' },
+  ragSource: {
+    type: 'string',
+    enum: ['git', 'openviking', 'composite'],
+    description: 'RAG knowledge source.',
+  },
   ragRepo: { type: 'string', description: 'Remote RAG repository URL.' },
   ragBranch: { type: 'string', description: 'Remote RAG branch.' },
   openVikingEndpoint: { type: 'string', description: 'OpenViking knowledge query endpoint.' },
   openVikingCorpus: { type: 'string', description: 'OpenViking corpus name.' },
   openVikingNamespace: { type: 'string', description: 'OpenViking namespace.' },
   openVikingL1Entry: { type: 'string', description: 'OpenViking L1 navigation entry path.' },
-  filesenseEnabled: { type: 'boolean', description: 'Enable lightweight Filesense navigation. Defaults to true.' },
-  filesenseOutput: { type: 'string', enum: ['summary', 'candidates', 'verbose'], description: 'Filesense navigate output shape. Defaults to summary.' },
-  filesenseWriteMode: { type: 'string', enum: ['cache', 'workspace', 'none'], description: 'Filesense navigate write mode. Defaults to cache.' },
-  filesenseMaxEntries: { type: ['string', 'number'], description: 'Default Filesense navigate max entries budget.' },
-  filesenseMaxBytes: { type: ['string', 'number'], description: 'Default Filesense navigate max bytes budget.' },
-  filesenseTimeoutMs: { type: ['string', 'number'], description: 'Default Filesense navigate timeout in milliseconds.' },
+  filesenseEnabled: {
+    type: 'boolean',
+    description: 'Enable lightweight Filesense navigation. Defaults to true.',
+  },
+  filesenseOutput: {
+    type: 'string',
+    enum: ['summary', 'candidates', 'verbose'],
+    description: 'Filesense navigate output shape. Defaults to summary.',
+  },
+  filesenseWriteMode: {
+    type: 'string',
+    enum: ['cache', 'workspace', 'none'],
+    description: 'Filesense navigate write mode. Defaults to cache.',
+  },
+  filesenseMaxEntries: {
+    type: ['string', 'number'],
+    description: 'Default Filesense navigate max entries budget.',
+  },
+  filesenseMaxBytes: {
+    type: ['string', 'number'],
+    description: 'Default Filesense navigate max bytes budget.',
+  },
+  filesenseTimeoutMs: {
+    type: ['string', 'number'],
+    description: 'Default Filesense navigate timeout in milliseconds.',
+  },
   runLog: { type: 'boolean', description: 'Write FrontAgent run log. Defaults to true.' },
   logFile: { type: 'string', description: 'Optional FrontAgent run log path.' },
   debug: { type: 'boolean', description: 'Enable debug behavior for this call.' },
-  provider: { type: 'string', enum: ['openai', 'anthropic'], description: 'Direct fallback LLM provider.' },
+  provider: {
+    type: 'string',
+    enum: ['openai', 'anthropic'],
+    description: 'Direct fallback LLM provider.',
+  },
   model: { type: 'string', description: 'Direct fallback LLM model.' },
   baseUrl: { type: 'string', description: 'Direct fallback LLM API base URL.' },
   apiKey: { type: 'string', description: 'Direct fallback LLM API key.' },
@@ -328,7 +395,8 @@ const tools = [
   },
   {
     name: 'frontagent_run_task',
-    description: 'Run a full FrontAgent frontend-engineering task with planning, execution, validation, and summary output.',
+    description:
+      'Run a full FrontAgent frontend-engineering task with planning, execution, validation, and summary output.',
     inputSchema: {
       type: 'object' as const,
       properties: sharedTaskProperties,
@@ -350,7 +418,10 @@ const tools = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        sddPath: { type: 'string', description: 'Project-relative SDD path. Defaults to sdd.yaml.' },
+        sddPath: {
+          type: 'string',
+          description: 'Project-relative SDD path. Defaults to sdd.yaml.',
+        },
       },
       required: [],
     },
@@ -370,8 +441,14 @@ const tools = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        output: { type: 'string', description: 'Project-relative output path. Defaults to sdd.yaml.' },
-        force: { type: 'boolean', description: 'Overwrite an existing SDD file. Defaults to false.' },
+        output: {
+          type: 'string',
+          description: 'Project-relative output path. Defaults to sdd.yaml.',
+        },
+        force: {
+          type: 'boolean',
+          description: 'Overwrite an existing SDD file. Defaults to false.',
+        },
       },
       required: [],
     },
@@ -455,24 +532,29 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
           const runLogPathRef = { value: null as string | null };
           const runtimeInput = toRuntimeInput(args, options);
           const llmBackend = createAutoBackend(server, runtimeInput, projectRoot);
-          const result = await runFrontAgentTask(toRunOptions({
-            args,
-            defaults: options,
-            projectRoot,
-            llmBackend,
-            runLogPathRef,
-            onEvent: collectSecurityDecisions(events, securityDecisions),
-          }));
-          return textResult({
-            success: result.success,
-            taskId: result.taskId,
-            output: result.output,
-            error: result.error,
-            duration: result.duration,
-            runLogPath: runLogPathRef.value,
-            executedStepsSummary: summarizeExecutedSteps(result),
-            securityDecisions,
-          }, !result.success);
+          const result = await runFrontAgentTask(
+            toRunOptions({
+              args,
+              defaults: options,
+              projectRoot,
+              llmBackend,
+              runLogPathRef,
+              onEvent: collectSecurityDecisions(events, securityDecisions),
+            }),
+          );
+          return textResult(
+            {
+              success: result.success,
+              taskId: result.taskId,
+              output: result.output,
+              error: result.error,
+              duration: result.duration,
+              runLogPath: runLogPathRef.value,
+              executedStepsSummary: summarizeExecutedSteps(result),
+              securityDecisions,
+            },
+            !result.success,
+          );
         }
 
         case 'frontagent_plan_task': {
@@ -481,27 +563,37 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
           const runLogPathRef = { value: null as string | null };
           const runtimeInput = toRuntimeInput(args, options);
           const llmBackend = createAutoBackend(server, runtimeInput, projectRoot);
-          const result = await planFrontAgentTask(toRunOptions({
-            args,
-            defaults: options,
-            projectRoot,
-            llmBackend,
-            runLogPathRef,
-            onEvent: collectSecurityDecisions(events, securityDecisions),
-          }));
-          return textResult({
-            success: result.success,
-            taskId: result.taskId,
-            plan: result.plan,
-            error: result.error,
-            duration: result.duration,
-            runLogPath: runLogPathRef.value,
-            securityDecisions,
-          }, !result.success);
+          const result = await planFrontAgentTask(
+            toRunOptions({
+              args,
+              defaults: options,
+              projectRoot,
+              llmBackend,
+              runLogPathRef,
+              onEvent: collectSecurityDecisions(events, securityDecisions),
+            }),
+          );
+          return textResult(
+            {
+              success: result.success,
+              taskId: result.taskId,
+              plan: result.plan,
+              error: result.error,
+              duration: result.duration,
+              runLogPath: runLogPathRef.value,
+              securityDecisions,
+            },
+            !result.success,
+          );
         }
 
         case 'frontagent_validate_sdd': {
-          return textResult(validateSddConfig(projectRoot, stringValue(args.sddPath) ?? 'sdd.yaml') as unknown as ToolResultPayload);
+          return textResult(
+            validateSddConfig(
+              projectRoot,
+              stringValue(args.sddPath) ?? 'sdd.yaml',
+            ) as unknown as ToolResultPayload,
+          );
         }
 
         case 'frontagent_list_skills': {
@@ -520,28 +612,36 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
         }
 
         case 'frontagent_init_sdd': {
-          return textResult(initSddConfig(
-            projectRoot,
-            stringValue(args.output) ?? 'sdd.yaml',
-            { force: boolValue(args.force, false) },
-          ) as unknown as ToolResultPayload);
+          return textResult(
+            initSddConfig(projectRoot, stringValue(args.output) ?? 'sdd.yaml', {
+              force: boolValue(args.force, false),
+            }) as unknown as ToolResultPayload,
+          );
         }
 
         default:
-          return textResult({ success: false, error: `Unknown tool: ${request.params.name}` }, true);
+          return textResult(
+            { success: false, error: `Unknown tool: ${request.params.name}` },
+            true,
+          );
       }
     } catch (error) {
-      return textResult({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      }, true);
+      return textResult(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        true,
+      );
     }
   });
 
   return server;
 }
 
-export async function startFrontAgentMcpServer(options: FrontAgentMcpServerOptions = {}): Promise<void> {
+export async function startFrontAgentMcpServer(
+  options: FrontAgentMcpServerOptions = {},
+): Promise<void> {
   const server = createFrontAgentMcpServer(options);
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -550,6 +650,10 @@ export async function startFrontAgentMcpServer(options: FrontAgentMcpServerOptio
     await server.close();
     process.exit(0);
   };
-  process.on('SIGINT', () => { void close(); });
-  process.on('SIGTERM', () => { void close(); });
+  process.on('SIGINT', () => {
+    void close();
+  });
+  process.on('SIGTERM', () => {
+    void close();
+  });
 }

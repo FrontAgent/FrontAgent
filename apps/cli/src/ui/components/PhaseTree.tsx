@@ -1,7 +1,7 @@
-import { Box, Text, Static } from 'ink';
+import { Box, Static, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import type { Store, PhaseState, StepStatus } from '../store.js';
 import { useStoreSelector } from '../hooks.js';
+import type { PhaseState, StepStatus, Store } from '../store.js';
 
 interface PhaseTreeProps {
   store: Store;
@@ -23,7 +23,11 @@ const stepColor: Record<StepStatus, string> = {
   skipped: 'yellow',
 };
 
-function StepLine({ description, status, error }: {
+function StepLine({
+  description,
+  status,
+  error,
+}: {
   description: string;
   status: StepStatus;
   error?: string;
@@ -59,7 +63,8 @@ function StepLine({ description, status, error }: {
 
 function PhaseBlock({ phase }: { phase: PhaseState }) {
   const phaseIcon = phase.status === 'done' ? '◉' : phase.status === 'active' ? '◎' : '○';
-  const phaseColor = phase.status === 'done' ? 'green' : phase.status === 'active' ? 'cyan' : 'gray';
+  const phaseColor =
+    phase.status === 'done' ? 'green' : phase.status === 'active' ? 'cyan' : 'gray';
 
   return (
     <Box flexDirection="column" marginBottom={phase.status === 'active' ? 1 : 0}>
@@ -69,7 +74,8 @@ function PhaseBlock({ phase }: { phase: PhaseState }) {
         </Text>
         {phase.status === 'done' && (
           <Text dimColor>
-            {' '}({phase.steps.filter(s => s.status === 'completed').length}/{phase.steps.length})
+            {' '}
+            ({phase.steps.filter((s) => s.status === 'completed').length}/{phase.steps.length})
           </Text>
         )}
       </Box>
@@ -110,7 +116,10 @@ function ToolSummaryLine({ step }: { step: PhaseState['steps'][number] }) {
         <Text color={stepColor[step.status]}>{stepIcon[step.status]}</Text>
       )}
       <Text> </Text>
-      <Text color={step.status === 'failed' ? 'red' : undefined} dimColor={step.status === 'pending'}>
+      <Text
+        color={step.status === 'failed' ? 'red' : undefined}
+        dimColor={step.status === 'pending'}
+      >
         {formatToolCall(step)}
       </Text>
     </Box>
@@ -119,14 +128,16 @@ function ToolSummaryLine({ step }: { step: PhaseState['steps'][number] }) {
 
 function ToolSummary({ phases }: { phases: PhaseState[] }) {
   const visibleSteps = phases.flatMap((phase) =>
-    phase.steps.filter((step) => step.status !== 'pending')
+    phase.steps.filter((step) => step.status !== 'pending'),
   );
 
   if (visibleSteps.length === 0) return null;
 
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text color="cyan" bold>工具调用摘要</Text>
+      <Text color="cyan" bold>
+        工具调用摘要
+      </Text>
       {visibleSteps.map((step) => (
         <ToolSummaryLine key={step.stepId} step={step} />
       ))}
@@ -149,8 +160,8 @@ export function PhaseTree({ store }: PhaseTreeProps) {
     return <ToolSummary phases={phases} />;
   }
 
-  const completedPhases = phases.filter(p => p.status === 'done');
-  const livePhases = phases.filter(p => p.status !== 'done');
+  const completedPhases = phases.filter((p) => p.status === 'done');
+  const livePhases = phases.filter((p) => p.status !== 'done');
 
   return (
     <Box flexDirection="column">

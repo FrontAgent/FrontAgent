@@ -2,16 +2,21 @@
  * Checklist 评估引擎
  */
 
-import type { ChecklistEvaluator, ChecklistItem, ChecklistItemResult, ChecklistResult } from './types.js';
+import type {
+  ChecklistEvaluator,
+  ChecklistItem,
+  ChecklistItemResult,
+  ChecklistResult,
+} from './types.js';
 
 export class ChecklistValidator {
   evaluate(
     checklistId: string,
     items: ChecklistItem[],
     content: string,
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
   ): ChecklistResult {
-    const results: ChecklistItemResult[] = items.map(item => {
+    const results: ChecklistItemResult[] = items.map((item) => {
       const passed = this.evaluateItem(item.evaluator, content, context);
       return {
         itemId: item.id,
@@ -22,11 +27,10 @@ export class ChecklistValidator {
       };
     });
 
-    const requiredResults = results.filter(r => r.required);
-    const allRequiredPassed = requiredResults.every(r => r.passed);
-    const passRate = results.length > 0
-      ? results.filter(r => r.passed).length / results.length
-      : 1;
+    const requiredResults = results.filter((r) => r.required);
+    const allRequiredPassed = requiredResults.every((r) => r.passed);
+    const passRate =
+      results.length > 0 ? results.filter((r) => r.passed).length / results.length : 1;
 
     return {
       checklistId,
@@ -40,7 +44,7 @@ export class ChecklistValidator {
   private evaluateItem(
     evaluator: ChecklistEvaluator,
     content: string,
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
   ): boolean {
     switch (evaluator.type) {
       case 'regex': {
@@ -51,8 +55,8 @@ export class ChecklistValidator {
 
       case 'keyword_presence': {
         const minMatches = evaluator.minMatches ?? 1;
-        const matches = evaluator.keywords.filter(kw =>
-          content.toLowerCase().includes(kw.toLowerCase())
+        const matches = evaluator.keywords.filter((kw) =>
+          content.toLowerCase().includes(kw.toLowerCase()),
         );
         return matches.length >= minMatches;
       }
@@ -60,7 +64,7 @@ export class ChecklistValidator {
       case 'section_exists': {
         const headingPattern = new RegExp(
           `^#{1,4}\\s+.*${this.escapeRegex(evaluator.heading)}`,
-          'im'
+          'im',
         );
         return headingPattern.test(content);
       }

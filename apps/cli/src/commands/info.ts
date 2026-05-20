@@ -1,13 +1,13 @@
-import chalk from 'chalk';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import chalk from 'chalk';
 import { getCliVersion } from '../version.js';
 
 export default async function infoCommand() {
   console.log(chalk.cyan('\n🤖 FrontAgent 系统信息\n'));
   console.log(chalk.gray(`版本: ${getCliVersion()}`));
-  console.log(chalk.gray('运行时: Node.js ' + process.version));
-  console.log(chalk.gray('工作目录: ' + process.cwd()));
+  console.log(chalk.gray(`运行时: Node.js ${process.version}`));
+  console.log(chalk.gray(`工作目录: ${process.cwd()}`));
 
   const sddPath = resolve(process.cwd(), 'sdd.yaml');
   if (existsSync(sddPath)) {
@@ -18,8 +18,10 @@ export default async function infoCommand() {
 
   console.log(chalk.cyan('\n🤖 LLM 配置:'));
   const provider = process.env.PROVIDER || 'anthropic';
-  const model = process.env.MODEL || (provider === 'openai' ? 'gpt-4-turbo' : 'claude-3-5-sonnet-20241022');
-  const baseUrl = process.env[`${provider.toUpperCase()}_BASE_URL`] || process.env.BASE_URL || '(使用默认)';
+  const model =
+    process.env.MODEL || (provider === 'openai' ? 'gpt-4-turbo' : 'claude-3-5-sonnet-20241022');
+  const baseUrl =
+    process.env[`${provider.toUpperCase()}_BASE_URL`] || process.env.BASE_URL || '(使用默认)';
   const apiKey = process.env[`${provider.toUpperCase()}_API_KEY`] || process.env.API_KEY;
 
   console.log(chalk.gray(`  Provider: ${provider}`));

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SkillContentLoader } from './loader.js';
+import type { SkillContentLoader } from './loader.js';
 import type {
   SkillContentResolverConfig,
   SkillManifest,
@@ -39,10 +39,7 @@ export class SkillContentResolver {
   private readonly loader: SkillContentLoader;
   private readonly config: Required<SkillContentResolverConfig>;
 
-  constructor(
-    loader: SkillContentLoader,
-    config: SkillContentResolverConfig = {},
-  ) {
+  constructor(loader: SkillContentLoader, config: SkillContentResolverConfig = {}) {
     this.loader = loader;
     this.config = {
       maxImplicitMatches: config.maxImplicitMatches ?? 1,
@@ -102,7 +99,9 @@ export class SkillContentResolver {
   }
 
   private resolveExplicitMatch(manifest: SkillManifest, normalizedTask: string): SkillMatch | null {
-    const matchedTerms = manifest.triggers.explicit.filter((alias) => containsAlias(normalizedTask, alias));
+    const matchedTerms = manifest.triggers.explicit.filter((alias) =>
+      containsAlias(normalizedTask, alias),
+    );
     if (matchedTerms.length === 0) {
       return null;
     }
@@ -166,9 +165,10 @@ export class SkillContentResolver {
 
     for (const referencePath of referencedFiles) {
       const raw = readFileSync(referencePath, 'utf-8').trim();
-      const truncated = raw.length > this.config.maxCharsPerFile
-        ? `${raw.slice(0, this.config.maxCharsPerFile)}\n...`
-        : raw;
+      const truncated =
+        raw.length > this.config.maxCharsPerFile
+          ? `${raw.slice(0, this.config.maxCharsPerFile)}\n...`
+          : raw;
       loadedFiles.push(referencePath);
       promptSections.push(`### Reference: ${referencePath}`);
       promptSections.push(truncated);

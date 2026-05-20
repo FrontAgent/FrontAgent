@@ -2,20 +2,20 @@
  * Agent Core 类型定义
  */
 
-import type { z } from 'zod';
+import type { VerificationPolicy, WorkflowConfig } from '@frontagent/sdd';
 import type {
-  ApprovalRequest,
   AgentTask,
+  ApprovalRequest,
   ExecutionPlan,
   ExecutionStep,
-  StepResult,
   SDDConfig,
   SecurityConfig,
   SecurityDecision,
-  ValidationResult
+  StepResult,
+  ValidationResult,
 } from '@frontagent/shared';
+import type { z } from 'zod';
 import type { MemoryConfig } from './memory/types.js';
-import type { WorkflowConfig, VerificationPolicy } from '@frontagent/sdd';
 
 /**
  * Agent 配置

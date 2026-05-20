@@ -53,27 +53,21 @@ export class ConsistencyAnalyzer {
     }
 
     // Extract requirements from spec
-    const requirements = input.specContent
-      ? this.extractRequirements(input.specContent)
-      : [];
+    const requirements = input.specContent ? this.extractRequirements(input.specContent) : [];
 
     // Extract plan coverage
-    const planCoverage = input.planContent
-      ? this.extractCoveredTopics(input.planContent)
-      : [];
+    const planCoverage = input.planContent ? this.extractCoveredTopics(input.planContent) : [];
 
     // Extract task coverage
-    const taskCoverage = input.tasksContent
-      ? this.extractCoveredTopics(input.tasksContent)
-      : [];
+    const taskCoverage = input.tasksContent ? this.extractCoveredTopics(input.tasksContent) : [];
 
     // Check for uncovered requirements
     let coveredByPlan = 0;
     let coveredByTasks = 0;
 
     for (const req of requirements) {
-      const inPlan = planCoverage.some(topic => this.topicCovers(topic, req));
-      const inTasks = taskCoverage.some(topic => this.topicCovers(topic, req));
+      const inPlan = planCoverage.some((topic) => this.topicCovers(topic, req));
+      const inTasks = taskCoverage.some((topic) => this.topicCovers(topic, req));
 
       if (inPlan) coveredByPlan++;
       if (inTasks) coveredByTasks++;
@@ -89,12 +83,11 @@ export class ConsistencyAnalyzer {
       }
     }
 
-    const ratio = requirements.length > 0
-      ? Math.max(coveredByPlan, coveredByTasks) / requirements.length
-      : 1;
+    const ratio =
+      requirements.length > 0 ? Math.max(coveredByPlan, coveredByTasks) / requirements.length : 1;
 
     return {
-      consistent: issues.filter(i => i.severity === 'error').length === 0,
+      consistent: issues.filter((i) => i.severity === 'error').length === 0,
       issues,
       coverage: {
         specRequirements: requirements.length,
@@ -147,7 +140,7 @@ export class ConsistencyAnalyzer {
 
     if (reqWords.length === 0) return false;
 
-    const overlap = reqWords.filter(w => topicWords.includes(w));
+    const overlap = reqWords.filter((w) => topicWords.includes(w));
     return overlap.length / reqWords.length >= 0.4;
   }
 
@@ -156,7 +149,7 @@ export class ConsistencyAnalyzer {
       .toLowerCase()
       .replace(/[^a-z0-9一-鿿\s]/g, ' ')
       .split(/\s+/)
-      .filter(w => w.length > 2);
+      .filter((w) => w.length > 2);
   }
 }
 

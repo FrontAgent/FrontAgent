@@ -42,7 +42,7 @@ export function generateClarifyPrompt(specContent: string, state: WorkflowState)
     'For each question:',
     '- State what is unclear or missing',
     '- Explain why it matters for implementation',
-    '- Suggest a default if the user doesn\'t answer',
+    "- Suggest a default if the user doesn't answer",
   ];
 
   return parts.join('\n');
@@ -71,7 +71,10 @@ export function parseClarifyQuestions(llmResponse: string): ClarifyQuestion[] {
 
 export function isResolved(llmResponse: string): boolean {
   const normalized = llmResponse.toLowerCase();
-  return normalized.includes('no further clarification') || normalized.includes('clear enough to proceed');
+  return (
+    normalized.includes('no further clarification') ||
+    normalized.includes('clear enough to proceed')
+  );
 }
 
 export function applyAnswersToSpec(specContent: string, answers: ClarifyAnswer[]): string {
@@ -80,8 +83,8 @@ export function applyAnswersToSpec(specContent: string, answers: ClarifyAnswer[]
   const clarificationSection = [
     '',
     '## Clarifications',
-    ...answers.map(a => `- **${a.questionId}**: ${a.answer}`),
+    ...answers.map((a) => `- **${a.questionId}**: ${a.answer}`),
   ].join('\n');
 
-  return specContent + '\n' + clarificationSection;
+  return `${specContent}\n${clarificationSection}`;
 }

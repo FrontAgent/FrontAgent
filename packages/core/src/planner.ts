@@ -3,25 +3,25 @@
  * 负责任务分解和执行计划生成
  */
 
+import { SDDPromptGenerator } from '@frontagent/sdd';
 import type {
   AgentTask,
   ExecutionPlan,
   ExecutionStep,
-  SDDConfig,
   RollbackStrategy,
-  ValidationRule
+  SDDConfig,
+  ValidationRule,
 } from '@frontagent/shared';
 import { generateId } from '@frontagent/shared';
-import { SDDPromptGenerator } from '@frontagent/sdd';
-import type { PlannerOutput, ContextRequest, LLMConfig, Message } from './types.js';
-import { LLMService, type GeneratedPlan } from './llm.js';
+import { type GeneratedPlan, LLMService } from './llm.js';
 import {
-  createDefaultPlannerSkillRegistry,
   type PhaseInjectionSkill,
   type PlannerContextSnapshot,
   type PlannerSkillsLayerSnapshot,
   type TaskPlanningSkill,
+  createDefaultPlannerSkillRegistry,
 } from './skills/index.js';
+import type { ContextRequest, LLMConfig, Message, PlannerOutput } from './types.js';
 
 /**
  * Planner 配置
@@ -58,8 +58,8 @@ export class Planner {
     this.config = {
       ...config,
       // 移除步骤数上限，允许生成任意数量的步骤
-      maxSteps: config.maxSteps ?? Infinity,
-      useLLM: config.useLLM ?? true
+      maxSteps: config.maxSteps ?? Number.POSITIVE_INFINITY,
+      useLLM: config.useLLM ?? true,
     };
     this.llmService = new LLMService(config.llm);
 
@@ -74,7 +74,7 @@ export class Planner {
   async plan(
     task: AgentTask,
     context: PlannerContextSnapshot,
-    messages: Message[]
+    messages: Message[],
   ): Promise<PlannerOutput> {
     this.fallbackReason = undefined;
 
@@ -84,7 +84,7 @@ export class Planner {
     if (contextRequests.length > 0) {
       return {
         needsMoreContext: true,
-        contextRequests
+        contextRequests,
       };
     }
 
@@ -94,24 +94,21 @@ export class Planner {
     if (!plan) {
       return {
         needsMoreContext: false,
-        rejectionReason: '无法生成有效的执行计划'
+        rejectionReason: '无法生成有效的执行计划',
       };
     }
 
     return {
       needsMoreContext: false,
       plan,
-      fallbackReason: this.fallbackReason
+      fallbackReason: this.fallbackReason,
     };
   }
 
   /**
    * 分析任务需要的上下文
    */
-  private analyzeContextNeeds(
-    task: AgentTask,
-    context: PlannerContextSnapshot
-  ): ContextRequest[] {
+  private analyzeContextNeeds(task: AgentTask, context: PlannerContextSnapshot): ContextRequest[] {
     const requests: ContextRequest[] = [];
 
     // 如果任务涉及修改文件，但文件还没读取
@@ -121,7 +118,7 @@ export class Planner {
         if (!context.files.has(file)) {
           requests.push({
             type: 'read_file',
-            params: { path: file }
+            params: { path: file },
           });
         }
       }
@@ -131,7 +128,7 @@ export class Planner {
     if (task.context?.browserUrl && !context.pageStructure) {
       requests.push({
         type: 'get_page',
-        params: { url: task.context.browserUrl }
+        params: { url: task.context.browserUrl },
       });
     }
 
@@ -144,7 +141,7 @@ export class Planner {
   private async generatePlan(
     task: AgentTask,
     context: PlannerContextSnapshot,
-    _messages: Message[]
+    _messages: Message[],
   ): Promise<ExecutionPlan | null> {
     let steps: ExecutionStep[];
 
@@ -169,9 +166,14 @@ export class Planner {
     }
 
     // 在验收阶段之后追加仓库管理阶段（仅在有代码变更步骤时启用）
-    steps = this.skills.injectPhaseSteps(task, steps, {
-      createStep: (options) => this.createStep(options),
-    }, context.filesense);
+    steps = this.skills.injectPhaseSteps(
+      task,
+      steps,
+      {
+        createStep: (options) => this.createStep(options),
+      },
+      context.filesense,
+    );
 
     if (steps.length === 0) {
       return null;
@@ -182,7 +184,7 @@ export class Planner {
       summary: this.generatePlanSummary(task, steps),
       steps: steps,
       rollbackStrategy: this.determineRollbackStrategy(task),
-      estimatedDuration: this.estimateDuration(steps)
+      estimatedDuration: this.estimateDuration(steps),
     };
 
     return plan;
@@ -193,7 +195,7 @@ export class Planner {
    */
   private async generatePlanWithLLM(
     task: AgentTask,
-    context: PlannerContextSnapshot
+    context: PlannerContextSnapshot,
   ): Promise<GeneratedPlan> {
     // 构建上下文字符串
     const contextParts: string[] = [];
@@ -209,16 +211,17 @@ export class Planner {
     // 🔧 优化：添加项目文件结构，帮助 LLM 生成正确的文件路径
     if (context.projectStructure) {
       contextParts.push(`\n${context.projectStructure}`);
-      contextParts.push('\n⚠️ 重要提示：请只操作上述列出的文件！如果需要读取或修改文件，请使用列表中存在的路径。');
+      contextParts.push(
+        '\n⚠️ 重要提示：请只操作上述列出的文件！如果需要读取或修改文件，请使用列表中存在的路径。',
+      );
     }
 
     // 添加相关文件内容
     if (context.files.size > 0) {
       contextParts.push('\n已读取的文件:');
       for (const [path, content] of context.files) {
-        const truncatedContent = content.length > 2000
-          ? content.substring(0, 2000) + '\n... (内容已截断)'
-          : content;
+        const truncatedContent =
+          content.length > 2000 ? `${content.substring(0, 2000)}\n... (内容已截断)` : content;
         contextParts.push(`\n--- ${path} ---\n${truncatedContent}`);
       }
     }
@@ -241,8 +244,12 @@ export class Planner {
       }
       contextParts.push('\n⚠️ 重要提示：优先参考上述知识库结果中的路径、提交和经验总结。');
       contextParts.push('⚠️ 上述知识库结果来自远程 RAG，不等同于当前工作区里的本地文件。');
-      contextParts.push('⚠️ 不要为知识库结果生成 read_file/list_directory 步骤，也不要把其中的 path 当作当前仓库可直接读取的文件路径。');
-      contextParts.push('⚠️ 对知识库结果的使用方式是：将其作为回答证据或实现参考，而不是再次读取本地文件。');
+      contextParts.push(
+        '⚠️ 不要为知识库结果生成 read_file/list_directory 步骤，也不要把其中的 path 当作当前仓库可直接读取的文件路径。',
+      );
+      contextParts.push(
+        '⚠️ 对知识库结果的使用方式是：将其作为回答证据或实现参考，而不是再次读取本地文件。',
+      );
     }
 
     // 添加浏览器 URL
@@ -260,7 +267,9 @@ export class Planner {
     const sddConstraints = this.promptGenerator?.generate();
 
     if (sddConstraints) {
-      contextParts.push('\n⚠️ 重要提示：SDD约束已经在下方的"SDD约束"部分提供，无需再读取 sdd.yaml 文件！');
+      contextParts.push(
+        '\n⚠️ 重要提示：SDD约束已经在下方的"SDD约束"部分提供，无需再读取 sdd.yaml 文件！',
+      );
     }
 
     // Zone 2: inject cross-session memory as a distinct block
@@ -289,9 +298,14 @@ export class Planner {
       const action = this.mapLLMAction(llmStep.action);
 
       const previousStep = steps[i - 1];
-      const dependencies = previousStep && !(
-        this.isReadOnlyPlanningAction(previousStep.action) && this.isReadOnlyPlanningAction(action)
-      ) ? [previousStep.stepId] : [];
+      const dependencies =
+        previousStep &&
+        !(
+          this.isReadOnlyPlanningAction(previousStep.action) &&
+          this.isReadOnlyPlanningAction(action)
+        )
+          ? [previousStep.stepId]
+          : [];
 
       const step: ExecutionStep = {
         stepId: generateId('step'),
@@ -303,7 +317,7 @@ export class Planner {
         validation: this.getDefaultValidation(action),
         status: 'pending',
         // 保留 phase 字段
-        phase: llmStep.phase
+        phase: llmStep.phase,
       };
 
       steps.push(step);
@@ -321,18 +335,18 @@ export class Planner {
    */
   private mapLLMAction(action: string): ExecutionStep['action'] {
     const actionMap: Record<string, ExecutionStep['action']> = {
-      'read_file': 'read_file',
-      'list_directory': 'list_directory',
-      'create_file': 'create_file',
-      'apply_patch': 'apply_patch',
-      'search_code': 'search_code',
-      'get_ast': 'get_ast',
-      'run_command': 'run_command',
-      'browser_navigate': 'browser_navigate',
-      'get_page_structure': 'get_page_structure',
-      'browser_click': 'browser_click',
-      'browser_type': 'browser_type',
-      'browser_screenshot': 'browser_screenshot',
+      read_file: 'read_file',
+      list_directory: 'list_directory',
+      create_file: 'create_file',
+      apply_patch: 'apply_patch',
+      search_code: 'search_code',
+      get_ast: 'get_ast',
+      run_command: 'run_command',
+      browser_navigate: 'browser_navigate',
+      get_page_structure: 'get_page_structure',
+      browser_click: 'browser_click',
+      browser_type: 'browser_type',
+      browser_screenshot: 'browser_screenshot',
     };
 
     return actionMap[action] ?? 'read_file';
@@ -347,12 +361,10 @@ export class Planner {
       case 'apply_patch':
         return [
           { type: 'syntax_valid', required: true },
-          { type: 'sdd_compliant', required: true }
+          { type: 'sdd_compliant', required: true },
         ];
       case 'read_file':
-        return [
-          { type: 'file_exists', required: true }
-        ];
+        return [{ type: 'file_exists', required: true }];
       default:
         return [];
     }
@@ -361,7 +373,10 @@ export class Planner {
   /**
    * 在验收阶段成功后追加仓库管理阶段（Git + GitHub CLI）
    */
-  private injectRepositoryManagementPhase(task: AgentTask, steps: ExecutionStep[]): ExecutionStep[] {
+  private injectRepositoryManagementPhase(
+    task: AgentTask,
+    steps: ExecutionStep[],
+  ): ExecutionStep[] {
     if (!this.shouldInjectRepositoryManagementPhase(task, steps)) {
       return steps;
     }
@@ -384,7 +399,9 @@ export class Planner {
    */
   private shouldInjectRepositoryManagementPhase(task: AgentTask, steps: ExecutionStep[]): boolean {
     // 仅在存在代码落盘步骤时启用（create_file / apply_patch）
-    const hasCodeChanges = steps.some(step => step.action === 'create_file' || step.action === 'apply_patch');
+    const hasCodeChanges = steps.some(
+      (step) => step.action === 'create_file' || step.action === 'apply_patch',
+    );
     if (!hasCodeChanges) {
       return false;
     }
@@ -401,11 +418,10 @@ export class Planner {
    * 检测计划中是否已有仓库管理阶段
    */
   private hasRepositoryManagementPhase(steps: ExecutionStep[]): boolean {
-    return steps.some(step => {
+    return steps.some((step) => {
       const phase = (step.phase ?? '').toLowerCase();
-      const command = typeof step.params.command === 'string'
-        ? step.params.command.toLowerCase()
-        : '';
+      const command =
+        typeof step.params.command === 'string' ? step.params.command.toLowerCase() : '';
 
       return (
         phase.includes('仓库管理') ||
@@ -422,9 +438,7 @@ export class Planner {
    * 收集验收阶段步骤 ID。仓库管理步骤会依赖这些步骤，确保验收成功后才执行。
    */
   private collectAcceptanceStepIds(steps: ExecutionStep[]): string[] {
-    return steps
-      .filter(step => this.isAcceptanceStep(step))
-      .map(step => step.stepId);
+    return steps.filter((step) => this.isAcceptanceStep(step)).map((step) => step.stepId);
   }
 
   /**
@@ -433,9 +447,8 @@ export class Planner {
   private isAcceptanceStep(step: ExecutionStep): boolean {
     const phase = (step.phase ?? '').toLowerCase();
     const action = step.action;
-    const command = typeof step.params.command === 'string'
-      ? step.params.command.toLowerCase()
-      : '';
+    const command =
+      typeof step.params.command === 'string' ? step.params.command.toLowerCase() : '';
 
     if (
       phase.includes('验收') ||
@@ -482,9 +495,10 @@ export class Planner {
       tool: 'run_command',
       phase,
       params: {
-        command: 'git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Skip repo management: not a git repository"; exit 0; }; command -v gh >/dev/null 2>&1 || { echo "Skip repo management: gh CLI not installed"; exit 0; }; gh auth status >/dev/null 2>&1 || { echo "Skip repo management: gh not authenticated"; exit 0; }; if [ -z "$(git status --porcelain)" ]; then echo "Skip repo management: no file changes"; exit 0; fi; echo "Repo management precheck passed"',
+        command:
+          'git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Skip repo management: not a git repository"; exit 0; }; command -v gh >/dev/null 2>&1 || { echo "Skip repo management: gh CLI not installed"; exit 0; }; gh auth status >/dev/null 2>&1 || { echo "Skip repo management: gh not authenticated"; exit 0; }; if [ -z "$(git status --porcelain)" ]; then echo "Skip repo management: no file changes"; exit 0; fi; echo "Repo management precheck passed"',
       },
-      dependencies: acceptanceStepIds
+      dependencies: acceptanceStepIds,
     });
 
     const ensureBranch = this.createStep({
@@ -493,9 +507,10 @@ export class Planner {
       tool: 'run_command',
       phase,
       params: {
-        command: 'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "HEAD" ]; then new_branch="codex/auto-$(date +%Y%m%d-%H%M%S)"; git switch -c "$new_branch"; branch="$new_branch"; fi; case "$branch" in codex/*) ;; *) target_branch="codex/${branch}"; git switch -c "$target_branch" 2>/dev/null || git switch "$target_branch"; branch="$target_branch";; esac; echo "Using branch: $branch"',
+        command:
+          'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "HEAD" ]; then new_branch="codex/auto-$(date +%Y%m%d-%H%M%S)"; git switch -c "$new_branch"; branch="$new_branch"; fi; case "$branch" in codex/*) ;; *) target_branch="codex/${branch}"; git switch -c "$target_branch" 2>/dev/null || git switch "$target_branch"; branch="$target_branch";; esac; echo "Using branch: $branch"',
       },
-      dependencies: [precheck.stepId]
+      dependencies: [precheck.stepId],
     });
 
     const commit = this.createStep({
@@ -504,9 +519,10 @@ export class Planner {
       tool: 'run_command',
       phase,
       params: {
-        command: 'git add -A; if git diff --cached --quiet; then echo "No staged changes, skip commit"; exit 0; fi; git commit -m "chore: automate repository management after acceptance"',
+        command:
+          'git add -A; if git diff --cached --quiet; then echo "No staged changes, skip commit"; exit 0; fi; git commit -m "chore: automate repository management after acceptance"',
       },
-      dependencies: [ensureBranch.stepId]
+      dependencies: [ensureBranch.stepId],
     });
 
     const push = this.createStep({
@@ -515,9 +531,10 @@ export class Planner {
       tool: 'run_command',
       phase,
       params: {
-        command: 'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "HEAD" ]; then echo "Skip push: detached HEAD"; exit 0; fi; git remote get-url origin >/dev/null 2>&1 || { echo "Skip push: missing origin remote"; exit 0; }; git push -u origin "$branch"',
+        command:
+          'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "HEAD" ]; then echo "Skip push: detached HEAD"; exit 0; fi; git remote get-url origin >/dev/null 2>&1 || { echo "Skip push: missing origin remote"; exit 0; }; git push -u origin "$branch"',
       },
-      dependencies: [commit.stepId]
+      dependencies: [commit.stepId],
     });
 
     const managePr = this.createStep({
@@ -526,9 +543,10 @@ export class Planner {
       tool: 'run_command',
       phase,
       params: {
-        command: 'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "HEAD" ]; then echo "Skip PR: detached HEAD"; exit 0; fi; command -v gh >/dev/null 2>&1 || { echo "Skip PR: gh CLI not installed"; exit 0; }; gh auth status >/dev/null 2>&1 || { echo "Skip PR: gh not authenticated"; exit 0; }; if gh pr view "$branch" >/dev/null 2>&1; then gh pr edit "$branch" --title "chore: automated update by FrontAgent" --body "Automated PR update after acceptance phase passed."; else gh pr create --head "$branch" --title "chore: automated update by FrontAgent" --body "Automated PR created by FrontAgent after acceptance phase passed."; fi',
+        command:
+          'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "HEAD" ]; then echo "Skip PR: detached HEAD"; exit 0; fi; command -v gh >/dev/null 2>&1 || { echo "Skip PR: gh CLI not installed"; exit 0; }; gh auth status >/dev/null 2>&1 || { echo "Skip PR: gh not authenticated"; exit 0; }; if gh pr view "$branch" >/dev/null 2>&1; then gh pr edit "$branch" --title "chore: automated update by FrontAgent" --body "Automated PR update after acceptance phase passed."; else gh pr create --head "$branch" --title "chore: automated update by FrontAgent" --body "Automated PR created by FrontAgent after acceptance phase passed."; fi',
       },
-      dependencies: [push.stepId]
+      dependencies: [push.stepId],
     });
 
     return [precheck, ensureBranch, commit, push, managePr];
@@ -537,10 +555,7 @@ export class Planner {
   /**
    * 根据任务类型生成步骤
    */
-  private generateStepsForTask(
-    task: AgentTask,
-    context: PlannerContextSnapshot
-  ): ExecutionStep[] {
+  private generateStepsForTask(task: AgentTask, context: PlannerContextSnapshot): ExecutionStep[] {
     return this.skills.generateTaskSteps(task, context, {
       createStep: (options) => this.createStep(options),
     });
@@ -554,26 +569,30 @@ export class Planner {
     const targetPath = task.context?.relevantFiles?.[0] ?? 'src/new-file.ts';
 
     // 1. 检查目标路径是否已存在
-    steps.push(this.createStep({
-      description: `检查目标路径 ${targetPath} 是否已存在`,
-      action: 'read_file',
-      tool: 'read_file',
-      params: { path: targetPath },
-      validation: [{ type: 'file_exists', required: false }]
-    }));
+    steps.push(
+      this.createStep({
+        description: `检查目标路径 ${targetPath} 是否已存在`,
+        action: 'read_file',
+        tool: 'read_file',
+        params: { path: targetPath },
+        validation: [{ type: 'file_exists', required: false }],
+      }),
+    );
 
     // 2. 创建文件
-    steps.push(this.createStep({
-      description: `创建文件 ${targetPath}`,
-      action: 'create_file',
-      tool: 'create_file',
-      params: { path: targetPath, codeDescription: task.description },
-      dependencies: [steps[0].stepId],
-      validation: [
-        { type: 'syntax_valid', required: true },
-        { type: 'sdd_compliant', required: true }
-      ]
-    }));
+    steps.push(
+      this.createStep({
+        description: `创建文件 ${targetPath}`,
+        action: 'create_file',
+        tool: 'create_file',
+        params: { path: targetPath, codeDescription: task.description },
+        dependencies: [steps[0].stepId],
+        validation: [
+          { type: 'syntax_valid', required: true },
+          { type: 'sdd_compliant', required: true },
+        ],
+      }),
+    );
 
     return steps;
   }
@@ -581,46 +600,49 @@ export class Planner {
   /**
    * 生成修改任务的步骤
    */
-  private generateModifySteps(
-    task: AgentTask,
-    context: PlannerContextSnapshot
-  ): ExecutionStep[] {
+  private generateModifySteps(task: AgentTask, context: PlannerContextSnapshot): ExecutionStep[] {
     const steps: ExecutionStep[] = [];
     const targetFiles = task.context?.relevantFiles ?? [];
 
     for (const file of targetFiles) {
       // 1. 读取文件（如果还没读取）
       if (!context.files.has(file)) {
-        steps.push(this.createStep({
-          description: `读取文件 ${file}`,
-          action: 'read_file',
-          tool: 'read_file',
-          params: { path: file },
-          validation: [{ type: 'file_exists', required: true }]
-        }));
+        steps.push(
+          this.createStep({
+            description: `读取文件 ${file}`,
+            action: 'read_file',
+            tool: 'read_file',
+            params: { path: file },
+            validation: [{ type: 'file_exists', required: true }],
+          }),
+        );
       }
 
       // 2. 获取 AST 分析
-      steps.push(this.createStep({
-        description: `分析文件结构 ${file}`,
-        action: 'get_ast',
-        tool: 'get_ast',
-        params: { path: file },
-        dependencies: steps.length > 0 ? [steps[steps.length - 1].stepId] : []
-      }));
+      steps.push(
+        this.createStep({
+          description: `分析文件结构 ${file}`,
+          action: 'get_ast',
+          tool: 'get_ast',
+          params: { path: file },
+          dependencies: steps.length > 0 ? [steps[steps.length - 1].stepId] : [],
+        }),
+      );
 
       // 3. 应用补丁
-      steps.push(this.createStep({
-        description: `修改文件 ${file}`,
-        action: 'apply_patch',
-        tool: 'apply_patch',
-        params: { path: file, patches: [] }, // 补丁由 Executor 生成
-        dependencies: [steps[steps.length - 1].stepId],
-        validation: [
-          { type: 'syntax_valid', required: true },
-          { type: 'sdd_compliant', required: true }
-        ]
-      }));
+      steps.push(
+        this.createStep({
+          description: `修改文件 ${file}`,
+          action: 'apply_patch',
+          tool: 'apply_patch',
+          params: { path: file, patches: [] }, // 补丁由 Executor 生成
+          dependencies: [steps[steps.length - 1].stepId],
+          validation: [
+            { type: 'syntax_valid', required: true },
+            { type: 'sdd_compliant', required: true },
+          ],
+        }),
+      );
     }
 
     return steps;
@@ -634,14 +656,16 @@ export class Planner {
     const relevantFiles = task.context?.relevantFiles ?? [];
 
     for (const file of relevantFiles) {
-      steps.push(this.createStep({
-        description: `读取文件 ${file}`,
-        action: 'read_file',
-        tool: 'read_file',
-        params: { path: file },
-        validation: [{ type: 'file_exists', required: true }],
-        phase: '阶段1-分析',
-      }));
+      steps.push(
+        this.createStep({
+          description: `读取文件 ${file}`,
+          action: 'read_file',
+          tool: 'read_file',
+          params: { path: file },
+          validation: [{ type: 'file_exists', required: true }],
+          phase: '阶段1-分析',
+        }),
+      );
     }
 
     if (task.context?.browserUrl) {
@@ -655,24 +679,28 @@ export class Planner {
       });
       steps.push(navigateStep);
 
-      steps.push(this.createStep({
-        description: '读取页面结构作为回答证据',
-        action: 'get_page_structure',
-        tool: 'get_page_structure',
-        params: {},
-        dependencies: [navigateStep.stepId],
-        phase: '阶段1-分析',
-      }));
+      steps.push(
+        this.createStep({
+          description: '读取页面结构作为回答证据',
+          action: 'get_page_structure',
+          tool: 'get_page_structure',
+          params: {},
+          dependencies: [navigateStep.stepId],
+          phase: '阶段1-分析',
+        }),
+      );
     }
 
     if (steps.length === 0) {
-      steps.push(this.createStep({
-        description: '搜索相关代码',
-        action: 'search_code',
-        tool: 'search_code',
-        params: { query: task.description, maxResults: 20 },
-        phase: '阶段1-分析',
-      }));
+      steps.push(
+        this.createStep({
+          description: '搜索相关代码',
+          action: 'search_code',
+          tool: 'search_code',
+          params: { query: task.description, maxResults: 20 },
+          phase: '阶段1-分析',
+        }),
+      );
     }
 
     return steps;
@@ -681,32 +709,33 @@ export class Planner {
   /**
    * 生成调试任务的步骤
    */
-  private generateDebugSteps(
-    task: AgentTask,
-    context: PlannerContextSnapshot
-  ): ExecutionStep[] {
+  private generateDebugSteps(task: AgentTask, context: PlannerContextSnapshot): ExecutionStep[] {
     const steps: ExecutionStep[] = [];
     const relevantFiles = task.context?.relevantFiles ?? [];
 
     // 1. 读取相关文件
     for (const file of relevantFiles) {
       if (!context.files.has(file)) {
-        steps.push(this.createStep({
-          description: `读取文件 ${file}`,
-          action: 'read_file',
-          tool: 'read_file',
-          params: { path: file }
-        }));
+        steps.push(
+          this.createStep({
+            description: `读取文件 ${file}`,
+            action: 'read_file',
+            tool: 'read_file',
+            params: { path: file },
+          }),
+        );
       }
     }
 
     // 2. 搜索错误相关代码
-    steps.push(this.createStep({
-      description: '搜索错误相关代码',
-      action: 'search_code',
-      tool: 'search_code',
-      params: { query: task.description }
-    }));
+    steps.push(
+      this.createStep({
+        description: '搜索错误相关代码',
+        action: 'search_code',
+        tool: 'search_code',
+        params: { query: task.description },
+      }),
+    );
 
     return steps;
   }
@@ -714,10 +743,7 @@ export class Planner {
   /**
    * 生成重构任务的步骤
    */
-  private generateRefactorSteps(
-    task: AgentTask,
-    context: PlannerContextSnapshot
-  ): ExecutionStep[] {
+  private generateRefactorSteps(task: AgentTask, context: PlannerContextSnapshot): ExecutionStep[] {
     // 重构步骤类似修改，但可能涉及多个文件
     return this.generateModifySteps(task, context);
   }
@@ -730,28 +756,34 @@ export class Planner {
 
     // 如果涉及 Web 测试
     if (task.context?.browserUrl) {
-      steps.push(this.createStep({
-        description: '导航到测试页面',
-        action: 'browser_navigate',
-        tool: 'browser_navigate',
-        params: { url: task.context.browserUrl }
-      }));
+      steps.push(
+        this.createStep({
+          description: '导航到测试页面',
+          action: 'browser_navigate',
+          tool: 'browser_navigate',
+          params: { url: task.context.browserUrl },
+        }),
+      );
 
-      steps.push(this.createStep({
-        description: '获取页面结构',
-        action: 'get_page_structure',
-        tool: 'get_page_structure',
-        params: {},
-        dependencies: [steps[0].stepId]
-      }));
+      steps.push(
+        this.createStep({
+          description: '获取页面结构',
+          action: 'get_page_structure',
+          tool: 'get_page_structure',
+          params: {},
+          dependencies: [steps[0].stepId],
+        }),
+      );
 
-      steps.push(this.createStep({
-        description: '截取页面截图',
-        action: 'browser_screenshot',
-        tool: 'browser_screenshot',
-        params: {},
-        dependencies: [steps[1].stepId]
-      }));
+      steps.push(
+        this.createStep({
+          description: '截取页面截图',
+          action: 'browser_screenshot',
+          tool: 'browser_screenshot',
+          params: {},
+          dependencies: [steps[1].stepId],
+        }),
+      );
     }
 
     return steps;
@@ -778,7 +810,7 @@ export class Planner {
       dependencies: options.dependencies ?? [],
       validation: options.validation ?? [],
       status: 'pending',
-      phase: options.phase
+      phase: options.phase,
     };
   }
 
@@ -786,10 +818,13 @@ export class Planner {
    * 生成计划摘要
    */
   private generatePlanSummary(task: AgentTask, steps: ExecutionStep[]): string {
-    const actionCounts = steps.reduce((acc, step) => {
-      acc[step.action] = (acc[step.action] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const actionCounts = steps.reduce(
+      (acc, step) => {
+        acc[step.action] = (acc[step.action] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     const actionSummary = Object.entries(actionCounts)
       .map(([action, count]) => `${action}: ${count}`)
@@ -809,7 +844,7 @@ export class Planner {
       enabled: needsRollback,
       snapshotBeforeExecution: needsRollback,
       rollbackOnFailure: needsRollback,
-      maxRollbackSteps: 10
+      maxRollbackSteps: 10,
     };
   }
 

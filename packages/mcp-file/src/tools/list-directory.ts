@@ -4,7 +4,7 @@
  */
 
 import { readdirSync, statSync } from 'node:fs';
-import { relative, join } from 'node:path';
+import { join, relative } from 'node:path';
 import { getRealProjectRoot, resolveReadPath } from '../path-safety.js';
 
 export interface ListDirectoryParams {
@@ -33,7 +33,7 @@ export interface ListDirectoryResult {
  */
 export function listDirectory(
   params: ListDirectoryParams,
-  projectRoot: string
+  projectRoot: string,
 ): ListDirectoryResult {
   const { path: dirPath, recursive = false, includeHidden = false, maxDepth = 3 } = params;
 
@@ -41,7 +41,7 @@ export function listDirectory(
   if (!safePath.ok) {
     return {
       success: false,
-      error: safePath.error
+      error: safePath.error,
     };
   }
 
@@ -50,20 +50,27 @@ export function listDirectory(
   if (!stat.isDirectory()) {
     return {
       success: false,
-      error: `Not a directory: ${dirPath}`
+      error: `Not a directory: ${dirPath}`,
     };
   }
 
   try {
-    const entries = listRecursive(safePath.fullPath, getRealProjectRoot(projectRoot), recursive, includeHidden, 0, maxDepth);
+    const entries = listRecursive(
+      safePath.fullPath,
+      getRealProjectRoot(projectRoot),
+      recursive,
+      includeHidden,
+      0,
+      maxDepth,
+    );
     return {
       success: true,
-      entries
+      entries,
     };
   } catch (error) {
     return {
       success: false,
-      error: `Failed to list directory: ${error instanceof Error ? error.message : String(error)}`
+      error: `Failed to list directory: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -77,7 +84,7 @@ function listRecursive(
   recursive: boolean,
   includeHidden: boolean,
   currentDepth: number,
-  maxDepth: number
+  maxDepth: number,
 ): FileInfo[] {
   const entries: FileInfo[] = [];
 
@@ -99,7 +106,7 @@ function listRecursive(
     const fileInfo: FileInfo = {
       name: item,
       path: relativePath,
-      type: itemStat.isDirectory() ? 'directory' : 'file'
+      type: itemStat.isDirectory() ? 'directory' : 'file',
     };
 
     if (itemStat.isFile()) {
@@ -122,7 +129,7 @@ function listRecursive(
         recursive,
         includeHidden,
         currentDepth + 1,
-        maxDepth
+        maxDepth,
       );
       entries.push(...subEntries);
     }
@@ -142,24 +149,24 @@ export const listDirectorySchema = {
     properties: {
       path: {
         type: 'string',
-        description: '相对于项目根目录的目录路径'
+        description: '相对于项目根目录的目录路径',
       },
       recursive: {
         type: 'boolean',
         description: '是否递归列出子目录，默认 false',
-        default: false
+        default: false,
       },
       includeHidden: {
         type: 'boolean',
         description: '是否包含隐藏文件（以 . 开头），默认 false',
-        default: false
+        default: false,
       },
       maxDepth: {
         type: 'number',
         description: '递归时的最大深度，默认 3',
-        default: 3
-      }
+        default: 3,
+      },
     },
-    required: ['path']
-  }
+    required: ['path'],
+  },
 };
