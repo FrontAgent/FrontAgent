@@ -276,6 +276,7 @@ FrontAgent now supports a full remote repository knowledge base flow for plannin
 Default knowledge source:
 
 - Repository: `https://github.com/ceilf6/Lab.git`
+- Source mode: `git` by default; when `FRONTAGENT_OPENVIKING_ENDPOINT` is configured FrontAgent defaults to `composite` (`OpenViking` first, Git RAG fallback)
 
 CLI options:
 
@@ -308,6 +309,20 @@ fa run "Explain React setState behavior" \
   --rag-vector-store-provider weaviate \
   --rag-weaviate-url http://127.0.0.1:8080 \
   --rag-weaviate-collection-prefix FrontAgentRagChunk
+
+# Use OpenViking Wiki as the primary knowledge provider, with Git RAG fallback
+fa run "Where is FrontAgent RAG implemented?" \
+  --rag-source composite \
+  --open-viking-endpoint https://openviking.example.com/query \
+  --open-viking-corpus wiki \
+  --open-viking-namespace docs/openviking \
+  --open-viking-l1-entry docs/openviking/frontagent-l1.md
+
+# Require OpenViking only and disable Git fallback
+fa run "Where is FrontAgent RAG implemented?" \
+  --rag-source openviking \
+  --open-viking-endpoint https://openviking.example.com/query \
+  --disable-open-viking-fallback
 
 # Disable LLM query rewrite before retrieval
 fa run "How to build a custom selector" \
@@ -379,6 +394,13 @@ You can run trigger-only (default) or trigger + behavior (`--behavior`) in bench
 Environment variables:
 
 ```bash
+export FRONTAGENT_RAG_SOURCE="composite" # git | openviking | composite
+export FRONTAGENT_OPENVIKING_ENDPOINT="https://openviking.example.com/query"
+export FRONTAGENT_OPENVIKING_API_KEY=""
+export FRONTAGENT_OPENVIKING_CORPUS="wiki"
+export FRONTAGENT_OPENVIKING_NAMESPACE="docs/openviking"
+export FRONTAGENT_OPENVIKING_L1_ENTRY="docs/openviking/frontagent-l1.md"
+export FRONTAGENT_OPENVIKING_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_REPO="https://github.com/ceilf6/Lab.git"
 export FRONTAGENT_RAG_BRANCH="main"
 export FRONTAGENT_RAG_SYNC_ON_QUERY="false"
