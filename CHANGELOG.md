@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-05-20
+
+### Architecture Refactoring
+
+This release represents a major architectural overhaul. All large monolithic source files have been decomposed into focused, single-responsibility modules while preserving the public API surface.
+
+- **core**: Split `agent.ts` (1200+ lines) into `agent/agent.ts`, `agent/helpers.ts`, `agent/phase-checks.ts`, `agent/dev-server-detection.ts`, `agent/answer-generation.ts`, `agent/memory-lifecycle.ts`, `agent/rag-retrieval.ts`.
+- **core**: Split `llm.ts` into `llm/llm-service.ts`, `llm/factory.ts`, `llm/object-repair.ts`, `llm/prompts.ts`, `llm/code-generation.ts`, `llm/plan-generation.ts`, `llm/schemas.ts`.
+- **core**: Split `executor.ts` into `executor/executor.ts`, `executor/phase-ordering.ts`, `executor/trace.ts`, `executor/types.ts`.
+- **core**: Split `context.ts` into `context/context-manager.ts`, `context/helpers.ts`.
+- **core**: Split `skill-lab/index.ts` into `skill-lab/skill-lab.ts`, `skill-lab/utils.ts`, `skill-lab/schemas.ts`, `skill-lab/types.ts`.
+- **mcp-memory**: Split `rag.ts` into `rag/bm25.ts`, `rag/chunking.ts`, `rag/embedding.ts`, `rag/knowledge-base.ts`, `rag/providers.ts`, `rag/repository.ts`, `rag/reranker.ts`, `rag/semantic.ts`, `rag/utils.ts`.
+- **shared**: Split `index.ts` into `types/`, `security/`, and `utils.ts` modules.
+- **vscode**: Split `extension.ts` into focused activation, command, and webview modules.
+
+### Testing
+
+Test coverage increased from near-zero to **565 tests** across the monorepo, covering all critical pure-logic paths.
+
+- **core** (220 tests): context/helpers, agent/helpers, agent/phase-checks, agent/dev-server-detection, llm/object-repair, llm/code-generation, llm/plan-generation, skill-lab/utils, executor/phase-ordering, executor/trace, filesense/trigger-policy, context-filesense, planner, security, llm.
+- **sdd** (144 tests): SDDValidator, FileArtifactStore, plan-quality, consistency-analyzer, ChecklistValidator, VerificationCollector, parser.
+- **mcp-memory** (96 tests): BM25, chunking, normalize-config, repository, utils, rag-openviking.
+- **hallucination-guard** (45 tests): file-existence, import-validity, syntax-validity.
+- **mcp-file** (46 tests): path-safety (44 tests), snapshot cleanup.
+- **runtime-node** (38 tests): config, run-logger redaction, sampling-llm.
+- **mcp-web** (11 tests): BrowserManager.
+- **shared** (comprehensive): utils, shell-analysis.
+
+### Performance
+
+- **mcp-file**: Lazy-load `ts-morph` in `get_ast` tool — reduces cold-start time by ~400ms for non-AST operations.
+- **mcp-memory**: Converted synchronous file I/O to async in RAG modules — eliminates event-loop blocking during knowledge-base indexing.
+- **build**: Externalized `ts-morph` from CLI bundle — reduces bundle size by ~2MB.
+
+### Code Quality
+
+- **Biome**: Added Biome as the project-wide linter and formatter, replacing ad-hoc ESLint configs. Enforces consistent style, import ordering, and catches common bugs.
+- **Type safety**: Eliminated all `as any` type assertions across CLI, shared, and core packages. Replaced with proper typed interfaces (`AnthropicProviderSettings`, strict `TechStackConfig`, etc.).
+- **Error handling**: Improved bare `catch` blocks across the codebase with proper error typing and logging.
+- **shared**: Extracted `escapeRegex` utility and deduplicated regex escaping logic across packages.
+
+### Bug Fixes
+
+- **mcp-file**: Fixed `SnapshotManager.cleanup()` — previously removed snapshots from memory but left orphaned `.json` files on disk. Now properly deletes persisted snapshot files.
+- **sdd**: Fixed validator tests to use correct `ActionType` values (`write_file`, `create_file`) instead of non-existent `modify_file`.
+- **ci**: Fixed internal registry URLs in lockfile for public CI environments.
+- **ci**: Removed duplicate pnpm version specification in GitHub Actions setup.
+
+### CI/CD
+
+- Added GitHub Actions workflow for automated lint, typecheck, and test on every push/PR.
+- Decoupled test task from self-build in turbo pipeline for faster CI feedback.
+
+### Breaking Changes
+
+- Internal module paths have changed due to the architecture refactoring. If you import from internal (non-index) paths, update your imports. The public API exported from each package's `index.ts` remains unchanged.
+- Minimum Node.js version is now 18+ (required by Biome and modern ESM features).
+
 ## [1.0.9] - 2026-05-20
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/core",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "FrontAgent 核心 - Agent 编排、规划、执行",
   "type": "module",
   "main": "./dist/index.js",

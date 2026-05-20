@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/runtime-node",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Node runtime adapter for FrontAgent CLI and VSCode extension",
   "type": "module",
   "main": "./dist/index.js",
