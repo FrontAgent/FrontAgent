@@ -2,7 +2,7 @@
   "name": "frontagent",
   "displayName": "FrontAgent",
   "description": "Chat with FrontAgent from a VS Code sidebar.",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "ceilf6",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -205,6 +205,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit && node build.mjs",
+    "package": "pnpm dlx @vscode/vsce package --no-dependencies",
     "dev": "tsc --watch --noEmit",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
