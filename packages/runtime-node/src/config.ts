@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentConfig, RagConfig } from '@frontagent/core';
+import type { AgentConfig, FilesenseConfig, RagConfig } from '@frontagent/core';
 import type { SecurityMode, TaskType } from '@frontagent/shared';
 
 export type LLMProvider = 'openai' | 'anthropic';
@@ -64,6 +64,12 @@ export interface RuntimeConfigInput {
   openVikingL1Entry?: string;
   openVikingTimeoutMs?: string | number;
   disableOpenVikingFallback?: boolean;
+  filesenseEnabled?: boolean | string;
+  filesenseOutput?: string;
+  filesenseWriteMode?: string;
+  filesenseMaxEntries?: string | number;
+  filesenseMaxBytes?: string | number;
+  filesenseTimeoutMs?: string | number;
 }
 
 export interface ResolvedRuntimeConfig {
@@ -72,6 +78,7 @@ export interface ResolvedRuntimeConfig {
   llm: AgentConfig['llm'];
   execution: AgentConfig['execution'];
   rag: RagConfig;
+  filesense: FilesenseConfig;
   securityMode: SecurityMode;
 }
 
@@ -128,6 +135,14 @@ export function parsePathList(values: string[] | undefined, fallback?: string): 
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function normalizeFilesenseOutput(value: string | undefined): FilesenseConfig['output'] | undefined {
+  return value === 'summary' || value === 'candidates' || value === 'verbose' ? value : undefined;
+}
+
+function normalizeFilesenseWriteMode(value: string | undefined): FilesenseConfig['writeMode'] | undefined {
+  return value === 'cache' || value === 'workspace' || value === 'none' ? value : undefined;
 }
 
 export function resolveProviderApiKey(
@@ -312,6 +327,18 @@ export function resolveRuntimeConfig(
       process.env.LANGGRAPH_CHECKPOINT === 'true',
   );
 
+  const filesense: FilesenseConfig = {
+    enabled:
+      parseOptionalBoolean(input.filesenseEnabled) ??
+      parseOptionalBoolean(process.env.FRONTAGENT_FILESENSE_ENABLED) ??
+      true,
+    output: normalizeFilesenseOutput(input.filesenseOutput ?? process.env.FRONTAGENT_FILESENSE_OUTPUT),
+    writeMode: normalizeFilesenseWriteMode(input.filesenseWriteMode ?? process.env.FRONTAGENT_FILESENSE_WRITE_MODE),
+    maxEntries: parseOptionalInt(input.filesenseMaxEntries) ?? parseOptionalInt(process.env.FRONTAGENT_FILESENSE_MAX_ENTRIES),
+    maxBytes: parseOptionalInt(input.filesenseMaxBytes) ?? parseOptionalInt(process.env.FRONTAGENT_FILESENSE_MAX_BYTES),
+    timeoutMs: parseOptionalInt(input.filesenseTimeoutMs) ?? parseOptionalInt(process.env.FRONTAGENT_FILESENSE_TIMEOUT_MS),
+  };
+
   return {
     provider: safeProvider,
     model,
@@ -334,6 +361,7 @@ export function resolveRuntimeConfig(
       },
     },
     rag,
+    filesense,
     securityMode: parseSecurityMode(input.securityMode ?? process.env.FRONTAGENT_SECURITY_MODE),
   };
 }

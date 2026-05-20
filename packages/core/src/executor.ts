@@ -233,6 +233,7 @@ interface ExecutorCollectedContext {
   ragResults?: string[];
   matchedSkillNames?: string[];
   skillContext?: string;
+  filesenseContext?: string;
 }
 
 /**

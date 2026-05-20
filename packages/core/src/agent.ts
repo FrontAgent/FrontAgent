@@ -550,6 +550,7 @@ export class FrontAgent {
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
+          filesense: this.config.filesense,
         },
         this.contextManager.getMessages(task.id)
       );
@@ -569,6 +570,7 @@ export class FrontAgent {
             skillContext: context.collectedContext.skillContext,
             matchedSkillNames: context.collectedContext.matchedSkillNames,
             memoryContext: context.collectedContext.memoryContext,
+            filesense: this.config.filesense,
           },
           this.contextManager.getMessages(task.id)
         );
@@ -752,6 +754,7 @@ export class FrontAgent {
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
+          filesense: this.config.filesense,
         },
         this.contextManager.getMessages(task.id)
       );
@@ -773,6 +776,7 @@ export class FrontAgent {
             skillContext: context.collectedContext.skillContext,
             matchedSkillNames: context.collectedContext.matchedSkillNames,
             memoryContext: context.collectedContext.memoryContext,
+            filesense: this.config.filesense,
           },
           this.contextManager.getMessages(task.id)
         );
@@ -817,6 +821,7 @@ export class FrontAgent {
             ragResults: executionContext.collectedContext.ragResults,
             matchedSkillNames: executionContext.collectedContext.matchedSkillNames,
             skillContext: executionContext.collectedContext.skillContext,
+            filesenseContext: executionContext.collectedContext.filesenseContext,
           },
         },
         // onStepStart
@@ -841,6 +846,28 @@ export class FrontAgent {
           this.contextManager.updateProjectFacts(task.id, step.tool, step.params, resultWithStatus);
           // 更新模块依赖图（追踪已创建的模块）
           this.contextManager.updateModuleDependencyGraph(task.id, step.tool, step.params, resultWithStatus);
+
+          // 更新 Filesense 导航上下文
+          if (output.stepResult.success && step.tool === 'filesense_navigate') {
+            this.contextManager.updateFilesenseNavigation(task.id, {
+              intent: step.params.intent as any,
+              paths: Array.isArray(step.params.paths) ? step.params.paths as string[] : undefined,
+              data: resultWithStatus.data ?? resultWithStatus,
+            });
+            const filesenseNavigation = this.contextManager.getContext(task.id)?.collectedContext.filesenseNavigation;
+            if (filesenseNavigation) {
+              this.emit({
+                type: 'filesense_navigated',
+                intent: filesenseNavigation.intent,
+                paths: filesenseNavigation.paths,
+                entries: filesenseNavigation.scanned.entries,
+                elapsedMs: filesenseNavigation.scanned.elapsedMs,
+                truncated: filesenseNavigation.scanned.truncated,
+                candidateCount: filesenseNavigation.candidates.length,
+                warnings: filesenseNavigation.warnings,
+              });
+            }
+          }
 
           if (output.stepResult.success) {
             this.emit({ type: 'step_completed', step, result: output.stepResult });

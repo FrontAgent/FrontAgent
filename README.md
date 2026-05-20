@@ -423,6 +423,14 @@ export FRONTAGENT_RAG_VECTOR_STORE_PROVIDER="weaviate"
 export FRONTAGENT_RAG_WEAVIATE_URL="http://127.0.0.1:8080"
 export FRONTAGENT_RAG_WEAVIATE_API_KEY=""
 export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
+
+# Filesense lightweight repository navigation
+export FRONTAGENT_FILESENSE_ENABLED="true"
+export FRONTAGENT_FILESENSE_OUTPUT="summary"       # summary | candidates | verbose
+export FRONTAGENT_FILESENSE_WRITE_MODE="cache"     # cache | workspace | none
+export FRONTAGENT_FILESENSE_MAX_ENTRIES="300"
+export FRONTAGENT_FILESENSE_MAX_BYTES="131072"
+export FRONTAGENT_FILESENSE_TIMEOUT_MS="3000"
 ```
 
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
@@ -445,6 +453,8 @@ Before retrieval, FrontAgent now sends the user's original request through a sep
 After BM25 + embedding recall, FrontAgent will by default send the top candidate chunks to a reranker endpoint (`/rerank`, Jina/Cohere-compatible) for cross-encoder-style final ordering when reranker model/base-url/api-key are available. Use `--disable-rag-reranker` to turn it off for a run.
 
 When `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate`, FrontAgent keeps BM25 in the local `index.json`, but semantic vectors are written to and queried from Weaviate instead of `embeddings.json`.
+
+Filesense is used as a current-repository navigation provider. FrontAgent prefers `filesense_navigate` for structure/location/create/refactor preparation because it is budgeted and avoids full-repo persistent sync. `filesense_sync_and_summarize` remains available for explicit index maintenance, but is not the normal planning path.
 
 Prebuilt cache bundle workflow:
 

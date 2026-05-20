@@ -108,7 +108,7 @@ export const filesenseCheckSchema = {
 
 export const filesenseSyncAndSummarizeSchema = {
   name: 'filesense_sync_and_summarize',
-  description: '一次性完成索引同步和语义摘要生成。等价于依次调用 filesense_sync + filesense_summarize，是最常用的操作。在项目文件变更后调用此工具可同时更新索引和摘要。',
+  description: '持久化生成/刷新 Filesense 索引和语义摘要（sync + summarize）。这是较重的维护操作；普通规划、定位、结构理解应优先使用只读轻量的 filesense_navigate。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -128,7 +128,7 @@ export const filesenseSyncAndSummarizeSchema = {
 
 export const filesenseNavigateSchema = {
   name: 'filesense_navigate',
-  description: '按需构建轻量目录导航上下文。默认不写业务目录，返回摘要、候选路径和 factsDelta，用于替代默认全仓 sync_and_summarize。',
+  description: '首选的 Agent 目录导航工具：按需、只读/预算化扫描当前仓库，返回 summary、candidates、factsDelta、warnings 和 scanned 元信息。用于结构理解、入口定位、创建/重构前探路；避免为普通导航触发全仓 sync_and_summarize。',
   inputSchema: {
     type: 'object' as const,
     properties: {

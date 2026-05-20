@@ -108,6 +108,40 @@ describe('runtime config', () => {
     expect(resolveRuntimeConfig({ ragSyncOnQuery: false }, process.cwd()).rag.syncOnQuery).toBe(false);
     vi.unstubAllEnvs();
   });
+
+  it('configures Filesense lightweight navigation budgets from env and explicit settings', () => {
+    vi.stubEnv('FRONTAGENT_FILESENSE_ENABLED', 'false');
+    vi.stubEnv('FRONTAGENT_FILESENSE_OUTPUT', 'candidates');
+    vi.stubEnv('FRONTAGENT_FILESENSE_WRITE_MODE', 'none');
+    vi.stubEnv('FRONTAGENT_FILESENSE_MAX_ENTRIES', '111');
+    vi.stubEnv('FRONTAGENT_FILESENSE_MAX_BYTES', '222');
+    vi.stubEnv('FRONTAGENT_FILESENSE_TIMEOUT_MS', '333');
+
+    const envConfig = resolveRuntimeConfig({}, process.cwd());
+    expect(envConfig.filesense).toMatchObject({
+      enabled: false,
+      output: 'candidates',
+      writeMode: 'none',
+      maxEntries: 111,
+      maxBytes: 222,
+      timeoutMs: 333,
+    });
+
+    const explicitConfig = resolveRuntimeConfig(
+      {
+        filesenseEnabled: true,
+        filesenseOutput: 'verbose',
+        filesenseWriteMode: 'cache',
+        filesenseMaxEntries: '444',
+      },
+      process.cwd(),
+    );
+    expect(explicitConfig.filesense.enabled).toBe(true);
+    expect(explicitConfig.filesense.output).toBe('verbose');
+    expect(explicitConfig.filesense.writeMode).toBe('cache');
+    expect(explicitConfig.filesense.maxEntries).toBe(444);
+    vi.unstubAllEnvs();
+  });
 });
 
 describe('runtime log redaction', () => {

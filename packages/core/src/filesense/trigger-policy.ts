@@ -6,7 +6,8 @@ export type FilesenseNavigationIntent =
   | 'understand_structure'
   | 'find_conventions'
   | 'prepare_refactor'
-  | 'prepare_create';
+  | 'prepare_create'
+  | 'validate_freshness';
 
 export interface FilesenseDecision {
   enabled: boolean;
@@ -15,6 +16,7 @@ export interface FilesenseDecision {
   depth: number;
   maxEntries: number;
   maxBytes: number;
+  timeoutMs: number;
   reason: string;
 }
 
@@ -23,6 +25,7 @@ const DEFAULT_DECISION: Omit<FilesenseDecision, 'enabled' | 'reason' | 'intent'>
   depth: 2,
   maxEntries: 300,
   maxBytes: 128 * 1024,
+  timeoutMs: 3000,
 };
 
 const FILE_ACTIONS = new Set([
@@ -107,15 +110,42 @@ function collectTargetDirs(steps: ExecutionStep[]): string[] {
   return uniqueDirs(dirs, 5);
 }
 
+const FOCUS_DIRS = ['src', 'components', 'hooks', 'api', 'services', 'pages', 'routes', 'views', 'store', 'stores'];
+
+function taskMentionedFocusDirs(task: AgentTask): string[] {
+  const text = task.description.toLowerCase();
+  return FOCUS_DIRS.filter((dir) => new RegExp(`(^|[^a-z0-9_-])${dir}([^a-z0-9_-]|$)`).test(text));
+}
+
+function mergeFocusDirs(task: AgentTask, dirs: string[], limit = 5): string[] {
+  const mentioned = taskMentionedFocusDirs(task);
+  return uniqueDirs([...mentioned, ...dirs], limit);
+}
+
+function taskMentionsFreshnessNeed(task: AgentTask): boolean {
+  const text = task.description.toLowerCase();
+  return /fresh|stale|changed|变化|变更|最新|新鲜|过期|找不到/.test(text);
+}
+
 export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): FilesenseDecision {
   if (!steps.some((step) => FILE_ACTIONS.has(step.action))) {
     return skip('no file-system exploration or mutation steps');
   }
 
   if (task.type === 'query') {
+    if (taskMentionsFreshnessNeed(task)) {
+      return enable('validate_freshness', 'query asks for fresh repository layout or missing paths', {
+        paths: mergeFocusDirs(task, collectTargetDirs(steps), 3),
+        depth: 1,
+        maxEntries: 120,
+        maxBytes: 48 * 1024,
+        timeoutMs: 1500,
+      });
+    }
+
     if (taskMentionsStructureNeed(task) || taskMentionsLocationNeed(task)) {
       return enable('understand_structure', 'query requires repository structure', {
-        paths: ['.'],
+        paths: mergeFocusDirs(task, ['.'], 3),
         depth: 2,
         maxEntries: 250,
         maxBytes: 96 * 1024,
@@ -130,7 +160,7 @@ export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): Filese
 
   if (taskMentionsLocationNeed(task)) {
     return enable('locate', 'task needs locating files or entrypoints', {
-      paths: ['.'],
+      paths: mergeFocusDirs(task, ['.']),
       depth: 2,
       maxEntries: 300,
     });
@@ -138,7 +168,7 @@ export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): Filese
 
   if (task.type === 'create') {
     return enable('prepare_create', 'create task benefits from nearby placement conventions', {
-      paths: collectTargetDirs(steps),
+      paths: mergeFocusDirs(task, collectTargetDirs(steps)),
       depth: 1,
       maxEntries: 180,
       maxBytes: 64 * 1024,
@@ -147,7 +177,7 @@ export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): Filese
 
   if (task.type === 'refactor' || steps.filter((step) => step.action === 'apply_patch' || step.action === 'create_file').length > 1) {
     return enable('prepare_refactor', 'multi-file change benefits from local directory map', {
-      paths: collectTargetDirs(steps),
+      paths: mergeFocusDirs(task, collectTargetDirs(steps)),
       depth: 2,
       maxEntries: 500,
       maxBytes: 160 * 1024,
@@ -156,7 +186,7 @@ export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): Filese
 
   if (task.type === 'debug' || taskMentionsStructureNeed(task)) {
     return enable('understand_structure', 'debug or structure task benefits from lightweight map', {
-      paths: collectTargetDirs(steps),
+      paths: mergeFocusDirs(task, collectTargetDirs(steps)),
       depth: 2,
       maxEntries: 300,
     });

@@ -1,4 +1,5 @@
 import type { AgentTask, ExecutionStep, ValidationRule } from '@frontagent/shared';
+import type { FilesenseConfig } from '../types.js';
 
 export interface PlannerContextSnapshot {
   readonly files: ReadonlyMap<string, string>;
@@ -10,6 +11,7 @@ export interface PlannerContextSnapshot {
   readonly matchedSkillNames?: readonly string[];
   /** Preloaded cross-session memory content (Phase 1) */
   readonly memoryContext?: string;
+  readonly filesense?: FilesenseConfig;
 }
 
 export interface PlannerStepFactory {
@@ -36,11 +38,12 @@ export interface TaskPlanningSkill {
 
 export interface PhaseInjectionSkill {
   name: string;
-  shouldInject(input: { task: AgentTask; steps: ExecutionStep[] }): boolean;
+  shouldInject(input: { task: AgentTask; steps: ExecutionStep[]; filesense?: FilesenseConfig }): boolean;
   apply(input: {
     task: AgentTask;
     steps: ExecutionStep[];
     stepFactory: PlannerStepFactory;
+    filesense?: FilesenseConfig;
   }): ExecutionStep[];
 }
 

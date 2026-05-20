@@ -171,7 +171,7 @@ export class Planner {
     // 在验收阶段之后追加仓库管理阶段（仅在有代码变更步骤时启用）
     steps = this.skills.injectPhaseSteps(task, steps, {
       createStep: (options) => this.createStep(options),
-    });
+    }, context.filesense);
 
     if (steps.length === 0) {
       return null;
