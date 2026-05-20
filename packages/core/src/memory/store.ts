@@ -76,6 +76,7 @@ export class MemoryStore {
       const raw = readFileSync(indexPath, 'utf-8');
       return this.parseIndex(raw);
     } catch {
+      // Corrupted index file — caller will recreate
       return null;
     }
   }
@@ -164,6 +165,7 @@ export class MemoryStore {
       this.topicCache.set(topicId, topic);
       return topic;
     } catch {
+      // Corrupted topic file — treat as missing
       return null;
     }
   }
@@ -261,6 +263,7 @@ export class MemoryStore {
       const raw = readFileSync(snapshotPath, 'utf-8');
       return JSON.parse(raw) as ProjectFactsSnapshot;
     } catch {
+      // Corrupted snapshot — caller will regenerate
       return null;
     }
   }

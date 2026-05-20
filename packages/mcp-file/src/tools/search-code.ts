@@ -148,7 +148,9 @@ export async function searchCode(
             }
           }
         }
-      } catch {}
+      } catch {
+        // File read failed (e.g. binary file, permission denied) — skip silently
+      }
     }
 
     return {
