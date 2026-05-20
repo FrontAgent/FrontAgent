@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { AgentTask } from '@frontagent/shared';
+import { describe, expect, it } from 'vitest';
 import { Planner } from './planner.js';
 
 function createPlanner() {
@@ -50,11 +50,7 @@ describe('Planner query tasks', () => {
 
   it('falls back to local code search when no explicit evidence source is provided', async () => {
     const planner = createPlanner();
-    const result = await planner.plan(
-      createQueryTask(),
-      { files: new Map() },
-      [],
-    );
+    const result = await planner.plan(createQueryTask(), { files: new Map() }, []);
 
     expect(result.plan?.steps).toHaveLength(1);
     expect(result.plan?.steps[0]).toMatchObject({

@@ -30,18 +30,22 @@ export class ConstitutionPromptGenerator {
     const isZh = this.options.language === 'zh';
     const sections: string[] = [];
 
-    sections.push(isZh
-      ? '## 🏛️ 项目宪法（最高优先级原则）'
-      : '## 🏛️ Project Constitution (Highest Priority Principles)');
+    sections.push(
+      isZh
+        ? '## 🏛️ 项目宪法（最高优先级原则）'
+        : '## 🏛️ Project Constitution (Highest Priority Principles)',
+    );
 
-    sections.push(isZh
-      ? '以下原则具有最高优先级，当与其他约束冲突时，以宪法为准：'
-      : 'The following principles have the highest priority. When conflicting with other constraints, the constitution takes precedence:');
+    sections.push(
+      isZh
+        ? '以下原则具有最高优先级，当与其他约束冲突时，以宪法为准：'
+        : 'The following principles have the highest priority. When conflicting with other constraints, the constitution takes precedence:',
+    );
 
     // Principles grouped by priority
-    const critical = this.constitution.principles.filter(p => p.priority === 'critical');
-    const high = this.constitution.principles.filter(p => p.priority === 'high');
-    const medium = this.constitution.principles.filter(p => p.priority === 'medium');
+    const critical = this.constitution.principles.filter((p) => p.priority === 'critical');
+    const high = this.constitution.principles.filter((p) => p.priority === 'high');
+    const medium = this.constitution.principles.filter((p) => p.priority === 'medium');
 
     if (critical.length > 0) {
       sections.push(this.renderPrincipleGroup(critical, isZh ? '🚨 关键原则' : '🚨 Critical'));
@@ -70,17 +74,17 @@ export class ConstitutionPromptGenerator {
     const principles = this.constitution.principles
       .sort((a, b) => this.priorityWeight(b.priority) - this.priorityWeight(a.priority))
       .slice(0, 5)
-      .map(p => `- [${p.priority.toUpperCase()}] ${p.name}: ${p.description}`)
+      .map((p) => `- [${p.priority.toUpperCase()}] ${p.name}: ${p.description}`)
       .join('\n');
 
     return `## Constitution\n${principles}`;
   }
 
   private renderPrincipleGroup(principles: Constitution['principles'], heading: string): string {
-    const items = principles.map(p => {
+    const items = principles.map((p) => {
       let text = `- **${p.name}**: ${p.description}`;
       if (p.examples && p.examples.length > 0) {
-        text += `\n  ${p.examples.map(e => `  - ${e}`).join('\n')}`;
+        text += `\n  ${p.examples.map((e) => `  - ${e}`).join('\n')}`;
       }
       return text;
     });
@@ -89,7 +93,7 @@ export class ConstitutionPromptGenerator {
 
   private renderBehaviors(isZh: boolean): string {
     const heading = isZh ? '### 行为指令' : '### Behavior Directives';
-    const items = this.constitution.behaviors.map(b => {
+    const items = this.constitution.behaviors.map((b) => {
       const rationale = b.rationale ? ` (${b.rationale})` : '';
       return isZh
         ? `- **当** ${b.trigger} **→** ${b.action}${rationale}`
@@ -103,7 +107,7 @@ export class ConstitutionPromptGenerator {
     const intro = isZh
       ? '完成任务前，必须通过以下审查：'
       : 'Before marking work as complete, the following must be satisfied:';
-    const items = this.constitution.reviewCriteria!.map(c => {
+    const items = this.constitution.reviewCriteria!.map((c) => {
       const icon = c.failAction === 'block' ? '🚫' : c.failAction === 'warn' ? '⚠️' : 'ℹ️';
       return `- ${icon} ${c.question}`;
     });
@@ -112,17 +116,21 @@ export class ConstitutionPromptGenerator {
 
   private priorityWeight(priority: string): number {
     switch (priority) {
-      case 'critical': return 3;
-      case 'high': return 2;
-      case 'medium': return 1;
-      default: return 0;
+      case 'critical':
+        return 3;
+      case 'high':
+        return 2;
+      case 'medium':
+        return 1;
+      default:
+        return 0;
     }
   }
 }
 
 export function createConstitutionPromptGenerator(
   constitution: Constitution,
-  options?: ConstitutionPromptOptions
+  options?: ConstitutionPromptOptions,
 ): ConstitutionPromptGenerator {
   return new ConstitutionPromptGenerator(constitution, options);
 }

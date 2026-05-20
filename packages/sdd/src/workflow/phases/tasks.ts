@@ -20,7 +20,10 @@ export interface TaskDecomposition {
   totalEstimatedMinutes: number;
 }
 
-export function generateTasksPrompt(planContent: string, config: { granularityMinutes: number }): string {
+export function generateTasksPrompt(
+  planContent: string,
+  config: { granularityMinutes: number },
+): string {
   const parts: string[] = [
     '## Task Decomposition Phase',
     '',
@@ -59,7 +62,7 @@ export function parseTaskList(content: string): TaskItem[] {
 
     const parallel = rest.includes('[P]');
     const depsMatch = rest.match(/\[depends:\s*([^\]]+)\]/);
-    const dependsOn = depsMatch ? depsMatch[1].split(',').map(s => s.trim()) : [];
+    const dependsOn = depsMatch ? depsMatch[1].split(',').map((s) => s.trim()) : [];
 
     const title = rest
       .replace(/\[P\]/g, '')
@@ -90,7 +93,7 @@ export function computeCriticalPath(tasks: TaskItem[]): string[] {
   function visit(taskId: string) {
     if (visited.has(taskId)) return;
     visited.add(taskId);
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
     for (const dep of task.dependsOn) {
       visit(dep);
@@ -98,7 +101,7 @@ export function computeCriticalPath(tasks: TaskItem[]): string[] {
     path.push(taskId);
   }
 
-  const nonParallel = tasks.filter(t => !t.parallel || t.dependsOn.length > 0);
+  const nonParallel = tasks.filter((t) => !t.parallel || t.dependsOn.length > 0);
   for (const task of nonParallel) {
     visit(task.id);
   }

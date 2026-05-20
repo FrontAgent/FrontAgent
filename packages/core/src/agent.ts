@@ -3,29 +3,26 @@
  * 负责整体编排
  */
 
-import type { AgentTask, ExecutionPlan, ExecutionStep, SDDConfig, ValidationResult } from '@frontagent/shared';
-import { generateId } from '@frontagent/shared';
-import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
+import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
+import type {
+  AgentTask,
+  ExecutionPlan,
+  ExecutionStep,
+  SDDConfig,
+  ValidationResult,
+} from '@frontagent/shared';
+import { generateId } from '@frontagent/shared';
 import { z } from 'zod';
+import { type A2AAgent, InMemoryA2ABus } from './a2a.js';
 import { ContextManager } from './context.js';
-import { Planner } from './planner.js';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
-import { InMemoryA2ABus, type A2AAgent } from './a2a.js';
-import { SkillContentLoader } from './skill-content/loader.js';
-import { SkillContentResolver } from './skill-content/resolver.js';
 import { MemoryStore } from './memory/index.js';
 import type { PersistenceInput } from './memory/types.js';
-import { WorkflowIntegration } from './workflow-integration.js';
-import {
-  CodeQualitySubAgent,
-  ProcessIsolatedCodeQualitySubAgent,
-  type CodeQualityIssue,
-  type CodeQualityReviewFile,
-  type CodeQualityReviewRequest,
-  type CodeQualityReviewResponse
-} from './sub-agents/index.js';
+import { Planner } from './planner.js';
+import { SkillContentLoader } from './skill-content/loader.js';
+import { SkillContentResolver } from './skill-content/resolver.js';
 import type {
   ExecutorActionSkill,
   ExecutorSkillsLayerSnapshot,
@@ -33,16 +30,25 @@ import type {
   PlannerSkillsLayerSnapshot,
   TaskPlanningSkill,
 } from './skills/index.js';
+import {
+  type CodeQualityIssue,
+  type CodeQualityReviewFile,
+  type CodeQualityReviewRequest,
+  type CodeQualityReviewResponse,
+  CodeQualitySubAgent,
+  ProcessIsolatedCodeQualitySubAgent,
+} from './sub-agents/index.js';
 import type {
   AgentConfig,
-  AgentExecutionResult,
   AgentEvent,
   AgentEventListener,
+  AgentExecutionResult,
   AgentPlanResult,
   ProjectFactsUpdate,
   RagContextMatch,
   RagQueryTiming,
 } from './types.js';
+import { WorkflowIntegration } from './workflow-integration.js';
 
 interface RetrievedRagContext {
   formattedResults: string[];
@@ -117,7 +123,7 @@ export class FrontAgent {
   private llmService: LLMService;
   private promptGenerator?: SDDPromptGenerator;
   private eventListeners: AgentEventListener[] = [];
-  private currentTaskId?: string;  // 🔧 修复问题1：追踪当前执行的任务ID
+  private currentTaskId?: string; // 🔧 修复问题1：追踪当前执行的任务ID
   private a2aBus: InMemoryA2ABus;
   private codeQualitySubAgent?: A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>;
   private skillContentResolver?: SkillContentResolver;
@@ -149,14 +155,14 @@ export class FrontAgent {
     this.hallucinationGuard = new HallucinationGuard({
       projectRoot: config.projectRoot,
       sddConfig: this.sddConfig,
-      enabledChecks: config.hallucinationGuard?.checks
+      enabledChecks: config.hallucinationGuard?.checks,
     });
 
     // 初始化 Planner
     this.planner = new Planner({
       llm: { ...config.llm, debug: config.debug },
       sddConfig: this.sddConfig,
-      debug: config.debug
+      debug: config.debug,
     });
 
     // 初始化 Executor（两阶段架构 - 传递 llmService 和 SDD 约束）
@@ -240,7 +246,7 @@ export class FrontAgent {
           maxFilesForLLM: codeQualityConfig?.maxFilesForLLM,
           maxCharsPerFileForLLM: codeQualityConfig?.maxCharsPerFileForLLM,
           timeoutMs: codeQualityConfig?.processTimeoutMs,
-          debug: config.debug ?? false
+          debug: config.debug ?? false,
         });
       } else {
         this.codeQualitySubAgent = new CodeQualitySubAgent({
@@ -248,7 +254,7 @@ export class FrontAgent {
           enableRuleFallback: codeQualityConfig?.enableRuleFallback ?? true,
           maxFilesForLLM: codeQualityConfig?.maxFilesForLLM,
           maxCharsPerFileForLLM: codeQualityConfig?.maxCharsPerFileForLLM,
-          debug: config.debug ?? false
+          debug: config.debug ?? false,
         });
       }
 
@@ -331,7 +337,7 @@ export class FrontAgent {
       'filesense_query',
       'filesense_check',
       'filesense_navigate',
-      'filesense_sync_and_summarize'
+      'filesense_sync_and_summarize',
     ];
     for (const tool of tools) {
       this.executor.registerToolMapping(tool, 'file');
@@ -343,7 +349,7 @@ export class FrontAgent {
    */
   registerWebTools(): void {
     const tools = [
-      'browser_navigate',    // 注意工具名
+      'browser_navigate', // 注意工具名
       'get_page_structure',
       'get_accessibility_tree',
       'get_interactive_elements',
@@ -358,7 +364,7 @@ export class FrontAgent {
       'type',
       'scroll',
       'screenshot',
-      'wait_for_selector'
+      'wait_for_selector',
     ];
     for (const tool of tools) {
       this.executor.registerToolMapping(tool, 'web');
@@ -449,12 +455,15 @@ export class FrontAgent {
   /**
    * 只生成 FrontAgent 执行计划，不进入 Executor。
    */
-  async planOnly(taskDescription: string, options?: {
-    type?: AgentTask['type'];
-    relevantFiles?: string[];
-    browserUrl?: string;
-    signal?: AbortSignal;
-  }): Promise<AgentPlanResult> {
+  async planOnly(
+    taskDescription: string,
+    options?: {
+      type?: AgentTask['type'];
+      relevantFiles?: string[];
+      browserUrl?: string;
+      signal?: AbortSignal;
+    },
+  ): Promise<AgentPlanResult> {
     const startTime = Date.now();
     this.pendingFactsUpdates = [];
     this.factsUpdateFlushInProgress = false;
@@ -462,7 +471,8 @@ export class FrontAgent {
     this.lastLlmFailureError = undefined;
 
     const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
-    const resolvedTaskDescription = skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
+    const resolvedTaskDescription =
+      skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
     const skillContext = skillResolution?.promptContext;
     const matchedSkillNames = skillResolution?.matchedSkills.map((skill) => skill.name) ?? [];
 
@@ -473,8 +483,8 @@ export class FrontAgent {
       context: {
         workingDirectory: this.config.projectRoot,
         relevantFiles: options?.relevantFiles,
-        browserUrl: options?.browserUrl
-      }
+        browserUrl: options?.browserUrl,
+      },
     };
 
     this.emit({ type: 'task_started', task });
@@ -501,7 +511,7 @@ export class FrontAgent {
         }
         this.contextManager.addMessage(task.id, {
           role: 'system',
-          content: this.promptGenerator.generate()
+          content: this.promptGenerator.generate(),
         });
       }
 
@@ -509,27 +519,31 @@ export class FrontAgent {
       const preScannedFiles = new Map<string, string>();
       try {
         this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
-        const listResult = await this.executor['callTool']('list_directory', {
+        const listResult = (await this.executor.callTool('list_directory', {
           path: this.config.projectRoot,
-          recursive: true
-        }) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
+          recursive: true,
+        })) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
 
         if (listResult.success && listResult.entries) {
           const files = listResult.entries
-            .filter(e => e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'))
-            .map(e => e.path);
+            .filter(
+              (e) =>
+                e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'),
+            )
+            .map((e) => e.path);
 
           if (files.length > 0) {
             projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
           }
 
-          const configFiles = files.filter(f =>
-            f.endsWith('package.json') ||
-            f.includes('vite.config')
+          const configFiles = files.filter(
+            (f) => f.endsWith('package.json') || f.includes('vite.config'),
           );
           for (const configFile of configFiles) {
             try {
-              const readResult = await this.executor['callTool']('read_file', { path: configFile }) as { success: boolean; content?: string };
+              const readResult = (await this.executor.callTool('read_file', {
+                path: configFile,
+              })) as { success: boolean; content?: string };
               if (readResult.success && readResult.content) {
                 preScannedFiles.set(configFile, readResult.content);
               }
@@ -576,7 +590,7 @@ export class FrontAgent {
           memoryContext: context.collectedContext.memoryContext,
           filesense: this.config.filesense,
         },
-        this.contextManager.getMessages(task.id)
+        this.contextManager.getMessages(task.id),
       );
       this.rememberPlannerFallback(planResult.fallbackReason);
 
@@ -596,7 +610,7 @@ export class FrontAgent {
             memoryContext: context.collectedContext.memoryContext,
             filesense: this.config.filesense,
           },
-          this.contextManager.getMessages(task.id)
+          this.contextManager.getMessages(task.id),
         );
         this.rememberPlannerFallback(retryResult.fallbackReason);
 
@@ -642,19 +656,23 @@ export class FrontAgent {
   /**
    * 执行任务
    */
-  async execute(taskDescription: string, options?: {
-    type?: AgentTask['type'];
-    relevantFiles?: string[];
-    browserUrl?: string;
-    signal?: AbortSignal;
-  }): Promise<AgentExecutionResult> {
+  async execute(
+    taskDescription: string,
+    options?: {
+      type?: AgentTask['type'];
+      relevantFiles?: string[];
+      browserUrl?: string;
+      signal?: AbortSignal;
+    },
+  ): Promise<AgentExecutionResult> {
     const startTime = Date.now();
     this.pendingFactsUpdates = [];
     this.factsUpdateFlushInProgress = false;
     this.lastAnswerGenerationError = undefined;
     this.lastLlmFailureError = undefined;
     const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
-    const resolvedTaskDescription = skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
+    const resolvedTaskDescription =
+      skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
     const skillContext = skillResolution?.promptContext;
     const matchedSkillNames = skillResolution?.matchedSkills.map((skill) => skill.name) ?? [];
 
@@ -670,8 +688,8 @@ export class FrontAgent {
       context: {
         workingDirectory: this.config.projectRoot,
         relevantFiles: options?.relevantFiles,
-        browserUrl: options?.browserUrl
-      }
+        browserUrl: options?.browserUrl,
+      },
     };
 
     this.emit({ type: 'task_started', task });
@@ -703,25 +721,28 @@ export class FrontAgent {
         const sddPrompt = this.promptGenerator.generate();
         this.contextManager.addMessage(task.id, {
           role: 'system',
-          content: sddPrompt
+          content: sddPrompt,
         });
       }
 
       // 🔧 优化：规划前先获取项目文件结构，帮助 LLM 生成正确的文件路径
       let projectStructure: string | undefined;
-      const preScannedFiles = new Map<string, string>();  // 用于端口检测
+      const preScannedFiles = new Map<string, string>(); // 用于端口检测
       try {
         this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
-        const listResult = await this.executor['callTool']('list_directory', {
+        const listResult = (await this.executor.callTool('list_directory', {
           path: this.config.projectRoot,
-          recursive: true
-        }) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
+          recursive: true,
+        })) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
 
         if (listResult.success && listResult.entries) {
           // 只保留文件（不包括目录），并过滤掉 node_modules 等
           const files = listResult.entries
-            .filter(e => e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'))
-            .map(e => e.path);
+            .filter(
+              (e) =>
+                e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'),
+            )
+            .map((e) => e.path);
 
           if (files.length > 0) {
             projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
@@ -729,17 +750,18 @@ export class FrontAgent {
           }
 
           // 预读取关键配置文件用于端口检测
-          const configFiles = files.filter(f =>
-            f.endsWith('package.json') ||
-            f.includes('vite.config')
+          const configFiles = files.filter(
+            (f) => f.endsWith('package.json') || f.includes('vite.config'),
           );
           for (const configFile of configFiles) {
             try {
-              const readResult = await this.executor['callTool']('read_file', { path: configFile }) as { success: boolean; content?: string };
+              const readResult = (await this.executor.callTool('read_file', {
+                path: configFile,
+              })) as { success: boolean; content?: string };
               if (readResult.success && readResult.content) {
                 preScannedFiles.set(configFile, readResult.content);
               }
-            } catch (error) {
+            } catch (_error) {
               // 忽略读取失败
             }
           }
@@ -785,7 +807,7 @@ export class FrontAgent {
           memoryContext: context.collectedContext.memoryContext,
           filesense: this.config.filesense,
         },
-        this.contextManager.getMessages(task.id)
+        this.contextManager.getMessages(task.id),
       );
       this.rememberPlannerFallback(planResult.fallbackReason);
 
@@ -807,7 +829,7 @@ export class FrontAgent {
             memoryContext: context.collectedContext.memoryContext,
             filesense: this.config.filesense,
           },
-          this.contextManager.getMessages(task.id)
+          this.contextManager.getMessages(task.id),
         );
         this.rememberPlannerFallback(retryResult.fallbackReason);
 
@@ -864,26 +886,42 @@ export class FrontAgent {
           const resultWithStatus = {
             success: output.stepResult.success,
             error: output.stepResult.error,
-            ...toolResult
+            ...toolResult,
           };
 
           // 更新文件系统事实
-          this.contextManager.updateFileSystemFacts(task.id, step.tool, step.params, resultWithStatus);
+          this.contextManager.updateFileSystemFacts(
+            task.id,
+            step.tool,
+            step.params,
+            resultWithStatus,
+          );
           // 更新依赖事实
-          this.contextManager.updateDependencyFacts(task.id, step.tool, step.params, resultWithStatus);
+          this.contextManager.updateDependencyFacts(
+            task.id,
+            step.tool,
+            step.params,
+            resultWithStatus,
+          );
           // 更新项目状态事实
           this.contextManager.updateProjectFacts(task.id, step.tool, step.params, resultWithStatus);
           // 更新模块依赖图（追踪已创建的模块）
-          this.contextManager.updateModuleDependencyGraph(task.id, step.tool, step.params, resultWithStatus);
+          this.contextManager.updateModuleDependencyGraph(
+            task.id,
+            step.tool,
+            step.params,
+            resultWithStatus,
+          );
 
           // 更新 Filesense 导航上下文
           if (output.stepResult.success && step.tool === 'filesense_navigate') {
             this.contextManager.updateFilesenseNavigation(task.id, {
               intent: step.params.intent as any,
-              paths: Array.isArray(step.params.paths) ? step.params.paths as string[] : undefined,
+              paths: Array.isArray(step.params.paths) ? (step.params.paths as string[]) : undefined,
               data: resultWithStatus.data ?? resultWithStatus,
             });
-            const filesenseNavigation = this.contextManager.getContext(task.id)?.collectedContext.filesenseNavigation;
+            const filesenseNavigation = this.contextManager.getContext(task.id)?.collectedContext
+              .filesenseNavigation;
             if (filesenseNavigation) {
               this.emit({
                 type: 'filesense_navigated',
@@ -915,21 +953,25 @@ export class FrontAgent {
             if (step.action === 'create_file' && step.params.path) {
               const filePath = step.params.path as string;
               const result = output.stepResult.output as any;
-              const content = result?.content || step.params.content as string || '';
+              const content = result?.content || (step.params.content as string) || '';
               if (content) {
                 executionContext.collectedContext.files.set(filePath, content);
                 this.debugLog(`[Agent] Added created file to context: ${filePath}`);
               }
             }
           } else {
-            this.emit({ type: 'step_failed', step, error: output.stepResult.error ?? 'Unknown error' });
+            this.emit({
+              type: 'step_failed',
+              step,
+              error: output.stepResult.error ?? 'Unknown error',
+            });
 
             // 记录错误事实
             this.contextManager.addErrorFact(
               task.id,
               step.stepId,
               step.action,
-              output.stepResult.error ?? 'Unknown error'
+              output.stepResult.error ?? 'Unknown error',
             );
           }
           validations.push(output.validation);
@@ -962,9 +1004,9 @@ export class FrontAgent {
                   params: { path: missing.missing },
                   dependencies: [],
                   validation: [],
-                  status: 'failed'
+                  status: 'failed',
                 } as ExecutionStep,
-                error: `Missing module: ${missing.importPath} (resolved: ${missing.missing})`
+                error: `Missing module: ${missing.importPath} (resolved: ${missing.missing})`,
               });
             }
           }
@@ -976,13 +1018,13 @@ export class FrontAgent {
           const recoveryPlan = await this.llmService.analyzeErrorsAndGenerateRecovery({
             task: task.description,
             phase,
-            failedSteps: errors.map(e => ({
+            failedSteps: errors.map((e) => ({
               description: e.step.description,
               action: e.step.action,
               params: e.step.params,
-              error: e.error
+              error: e.error,
             })),
-            context: factsContext || '无可用的项目状态信息'
+            context: factsContext || '无可用的项目状态信息',
           });
 
           this.debugLog(`[Agent] Recovery plan analysis: ${recoveryPlan.analysis}`);
@@ -1005,7 +1047,7 @@ export class FrontAgent {
             dependencies: idx > 0 ? [recoveryStepIds[idx - 1]] : [],
             validation: [],
             status: 'pending' as const,
-            phase: step.phase
+            phase: step.phase,
           }));
 
           this.debugLog(`[Agent] Generated ${recoverySteps.length} recovery steps`);
@@ -1015,8 +1057,8 @@ export class FrontAgent {
         // onPhaseComplete: 阶段结束时进行自检验证
         async (phase, phaseResults) => {
           this.throwIfAborted(options?.signal);
-          const successCount = phaseResults.filter(r => r.stepResult.success).length;
-          const failureCount = phaseResults.filter(r => !r.stepResult.success).length;
+          const successCount = phaseResults.filter((r) => r.stepResult.success).length;
+          const failureCount = phaseResults.filter((r) => !r.stepResult.success).length;
           this.emitStatus(`阶段检查：${phase}`, '阶段完成检查');
 
           const errors: Array<{ step: ExecutionStep; error: string }> = [];
@@ -1029,27 +1071,33 @@ export class FrontAgent {
             this.emitStatus(`检查模块依赖：${phase}`, '模块依赖检查');
             const missingModules = this.contextManager.validateModuleDependencies(task.id);
             if (missingModules.length > 0) {
-              this.debugLog(`[Agent] Module validation found ${missingModules.length} missing dependencies`);
-              errors.push(...missingModules.slice(0, 5).map(missing => ({
-                step: {
-                  stepId: `module-validation-${missing.missing.replace(/[^a-zA-Z0-9]/g, '-')}`,
-                  description: `模块 ${missing.from} 引用了不存在的模块: ${missing.importPath}`,
-                  action: 'create_file' as const,
-                  tool: 'create_file',
-                  params: { path: missing.missing },
-                  dependencies: [],
-                  validation: [],
-                  status: 'failed' as const
-                } as ExecutionStep,
-                error: `Missing module: ${missing.importPath} (resolved path: ${missing.missing})`
-              })));
+              this.debugLog(
+                `[Agent] Module validation found ${missingModules.length} missing dependencies`,
+              );
+              errors.push(
+                ...missingModules.slice(0, 5).map((missing) => ({
+                  step: {
+                    stepId: `module-validation-${missing.missing.replace(/[^a-zA-Z0-9]/g, '-')}`,
+                    description: `模块 ${missing.from} 引用了不存在的模块: ${missing.importPath}`,
+                    action: 'create_file' as const,
+                    tool: 'create_file',
+                    params: { path: missing.missing },
+                    dependencies: [],
+                    validation: [],
+                    status: 'failed' as const,
+                  } as ExecutionStep,
+                  error: `Missing module: ${missing.importPath} (resolved path: ${missing.missing})`,
+                })),
+              );
             }
 
             // 2. 检查缺失的 npm 依赖（检查代码中使用但未在 package.json 中声明的依赖）
             // 重新读取 package.json 以获取最新的依赖列表（可能已通过 npm install 更新）
             try {
               this.emitStatus(`刷新依赖清单：${phase}`, '读取 package.json');
-              const pkgJsonResult = await this.executor['callTool']('read_file', { path: 'package.json' }) as { success: boolean; content?: string };
+              const pkgJsonResult = (await this.executor.callTool('read_file', {
+                path: 'package.json',
+              })) as { success: boolean; content?: string };
               if (pkgJsonResult.success && pkgJsonResult.content) {
                 executionContext.collectedContext.files.set('package.json', pkgJsonResult.content);
               }
@@ -1058,9 +1106,13 @@ export class FrontAgent {
             }
 
             this.emitStatus(`检查缺失依赖：${phase}`, 'npm 依赖检查');
-            const missingDeps = await this.checkMissingNpmDependencies(executionContext.collectedContext.files);
+            const missingDeps = await this.checkMissingNpmDependencies(
+              executionContext.collectedContext.files,
+            );
             if (missingDeps.length > 0) {
-              this.debugLog(`[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`);
+              this.debugLog(
+                `[Agent] Found ${missingDeps.length} missing npm dependencies: ${missingDeps.join(', ')}`,
+              );
               // 生成安装缺失依赖的步骤
               errors.push({
                 step: {
@@ -1071,9 +1123,9 @@ export class FrontAgent {
                   params: { command: `npm install ${missingDeps.join(' ')}` },
                   dependencies: [],
                   validation: [],
-                  status: 'failed' as const
+                  status: 'failed' as const,
                 } as ExecutionStep,
-                error: `Missing npm dependencies: ${missingDeps.join(', ')}`
+                error: `Missing npm dependencies: ${missingDeps.join(', ')}`,
               });
             }
 
@@ -1081,33 +1133,40 @@ export class FrontAgent {
             const hasTsConfig = executionContext.collectedContext.files.has('tsconfig.json');
             if (hasTsConfig) {
               this.emitStatus(`TypeScript 检查：${phase}`, '运行类型检查');
-              this.debugLog(`[Agent] Running TypeScript type check...`);
-              const typeErrors = await this.runTypeCheck(task.context?.workingDirectory || process.cwd());
+              this.debugLog('[Agent] Running TypeScript type check...');
+              const typeErrors = await this.runTypeCheck(
+                task.context?.workingDirectory || process.cwd(),
+              );
               if (typeErrors.length > 0) {
                 this.debugLog(`[Agent] TypeScript check found ${typeErrors.length} errors`);
                 // 记录 TS 错误到 Facts 系统
                 for (const error of typeErrors.slice(0, 10)) {
-                  this.contextManager.addErrorFact(task.id, 'type-check', 'typescript', error.message);
+                  this.contextManager.addErrorFact(
+                    task.id,
+                    'type-check',
+                    'typescript',
+                    error.message,
+                  );
                 }
 
                 // 触发错误恢复机制
-                const tsErrorOutput = typeErrors.map(e => e.message).join('\n');
+                const tsErrorOutput = typeErrors.map((e) => e.message).join('\n');
                 errors.push({
                   step: {
                     stepId: 'typescript-type-check',
-                    description: `TypeScript 类型检查`,
+                    description: 'TypeScript 类型检查',
                     action: 'run_command' as const,
                     tool: 'run_command',
                     params: { command: 'npx tsc --noEmit' },
                     dependencies: [],
                     validation: [],
                     status: 'failed' as const,
-                    phase
+                    phase,
                   } as ExecutionStep,
-                  error: `TypeScript compilation failed with ${typeErrors.length} error(s):\n${tsErrorOutput}`
+                  error: `TypeScript compilation failed with ${typeErrors.length} error(s):\n${tsErrorOutput}`,
                 });
               } else {
-                this.debugLog(`[Agent] ✅ TypeScript check passed`);
+                this.debugLog('[Agent] ✅ TypeScript check passed');
               }
             }
 
@@ -1117,22 +1176,28 @@ export class FrontAgent {
               task.id,
               phase,
               executionPlan.steps,
-              executionContext.collectedContext.files
+              executionContext.collectedContext.files,
             );
             if (qualityIssues.length > 0) {
-              const errorCount = qualityIssues.filter(issue => issue.severity === 'error').length;
-              const warningCount = qualityIssues.filter(issue => issue.severity === 'warning').length;
-              this.debugLog(`[Agent] CodeQualitySubAgent found ${errorCount} error(s), ${warningCount} warning(s)`);
+              const errorCount = qualityIssues.filter((issue) => issue.severity === 'error').length;
+              const warningCount = qualityIssues.filter(
+                (issue) => issue.severity === 'warning',
+              ).length;
+              this.debugLog(
+                `[Agent] CodeQualitySubAgent found ${errorCount} error(s), ${warningCount} warning(s)`,
+              );
 
-              const failOnWarnings = this.config.subAgents?.codeQualityEvaluator?.failOnWarnings ?? false;
+              const failOnWarnings =
+                this.config.subAgents?.codeQualityEvaluator?.failOnWarnings ?? false;
               const blockingIssues = qualityIssues.filter(
-                issue => issue.severity === 'error' || (failOnWarnings && issue.severity === 'warning')
+                (issue) =>
+                  issue.severity === 'error' || (failOnWarnings && issue.severity === 'warning'),
               );
 
               if (blockingIssues.length > 0) {
                 const issueText = blockingIssues
                   .slice(0, 10)
-                  .map(issue => {
+                  .map((issue) => {
                     const lineText = issue.line ? `:${issue.line}` : '';
                     return `- ${issue.filePath}${lineText} [${issue.rule}] ${issue.message}`;
                   })
@@ -1148,9 +1213,9 @@ export class FrontAgent {
                     dependencies: [],
                     validation: [],
                     status: 'failed' as const,
-                    phase
+                    phase,
                   } as ExecutionStep,
-                  error: `Code quality review found ${blockingIssues.length} blocking issue(s):\n${issueText}`
+                  error: `Code quality review found ${blockingIssues.length} blocking issue(s):\n${issueText}`,
                 });
               }
             }
@@ -1159,13 +1224,13 @@ export class FrontAgent {
           this.emit({ type: 'phase_completed', phase, successCount, failureCount });
           return errors;
         },
-        options?.signal
+        options?.signal,
       );
 
       this.throwIfAborted(options?.signal);
 
       // 检查是否有失败的步骤
-      const failedSteps = executionPlan.steps.filter(s => s.status === 'failed');
+      const failedSteps = executionPlan.steps.filter((s) => s.status === 'failed');
       let success = failedSteps.length === 0;
       this.emitStatus(
         task.type === 'query' ? '生成最终回答' : '汇总执行结果',
@@ -1191,15 +1256,14 @@ export class FrontAgent {
             ? missingAnswerCause
               ? `任务未能生成最终回答：${missingAnswerCause}`
               : '任务完成了工具步骤，但未生成最终回答。'
-            : failedSteps.map(s => s.result?.error).join('; '),
+            : failedSteps.map((s) => s.result?.error).join('; '),
         duration: Date.now() - startTime,
-        validations
+        validations,
       };
 
       this.emitStatus('任务执行完成', '准备输出结果');
       this.emit({ type: 'task_completed', result });
       return result;
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.emit({ type: 'task_failed', error: errorMessage });
@@ -1210,7 +1274,7 @@ export class FrontAgent {
         executedSteps: [],
         error: errorMessage,
         duration: Date.now() - startTime,
-        validations: []
+        validations: [],
       };
     } finally {
       // 持久化跨会话记忆（off critical path）
@@ -1231,27 +1295,23 @@ export class FrontAgent {
    */
   private async gatherContext(
     taskId: string,
-    requests: Array<{ type: string; params: Record<string, unknown> }>
+    requests: Array<{ type: string; params: Record<string, unknown> }>,
   ): Promise<void> {
     for (const request of requests) {
       try {
         switch (request.type) {
           case 'read_file': {
             const path = request.params.path as string;
-            const result = await this.executor['callTool']('read_file', { path });
+            const result = await this.executor.callTool('read_file', { path });
             if ((result as { success?: boolean }).success) {
-              this.contextManager.addFile(
-                taskId,
-                path,
-                (result as { content: string }).content
-              );
+              this.contextManager.addFile(taskId, path, (result as { content: string }).content);
             }
             break;
           }
           case 'get_page': {
             const url = request.params.url as string;
-            await this.executor['callTool']('browser_navigate', { url });
-            const result = await this.executor['callTool']('get_page_structure', {});
+            await this.executor.callTool('browser_navigate', { url });
+            const result = await this.executor.callTool('get_page_structure', {});
             this.contextManager.setPageStructure(taskId, result);
             break;
           }
@@ -1262,7 +1322,10 @@ export class FrontAgent {
             const retrievalQuery = rewrittenQuery
               ? mergeRetrievalQuery(query, rewrittenQuery)
               : normalizeSearchQuery(query);
-            const result = await this.executor['callTool']('rag_query', { query: retrievalQuery, maxResults }) as {
+            const result = (await this.executor.callTool('rag_query', {
+              query: retrievalQuery,
+              maxResults,
+            })) as {
               success?: boolean;
               results?: Array<{
                 type: string;
@@ -1276,7 +1339,7 @@ export class FrontAgent {
             if (result.success && result.results?.length) {
               this.contextManager.addRagResults(
                 taskId,
-                result.results.map((item) => this.formatRagResult(item))
+                result.results.map((item) => this.formatRagResult(item)),
               );
             }
             break;
@@ -1292,8 +1355,8 @@ export class FrontAgent {
    * 生成输出摘要
    */
   private generateOutput(steps: ExecutionPlan['steps']): string {
-    const completedSteps = steps.filter(s => s.status === 'completed');
-    const summary = completedSteps.map(s => `✅ ${s.description}`).join('\n');
+    const completedSteps = steps.filter((s) => s.status === 'completed');
+    const summary = completedSteps.map((s) => `✅ ${s.description}`).join('\n');
     return `执行完成 (${completedSteps.length}/${steps.length} 步骤成功)\n\n${summary}`;
   }
 
@@ -1327,12 +1390,14 @@ export class FrontAgent {
     const searchEvidence = steps
       .filter((step) => step.action === 'search_code' && step.result?.success)
       .flatMap((step) => {
-        const output = step.result?.output as {
-          matches?: Array<{ file: string; line: number; content: string }>;
-        } | undefined;
-        return (output?.matches ?? []).slice(0, 5).map((match) =>
-          `${match.file}:${match.line} ${match.content}`
-        );
+        const output = step.result?.output as
+          | {
+              matches?: Array<{ file: string; line: number; content: string }>;
+            }
+          | undefined;
+        return (output?.matches ?? [])
+          .slice(0, 5)
+          .map((match) => `${match.file}:${match.line} ${match.content}`);
       })
       .slice(0, 10);
 
@@ -1345,7 +1410,7 @@ export class FrontAgent {
       for (const match of ragMatches.slice(0, 5)) {
         const location = match.path ? ` path=${match.path}` : '';
         evidenceParts.push(
-          `- ${match.title}${location} source=${match.sourceUrl}\n${truncateForPrompt(match.snippet, 320)}`
+          `- ${match.title}${location} source=${match.sourceUrl}\n${truncateForPrompt(match.snippet, 320)}`,
         );
       }
     }
@@ -1374,9 +1439,10 @@ export class FrontAgent {
       return undefined;
     }
 
-    const warningText = ragWarnings.length > 0
-      ? `\n已知检索告警：\n${ragWarnings.map((warning) => `- ${warning}`).join('\n')}\n`
-      : '';
+    const warningText =
+      ragWarnings.length > 0
+        ? `\n已知检索告警：\n${ragWarnings.map((warning) => `- ${warning}`).join('\n')}\n`
+        : '';
 
     return this.llmService.generateText({
       system: `你是 FrontAgent 的查询问答总结器。
@@ -1416,11 +1482,14 @@ export class FrontAgent {
    * 需要从执行上下文中传入 collectedContext
    */
   private async checkMissingNpmDependencies(
-    collectedFiles: Map<string, string> = new Map()
+    collectedFiles: Map<string, string> = new Map(),
   ): Promise<string[]> {
     // 读取 package.json
     const packageJsonPath = 'package.json';
-    let packageJson: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {};
+    let packageJson: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    } = {};
 
     const packageJsonContent = collectedFiles.get(packageJsonPath);
     if (packageJsonContent) {
@@ -1433,7 +1502,7 @@ export class FrontAgent {
 
     const declaredDeps = new Set([
       ...Object.keys(packageJson.dependencies || {}),
-      ...Object.keys(packageJson.devDependencies || {})
+      ...Object.keys(packageJson.devDependencies || {}),
     ]);
 
     // 分析所有 JS/TS 文件，提取 import 语句中的外部依赖
@@ -1484,29 +1553,37 @@ export class FrontAgent {
   /**
    * 运行 TypeScript 类型检查并解析错误为结构化数据
    */
-  private async runTypeCheck(workingDir: string): Promise<Array<{ file: string; line: number; column: number; message: string; code: string }>> {
+  private async runTypeCheck(
+    workingDir: string,
+  ): Promise<Array<{ file: string; line: number; column: number; message: string; code: string }>> {
     try {
       // 执行 tsc --noEmit 获取类型错误
-      const result = await this.executor['callTool']('run_command', {
+      const result = (await this.executor.callTool('run_command', {
         command: 'npx tsc --noEmit 2>&1',
-        cwd: workingDir
-      }) as { success: boolean; output: string; error?: string };
+        cwd: workingDir,
+      })) as { success: boolean; output: string; error?: string };
 
       const output = result.output || result.error || '';
 
       // 解析 TypeScript 错误输出
       // 格式：src/App.tsx(10,5): error TS2304: Cannot find name 'Foo'.
       const errorRegex = /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)$/gm;
-      const errors: Array<{ file: string; line: number; column: number; message: string; code: string }> = [];
+      const errors: Array<{
+        file: string;
+        line: number;
+        column: number;
+        message: string;
+        code: string;
+      }> = [];
 
       let match;
       while ((match = errorRegex.exec(output)) !== null) {
         errors.push({
           file: match[1],
-          line: parseInt(match[2], 10),
-          column: parseInt(match[3], 10),
+          line: Number.parseInt(match[2], 10),
+          column: Number.parseInt(match[3], 10),
           code: match[4],
-          message: match[5]
+          message: match[5],
         });
       }
 
@@ -1561,13 +1638,13 @@ export class FrontAgent {
    */
   private async readFilesForCodeQualityReview(
     filePaths: string[],
-    collectedFiles: Map<string, string>
+    collectedFiles: Map<string, string>,
   ): Promise<CodeQualityReviewFile[]> {
     const files: CodeQualityReviewFile[] = [];
 
     for (const path of filePaths) {
       try {
-        const readResult = await this.executor['callTool']('read_file', { path }) as {
+        const readResult = (await this.executor.callTool('read_file', { path })) as {
           success: boolean;
           content?: string;
         };
@@ -1597,7 +1674,7 @@ export class FrontAgent {
     taskId: string,
     phase: string,
     steps: ExecutionStep[],
-    collectedFiles: Map<string, string>
+    collectedFiles: Map<string, string>,
   ): Promise<CodeQualityIssue[]> {
     if (!this.codeQualitySubAgent || !this.a2aBus.hasAgent(this.codeQualitySubAgent.agentId)) {
       return [];
@@ -1621,15 +1698,19 @@ export class FrontAgent {
       sharedFacts: this.contextManager.exportFactsSnapshot(taskId),
     };
 
-    const response = await this.a2aBus.request<CodeQualityReviewRequest, CodeQualityReviewResponse>({
-      from: 'frontagent.main',
-      to: this.codeQualitySubAgent.agentId,
-      intent: 'code_quality.review_generated_files',
-      payload: request
-    });
+    const response = await this.a2aBus.request<CodeQualityReviewRequest, CodeQualityReviewResponse>(
+      {
+        from: 'frontagent.main',
+        to: this.codeQualitySubAgent.agentId,
+        intent: 'code_quality.review_generated_files',
+        payload: request,
+      },
+    );
 
     if (!response.success || !response.payload) {
-      this.debugWarn(`[Agent] CodeQualitySubAgent request failed: ${response.error ?? 'Unknown error'}`);
+      this.debugWarn(
+        `[Agent] CodeQualitySubAgent request failed: ${response.error ?? 'Unknown error'}`,
+      );
       return [];
     }
 
@@ -1665,10 +1746,12 @@ export class FrontAgent {
           }
 
           const mergeResult = this.contextManager.mergeFactsUpdate(taskId, nextUpdate);
-          const staleText = mergeResult.staleBaseRevision ? ' (stale base revision, rebased in main reducer)' : '';
+          const staleText = mergeResult.staleBaseRevision
+            ? ' (stale base revision, rebased in main reducer)'
+            : '';
           this.debugLog(
             `[Agent] Merged facts update from ${mergeResult.source}: ` +
-            `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`
+              `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`,
           );
         }
       } finally {
@@ -1702,7 +1785,7 @@ export class FrontAgent {
       for (const step of context.executedSteps) {
         if (
           step.status === 'completed' &&
-          (step.action === 'create_file') &&
+          step.action === 'create_file' &&
           typeof step.params.path === 'string'
         ) {
           createdFiles.push(step.params.path);
@@ -1745,8 +1828,8 @@ export class FrontAgent {
 
       this.debugLog(
         `[Agent] 🧠 Persisted memory: ${createdFiles.length} files, ` +
-        `${errorResolutions.length} error resolutions, ` +
-        `${persistInput.dependencyChanges.installed.length} installed deps`
+          `${errorResolutions.length} error resolutions, ` +
+          `${persistInput.dependencyChanges.installed.length} installed deps`,
       );
     } catch (error) {
       this.debugWarn('[Agent] Memory persistence failed (non-blocking):', error);
@@ -1760,7 +1843,7 @@ export class FrontAgent {
    */
   private preloadMemory(
     taskId: string,
-    context: NonNullable<ReturnType<ContextManager['getContext']>>
+    context: NonNullable<ReturnType<ContextManager['getContext']>>,
   ): void {
     if (this.config.memory?.enabled === false) return;
     if (!this.memoryStore.hasMemory()) return;
@@ -1772,8 +1855,8 @@ export class FrontAgent {
         this.contextManager.replaceFactsFromSnapshot(taskId, factsSnapshot);
         this.debugLog(
           `[Agent] 🧠 Seeded facts from snapshot (r${factsSnapshot.revision}): ` +
-          `${factsSnapshot.filesystem.existingFiles.length} files, ` +
-          `${factsSnapshot.dependencies.installedPackages.length} packages`
+            `${factsSnapshot.filesystem.existingFiles.length} files, ` +
+            `${factsSnapshot.dependencies.installedPackages.length} packages`,
         );
       }
 
@@ -1781,9 +1864,7 @@ export class FrontAgent {
       const memoryContent = this.memoryStore.preload();
       if (memoryContent) {
         context.collectedContext.memoryContext = memoryContent;
-        this.debugLog(
-          `[Agent] 🧠 Preloaded memory content (${memoryContent.length} chars)`
-        );
+        this.debugLog(`[Agent] 🧠 Preloaded memory content (${memoryContent.length} chars)`);
       }
     } catch (error) {
       this.debugWarn('[Agent] Memory preload failed (non-blocking):', error);
@@ -1802,7 +1883,7 @@ export class FrontAgent {
         const portMatch = content.match(/server\s*:\s*\{[^}]*port\s*:\s*(\d+)/);
         if (portMatch) {
           this.debugLog(`[Agent] 🔍 Detected port ${portMatch[1]} from ${filePath}`);
-          return parseInt(portMatch[1], 10);
+          return Number.parseInt(portMatch[1], 10);
         }
       }
     }
@@ -1818,30 +1899,30 @@ export class FrontAgent {
         const portMatch = devScript.match(/(?:--port|-p)\s+(\d+)/);
         if (portMatch) {
           this.debugLog(`[Agent] 🔍 Detected port ${portMatch[1]} from package.json scripts`);
-          return parseInt(portMatch[1], 10);
+          return Number.parseInt(portMatch[1], 10);
         }
 
         // 检查是否使用特定框架（根据依赖推断默认端口）
         const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-        if (deps['vite']) {
-          this.debugLog(`[Agent] 🔍 Detected Vite project, using default port 5173`);
-          return 5173;  // Vite 默认
+        if (deps.vite) {
+          this.debugLog('[Agent] 🔍 Detected Vite project, using default port 5173');
+          return 5173; // Vite 默认
         }
-        if (deps['next']) {
-          this.debugLog(`[Agent] 🔍 Detected Next.js project, using default port 3000`);
-          return 3000;  // Next.js 默认
+        if (deps.next) {
+          this.debugLog('[Agent] 🔍 Detected Next.js project, using default port 3000');
+          return 3000; // Next.js 默认
         }
         if (deps['react-scripts']) {
-          this.debugLog(`[Agent] 🔍 Detected CRA project, using default port 3000`);
-          return 3000;  // Create React App 默认
+          this.debugLog('[Agent] 🔍 Detected CRA project, using default port 3000');
+          return 3000; // Create React App 默认
         }
         if (deps['@angular/cli']) {
-          this.debugLog(`[Agent] 🔍 Detected Angular project, using default port 4200`);
-          return 4200;  // Angular 默认
+          this.debugLog('[Agent] 🔍 Detected Angular project, using default port 4200');
+          return 4200; // Angular 默认
         }
-        if (deps['vue']) {
-          this.debugLog(`[Agent] 🔍 Detected Vue project, using default port 5173`);
-          return 5173;  // Vue CLI 默认
+        if (deps.vue) {
+          this.debugLog('[Agent] 🔍 Detected Vue project, using default port 5173');
+          return 5173; // Vue CLI 默认
         }
       } catch (error) {
         this.debugWarn('[Agent] Failed to parse package.json for port detection:', error);
@@ -1849,11 +1930,14 @@ export class FrontAgent {
     }
 
     // 3. 默认使用 5173（Vite 默认）
-    this.debugLog(`[Agent] 🔍 Using fallback port 5173`);
+    this.debugLog('[Agent] 🔍 Using fallback port 5173');
     return 5173;
   }
 
-  private async retrieveRagContext(taskId: string, query: string): Promise<RetrievedRagContext | undefined> {
+  private async retrieveRagContext(
+    taskId: string,
+    query: string,
+  ): Promise<RetrievedRagContext | undefined> {
     if (this.config.rag?.enabled === false) {
       return undefined;
     }
@@ -1875,10 +1959,10 @@ export class FrontAgent {
         });
       }
 
-      const result = await this.executor['callTool']('rag_query', {
+      const result = (await this.executor.callTool('rag_query', {
         query: retrievalQuery,
         maxResults: this.config.rag?.maxResults ?? 5,
-      }) as {
+      })) as {
         success?: boolean;
         searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
         reranked?: boolean;
@@ -1983,7 +2067,10 @@ export class FrontAgent {
       return undefined;
     }
 
-    if ((rewriteConfig?.mode ?? 'auto') === 'auto' && !this.shouldRewriteRagQuery(normalizedQuery)) {
+    if (
+      (rewriteConfig?.mode ?? 'auto') === 'auto' &&
+      !this.shouldRewriteRagQuery(normalizedQuery)
+    ) {
       return undefined;
     }
 
@@ -2022,7 +2109,8 @@ export class FrontAgent {
   private shouldRewriteRagQuery(query: string): boolean {
     const normalized = normalizeSearchQuery(query);
     if (!normalized) return false;
-    if (/[./][A-Za-z0-9_-]+|[A-Za-z_$][\w$]*\(|@[a-z0-9-]+\/|#[0-9]+/.test(normalized)) return false;
+    if (/[./][A-Za-z0-9_-]+|[A-Za-z_$][\w$]*\(|@[a-z0-9-]+\/|#[0-9]+/.test(normalized))
+      return false;
     if (normalized.length <= 80 && /[A-Za-z0-9_./-]/.test(normalized)) return false;
     return true;
   }

@@ -1,32 +1,26 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-} from 'node:fs';
-import { join, basename } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import type { ProjectFactsSnapshot } from '../types.js';
 import type {
   MemoryConfig,
-  MemoryIndex,
-  MemoryTopicMeta,
-  MemoryTopic,
   MemoryEntry,
+  MemoryIndex,
+  MemoryTopic,
+  MemoryTopicMeta,
   PersistenceInput,
   RecallQuery,
   RecalledMemory,
 } from './types.js';
 import {
-  MEMORY_INDEX_VERSION,
+  DEFAULT_MAX_TOPIC_FILES,
   DEFAULT_PRELOAD_BUDGET_CHARS,
   DEFAULT_RECALL_BUDGET_CHARS,
-  DEFAULT_MAX_TOPIC_FILES,
-  MEMORY_DIR_NAME,
-  TOPICS_DIR_NAME,
-  SNAPSHOTS_DIR_NAME,
-  INDEX_FILE_NAME,
   FACTS_SNAPSHOT_FILE_NAME,
+  INDEX_FILE_NAME,
+  MEMORY_DIR_NAME,
+  MEMORY_INDEX_VERSION,
+  SNAPSHOTS_DIR_NAME,
+  TOPICS_DIR_NAME,
 } from './types.js';
 
 /**
@@ -101,7 +95,7 @@ export class MemoryStore {
 
       // Parse topic lines: - [Title](topics/id.md) — summary (updated: ISO, ~NNN chars)
       const topicMatch = line.match(
-        /^- \[(.+?)]\(topics\/(.+?)\.md\)\s*[—–-]\s*(.+?)(?:\s*\(updated:\s*(.+?),\s*~(\d+)\s*chars\))?\s*$/
+        /^- \[(.+?)]\(topics\/(.+?)\.md\)\s*[—–-]\s*(.+?)(?:\s*\(updated:\s*(.+?),\s*~(\d+)\s*chars\))?\s*$/,
       );
       if (topicMatch) {
         topics.push({
@@ -109,7 +103,7 @@ export class MemoryStore {
           id: topicMatch[2],
           summary: topicMatch[3].trim(),
           updatedAt: topicMatch[4] ?? new Date().toISOString(),
-          charCount: topicMatch[5] ? parseInt(topicMatch[5], 10) : 0,
+          charCount: topicMatch[5] ? Number.parseInt(topicMatch[5], 10) : 0,
         });
       }
     }
@@ -135,7 +129,7 @@ export class MemoryStore {
 
     for (const topic of index.topics) {
       lines.push(
-        `- [${topic.title}](topics/${topic.id}.md) — ${topic.summary} (updated: ${topic.updatedAt}, ~${topic.charCount} chars)`
+        `- [${topic.title}](topics/${topic.id}.md) — ${topic.summary} (updated: ${topic.updatedAt}, ~${topic.charCount} chars)`,
       );
     }
 
@@ -191,7 +185,7 @@ export class MemoryStore {
 
       // Each H3 starts a new entry: ### key [tags: a, b] (updated: ISO)
       const entryMatch = line.match(
-        /^### (.+?)(?:\s*\[tags:\s*(.+?)])?\s*(?:\(updated:\s*(.+?)\))?\s*$/
+        /^### (.+?)(?:\s*\[tags:\s*(.+?)])?\s*(?:\(updated:\s*(.+?)\))?\s*$/,
       );
       if (entryMatch) {
         if (currentEntry?.key) {
@@ -297,7 +291,7 @@ export class MemoryStore {
 
     // Load topic files within budget
     const sortedTopics = [...index.topics].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
 
     let loaded = 0;
@@ -313,7 +307,7 @@ export class MemoryStore {
         // Try to include a truncated version
         const remaining = this.preloadBudget - charCount;
         if (remaining > 200) {
-          parts.push(section.slice(0, remaining) + '\n...(truncated)');
+          parts.push(`${section.slice(0, remaining)}\n...(truncated)`);
           charCount = this.preloadBudget;
         }
         break;
@@ -394,11 +388,7 @@ export class MemoryStore {
    * Score an entry's relevance to a recall query.
    * Simple keyword/path matching — no embeddings needed for this tier.
    */
-  private scoreEntry(
-    entry: MemoryEntry,
-    topicId: string,
-    query: RecallQuery
-  ): number {
+  private scoreEntry(entry: MemoryEntry, topicId: string, query: RecallQuery): number {
     let score = 0;
 
     // File path matching: if the entry key or tags reference the queried path
@@ -421,12 +411,18 @@ export class MemoryStore {
     }
 
     // Error topic gets a boost when the action involves code generation
-    if (topicId === 'errors' && (query.action === 'create_file' || query.action === 'apply_patch')) {
+    if (
+      topicId === 'errors' &&
+      (query.action === 'create_file' || query.action === 'apply_patch')
+    ) {
       score += 0.2;
     }
 
     // Pattern topic gets a boost for code generation actions
-    if (topicId === 'patterns' && (query.action === 'create_file' || query.action === 'apply_patch')) {
+    if (
+      topicId === 'patterns' &&
+      (query.action === 'create_file' || query.action === 'apply_patch')
+    ) {
       score += 0.15;
     }
 
@@ -441,8 +437,11 @@ export class MemoryStore {
 
     // Text matching (simple keyword overlap)
     if (query.text) {
-      const queryWords = query.text.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
-      const contentLower = (entry.content + ' ' + entry.key).toLowerCase();
+      const queryWords = query.text
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3);
+      const contentLower = `${entry.content} ${entry.key}`.toLowerCase();
       let matches = 0;
       for (const word of queryWords) {
         if (contentLower.includes(word)) {

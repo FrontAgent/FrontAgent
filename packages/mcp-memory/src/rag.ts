@@ -3,13 +3,13 @@ import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve, extname, basename } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -50,17 +50,52 @@ const IGNORED_DIR_NAMES = new Set([
 ]);
 const BINARY_EXTENSIONS = new Set([
   // Images
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff', '.svg',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.ico',
+  '.bmp',
+  '.tiff',
+  '.svg',
   // Documents / archives
-  '.pdf', '.zip', '.gz', '.tgz', '.7z', '.rar',
+  '.pdf',
+  '.zip',
+  '.gz',
+  '.tgz',
+  '.7z',
+  '.rar',
   // Audio / video
-  '.mp3', '.mp4', '.mov', '.avi', '.mkv', '.wav', '.ogg', '.flac',
+  '.mp3',
+  '.mp4',
+  '.mov',
+  '.avi',
+  '.mkv',
+  '.wav',
+  '.ogg',
+  '.flac',
   // Fonts
-  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+  '.otf',
   // Compiled / binary
-  '.class', '.jar', '.exe', '.dll', '.so', '.dylib', '.bin', '.wasm', '.psd',
+  '.class',
+  '.jar',
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib',
+  '.bin',
+  '.wasm',
+  '.psd',
   // Data / config with no search value
-  '.drawio', '.sqlite', '.db', '.lock',
+  '.drawio',
+  '.sqlite',
+  '.db',
+  '.lock',
   // Source maps: large JSON blobs that describe minified code, not useful to index
   '.map',
 ]);
@@ -275,10 +310,13 @@ interface EmbeddingStore {
   baseURL: string;
   dimensions?: number;
   updatedAt: string;
-  vectors: Record<string, {
-    contentHash: string;
-    vector: number[];
-  }>;
+  vectors: Record<
+    string,
+    {
+      contentHash: string;
+      vector: number[];
+    }
+  >;
 }
 
 interface WeaviateVectorStoreState {
@@ -333,12 +371,11 @@ export function createKnowledgeBase(config: KnowledgeBaseConfig): KnowledgeProvi
 
 export async function ragQuery(
   params: RagQueryParams,
-  config: KnowledgeBaseConfig
+  config: KnowledgeBaseConfig,
 ): Promise<RagQueryResult> {
   const knowledgeBase = createKnowledgeBase(config);
   return knowledgeBase.query(params);
 }
-
 
 class OpenVikingKnowledgeProvider implements KnowledgeProvider {
   private readonly config: RequiredOpenVikingConfig;
@@ -389,12 +426,13 @@ class OpenVikingKnowledgeProvider implements KnowledgeProvider {
         };
       }
 
-      const payload = await response.json() as unknown;
+      const payload = (await response.json()) as unknown;
       const matches = normalizeOpenVikingMatches(payload, this.config, params.maxResults);
       return {
         success: true,
         syncedAt: getString((payload as any)?.syncedAt) ?? new Date().toISOString(),
-        sourceRevision: getString((payload as any)?.sourceRevision) ?? getString((payload as any)?.revision),
+        sourceRevision:
+          getString((payload as any)?.sourceRevision) ?? getString((payload as any)?.revision),
         searchMode: 'openviking',
         reranked: Boolean((payload as any)?.reranked),
         warnings: normalizeWarnings((payload as any)?.warnings),
@@ -442,7 +480,9 @@ class CompositeKnowledgeProvider implements KnowledgeProvider {
       ...gitResult,
       searchMode: gitResult.searchMode ?? 'composite',
       warnings: [
-        ...(openVikingResult.error ? [`OpenViking fallback reason: ${openVikingResult.error}`] : []),
+        ...(openVikingResult.error
+          ? [`OpenViking fallback reason: ${openVikingResult.error}`]
+          : []),
         ...(openVikingResult.warnings ?? []),
         ...(gitResult.warnings ?? []),
       ],
@@ -461,7 +501,8 @@ interface RequiredOpenVikingConfig {
 }
 
 export function normalizeKnowledgeBaseSource(config: KnowledgeBaseConfig): KnowledgeBaseSource {
-  const source = config.source ?? (process.env.FRONTAGENT_RAG_SOURCE as KnowledgeBaseSource | undefined);
+  const source =
+    config.source ?? (process.env.FRONTAGENT_RAG_SOURCE as KnowledgeBaseSource | undefined);
   if (source === 'git' || source === 'openviking' || source === 'composite') {
     return source;
   }
@@ -472,8 +513,11 @@ export function normalizeKnowledgeBaseSource(config: KnowledgeBaseConfig): Knowl
 
 export function normalizeOpenVikingConfig(config?: OpenVikingConfig): RequiredOpenVikingConfig {
   return {
-    enabled: config?.enabled ?? parseOptionalBoolean(process.env.FRONTAGENT_OPENVIKING_ENABLED) ?? true,
-    endpoint: normalizeOptionalBaseUrl(config?.endpoint ?? process.env.FRONTAGENT_OPENVIKING_ENDPOINT) ?? '',
+    enabled:
+      config?.enabled ?? parseOptionalBoolean(process.env.FRONTAGENT_OPENVIKING_ENABLED) ?? true,
+    endpoint:
+      normalizeOptionalBaseUrl(config?.endpoint ?? process.env.FRONTAGENT_OPENVIKING_ENDPOINT) ??
+      '',
     apiKey: config?.apiKey ?? process.env.FRONTAGENT_OPENVIKING_API_KEY ?? '',
     corpus: config?.corpus ?? process.env.FRONTAGENT_OPENVIKING_CORPUS ?? '',
     namespace: config?.namespace ?? process.env.FRONTAGENT_OPENVIKING_NAMESPACE ?? '',
@@ -514,9 +558,11 @@ export function normalizeOpenVikingMatches(
         : [];
 
   return rawItems.slice(0, maxResults ?? rawItems.length).map((item: any, index: number) => {
-    const path = getString(item.path) ?? getString(item.uri) ?? getString(item.id) ?? `openviking:${index}`;
+    const path =
+      getString(item.path) ?? getString(item.uri) ?? getString(item.id) ?? `openviking:${index}`;
     const title = getString(item.title) ?? basename(path) ?? path;
-    const metadata = typeof item.metadata === 'object' && item.metadata !== null ? item.metadata : {};
+    const metadata =
+      typeof item.metadata === 'object' && item.metadata !== null ? item.metadata : {};
     const extension = getString(metadata.extension) ?? (extname(path).toLowerCase() || '.md');
     const topLevelDir = getString(metadata.topLevelDir) ?? getTopLevelDir(path);
     return {
@@ -566,7 +612,8 @@ function getNumber(value: unknown): number | undefined {
 
 export const ragQuerySchema = {
   name: 'rag_query',
-  description: 'Query the full repository knowledge base using BM25 + semantic hybrid search with metadata filters.',
+  description:
+    'Query the full repository knowledge base using BM25 + semantic hybrid search with metadata filters.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -586,7 +633,8 @@ export const ragQuerySchema = {
       },
       filters: {
         type: 'object',
-        description: 'Optional metadata filters applied after keyword and semantic candidate retrieval',
+        description:
+          'Optional metadata filters applied after keyword and semantic candidate retrieval',
         properties: {
           topLevelDirs: {
             type: 'array',
@@ -715,11 +763,13 @@ class HybridRepositoryKnowledgeBase {
                   if (semanticDocumentCandidates.length > 0) {
                     searchMode = 'hybrid';
                   } else {
-                    warnings.push('Semantic search returned no candidates; keyword results were used.');
+                    warnings.push(
+                      'Semantic search returned no candidates; keyword results were used.',
+                    );
                   }
                 } catch (error) {
                   warnings.push(
-                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`,
                   );
                 }
               }
@@ -738,11 +788,11 @@ class HybridRepositoryKnowledgeBase {
 
                 if (!embeddingStore || !usedPartialEmbeddingCache) {
                   warnings.push(
-                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`,
                   );
                 } else {
                   warnings.push(
-                    `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`
+                    `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`,
                   );
                 }
               }
@@ -764,11 +814,13 @@ class HybridRepositoryKnowledgeBase {
                   if (semanticDocumentCandidates.length > 0) {
                     searchMode = 'hybrid';
                   } else {
-                    warnings.push('Semantic search returned no candidates; keyword results were used.');
+                    warnings.push(
+                      'Semantic search returned no candidates; keyword results were used.',
+                    );
                   }
                 } catch (error) {
                   warnings.push(
-                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`
+                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`,
                   );
                 }
               }
@@ -796,7 +848,11 @@ class HybridRepositoryKnowledgeBase {
       if (this.config.reranker.enabled) {
         const rerankStartedAt = performance.now();
         try {
-          if (this.config.reranker.model && this.config.reranker.baseURL && this.config.reranker.apiKey) {
+          if (
+            this.config.reranker.model &&
+            this.config.reranker.baseURL &&
+            this.config.reranker.apiKey
+          ) {
             try {
               finalResults = await rerankDocumentCandidates({
                 query: queryText,
@@ -807,7 +863,7 @@ class HybridRepositoryKnowledgeBase {
               reranked = true;
             } catch (error) {
               warnings.push(
-                `Reranking unavailable: ${error instanceof Error ? error.message : String(error)}`
+                `Reranking unavailable: ${error instanceof Error ? error.message : String(error)}`,
               );
             }
           }
@@ -955,7 +1011,11 @@ class HybridRepositoryKnowledgeBase {
     return index;
   }
 
-  private canReuseWarmIndex(index: RepositoryIndex, repoDir: string, forceRefresh: boolean): boolean {
+  private canReuseWarmIndex(
+    index: RepositoryIndex,
+    repoDir: string,
+    forceRefresh: boolean,
+  ): boolean {
     return (
       !forceRefresh &&
       !this.config.syncOnQuery &&
@@ -1085,10 +1145,15 @@ class HybridRepositoryKnowledgeBase {
     writeFileSync(this.getEmbeddingStorePath(), JSON.stringify(store), 'utf-8');
   }
 
-  private async ensureWeaviateSemanticIndex(index: RepositoryIndex): Promise<WeaviateVectorStoreState> {
+  private async ensureWeaviateSemanticIndex(
+    index: RepositoryIndex,
+  ): Promise<WeaviateVectorStoreState> {
     const collectionName = getWeaviateCollectionName(this.config);
     const current = this.readWeaviateVectorStoreState();
-    const collectionStatus = await ensureWeaviateCollection(this.config.vectorStore.weaviate, collectionName);
+    const collectionStatus = await ensureWeaviateCollection(
+      this.config.vectorStore.weaviate,
+      collectionName,
+    );
     const compatible =
       current &&
       current.collectionName === collectionName &&
@@ -1115,7 +1180,10 @@ class HybridRepositoryKnowledgeBase {
     }));
     const batches = createEmbeddingBatches(
       embeddingInputs,
-      Math.max(1, Math.min(this.config.embedding.batchSize, this.config.vectorStore.weaviate.batchSize)),
+      Math.max(
+        1,
+        Math.min(this.config.embedding.batchSize, this.config.vectorStore.weaviate.batchSize),
+      ),
       DEFAULT_EMBEDDING_MAX_BATCH_TOKENS,
     );
 
@@ -1195,7 +1263,7 @@ class HybridRepositoryKnowledgeBase {
 
 function normalizeFiltersForCache(filters?: RagMetadataFilter): RagMetadataFilter | undefined {
   if (!filters) return undefined;
-  const normalizeList = (values?: string[]) => values ? [...values].sort() : undefined;
+  const normalizeList = (values?: string[]) => (values ? [...values].sort() : undefined);
   return {
     topLevelDirs: normalizeList(filters.topLevelDirs),
     extensions: normalizeList(filters.extensions),
@@ -1251,7 +1319,7 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
       process.env.FRONTAGENT_RAG_EMBEDDING_BASE_URL ??
       process.env.OPENAI_BASE_URL ??
       process.env.BASE_URL ??
-      'https://api.openai.com/v1'
+      'https://api.openai.com/v1',
   );
   const embeddingApiKey =
     config.embedding?.apiKey ??
@@ -1265,30 +1333,20 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
     (process.env.FRONTAGENT_RAG_WEAVIATE_URL ? 'weaviate' : undefined) ??
     DEFAULT_VECTOR_STORE_PROVIDER;
   const weaviateBaseURL =
-    config.vectorStore?.weaviate?.baseURL ??
-    process.env.FRONTAGENT_RAG_WEAVIATE_URL ??
-    '';
+    config.vectorStore?.weaviate?.baseURL ?? process.env.FRONTAGENT_RAG_WEAVIATE_URL ?? '';
   const weaviateApiKey =
-    config.vectorStore?.weaviate?.apiKey ??
-    process.env.FRONTAGENT_RAG_WEAVIATE_API_KEY ??
-    '';
+    config.vectorStore?.weaviate?.apiKey ?? process.env.FRONTAGENT_RAG_WEAVIATE_API_KEY ?? '';
   const rerankerBaseURL =
-    config.reranker?.baseURL ??
-    process.env.FRONTAGENT_RAG_RERANKER_BASE_URL ??
-    '';
+    config.reranker?.baseURL ?? process.env.FRONTAGENT_RAG_RERANKER_BASE_URL ?? '';
   const rerankerApiKey =
-    config.reranker?.apiKey ??
-    process.env.FRONTAGENT_RAG_RERANKER_API_KEY ??
-    '';
+    config.reranker?.apiKey ?? process.env.FRONTAGENT_RAG_RERANKER_API_KEY ?? '';
 
   return {
     repoUrl: config.repoUrl,
     branch: config.branch,
     cacheDir: resolve(config.cacheDir),
     syncOnQuery:
-      config.syncOnQuery ??
-      parseOptionalBoolean(process.env.FRONTAGENT_RAG_SYNC_ON_QUERY) ??
-      false,
+      config.syncOnQuery ?? parseOptionalBoolean(process.env.FRONTAGENT_RAG_SYNC_ON_QUERY) ?? false,
     maxResults: config.maxResults ?? DEFAULT_MAX_RESULTS,
     excludedPathPrefixes:
       config.excludedPathPrefixes ??
@@ -1323,7 +1381,10 @@ function normalizeConfig(config: KnowledgeBaseConfig): RequiredHybridConfig {
     embedding: {
       enabled: config.embedding?.enabled ?? true,
       provider: embeddingProvider,
-      model: config.embedding?.model ?? process.env.FRONTAGENT_RAG_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
+      model:
+        config.embedding?.model ??
+        process.env.FRONTAGENT_RAG_EMBEDDING_MODEL ??
+        DEFAULT_EMBEDDING_MODEL,
       baseURL: embeddingBaseURL,
       apiKey: embeddingApiKey,
       dimensions:
@@ -1481,7 +1542,11 @@ function buildRepositoryIndex(input: {
   chunkOverlap: number;
   maxFileSizeBytes: number;
 }): RepositoryIndex {
-  const files = listRepositoryFiles(input.repoDir, input.excludedPathPrefixes, input.maxFileSizeBytes);
+  const files = listRepositoryFiles(
+    input.repoDir,
+    input.excludedPathPrefixes,
+    input.maxFileSizeBytes,
+  );
   const documents: RepositoryDocument[] = [];
   const chunks: RepositoryChunk[] = [];
   const documentFrequency: Record<string, number> = {};
@@ -1641,9 +1706,7 @@ function listRepositoryFiles(
 }
 
 function isExcludedPath(path: string, excludedPathPrefixes: string[]): boolean {
-  return excludedPathPrefixes.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
-  );
+  return excludedPathPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 function looksBinary(buffer: Buffer, path: string): boolean {
@@ -1699,7 +1762,8 @@ function chunkText(
 
     while (endIndex < semanticBlocks.length) {
       const separatorLength = endIndex > startIndex ? 2 : 0;
-      const candidateLength = currentLength + separatorLength + semanticBlocks[endIndex].text.length;
+      const candidateLength =
+        currentLength + separatorLength + semanticBlocks[endIndex].text.length;
       if (candidateLength > chunkSize && endIndex > startIndex) {
         break;
       }
@@ -1708,7 +1772,10 @@ function chunkText(
     }
 
     const selectedBlocks = semanticBlocks.slice(startIndex, endIndex);
-    const text = selectedBlocks.map((block) => block.text).join('\n\n').trim();
+    const text = selectedBlocks
+      .map((block) => block.text)
+      .join('\n\n')
+      .trim();
     if (text) {
       chunks.push({
         text,
@@ -1833,7 +1900,9 @@ function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean
     return true;
   }
 
-  if (/^<\/?(template|script|style|main|section|article|header|footer|aside|nav)\b/i.test(trimmedLine)) {
+  if (
+    /^<\/?(template|script|style|main|section|article|header|footer|aside|nav)\b/i.test(trimmedLine)
+  ) {
     return true;
   }
 
@@ -1948,7 +2017,11 @@ function splitOversizedBlock(
       pieces.push({
         text,
         lineStart: getLineNumberAtOffset(block.text, block.lineStart, startOffset),
-        lineEnd: getLineNumberAtOffset(block.text, block.lineStart, Math.max(startOffset, endOffset - 1)),
+        lineEnd: getLineNumberAtOffset(
+          block.text,
+          block.lineStart,
+          Math.max(startOffset, endOffset - 1),
+        ),
       });
     }
 
@@ -1966,13 +2039,7 @@ function findPreferredSplitOffset(text: string, startOffset: number, maxLength: 
 
   const window = text.slice(startOffset, startOffset + maxLength);
   const minimumPreferredOffset = Math.floor(maxLength * 0.45);
-  const boundaryPatterns = [
-    /\n\s*\n/g,
-    /\n/g,
-    /[。！？!?；;]\s+/g,
-    /[{};>]\s*/g,
-    /[,，]\s+/g,
-  ];
+  const boundaryPatterns = [/\n\s*\n/g, /\n/g, /[。！？!?；;]\s+/g, /[{};>]\s*/g, /[,，]\s+/g];
 
   for (const pattern of boundaryPatterns) {
     const relative = findLastBoundary(window, pattern);
@@ -2011,11 +2078,7 @@ function getLineNumberAtOffset(text: string, baseLine: number, offset: number): 
   return line;
 }
 
-function searchBm25(
-  index: RepositoryIndex,
-  query: string,
-  limit: number,
-): ChunkCandidate[] {
+function searchBm25(index: RepositoryIndex, query: string, limit: number): ChunkCandidate[] {
   const queryTerms = countTerms(tokenize(query));
   if (Object.keys(queryTerms).length === 0) {
     return [];
@@ -2049,11 +2112,11 @@ function computeBm25Score(
       continue;
     }
     const documentFrequency = bm25.documentFrequency[term] ?? 0;
-    const idf = Math.log(1 + (bm25.documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5));
+    const idf = Math.log(
+      1 + (bm25.documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5),
+    );
     const numerator = termFrequency * (k1 + 1);
-    const denominator =
-      termFrequency +
-      k1 * (1 - b + b * (chunk.tokenCount / averageDocLength));
+    const denominator = termFrequency + k1 * (1 - b + b * (chunk.tokenCount / averageDocLength));
     score += idf * (numerator / denominator) * queryFrequency;
   }
 
@@ -2148,15 +2211,18 @@ async function searchSemanticWithWeaviate(
     }
   }`;
   const payload = await requestWeaviateGraphQL<{
-    Get?: Record<string, Array<{
-      chunkId?: string;
-      contentHash?: string;
-      _additional?: {
-        id?: string;
-        distance?: number;
-        certainty?: number;
-      };
-    }>>;
+    Get?: Record<
+      string,
+      Array<{
+        chunkId?: string;
+        contentHash?: string;
+        _additional?: {
+          id?: string;
+          distance?: number;
+          certainty?: number;
+        };
+      }>
+    >;
   }>(weaviateConfig, graphqlQuery);
 
   const results = payload.Get?.[collectionName] ?? [];
@@ -2210,7 +2276,9 @@ async function ensureWeaviateCollection(
 
   if (getResponse.status !== 404) {
     const errorText = await getResponse.text();
-    throw new Error(`weaviate schema check failed: ${getResponse.status} ${getResponse.statusText} ${errorText}`.trim());
+    throw new Error(
+      `weaviate schema check failed: ${getResponse.status} ${getResponse.statusText} ${errorText}`.trim(),
+    );
   }
 
   const response = await fetch(`${baseURL}/v1/schema`, {
@@ -2243,7 +2311,9 @@ async function ensureWeaviateCollection(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`weaviate schema create failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+    throw new Error(
+      `weaviate schema create failed: ${response.status} ${response.statusText} ${errorText}`.trim(),
+    );
   }
 
   return 'created';
@@ -2265,7 +2335,9 @@ async function deleteWeaviateCollection(
   }
 
   const errorText = await response.text();
-  throw new Error(`weaviate schema delete failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+  throw new Error(
+    `weaviate schema delete failed: ${response.status} ${response.statusText} ${errorText}`.trim(),
+  );
 }
 
 async function upsertWeaviateObjects(input: {
@@ -2308,16 +2380,20 @@ async function upsertWeaviateObjects(input: {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`weaviate batch import failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+    throw new Error(
+      `weaviate batch import failed: ${response.status} ${response.statusText} ${errorText}`.trim(),
+    );
   }
 
-  const payload = await response.json() as Array<{
-    result?: {
-      errors?: {
-        error?: Array<{ message?: string }>;
-      };
-    };
-  }> | { errors?: Array<{ message?: string }> };
+  const payload = (await response.json()) as
+    | Array<{
+        result?: {
+          errors?: {
+            error?: Array<{ message?: string }>;
+          };
+        };
+      }>
+    | { errors?: Array<{ message?: string }> };
 
   const topLevelErrors =
     !Array.isArray(payload) && payload.errors?.map((item) => item.message).filter(Boolean);
@@ -2350,16 +2426,21 @@ async function requestWeaviateGraphQL<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`weaviate graphql request failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+    throw new Error(
+      `weaviate graphql request failed: ${response.status} ${response.statusText} ${errorText}`.trim(),
+    );
   }
 
-  const payload = await response.json() as {
+  const payload = (await response.json()) as {
     data?: T;
     errors?: Array<{ message?: string }>;
   };
   if (payload.errors && payload.errors.length > 0) {
     throw new Error(
-      `weaviate graphql request failed: ${payload.errors.map((item) => item.message).filter(Boolean).join('; ')}`
+      `weaviate graphql request failed: ${payload.errors
+        .map((item) => item.message)
+        .filter(Boolean)
+        .join('; ')}`,
     );
   }
   if (!payload.data) {
@@ -2440,7 +2521,7 @@ async function requestEmbeddings(input: {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'authorization': `Bearer ${input.config.apiKey}`,
+      authorization: `Bearer ${input.config.apiKey}`,
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(input.config.requestTimeoutMs),
@@ -2455,7 +2536,7 @@ async function requestEmbeddings(input: {
     );
   }
 
-  const payload = await response.json() as {
+  const payload = (await response.json()) as {
     data?: Array<{ embedding?: number[] }>;
   };
   const vectors = payload.data?.map((item) => item.embedding ?? []);
@@ -2467,7 +2548,8 @@ async function requestEmbeddings(input: {
 }
 
 function shouldSplitEmbeddingBatch(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     message.includes('maximum context length') ||
     message.includes('please reduce your prompt') ||
@@ -2482,7 +2564,8 @@ function shouldRetryEmbeddingRequest(error: unknown): boolean {
     return error.status === 429 || error.status >= 500;
   }
 
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     message.includes('429') ||
     message.includes('too many requests') ||
@@ -2536,10 +2619,8 @@ function fuseDocumentCandidates(input: {
   const semanticMax = input.semanticCandidates[0]?.score ?? 0;
   const fused = new Map<string, DocumentCandidate>();
 
-  const effectiveKeywordWeight =
-    input.semanticCandidates.length > 0 ? input.keywordWeight : 1;
-  const effectiveSemanticWeight =
-    input.semanticCandidates.length > 0 ? input.semanticWeight : 0;
+  const effectiveKeywordWeight = input.semanticCandidates.length > 0 ? input.keywordWeight : 1;
+  const effectiveSemanticWeight = input.semanticCandidates.length > 0 ? input.semanticWeight : 0;
 
   for (const candidate of input.keywordCandidates) {
     fused.set(candidate.document.id, {
@@ -2595,7 +2676,10 @@ async function rerankDocumentCandidates(input: {
   maxResults: number;
   config: Required<RerankerConfig>;
 }): Promise<DocumentCandidate[]> {
-  const rerankPool = input.candidates.slice(0, Math.max(input.maxResults, input.config.candidateCount));
+  const rerankPool = input.candidates.slice(
+    0,
+    Math.max(input.maxResults, input.config.candidateCount),
+  );
   if (rerankPool.length === 0) {
     return [];
   }
@@ -2605,7 +2689,7 @@ async function rerankDocumentCandidates(input: {
   }
 
   const documents = rerankPool.map((candidate) =>
-    buildRerankerDocument(candidate, input.config.maxDocumentChars)
+    buildRerankerDocument(candidate, input.config.maxDocumentChars),
   );
   const rerankedItems = await requestJinaCompatibleRerank({
     config: input.config,
@@ -2621,11 +2705,13 @@ async function rerankDocumentCandidates(input: {
       if (score === undefined) {
         return [];
       }
-      return [{
-        ...candidate,
-        rerankScore: score,
-        score,
-      }];
+      return [
+        {
+          ...candidate,
+          rerankScore: score,
+          score,
+        },
+      ];
     })
     .sort((left, right) => (right.rerankScore ?? 0) - (left.rerankScore ?? 0));
 
@@ -2676,7 +2762,7 @@ async function requestJinaCompatibleRerank(input: {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'authorization': `Bearer ${input.config.apiKey}`,
+      authorization: `Bearer ${input.config.apiKey}`,
     },
     body: JSON.stringify({
       model: input.config.model,
@@ -2690,10 +2776,12 @@ async function requestJinaCompatibleRerank(input: {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`rerank request failed: ${response.status} ${response.statusText} ${errorText}`.trim());
+    throw new Error(
+      `rerank request failed: ${response.status} ${response.statusText} ${errorText}`.trim(),
+    );
   }
 
-  const payload = await response.json() as {
+  const payload = (await response.json()) as {
     results?: Array<{ index?: number; relevance_score?: number; score?: number }>;
     data?: Array<{ index?: number; relevance_score?: number; score?: number }>;
   };
@@ -2720,10 +2808,7 @@ function reciprocalRank(rank?: number): number {
   return 1 / (rank + 50);
 }
 
-function matchesMetadataFilter(
-  chunk: RepositoryChunk,
-  filters?: RagMetadataFilter,
-): boolean {
+function matchesMetadataFilter(chunk: RepositoryChunk, filters?: RagMetadataFilter): boolean {
   if (!filters) {
     return true;
   }
@@ -2752,10 +2837,7 @@ function matchesMetadataFilter(
     return false;
   }
 
-  if (
-    filters.excludePathPrefixes &&
-    filters.excludePathPrefixes.some((prefix) => chunk.path.startsWith(prefix))
-  ) {
+  if (filters.excludePathPrefixes?.some((prefix) => chunk.path.startsWith(prefix))) {
     return false;
   }
 
@@ -2911,8 +2993,7 @@ function createEmbeddingBatches<T extends { estimatedTokens: number }>(
   for (const item of items) {
     const wouldOverflowByCount = currentBatch.length >= maxItems;
     const wouldOverflowByTokens =
-      currentBatch.length > 0 &&
-      currentTokens + item.estimatedTokens > maxEstimatedTokens;
+      currentBatch.length > 0 && currentTokens + item.estimatedTokens > maxEstimatedTokens;
 
     if (wouldOverflowByCount || wouldOverflowByTokens) {
       batches.push(currentBatch);
@@ -2947,7 +3028,7 @@ function getTopLevelDir(path: string): string {
 function getWeaviateCollectionName(config: RequiredHybridConfig): string {
   const prefix = sanitizeWeaviateCollectionPrefix(config.vectorStore.weaviate.collectionPrefix);
   const identity = hashText(
-    `${config.repoUrl}:${config.branch}:${config.embedding.model}:${config.embedding.dimensions ?? 'default'}`
+    `${config.repoUrl}:${config.branch}:${config.embedding.model}:${config.embedding.dimensions ?? 'default'}`,
   ).slice(0, 12);
   return `${prefix}${identity}`;
 }
@@ -2975,7 +3056,10 @@ function buildWeaviateObjectId(chunkId: string): string {
 }
 
 function normalizeRepoPath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^\/+/, '');
+  return path
+    .replace(/\\/g, '/')
+    .replace(/^\.?\//, '')
+    .replace(/^\/+/, '');
 }
 
 function normalizeBaseUrl(baseURL: string): string {
@@ -3007,7 +3091,7 @@ function isCompatibleEmbeddingStore(
     store &&
       store.model === config.model &&
       store.baseURL === config.baseURL &&
-      store.dimensions === config.dimensions
+      store.dimensions === config.dimensions,
   );
 }
 

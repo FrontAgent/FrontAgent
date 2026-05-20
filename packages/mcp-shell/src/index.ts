@@ -77,20 +77,20 @@ export class ShellMCPClient {
           properties: {
             command: {
               type: 'string',
-              description: '要执行的命令'
+              description: '要执行的命令',
             },
             workingDirectory: {
               type: 'string',
-              description: '工作目录（可选，默认为项目根目录）'
+              description: '工作目录（可选，默认为项目根目录）',
             },
             timeout: {
               type: 'number',
-              description: '超时时间（毫秒，默认 60000）'
-            }
+              description: '超时时间（毫秒，默认 60000）',
+            },
           },
-          required: ['command']
-        }
-      }
+          required: ['command'],
+        },
+      },
     ];
   }
 
@@ -120,13 +120,13 @@ export class ShellMCPClient {
       if (!approved) {
         return {
           success: false,
-          error: 'Command execution was rejected by user'
+          error: 'Command execution was rejected by user',
         };
       }
     } else if (!analysis.structurallyTrusted && !__frontagentSecurityApproved) {
       return {
         success: false,
-        error: `Command requires security approval before shell execution: ${analysis.reason ?? 'complex shell structure'}`
+        error: `Command requires security approval before shell execution: ${analysis.reason ?? 'complex shell structure'}`,
       };
     }
 
@@ -136,7 +136,7 @@ export class ShellMCPClient {
     if (relativeCwd.startsWith('..') || isAbsolute(relativeCwd)) {
       return {
         success: false,
-        error: 'Access denied: workingDirectory is outside project root'
+        error: 'Access denied: workingDirectory is outside project root',
       };
     }
 
@@ -145,15 +145,15 @@ export class ShellMCPClient {
     return new Promise((resolvePromise) => {
       const child = analysis.structurallyTrusted
         ? spawn(analysis.argv[0], analysis.argv.slice(1), {
-          cwd,
-          shell: false,
-          stdio: ['ignore', 'pipe', 'pipe']
-        })
+            cwd,
+            shell: false,
+            stdio: ['ignore', 'pipe', 'pipe'],
+          })
         : spawn(command, {
-          cwd,
-          shell: true,
-          stdio: ['ignore', 'pipe', 'pipe']
-        });
+            cwd,
+            shell: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
 
       let killed = false;
       let totalBytes = 0;
@@ -163,7 +163,9 @@ export class ShellMCPClient {
       const timer = setTimeout(() => {
         killed = true;
         child.kill('SIGTERM');
-        setTimeout(() => { if (!child.killed) child.kill('SIGKILL'); }, 2000);
+        setTimeout(() => {
+          if (!child.killed) child.kill('SIGKILL');
+        }, 2000);
       }, timeout);
 
       const killForOutputOverflow = () => {
@@ -204,7 +206,7 @@ export class ShellMCPClient {
           stdout: Buffer.concat(stdoutChunks).toString(),
           stderr: Buffer.concat(stderrChunks).toString(),
           exitCode: 1,
-          error: `Command execution error: ${error.message}`
+          error: `Command execution error: ${error.message}`,
         });
       });
 
@@ -219,7 +221,7 @@ export class ShellMCPClient {
             stdout,
             stderr,
             exitCode: 1,
-            error: `Command killed: output exceeded ${MAX_OUTPUT_BYTES} bytes limit`
+            error: `Command killed: output exceeded ${MAX_OUTPUT_BYTES} bytes limit`,
           });
           return;
         }
@@ -230,7 +232,7 @@ export class ShellMCPClient {
             stdout,
             stderr,
             exitCode: 1,
-            error: `Command timed out after ${timeout}ms: ${command}`
+            error: `Command timed out after ${timeout}ms: ${command}`,
           });
           return;
         }
@@ -252,7 +254,7 @@ export class ShellMCPClient {
           stdout,
           stderr,
           exitCode: code,
-          error: errorMessage
+          error: errorMessage,
         });
       });
     });

@@ -53,7 +53,9 @@ export const NO_PLACEHOLDERS_RULE: PlanQualityRule = {
   name: 'No Placeholders',
   severity: 'error',
   check(step) {
-    const text = [step.description, step.content, ...(step.commands ?? [])].filter(Boolean).join(' ');
+    const text = [step.description, step.content, ...(step.commands ?? [])]
+      .filter(Boolean)
+      .join(' ');
     for (const pattern of PLACEHOLDER_PATTERNS) {
       const match = pattern.exec(text);
       if (match) {
@@ -62,7 +64,8 @@ export const NO_PLACEHOLDERS_RULE: PlanQualityRule = {
           stepId: step.id,
           message: `Step contains placeholder language: "${match[0]}"`,
           severity: 'error',
-          suggestion: 'Replace with concrete implementation details, actual code, or specific commands',
+          suggestion:
+            'Replace with concrete implementation details, actual code, or specific commands',
         };
       }
     }
@@ -93,7 +96,9 @@ export const SINGLE_ACTION_RULE: PlanQualityRule = {
   name: 'Single Action Per Step',
   severity: 'warning',
   check(step) {
-    const actionVerbs = step.description.match(/\b(create|modify|update|delete|add|remove|refactor|test|run|install)\b/gi);
+    const actionVerbs = step.description.match(
+      /\b(create|modify|update|delete|add|remove|refactor|test|run|install)\b/gi,
+    );
     if (actionVerbs && actionVerbs.length > 2) {
       return {
         ruleId: 'single-action',
@@ -154,8 +159,8 @@ export class PlanQualityValidator {
       }
     }
 
-    const errorCount = violations.filter(v => v.severity === 'error').length;
-    const warningCount = violations.filter(v => v.severity === 'warning').length;
+    const errorCount = violations.filter((v) => v.severity === 'error').length;
+    const warningCount = violations.filter((v) => v.severity === 'warning').length;
 
     return {
       passed: errorCount === 0,

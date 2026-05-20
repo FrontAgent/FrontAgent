@@ -3,9 +3,9 @@
  * 解析 constitution.yaml 文件为结构化 Constitution 对象
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import type { Constitution, Principle, BehaviorDirective, ReviewCriterion } from './types.js';
+import type { BehaviorDirective, Constitution, Principle, ReviewCriterion } from './types.js';
 
 export interface ConstitutionParseResult {
   success: boolean;
@@ -25,7 +25,9 @@ export class ConstitutionParser {
     } catch (error) {
       return {
         success: false,
-        errors: [`Failed to read constitution file: ${error instanceof Error ? error.message : String(error)}`],
+        errors: [
+          `Failed to read constitution file: ${error instanceof Error ? error.message : String(error)}`,
+        ],
       };
     }
   }
@@ -93,7 +95,9 @@ export class ConstitutionParser {
           name: p.name,
           description: p.description,
           priority,
-          ...(Array.isArray(p.examples) ? { examples: p.examples.filter((e): e is string => typeof e === 'string') } : {}),
+          ...(Array.isArray(p.examples)
+            ? { examples: p.examples.filter((e): e is string => typeof e === 'string') }
+            : {}),
         } as Principle;
       })
       .filter((p): p is Principle => p !== null);
@@ -140,9 +144,10 @@ export class ConstitutionParser {
           id: typeof c.id === 'string' ? c.id : `criterion-${idx}`,
           name: typeof c.name === 'string' ? c.name : `Criterion ${idx + 1}`,
           question: c.question,
-          failAction: (failAction === 'block' || failAction === 'warn' || failAction === 'note')
-            ? failAction
-            : 'warn',
+          failAction:
+            failAction === 'block' || failAction === 'warn' || failAction === 'note'
+              ? failAction
+              : 'warn',
         } satisfies ReviewCriterion;
       })
       .filter((c): c is ReviewCriterion => c !== null);

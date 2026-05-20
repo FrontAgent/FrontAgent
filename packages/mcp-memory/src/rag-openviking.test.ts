@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  type KnowledgeBaseConfig,
   createKnowledgeBase,
   normalizeKnowledgeBaseSource,
   normalizeOpenVikingConfig,
   normalizeOpenVikingMatches,
-  type KnowledgeBaseConfig,
 } from './rag.js';
 
 function baseConfig(overrides: Partial<KnowledgeBaseConfig> = {}): KnowledgeBaseConfig {
@@ -19,7 +19,9 @@ function baseConfig(overrides: Partial<KnowledgeBaseConfig> = {}): KnowledgeBase
 describe('OpenViking knowledge provider', () => {
   it('selects composite source when OpenViking is enabled', () => {
     expect(normalizeKnowledgeBaseSource(baseConfig())).toBe('git');
-    expect(normalizeKnowledgeBaseSource(baseConfig({ openViking: { enabled: true } }))).toBe('composite');
+    expect(normalizeKnowledgeBaseSource(baseConfig({ openViking: { enabled: true } }))).toBe(
+      'composite',
+    );
     expect(normalizeKnowledgeBaseSource(baseConfig({ source: 'openviking' }))).toBe('openviking');
   });
 
@@ -66,21 +68,27 @@ describe('OpenViking knowledge provider', () => {
   });
 
   it('queries OpenViking endpoint with corpus namespace and l1 entry', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ results: [] }), { status: 200 }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
-    const knowledgeBase = createKnowledgeBase(baseConfig({
-      source: 'openviking',
-      openViking: {
-        endpoint: 'https://openviking.example.test/query',
-        apiKey: 'secret',
-        corpus: 'wiki',
-        namespace: 'frontagent',
-        l1Entry: 'docs/openviking/frontagent-l1.md',
-      },
-    }));
+    const knowledgeBase = createKnowledgeBase(
+      baseConfig({
+        source: 'openviking',
+        openViking: {
+          endpoint: 'https://openviking.example.test/query',
+          apiKey: 'secret',
+          corpus: 'wiki',
+          namespace: 'frontagent',
+          l1Entry: 'docs/openviking/frontagent-l1.md',
+        },
+      }),
+    );
 
-    await expect(knowledgeBase.query({ query: 'FrontAgent RAG', maxResults: 3 })).resolves.toMatchObject({
+    await expect(
+      knowledgeBase.query({ query: 'FrontAgent RAG', maxResults: 3 }),
+    ).resolves.toMatchObject({
       success: true,
       searchMode: 'openviking',
       results: [],

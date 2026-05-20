@@ -6,19 +6,16 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
+import { allFilesenseSchemas, handleFilesenseTool } from '@frontagent/mcp-filesense';
 import { SnapshotManager } from './snapshot.js';
-import { readFile, readFileSchema } from './tools/read-file.js';
 import { applyPatch, applyPatchSchema } from './tools/apply-patch.js';
 import { createFile, createFileSchema } from './tools/create-file.js';
-import { searchCode, searchCodeSchema } from './tools/search-code.js';
-import { listDirectory, listDirectorySchema } from './tools/list-directory.js';
 import { getAST, getASTSchema } from './tools/get-ast.js';
-import { allFilesenseSchemas, handleFilesenseTool } from '@frontagent/mcp-filesense';
+import { listDirectory, listDirectorySchema } from './tools/list-directory.js';
+import { readFile, readFileSchema } from './tools/read-file.js';
+import { searchCode, searchCodeSchema } from './tools/search-code.js';
 
 // 从环境变量或参数获取项目根目录
 const projectRoot = process.env.PROJECT_ROOT ?? process.cwd();
@@ -37,7 +34,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
-  }
+  },
 );
 
 // 注册工具列表
@@ -59,11 +56,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             snapshotId: {
               type: 'string',
-              description: '快照 ID'
-            }
+              description: '快照 ID',
+            },
           },
-          required: ['snapshotId']
-        }
+          required: ['snapshotId'],
+        },
       },
       {
         name: 'get_snapshots',
@@ -73,12 +70,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             path: {
               type: 'string',
-              description: '文件路径'
-            }
+              description: '文件路径',
+            },
           },
-          required: ['path']
-        }
-      }
+          required: ['path'],
+        },
+      },
     ],
   };
 });
@@ -100,7 +97,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = applyPatch(
           args as unknown as Parameters<typeof applyPatch>[0],
           projectRoot,
-          snapshotManager
+          snapshotManager,
         );
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -111,7 +108,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = createFile(
           args as unknown as Parameters<typeof createFile>[0],
           projectRoot,
-          snapshotManager
+          snapshotManager,
         );
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -121,7 +118,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'search_code': {
         const result = await searchCode(
           args as unknown as Parameters<typeof searchCode>[0],
-          projectRoot
+          projectRoot,
         );
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -131,7 +128,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_directory': {
         const result = listDirectory(
           args as unknown as Parameters<typeof listDirectory>[0],
-          projectRoot
+          projectRoot,
         );
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -152,7 +149,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'filesense_check':
       case 'filesense_navigate':
       case 'filesense_sync_and_summarize': {
-        const result = await handleFilesenseTool(name, args as Record<string, unknown>, projectRoot);
+        const result = await handleFilesenseTool(
+          name,
+          args as Record<string, unknown>,
+          projectRoot,
+        );
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
@@ -183,7 +184,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   })),
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -217,4 +218,3 @@ async function main() {
 }
 
 main().catch(console.error);
-

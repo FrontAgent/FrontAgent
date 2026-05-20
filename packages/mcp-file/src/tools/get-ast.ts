@@ -58,7 +58,7 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
   if (!safePath.ok) {
     return {
       success: false,
-      error: safePath.error
+      error: safePath.error,
     };
   }
 
@@ -67,7 +67,7 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
   if (!['.ts', '.tsx', '.js', '.jsx'].includes(ext)) {
     return {
       success: false,
-      error: `Unsupported file type for AST analysis: ${ext}`
+      error: `Unsupported file type for AST analysis: ${ext}`,
     };
   }
 
@@ -75,15 +75,15 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
     const project = new Project({
       compilerOptions: {
         allowJs: true,
-        jsx: ext.includes('x') ? 2 : undefined // React JSX
-      }
+        jsx: ext.includes('x') ? 2 : undefined, // React JSX
+      },
     });
 
     const sourceFile = project.addSourceFileAtPath(safePath.fullPath);
 
     // 提取 imports
-    const imports: ImportInfo[] = sourceFile.getImportDeclarations().map(imp => {
-      const namedImports = imp.getNamedImports().map(ni => ni.getName());
+    const imports: ImportInfo[] = sourceFile.getImportDeclarations().map((imp) => {
+      const namedImports = imp.getNamedImports().map((ni) => ni.getName());
       const defaultImport = imp.getDefaultImport()?.getText();
       const namespaceImport = imp.getNamespaceImport()?.getText();
 
@@ -92,7 +92,7 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
         defaultImport,
         namedImports,
         namespaceImport,
-        line: imp.getStartLineNumber()
+        line: imp.getStartLineNumber(),
       };
     });
 
@@ -103,34 +103,34 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
     });
 
     // 提取函数
-    const functions: FunctionInfo[] = sourceFile.getFunctions().map(fn => ({
+    const functions: FunctionInfo[] = sourceFile.getFunctions().map((fn) => ({
       name: fn.getName() ?? 'anonymous',
       line: fn.getStartLineNumber(),
-      parameters: fn.getParameters().map(p => `${p.getName()}: ${p.getType().getText()}`),
+      parameters: fn.getParameters().map((p) => `${p.getName()}: ${p.getType().getText()}`),
       returnType: fn.getReturnType().getText(),
       isExported: fn.isExported(),
-      isAsync: fn.isAsync()
+      isAsync: fn.isAsync(),
     }));
 
     // 提取类
-    const classes = sourceFile.getClasses().map(cls => ({
+    const classes = sourceFile.getClasses().map((cls) => ({
       name: cls.getName() ?? 'anonymous',
       line: cls.getStartLineNumber(),
-      isExported: cls.isExported()
+      isExported: cls.isExported(),
     }));
 
     // 提取接口
-    const interfaces = sourceFile.getInterfaces().map(intf => ({
+    const interfaces = sourceFile.getInterfaces().map((intf) => ({
       name: intf.getName(),
       line: intf.getStartLineNumber(),
-      isExported: intf.isExported()
+      isExported: intf.isExported(),
     }));
 
     // 提取类型别名
-    const types = sourceFile.getTypeAliases().map(ta => ({
+    const types = sourceFile.getTypeAliases().map((ta) => ({
       name: ta.getName(),
       line: ta.getStartLineNumber(),
-      isExported: ta.isExported()
+      isExported: ta.isExported(),
     }));
 
     // 检测 React 组件
@@ -144,13 +144,13 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
           line: fn.getStartLineNumber(),
           type: 'function',
           props: extractPropsFromFunction(fn),
-          isExported: fn.isExported()
+          isExported: fn.isExported(),
         });
       }
     }
 
     // 检查箭头函数组件
-    sourceFile.getVariableDeclarations().forEach(vd => {
+    sourceFile.getVariableDeclarations().forEach((vd) => {
       const init = vd.getInitializer();
       if (init && init.getKind() === SyntaxKind.ArrowFunction) {
         const name = vd.getName();
@@ -160,7 +160,7 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
             name,
             line: vd.getStartLineNumber(),
             type: 'function',
-            isExported: vd.isExported()
+            isExported: vd.isExported(),
           });
         }
       }
@@ -176,7 +176,7 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
             name: cls.getName() ?? 'anonymous',
             line: cls.getStartLineNumber(),
             type: 'class',
-            isExported: cls.isExported()
+            isExported: cls.isExported(),
           });
         }
       }
@@ -190,12 +190,12 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
       components,
       classes,
       interfaces,
-      types
+      types,
     };
   } catch (error) {
     return {
       success: false,
-      error: `Failed to parse AST: ${error instanceof Error ? error.message : String(error)}`
+      error: `Failed to parse AST: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -211,7 +211,11 @@ function isReactComponent(fn: import('ts-morph').FunctionDeclaration): boolean {
 
   // 检查返回类型是否包含 JSX
   const returnType = fn.getReturnType().getText();
-  if (returnType.includes('JSX') || returnType.includes('ReactElement') || returnType.includes('ReactNode')) {
+  if (
+    returnType.includes('JSX') ||
+    returnType.includes('ReactElement') ||
+    returnType.includes('ReactNode')
+  ) {
     return true;
   }
 
@@ -247,9 +251,9 @@ export const getASTSchema = {
     properties: {
       path: {
         type: 'string',
-        description: '相对于项目根目录的文件路径（支持 .ts, .tsx, .js, .jsx）'
-      }
+        description: '相对于项目根目录的文件路径（支持 .ts, .tsx, .js, .jsx）',
+      },
     },
-    required: ['path']
-  }
+    required: ['path'],
+  },
 };

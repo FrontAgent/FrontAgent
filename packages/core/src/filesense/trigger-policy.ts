@@ -110,7 +110,18 @@ function collectTargetDirs(steps: ExecutionStep[]): string[] {
   return uniqueDirs(dirs, 5);
 }
 
-const FOCUS_DIRS = ['src', 'components', 'hooks', 'api', 'services', 'pages', 'routes', 'views', 'store', 'stores'];
+const FOCUS_DIRS = [
+  'src',
+  'components',
+  'hooks',
+  'api',
+  'services',
+  'pages',
+  'routes',
+  'views',
+  'store',
+  'stores',
+];
 
 function taskMentionedFocusDirs(task: AgentTask): string[] {
   const text = task.description.toLowerCase();
@@ -134,13 +145,17 @@ export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): Filese
 
   if (task.type === 'query') {
     if (taskMentionsFreshnessNeed(task)) {
-      return enable('validate_freshness', 'query asks for fresh repository layout or missing paths', {
-        paths: mergeFocusDirs(task, collectTargetDirs(steps), 3),
-        depth: 1,
-        maxEntries: 120,
-        maxBytes: 48 * 1024,
-        timeoutMs: 1500,
-      });
+      return enable(
+        'validate_freshness',
+        'query asks for fresh repository layout or missing paths',
+        {
+          paths: mergeFocusDirs(task, collectTargetDirs(steps), 3),
+          depth: 1,
+          maxEntries: 120,
+          maxBytes: 48 * 1024,
+          timeoutMs: 1500,
+        },
+      );
     }
 
     if (taskMentionsStructureNeed(task) || taskMentionsLocationNeed(task)) {
@@ -175,7 +190,11 @@ export function decideFilesense(task: AgentTask, steps: ExecutionStep[]): Filese
     });
   }
 
-  if (task.type === 'refactor' || steps.filter((step) => step.action === 'apply_patch' || step.action === 'create_file').length > 1) {
+  if (
+    task.type === 'refactor' ||
+    steps.filter((step) => step.action === 'apply_patch' || step.action === 'create_file').length >
+      1
+  ) {
     return enable('prepare_refactor', 'multi-file change benefits from local directory map', {
       paths: mergeFocusDirs(task, collectTargetDirs(steps)),
       depth: 2,

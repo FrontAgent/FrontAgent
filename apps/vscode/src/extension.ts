@@ -1,7 +1,11 @@
-import * as vscode from 'vscode';
 import type { ApprovalRequest, RuntimeConfigInput } from '@frontagent/runtime-node';
+import * as vscode from 'vscode';
 import { resolveConfigStatusFromSources } from './settings.js';
 import {
+  type ChatMode,
+  type ConfigStatus,
+  type ViewApproval,
+  type ViewState,
   appendChatMessage,
   applyPrefill,
   beginChatRun,
@@ -10,10 +14,6 @@ import {
   reduceAgentEvent,
   setConfigStatus,
   setDetailsCollapsed,
-  type ChatMode,
-  type ConfigStatus,
-  type ViewApproval,
-  type ViewState,
 } from './state.js';
 
 const VIEW_ID = 'frontagent.taskView';
@@ -63,76 +63,78 @@ export function activate(context: vscode.ExtensionContext) {
         webviewOptions: { retainContextWhenHidden: true },
       }),
       registerFrontAgentCommand('frontagent.run', async () => {
-      await revealFrontAgentView();
-      provider.prefill({});
+        await revealFrontAgentView();
+        provider.prefill({});
       }),
       registerFrontAgentCommand('frontagent.runCurrentFile', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showWarningMessage('No active editor.');
-        return;
-      }
-      await revealFrontAgentView();
-      provider.prefill({
-        files: [vscode.workspace.asRelativePath(editor.document.uri)],
-      });
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showWarningMessage('No active editor.');
+          return;
+        }
+        await revealFrontAgentView();
+        provider.prefill({
+          files: [vscode.workspace.asRelativePath(editor.document.uri)],
+        });
       }),
       registerFrontAgentCommand('frontagent.runSelection', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showWarningMessage('No active editor.');
-        return;
-      }
-      const selection = editor.document.getText(editor.selection).trim();
-      if (!selection) {
-        vscode.window.showWarningMessage('No selected text.');
-        return;
-      }
-      await revealFrontAgentView();
-      provider.prefill({
-        mode: 'modify',
-        files: [vscode.workspace.asRelativePath(editor.document.uri)],
-        selectionPreview: selection.length > 2400 ? `${selection.slice(0, 2400)}...` : selection,
-      });
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          vscode.window.showWarningMessage('No active editor.');
+          return;
+        }
+        const selection = editor.document.getText(editor.selection).trim();
+        if (!selection) {
+          vscode.window.showWarningMessage('No selected text.');
+          return;
+        }
+        await revealFrontAgentView();
+        provider.prefill({
+          mode: 'modify',
+          files: [vscode.workspace.asRelativePath(editor.document.uri)],
+          selectionPreview: selection.length > 2400 ? `${selection.slice(0, 2400)}...` : selection,
+        });
       }),
       registerFrontAgentCommand('frontagent.initSdd', async () => {
-      const folder = getWorkspaceFolder();
-      if (!folder) return;
-      const { initSddConfig } = await loadRuntimeModule();
-      const result = initSddConfig(folder.uri.fsPath);
-      if (result.created) {
-        vscode.window.showInformationMessage(result.message);
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(result.path));
-        await vscode.window.showTextDocument(doc);
-      } else {
-        vscode.window.showWarningMessage(result.message);
-      }
+        const folder = getWorkspaceFolder();
+        if (!folder) return;
+        const { initSddConfig } = await loadRuntimeModule();
+        const result = initSddConfig(folder.uri.fsPath);
+        if (result.created) {
+          vscode.window.showInformationMessage(result.message);
+          const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(result.path));
+          await vscode.window.showTextDocument(doc);
+        } else {
+          vscode.window.showWarningMessage(result.message);
+        }
       }),
       registerFrontAgentCommand('frontagent.validateSdd', async () => {
-      const folder = getWorkspaceFolder();
-      if (!folder) return;
-      const { validateSddConfig } = await loadRuntimeModule();
-      const result = validateSddConfig(folder.uri.fsPath);
-      if (result.success) {
-        vscode.window.showInformationMessage(
-          `SDD valid: ${result.projectName ?? '(unknown)'} · ${result.framework ?? ''} ${result.frameworkVersion ?? ''}`.trim(),
-        );
-      } else {
-        vscode.window.showErrorMessage(`SDD invalid: ${(result.errors ?? []).join('; ')}`);
-      }
+        const folder = getWorkspaceFolder();
+        if (!folder) return;
+        const { validateSddConfig } = await loadRuntimeModule();
+        const result = validateSddConfig(folder.uri.fsPath);
+        if (result.success) {
+          vscode.window.showInformationMessage(
+            `SDD valid: ${result.projectName ?? '(unknown)'} · ${result.framework ?? ''} ${result.frameworkVersion ?? ''}`.trim(),
+          );
+        } else {
+          vscode.window.showErrorMessage(`SDD invalid: ${(result.errors ?? []).join('; ')}`);
+        }
       }),
       registerFrontAgentCommand('frontagent.openRunLog', async () => {
-      await provider.openRunLog();
+        await provider.openRunLog();
       }),
       registerFrontAgentCommand('frontagent.showLogs', () => {
         outputChannel?.show(true);
       }),
       registerFrontAgentCommand('frontagent.configure', async () => {
-      await configureFrontAgent(context);
-      await provider.refreshConfigurationStatus();
+        await configureFrontAgent(context);
+        await provider.refreshConfigurationStatus();
       }),
     );
-    log('Activation complete. Registered commands: frontagent.run, frontagent.configure, frontagent.runCurrentFile, frontagent.runSelection, frontagent.initSdd, frontagent.validateSdd, frontagent.openRunLog, frontagent.showLogs.');
+    log(
+      'Activation complete. Registered commands: frontagent.run, frontagent.configure, frontagent.runCurrentFile, frontagent.runSelection, frontagent.initSdd, frontagent.validateSdd, frontagent.openRunLog, frontagent.showLogs.',
+    );
   } catch (error) {
     logError('Activation failed.', error);
     vscode.window.showErrorMessage(`FrontAgent activation failed: ${formatError(error)}`);
@@ -275,7 +277,10 @@ class FrontAgentViewProvider implements vscode.WebviewViewProvider {
         this.postState();
         break;
       case 'webviewError':
-        logError('Webview error.', new Error(`${message.message}${message.stack ? `\n${message.stack}` : ''}`));
+        logError(
+          'Webview error.',
+          new Error(`${message.message}${message.stack ? `\n${message.stack}` : ''}`),
+        );
         break;
     }
   }
@@ -288,7 +293,11 @@ class FrontAgentViewProvider implements vscode.WebviewViewProvider {
 
     const folder = getWorkspaceFolder();
     if (!folder) {
-      this.state = appendChatMessage(this.state, 'error', 'Open a workspace folder before running FrontAgent.');
+      this.state = appendChatMessage(
+        this.state,
+        'error',
+        'Open a workspace folder before running FrontAgent.',
+      );
       this.postState();
       return;
     }
@@ -332,49 +341,63 @@ class FrontAgentViewProvider implements vscode.WebviewViewProvider {
     try {
       runtime = await loadRuntimeModule();
     } catch (error) {
-      this.state = failChatRun(this.state, `FrontAgent runtime failed to load: ${formatError(error)}`);
+      this.state = failChatRun(
+        this.state,
+        `FrontAgent runtime failed to load: ${formatError(error)}`,
+      );
       this.postState();
       return;
     }
 
     log(`Starting run. mode=${message.mode}, files=${files.length}, url=${url ?? '(none)'}`);
-    void runtime.runFrontAgentTask({
-      ...runtimeOptions,
-      projectRoot: folder.uri.fsPath,
-      task: runtimeTask,
-      type: message.mode,
-      files,
-      url,
-      runLog: vscode.workspace.getConfiguration('frontagent', folder.uri).get<boolean>('runLog.enabled', true),
-      codeQualityIsolationMode: 'in_memory',
-      filterConsole: true,
-      signal: controller.signal,
-      onRunLogPath: (runLogPath) => {
-        this.state = { ...this.state, runLogPath };
+    void runtime
+      .runFrontAgentTask({
+        ...runtimeOptions,
+        projectRoot: folder.uri.fsPath,
+        task: runtimeTask,
+        type: message.mode,
+        files,
+        url,
+        runLog: vscode.workspace
+          .getConfiguration('frontagent', folder.uri)
+          .get<boolean>('runLog.enabled', true),
+        codeQualityIsolationMode: 'in_memory',
+        filterConsole: true,
+        signal: controller.signal,
+        onRunLogPath: (runLogPath) => {
+          this.state = { ...this.state, runLogPath };
+          this.postState();
+        },
+        onEvent: (event) => {
+          if (event.type === 'status_update') {
+            log(`Runtime status: ${event.label}${event.operation ? ` (${event.operation})` : ''}`);
+          }
+          this.state = reduceAgentEvent(this.state, event);
+          this.postState();
+        },
+        onApprovalRequest: (request) => this.requestApproval(request),
+      })
+      .then((result) => {
+        log(
+          `Run finished. success=${String(result.success)}, steps=${result.executedSteps.length}`,
+        );
+        this.state = reduceAgentEvent(this.state, { type: 'task_completed', result });
         this.postState();
-      },
-      onEvent: (event) => {
-        if (event.type === 'status_update') {
-          log(`Runtime status: ${event.label}${event.operation ? ` (${event.operation})` : ''}`);
-        }
-        this.state = reduceAgentEvent(this.state, event);
+      })
+      .catch((error) => {
+        logError('Run failed.', error);
+        this.state = failChatRun(
+          this.state,
+          error instanceof Error ? error.message : String(error),
+        );
         this.postState();
-      },
-      onApprovalRequest: (request) => this.requestApproval(request),
-    }).then((result) => {
-      log(`Run finished. success=${String(result.success)}, steps=${result.executedSteps.length}`);
-      this.state = reduceAgentEvent(this.state, { type: 'task_completed', result });
-      this.postState();
-    }).catch((error) => {
-      logError('Run failed.', error);
-      this.state = failChatRun(this.state, error instanceof Error ? error.message : String(error));
-      this.postState();
-    }).finally(() => {
-      this.activeRun = undefined;
-      this.pendingApproval = undefined;
-      this.state = { ...this.state, isRunning: false, approval: null };
-      this.postState();
-    });
+      })
+      .finally(() => {
+        this.activeRun = undefined;
+        this.pendingApproval = undefined;
+        this.state = { ...this.state, isRunning: false, approval: null };
+        this.postState();
+      });
   }
 
   private cancelRun(): void {
@@ -421,7 +444,9 @@ class FrontAgentViewProvider implements vscode.WebviewViewProvider {
     this.postState();
   }
 
-  private async saveInlineConfiguration(message: Extract<WebviewMessage, { type: 'saveConfig' }>): Promise<void> {
+  private async saveInlineConfiguration(
+    message: Extract<WebviewMessage, { type: 'saveConfig' }>,
+  ): Promise<void> {
     const config = vscode.workspace.getConfiguration('frontagent');
     await config.update('provider', message.provider.trim(), vscode.ConfigurationTarget.Workspace);
     await config.update('model', message.model.trim(), vscode.ConfigurationTarget.Workspace);
@@ -473,8 +498,11 @@ async function resolveConfigurationStatus(
   const config = vscode.workspace.getConfiguration('frontagent', folder?.uri);
   const provider = emptyToUndefined(config.get<string>('provider'));
   const envProvider = emptyToUndefined(process.env.PROVIDER)?.toLowerCase();
-  const providerForSecret = provider ?? (envProvider === 'openai' || envProvider === 'anthropic' ? envProvider : undefined);
-  const providerApiKey = providerForSecret ? await context.secrets.get(`${SECRET_API_KEY}.${providerForSecret}`) : undefined;
+  const providerForSecret =
+    provider ?? (envProvider === 'openai' || envProvider === 'anthropic' ? envProvider : undefined);
+  const providerApiKey = providerForSecret
+    ? await context.secrets.get(`${SECRET_API_KEY}.${providerForSecret}`)
+    : undefined;
   const legacyApiKey = await context.secrets.get(SECRET_API_KEY);
   const settingsApiKey = emptyToUndefined(config.get<string>('apiKey'));
   return resolveConfigStatusFromSources({
@@ -498,15 +526,20 @@ async function resolveRuntimeOptions(
   status: ConfigStatus,
 ): Promise<RuntimeConfigInput & { debug?: boolean }> {
   const config = vscode.workspace.getConfiguration('frontagent', folder.uri);
-  const providerApiKey = status.provider ? await context.secrets.get(`${SECRET_API_KEY}.${status.provider}`) : undefined;
+  const providerApiKey = status.provider
+    ? await context.secrets.get(`${SECRET_API_KEY}.${status.provider}`)
+    : undefined;
   const legacyApiKey = await context.secrets.get(SECRET_API_KEY);
   const settingsApiKey = emptyToUndefined(config.get<string>('apiKey'));
-  const providerEnvApiKey = status.provider ? process.env[`${status.provider.toUpperCase()}_API_KEY`] : undefined;
+  const providerEnvApiKey = status.provider
+    ? process.env[`${status.provider.toUpperCase()}_API_KEY`]
+    : undefined;
   return {
     provider: status.provider ?? undefined,
     model: status.model ?? undefined,
     baseUrl: status.baseUrl ?? undefined,
-    apiKey: providerApiKey ?? legacyApiKey ?? settingsApiKey ?? providerEnvApiKey ?? process.env.API_KEY,
+    apiKey:
+      providerApiKey ?? legacyApiKey ?? settingsApiKey ?? providerEnvApiKey ?? process.env.API_KEY,
     maxTokens: config.get<number>('maxTokens', 4096),
     temperature: config.get<number>('temperature', 0.7),
     securityMode: config.get<string>('securityMode', 'balanced'),
@@ -546,7 +579,8 @@ async function configureFrontAgent(context: vscode.ExtensionContext): Promise<vo
 
   const baseUrl = await vscode.window.showInputBox({
     title: 'FrontAgent base URL',
-    prompt: 'OpenAI-compatible or Anthropic-compatible base URL, for example https://api.siliconflow.cn/v1.',
+    prompt:
+      'OpenAI-compatible or Anthropic-compatible base URL, for example https://api.siliconflow.cn/v1.',
     value: config.get<string>('baseUrl', ''),
   });
   if (baseUrl !== undefined) {

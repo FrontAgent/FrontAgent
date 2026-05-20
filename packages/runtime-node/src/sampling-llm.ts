@@ -1,24 +1,26 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type {
   LLMBackend,
   LLMGenerateObjectOptions,
   LLMGenerateTextOptions,
   Message,
 } from '@frontagent/core';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 interface SamplingServer {
   createMessage(params: Record<string, unknown>): Promise<{
     content?: { type: string; text?: string; data?: string; mimeType?: string };
     model?: string;
   }>;
-  getClientCapabilities?(): {
-    sampling?: object;
-    tasks?: {
-      requests?: {
+  getClientCapabilities?():
+    | {
         sampling?: object;
-      };
-    };
-  } | undefined;
+        tasks?: {
+          requests?: {
+            sampling?: object;
+          };
+        };
+      }
+    | undefined;
 }
 
 export interface SamplingLLMBackendOptions {
@@ -50,10 +52,9 @@ function systemPromptFrom(options: LLMGenerateTextOptions): string | undefined {
   const systemMessages = options.messages
     .filter((message) => message.role === 'system')
     .map((message) => message.content);
-  const parts = [
-    options.system,
-    ...systemMessages,
-  ].filter((value): value is string => Boolean(value?.trim()));
+  const parts = [options.system, ...systemMessages].filter((value): value is string =>
+    Boolean(value?.trim()),
+  );
   return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
@@ -156,9 +157,10 @@ export class SamplingLLMBackend implements LLMBackend {
               ].join('\n\n'),
             },
           ],
-          temperature: attempt === 0
-            ? options.temperature
-            : Math.max(0.1, (options.temperature ?? 0.3) - attempt * 0.1),
+          temperature:
+            attempt === 0
+              ? options.temperature
+              : Math.max(0.1, (options.temperature ?? 0.3) - attempt * 0.1),
         });
         const parsed = extractJson(text);
         return options.schema.parse(parsed);

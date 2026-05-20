@@ -1,7 +1,7 @@
-import chalk from 'chalk';
-import ora from 'ora';
 import { existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import chalk from 'chalk';
+import ora from 'ora';
 
 export default async function initCommand(options: { output: string }) {
   const spinner = ora('正在生成 SDD 配置模板...').start();

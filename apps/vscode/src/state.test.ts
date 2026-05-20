@@ -1,3 +1,4 @@
+import type { AgentEvent } from '@frontagent/runtime-node';
 import { describe, expect, it } from 'vitest';
 import {
   applyPrefill,
@@ -7,7 +8,6 @@ import {
   reduceAgentEvent,
   setDetailsCollapsed,
 } from './state.js';
-import type { AgentEvent } from '@frontagent/runtime-node';
 
 describe('VS Code view state reducer', () => {
   it('builds phases and updates step status from agent events', () => {

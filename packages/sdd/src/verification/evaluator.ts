@@ -13,10 +13,7 @@ export class VerificationEvaluator {
     this.policy = { ...DEFAULT_VERIFICATION_POLICY, ...policy };
   }
 
-  evaluate(
-    evidence: VerificationEvidence[],
-    requirements: string[]
-  ): VerificationResult {
+  evaluate(evidence: VerificationEvidence[], requirements: string[]): VerificationResult {
     if (requirements.length === 0) {
       return {
         complete: evidence.length > 0,
@@ -29,7 +26,7 @@ export class VerificationEvaluator {
     }
 
     const validEvidence = this.policy.requireFreshEvidence
-      ? evidence.filter(e => e.fresh)
+      ? evidence.filter((e) => e.fresh)
       : evidence;
 
     const coveredSet = new Set<string>();
@@ -41,12 +38,12 @@ export class VerificationEvaluator {
 
     // If evidence doesn't explicitly link to requirements but we have strong evidence,
     // consider it as general coverage
-    const hasStrongEvidence = validEvidence.some(
-      e => this.policy.strongEvidenceTypes.includes(e.type)
+    const hasStrongEvidence = validEvidence.some((e) =>
+      this.policy.strongEvidenceTypes.includes(e.type),
     );
 
-    const coveredRequirements = requirements.filter(r => coveredSet.has(r));
-    const uncoveredRequirements = requirements.filter(r => !coveredSet.has(r));
+    const coveredRequirements = requirements.filter((r) => coveredSet.has(r));
+    const uncoveredRequirements = requirements.filter((r) => !coveredSet.has(r));
 
     let coverageRatio: number;
     if (coveredRequirements.length > 0) {
@@ -87,7 +84,7 @@ export class VerificationEvaluator {
 }
 
 export function createVerificationEvaluator(
-  policy?: Partial<VerificationPolicy>
+  policy?: Partial<VerificationPolicy>,
 ): VerificationEvaluator {
   return new VerificationEvaluator(policy);
 }

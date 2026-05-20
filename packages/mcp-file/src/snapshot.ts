@@ -72,7 +72,7 @@ export class SnapshotManager {
       filePath,
       content: previousContent ?? '',
       operation,
-      previousContent
+      previousContent,
     };
 
     // 保存到内存
@@ -113,7 +113,10 @@ export class SnapshotManager {
       if (snapshot.operation === 'create') {
         // 如果是创建操作，回滚就是删除文件
         if (!this.isManagedPath(snapshot.filePath)) {
-          return { success: false, message: `Refusing to rollback path outside project root: ${snapshot.filePath}` };
+          return {
+            success: false,
+            message: `Refusing to rollback path outside project root: ${snapshot.filePath}`,
+          };
         }
         if (existsSync(snapshot.filePath)) {
           unlinkSync(snapshot.filePath);
@@ -121,7 +124,10 @@ export class SnapshotManager {
       } else if (snapshot.previousContent !== undefined) {
         // 恢复之前的内容
         if (!this.isManagedPath(snapshot.filePath)) {
-          return { success: false, message: `Refusing to rollback path outside project root: ${snapshot.filePath}` };
+          return {
+            success: false,
+            message: `Refusing to rollback path outside project root: ${snapshot.filePath}`,
+          };
         }
         const dir = dirname(snapshot.filePath);
         if (!existsSync(dir)) {
@@ -134,7 +140,7 @@ export class SnapshotManager {
     } catch (error) {
       return {
         success: false,
-        message: `Failed to rollback: ${error instanceof Error ? error.message : String(error)}`
+        message: `Failed to rollback: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
   }
@@ -163,7 +169,7 @@ export class SnapshotManager {
 
     const snapshotIds = this.fileSnapshots.get(normalizedPath) ?? [];
     return snapshotIds
-      .map(id => this.snapshots.get(id))
+      .map((id) => this.snapshots.get(id))
       .filter((s): s is Snapshot => s !== undefined);
   }
 
@@ -177,7 +183,7 @@ export class SnapshotManager {
   /**
    * 清理旧快照（保留最近 N 个）
    */
-  cleanup(filePath: string, keepCount: number = 10): void {
+  cleanup(filePath: string, keepCount = 10): void {
     const fileHistory = this.fileSnapshots.get(filePath);
     if (!fileHistory || fileHistory.length <= keepCount) {
       return;

@@ -127,7 +127,10 @@ export function parseOptionalBoolean(value: unknown): boolean | undefined {
   return undefined;
 }
 
-export function parsePathList(values: string[] | undefined, fallback?: string): string[] | undefined {
+export function parsePathList(
+  values: string[] | undefined,
+  fallback?: string,
+): string[] | undefined {
   if (values && values.length > 0) {
     return values.map((value) => value.trim()).filter(Boolean);
   }
@@ -138,11 +141,15 @@ export function parsePathList(values: string[] | undefined, fallback?: string): 
     .filter(Boolean);
 }
 
-function normalizeFilesenseOutput(value: string | undefined): FilesenseConfig['output'] | undefined {
+function normalizeFilesenseOutput(
+  value: string | undefined,
+): FilesenseConfig['output'] | undefined {
   return value === 'summary' || value === 'candidates' || value === 'verbose' ? value : undefined;
 }
 
-function normalizeFilesenseWriteMode(value: string | undefined): FilesenseConfig['writeMode'] | undefined {
+function normalizeFilesenseWriteMode(
+  value: string | undefined,
+): FilesenseConfig['writeMode'] | undefined {
   return value === 'cache' || value === 'workspace' || value === 'none' ? value : undefined;
 }
 
@@ -157,7 +164,8 @@ export function resolveProviderBaseURL(
   provider: LLMProvider,
   explicitValue?: string,
 ): string | undefined {
-  const raw = explicitValue ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
+  const raw =
+    explicitValue ?? process.env[`${provider.toUpperCase()}_BASE_URL`] ?? process.env.BASE_URL;
   if (!raw) return undefined;
 
   const normalized = raw.replace(/\/+$/, '');
@@ -170,9 +178,7 @@ export function resolveProviderBaseURL(
 
 export function resolveEmbeddingBaseURL(baseURL?: string): string | undefined {
   if (!baseURL) return undefined;
-  const normalized = baseURL
-    .replace(/\/+$/, '')
-    .replace(/\/chat\/completions$/, '');
+  const normalized = baseURL.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
   return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
 }
 
@@ -192,16 +198,18 @@ export function parseTaskType(value?: string): TaskType {
 }
 
 export function parseSecurityMode(value: unknown): SecurityMode {
-  return value === 'strict' || value === 'developer' || value === 'balanced'
-    ? value
-    : 'balanced';
+  return value === 'strict' || value === 'developer' || value === 'balanced' ? value : 'balanced';
 }
 
 export function resolveRuntimeConfig(
   input: RuntimeConfigInput,
   projectRoot: string,
 ): ResolvedRuntimeConfig {
-  const provider = (input.provider || process.env.PROVIDER || 'anthropic').toLowerCase() as LLMProvider;
+  const provider = (
+    input.provider ||
+    process.env.PROVIDER ||
+    'anthropic'
+  ).toLowerCase() as LLMProvider;
   const safeProvider: LLMProvider = provider === 'openai' ? 'openai' : 'anthropic';
   const model = input.model || process.env.MODEL || getDefaultModel(safeProvider);
   const resolvedLlmApiKey = resolveProviderApiKey(safeProvider, input.apiKey);
@@ -221,11 +229,12 @@ export function resolveRuntimeConfig(
   const ragSource = input.ragSource ?? process.env.FRONTAGENT_RAG_SOURCE;
   const rag: RagConfig = {
     enabled: ragEnabled,
-    source: ragSource === 'git' || ragSource === 'openviking' || ragSource === 'composite'
-      ? ragSource
-      : openVikingEndpoint
-        ? 'composite'
-        : 'git',
+    source:
+      ragSource === 'git' || ragSource === 'openviking' || ragSource === 'composite'
+        ? ragSource
+        : openVikingEndpoint
+          ? 'composite'
+          : 'git',
     openViking: {
       enabled:
         parseOptionalBoolean(input.openVikingEnabled) ??
@@ -239,10 +248,13 @@ export function resolveRuntimeConfig(
         input.openVikingL1Entry ??
         process.env.FRONTAGENT_OPENVIKING_L1_ENTRY ??
         'docs/openviking/frontagent-l1.md',
-      timeoutMs: parseOptionalInt(input.openVikingTimeoutMs) ?? parseOptionalInt(process.env.FRONTAGENT_OPENVIKING_TIMEOUT_MS),
+      timeoutMs:
+        parseOptionalInt(input.openVikingTimeoutMs) ??
+        parseOptionalInt(process.env.FRONTAGENT_OPENVIKING_TIMEOUT_MS),
       fallbackToGit: !input.disableOpenVikingFallback,
     },
-    repoUrl: input.ragRepo ?? process.env.FRONTAGENT_RAG_REPO ?? 'https://github.com/ceilf6/Lab.git',
+    repoUrl:
+      input.ragRepo ?? process.env.FRONTAGENT_RAG_REPO ?? 'https://github.com/ceilf6/Lab.git',
     branch: input.ragBranch ?? process.env.FRONTAGENT_RAG_BRANCH ?? 'main',
     maxResults: parseOptionalInt(input.ragMaxResults) || 5,
     cacheDir: ragCacheDir,
@@ -275,9 +287,7 @@ export function resolveRuntimeConfig(
         process.env.FRONTAGENT_RAG_RERANKER_BASE_URL ??
         resolvedLlmBaseURL,
       apiKey:
-        input.ragRerankerApiKey ??
-        process.env.FRONTAGENT_RAG_RERANKER_API_KEY ??
-        resolvedLlmApiKey,
+        input.ragRerankerApiKey ?? process.env.FRONTAGENT_RAG_RERANKER_API_KEY ?? resolvedLlmApiKey,
       candidateCount: parseOptionalInt(input.ragRerankerCandidateCount),
       maxDocumentChars: parseOptionalInt(input.ragRerankerMaxDocumentChars),
       requestTimeoutMs: parseOptionalInt(input.ragRerankerTimeoutMs),
@@ -333,11 +343,21 @@ export function resolveRuntimeConfig(
       parseOptionalBoolean(input.filesenseEnabled) ??
       parseOptionalBoolean(process.env.FRONTAGENT_FILESENSE_ENABLED) ??
       true,
-    output: normalizeFilesenseOutput(input.filesenseOutput ?? process.env.FRONTAGENT_FILESENSE_OUTPUT),
-    writeMode: normalizeFilesenseWriteMode(input.filesenseWriteMode ?? process.env.FRONTAGENT_FILESENSE_WRITE_MODE),
-    maxEntries: parseOptionalInt(input.filesenseMaxEntries) ?? parseOptionalInt(process.env.FRONTAGENT_FILESENSE_MAX_ENTRIES),
-    maxBytes: parseOptionalInt(input.filesenseMaxBytes) ?? parseOptionalInt(process.env.FRONTAGENT_FILESENSE_MAX_BYTES),
-    timeoutMs: parseOptionalInt(input.filesenseTimeoutMs) ?? parseOptionalInt(process.env.FRONTAGENT_FILESENSE_TIMEOUT_MS),
+    output: normalizeFilesenseOutput(
+      input.filesenseOutput ?? process.env.FRONTAGENT_FILESENSE_OUTPUT,
+    ),
+    writeMode: normalizeFilesenseWriteMode(
+      input.filesenseWriteMode ?? process.env.FRONTAGENT_FILESENSE_WRITE_MODE,
+    ),
+    maxEntries:
+      parseOptionalInt(input.filesenseMaxEntries) ??
+      parseOptionalInt(process.env.FRONTAGENT_FILESENSE_MAX_ENTRIES),
+    maxBytes:
+      parseOptionalInt(input.filesenseMaxBytes) ??
+      parseOptionalInt(process.env.FRONTAGENT_FILESENSE_MAX_BYTES),
+    timeoutMs:
+      parseOptionalInt(input.filesenseTimeoutMs) ??
+      parseOptionalInt(process.env.FRONTAGENT_FILESENSE_TIMEOUT_MS),
   };
 
   return {

@@ -5,25 +5,25 @@
 
 import { join } from 'node:path';
 import {
-  WorkflowEngine,
-  createWorkflowEngine,
+  type ArtifactStore,
+  type ChecklistResult,
+  ConsistencyAnalyzer,
+  type Constitution,
   ConstitutionParser,
   ConstitutionPromptGenerator,
+  DEFAULT_VERIFICATION_POLICY,
   FileArtifactStore,
+  type PhaseGuardResult,
+  PlanQualityValidator,
+  type TaskStep,
   VerificationCollector,
   VerificationEvaluator,
-  PlanQualityValidator,
-  ConsistencyAnalyzer,
-  type WorkflowState,
-  type WorkflowPhase,
-  type PhaseGuardResult,
-  type Constitution,
-  type VerificationPolicy,
   type VerificationEvidence,
-  type ChecklistResult,
-  type ArtifactStore,
-  type TaskStep,
-  DEFAULT_VERIFICATION_POLICY,
+  type VerificationPolicy,
+  type WorkflowEngine,
+  type WorkflowPhase,
+  type WorkflowState,
+  createWorkflowEngine,
 } from '@frontagent/sdd';
 import type { SDDWorkflowConfig } from './types.js';
 
@@ -48,8 +48,8 @@ export class WorkflowIntegration {
 
   constructor(options: WorkflowIntegrationOptions) {
     this.debug = options.debug ?? false;
-    const artifactRoot = options.config.artifactRoot
-      ?? join(options.projectRoot, '.frontagent', 'specs');
+    const artifactRoot =
+      options.config.artifactRoot ?? join(options.projectRoot, '.frontagent', 'specs');
 
     this.verificationPolicy = {
       ...DEFAULT_VERIFICATION_POLICY,
@@ -115,7 +115,10 @@ export class WorkflowIntegration {
     return this.engine.canTransition(targetPhase, content);
   }
 
-  advance(targetPhase: WorkflowPhase, content: string): { success: boolean; result: PhaseGuardResult } {
+  advance(
+    targetPhase: WorkflowPhase,
+    content: string,
+  ): { success: boolean; result: PhaseGuardResult } {
     return this.engine.transition(targetPhase, content);
   }
 
@@ -130,8 +133,8 @@ export class WorkflowIntegration {
   validatePlanQuality(steps: TaskStep[]): { passed: boolean; violations: string[] } {
     const result = this.planQualityValidator.validate(steps);
     const violations = result.violations
-      .filter(v => v.severity === 'error')
-      .map(v => `[${v.ruleId}] Step "${v.stepId}": ${v.message}`);
+      .filter((v) => v.severity === 'error')
+      .map((v) => `[${v.ruleId}] Step "${v.stepId}": ${v.message}`);
     return { passed: violations.length === 0, violations };
   }
 
@@ -147,7 +150,13 @@ export class WorkflowIntegration {
     this.verificationCollector.markCodeChange();
   }
 
-  collectEvidence(stepResult: { stepId: string; action: string; tool: string; output?: unknown; success: boolean }): VerificationEvidence | null {
+  collectEvidence(stepResult: {
+    stepId: string;
+    action: string;
+    tool: string;
+    output?: unknown;
+    success: boolean;
+  }): VerificationEvidence | null {
     return this.verificationCollector.collectFromStep(stepResult);
   }
 
@@ -174,6 +183,8 @@ export class WorkflowIntegration {
   }
 }
 
-export function createWorkflowIntegration(options: WorkflowIntegrationOptions): WorkflowIntegration {
+export function createWorkflowIntegration(
+  options: WorkflowIntegrationOptions,
+): WorkflowIntegration {
   return new WorkflowIntegration(options);
 }

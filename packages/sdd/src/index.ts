@@ -6,8 +6,17 @@
  */
 
 export { SDDParser, createSDDParser, type ParseResult } from './parser.js';
-export { SDDValidator, createSDDValidator, type AgentAction, type ValidationResult } from './validator.js';
-export { SDDPromptGenerator, createPromptGenerator, type PromptGeneratorOptions } from './prompt-generator.js';
+export {
+  SDDValidator,
+  createSDDValidator,
+  type AgentAction,
+  type ValidationResult,
+} from './validator.js';
+export {
+  SDDPromptGenerator,
+  createPromptGenerator,
+  type PromptGeneratorOptions,
+} from './prompt-generator.js';
 export { SDDSchema, defaultSDDConfig } from './schema.js';
 
 // Re-export shared types
@@ -22,7 +31,7 @@ export type {
   CodeQualityConfig,
   ModificationRules,
   ApprovalRule,
-  ConstraintViolation
+  ConstraintViolation,
 } from '@frontagent/shared';
 
 // Constitution — 项目原则层 (Tier 1)

@@ -1,11 +1,4 @@
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import { LLMService } from '../llm.js';
@@ -22,8 +15,8 @@ import type {
   SkillBehaviorEvalCaseResult,
   SkillBehaviorEvalSuite,
   SkillBenchmarkComparison,
-  SkillLabBenchmarkResult,
   SkillLabBehaviorInitResult,
+  SkillLabBenchmarkResult,
   SkillLabImproveOptions,
   SkillLabImproveResult,
   SkillLabInitResult,
@@ -43,12 +36,16 @@ const TriggerEvalSuiteSchema = z.object({
   generatedAt: z.string().min(1),
   generatedBy: z.literal('frontagent-skill-lab'),
   description: z.string().min(1),
-  cases: z.array(z.object({
-    id: z.string().min(1),
-    prompt: z.string().min(1),
-    expected: z.enum(['trigger', 'no_trigger']),
-    note: z.string().optional(),
-  })).min(1),
+  cases: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        prompt: z.string().min(1),
+        expected: z.enum(['trigger', 'no_trigger']),
+        note: z.string().optional(),
+      }),
+    )
+    .min(1),
 });
 
 const BehaviorEvalSuiteSchema = z.object({
@@ -57,19 +54,27 @@ const BehaviorEvalSuiteSchema = z.object({
   generatedAt: z.string().min(1),
   generatedBy: z.literal('frontagent-skill-lab'),
   description: z.string().min(1),
-  cases: z.array(z.object({
-    id: z.string().min(1),
-    prompt: z.string().min(1),
-    expectation: z.enum(['trigger', 'no_trigger', 'either']).optional(),
-    checks: z.array(z.object({
-      id: z.string().min(1),
-      question: z.string().min(1),
-      passCriteria: z.string().min(1),
-      failCriteria: z.string().min(1),
-      weight: z.number().positive().optional(),
-    })).min(1),
-    note: z.string().optional(),
-  })).min(1),
+  cases: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        prompt: z.string().min(1),
+        expectation: z.enum(['trigger', 'no_trigger', 'either']).optional(),
+        checks: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              question: z.string().min(1),
+              passCriteria: z.string().min(1),
+              failCriteria: z.string().min(1),
+              weight: z.number().positive().optional(),
+            }),
+          )
+          .min(1),
+        note: z.string().optional(),
+      }),
+    )
+    .min(1),
 });
 
 const SkillImprovementSchema = z.object({
@@ -81,11 +86,15 @@ const SkillImprovementSchema = z.object({
 
 const BehaviorCaseGradeSchema = z.object({
   summary: z.string().min(1),
-  checks: z.array(z.object({
-    id: z.string().min(1),
-    pass: z.boolean(),
-    rationale: z.string().min(1),
-  })).min(1),
+  checks: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        pass: z.boolean(),
+        rationale: z.string().min(1),
+      }),
+    )
+    .min(1),
 });
 
 function normalizeText(input: string): string {
@@ -100,7 +109,10 @@ function sanitizeToken(input: string): string {
 }
 
 function timestampId(): string {
-  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  return new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
 }
 
 function writeJsonFile(path: string, data: unknown): void {
@@ -192,7 +204,9 @@ function summarizeResults(results: SkillTriggerEvalCaseResult[]): SkillTriggerBe
   };
 }
 
-function summarizeBehaviorResults(results: SkillBehaviorEvalCaseResult[]): SkillBehaviorBenchmarkSummary {
+function summarizeBehaviorResults(
+  results: SkillBehaviorEvalCaseResult[],
+): SkillBehaviorBenchmarkSummary {
   let passCount = 0;
   let totalChecks = 0;
   let passedChecks = 0;
@@ -241,7 +255,8 @@ function compareBehaviorBenchmarks(
 
   const scoreDelta = candidateSummary.scoreRate - baselineSummary.scoreRate;
   const checkDelta = candidateSummary.checkPassRate - baselineSummary.checkPassRate;
-  const triggerFailDelta = candidateSummary.triggerExpectationFailures - baselineSummary.triggerExpectationFailures;
+  const triggerFailDelta =
+    candidateSummary.triggerExpectationFailures - baselineSummary.triggerExpectationFailures;
 
   if (scoreDelta > 0) {
     reasons.push(
@@ -283,11 +298,9 @@ function compareBehaviorBenchmarks(
     candidateSummary.triggerExpectationFailures <= baselineSummary.triggerExpectationFailures;
   const improved =
     nonRegression &&
-    (
-      candidateSummary.scoreRate > baselineSummary.scoreRate ||
+    (candidateSummary.scoreRate > baselineSummary.scoreRate ||
       candidateSummary.checkPassRate > baselineSummary.checkPassRate ||
-      candidateSummary.triggerExpectationFailures < baselineSummary.triggerExpectationFailures
-    );
+      candidateSummary.triggerExpectationFailures < baselineSummary.triggerExpectationFailures);
 
   return {
     improved,
@@ -311,11 +324,9 @@ function compareBenchmarks(
   const baselineErrors = baseline.summary.falsePositives + baseline.summary.falseNegatives;
   const candidateErrors = candidate.summary.falsePositives + candidate.summary.falseNegatives;
   const triggerNonRegression =
-    candidate.summary.passRate >= baseline.summary.passRate &&
-    candidateErrors <= baselineErrors;
+    candidate.summary.passRate >= baseline.summary.passRate && candidateErrors <= baselineErrors;
   const triggerImprovement =
-    candidate.summary.passRate > baseline.summary.passRate ||
-    candidateErrors < baselineErrors;
+    candidate.summary.passRate > baseline.summary.passRate || candidateErrors < baselineErrors;
   let improved = triggerNonRegression && triggerImprovement;
 
   if (candidate.summary.passRate > baseline.summary.passRate) {
@@ -338,7 +349,10 @@ function compareBenchmarks(
   if (baselineBehavior && candidateBehavior) {
     behaviorComparison = compareBehaviorBenchmarks(baselineBehavior, candidateBehavior);
     reasons.push(...behaviorComparison.reasons);
-    improved = triggerNonRegression && behaviorComparison.improved && (triggerImprovement || behaviorComparison.improved);
+    improved =
+      triggerNonRegression &&
+      behaviorComparison.improved &&
+      (triggerImprovement || behaviorComparison.improved);
   }
 
   if (reasons.length === 0) {
@@ -355,14 +369,17 @@ function compareBenchmarks(
 }
 
 export class SkillLab {
-  private readonly config: Required<Pick<SkillLabConfig, 'projectRoot' | 'outputRoot' | 'debug'>> & Omit<SkillLabConfig, 'projectRoot' | 'outputRoot' | 'debug'>;
+  private readonly config: Required<Pick<SkillLabConfig, 'projectRoot' | 'outputRoot' | 'debug'>> &
+    Omit<SkillLabConfig, 'projectRoot' | 'outputRoot' | 'debug'>;
   private readonly llmService?: LLMService;
 
   constructor(config: SkillLabConfig) {
     this.config = {
       ...config,
       projectRoot: resolve(config.projectRoot),
-      outputRoot: resolve(config.outputRoot ?? join(config.projectRoot, '.frontagent', 'skill-lab')),
+      outputRoot: resolve(
+        config.outputRoot ?? join(config.projectRoot, '.frontagent', 'skill-lab'),
+      ),
       debug: config.debug ?? false,
     };
 
@@ -372,7 +389,10 @@ export class SkillLab {
   }
 
   listSkills(): SkillLabSkillSummary[] {
-    const loader = this.createLoader(this.config.projectRoot, this.config.skillContent?.userSkillRoots);
+    const loader = this.createLoader(
+      this.config.projectRoot,
+      this.config.skillContent?.userSkillRoots,
+    );
     return loader.listSkills().map((skill) => ({
       name: skill.name,
       description: skill.description,
@@ -398,9 +418,12 @@ export class SkillLab {
 
     const skillFilePath = join(skillDir, 'SKILL.md');
     const agentConfigPath = join(skillDir, 'agents', 'openai.yaml');
-    const resolvedDescription = description?.trim() || `Describe what ${normalizedName} does and when it should be used.`;
+    const resolvedDescription =
+      description?.trim() || `Describe what ${normalizedName} does and when it should be used.`;
 
-    writeFileSync(skillFilePath, `---
+    writeFileSync(
+      skillFilePath,
+      `---
 name: ${normalizedName}
 description: ${resolvedDescription}
 ---
@@ -422,13 +445,19 @@ Use this skill when the request clearly matches its domain.
 
 - Keep the scope narrow and explicit
 - Avoid duplicating information that should live in references
-`, 'utf-8');
+`,
+      'utf-8',
+    );
 
-    writeFileSync(agentConfigPath, `interface:
+    writeFileSync(
+      agentConfigPath,
+      `interface:
   display_name: "${normalizedName}"
   short_description: "${resolvedDescription}"
   default_prompt: "Use $${normalizedName} for tasks that match this skill."
-`, 'utf-8');
+`,
+      'utf-8',
+    );
 
     return {
       skillDir,
@@ -452,7 +481,11 @@ Use this skill when the request clearly matches its domain.
     return { evalSuitePath: targetPath, suite };
   }
 
-  initBehaviorEvals(skillName: string, outputPath?: string, force = false): SkillLabBehaviorInitResult {
+  initBehaviorEvals(
+    skillName: string,
+    outputPath?: string,
+    force = false,
+  ): SkillLabBehaviorInitResult {
     const manifest = this.resolveSkillManifest(skillName);
     const suite = this.createStarterBehaviorSuite(manifest);
     const targetPath = resolve(
@@ -469,15 +502,25 @@ Use this skill when the request clearly matches its domain.
 
   async benchmarkSkill(
     skillName: string,
-    evalSuitePathOrOptions?: string | { evalSuitePath?: string; behaviorEvalSuitePath?: string; includeBehaviorEval?: boolean },
+    evalSuitePathOrOptions?:
+      | string
+      | { evalSuitePath?: string; behaviorEvalSuitePath?: string; includeBehaviorEval?: boolean },
   ): Promise<SkillLabBenchmarkResult> {
-    const benchmarkOptions = typeof evalSuitePathOrOptions === 'string'
-      ? { evalSuitePath: evalSuitePathOrOptions, includeBehaviorEval: false, behaviorEvalSuitePath: undefined }
-      : {
-          evalSuitePath: evalSuitePathOrOptions?.evalSuitePath,
-          includeBehaviorEval: Boolean(evalSuitePathOrOptions?.includeBehaviorEval || evalSuitePathOrOptions?.behaviorEvalSuitePath),
-          behaviorEvalSuitePath: evalSuitePathOrOptions?.behaviorEvalSuitePath,
-        };
+    const benchmarkOptions =
+      typeof evalSuitePathOrOptions === 'string'
+        ? {
+            evalSuitePath: evalSuitePathOrOptions,
+            includeBehaviorEval: false,
+            behaviorEvalSuitePath: undefined,
+          }
+        : {
+            evalSuitePath: evalSuitePathOrOptions?.evalSuitePath,
+            includeBehaviorEval: Boolean(
+              evalSuitePathOrOptions?.includeBehaviorEval ||
+                evalSuitePathOrOptions?.behaviorEvalSuitePath,
+            ),
+            behaviorEvalSuitePath: evalSuitePathOrOptions?.behaviorEvalSuitePath,
+          };
     const suitePath = this.resolveEvalSuitePath(skillName, benchmarkOptions.evalSuitePath);
     const suite = this.readEvalSuite(suitePath);
     const benchmark = this.runBenchmark(
@@ -499,7 +542,10 @@ Use this skill when the request clearly matches its domain.
       if (!this.llmService) {
         throw new Error('Behavior benchmark requires LLM configuration.');
       }
-      const behaviorSuitePath = this.resolveBehaviorEvalSuitePath(skillName, benchmarkOptions.behaviorEvalSuitePath);
+      const behaviorSuitePath = this.resolveBehaviorEvalSuitePath(
+        skillName,
+        benchmarkOptions.behaviorEvalSuitePath,
+      );
       const behaviorSuite = this.readBehaviorEvalSuite(behaviorSuitePath);
       behaviorBenchmark = await this.runBehaviorBenchmark(
         skillName,
@@ -518,13 +564,18 @@ Use this skill when the request clearly matches its domain.
     return { benchmark, outputPath, summaryPath, behaviorBenchmark, behaviorOutputPath };
   }
 
-  async improveSkill(skillName: string, options: SkillLabImproveOptions = {}): Promise<SkillLabImproveResult> {
+  async improveSkill(
+    skillName: string,
+    options: SkillLabImproveOptions = {},
+  ): Promise<SkillLabImproveResult> {
     if (!this.llmService) {
       throw new Error('Skill improvement requires LLM configuration.');
     }
 
     const manifest = this.resolveSkillManifest(skillName);
-    const includeBehaviorEval = Boolean(options.includeBehaviorEval || options.behaviorEvalSuitePath);
+    const includeBehaviorEval = Boolean(
+      options.includeBehaviorEval || options.behaviorEvalSuitePath,
+    );
     const suitePath = this.resolveEvalSuitePath(skillName, options.evalSuitePath);
     const suite = this.readEvalSuite(suitePath);
     const baseline = this.runBenchmark(
@@ -540,7 +591,10 @@ Use this skill when the request clearly matches its domain.
     let behaviorAnalysis: string[] | undefined;
 
     if (includeBehaviorEval) {
-      behaviorSuitePath = this.resolveBehaviorEvalSuitePath(skillName, options.behaviorEvalSuitePath);
+      behaviorSuitePath = this.resolveBehaviorEvalSuitePath(
+        skillName,
+        options.behaviorEvalSuitePath,
+      );
       behaviorSuite = this.readBehaviorEvalSuite(behaviorSuitePath);
       baselineBehavior = await this.runBehaviorBenchmark(
         skillName,
@@ -559,7 +613,7 @@ Use this skill when the request clearly matches its domain.
 
     if (!hasTriggerFailures && !hasBehaviorFailures && !options.force) {
       throw new Error(
-        `Baseline already passes all available evals. Rerun with force=true if you still want to draft a candidate.`,
+        'Baseline already passes all available evals. Rerun with force=true if you still want to draft a candidate.',
       );
     }
 
@@ -589,10 +643,14 @@ Use this skill when the request clearly matches its domain.
       'utf-8',
     );
 
-    if (improvement.revisedOpenAIYaml && improvement.revisedOpenAIYaml.trim()) {
+    if (improvement.revisedOpenAIYaml?.trim()) {
       const targetYamlPath = join(candidateSkillDir, 'agents', 'openai.yaml');
       mkdirSync(dirname(targetYamlPath), { recursive: true });
-      writeFileSync(targetYamlPath, `${stripCodeFences(improvement.revisedOpenAIYaml).trim()}\n`, 'utf-8');
+      writeFileSync(
+        targetYamlPath,
+        `${stripCodeFences(improvement.revisedOpenAIYaml).trim()}\n`,
+        'utf-8',
+      );
     }
 
     const candidateMarkdown = readFileSync(join(candidateSkillDir, 'SKILL.md'), 'utf-8');
@@ -600,24 +658,20 @@ Use this skill when the request clearly matches its domain.
       .map((relativePath) => resolve(candidateSkillDir, relativePath))
       .filter((absolutePath) => !existsSync(absolutePath));
 
-    const candidateManifest = this.resolveSkillManifestForRoot(
-      skillName,
-      candidateProjectRoot,
-      [join(this.config.projectRoot, 'skills'), ...(this.config.skillContent?.userSkillRoots ?? [])],
-    );
+    const candidateManifest = this.resolveSkillManifestForRoot(skillName, candidateProjectRoot, [
+      join(this.config.projectRoot, 'skills'),
+      ...(this.config.skillContent?.userSkillRoots ?? []),
+    ]);
     if (resolve(candidateManifest.rootDir) !== resolve(candidateSkillDir)) {
       throw new Error(
         `Candidate skill validation failed: expected resolver to load ${candidateSkillDir}, but loaded ${candidateManifest.rootDir} instead.`,
       );
     }
 
-    const candidate = this.runBenchmark(
-      skillName,
-      suite,
-      suitePath,
-      candidateProjectRoot,
-      [join(this.config.projectRoot, 'skills'), ...(this.config.skillContent?.userSkillRoots ?? [])],
-    );
+    const candidate = this.runBenchmark(skillName, suite, suitePath, candidateProjectRoot, [
+      join(this.config.projectRoot, 'skills'),
+      ...(this.config.skillContent?.userSkillRoots ?? []),
+    ]);
     let candidateBehavior: SkillBehaviorBenchmark | undefined;
     if (behaviorSuite && behaviorSuitePath) {
       candidateBehavior = await this.runBehaviorBenchmark(
@@ -625,7 +679,10 @@ Use this skill when the request clearly matches its domain.
         behaviorSuite,
         behaviorSuitePath,
         candidateProjectRoot,
-        [join(this.config.projectRoot, 'skills'), ...(this.config.skillContent?.userSkillRoots ?? [])],
+        [
+          join(this.config.projectRoot, 'skills'),
+          ...(this.config.skillContent?.userSkillRoots ?? []),
+        ],
       );
     }
 
@@ -692,15 +749,28 @@ Use this skill when the request clearly matches its domain.
   promoteCandidate(skillName: string, candidateId: string): SkillLabPromotionResult {
     const targetManifest = this.resolveSkillManifest(skillName);
     if (targetManifest.source === 'builtin') {
-      throw new Error('Promoting into built-in skills is disabled. Copy the candidate manually into a project skill root.');
+      throw new Error(
+        'Promoting into built-in skills is disabled. Copy the candidate manually into a project skill root.',
+      );
     }
 
-    const candidateSkillDir = join(this.getSkillLabDir(skillName), 'candidates', candidateId, 'skills', skillName);
+    const candidateSkillDir = join(
+      this.getSkillLabDir(skillName),
+      'candidates',
+      candidateId,
+      'skills',
+      skillName,
+    );
     if (!existsSync(candidateSkillDir)) {
       throw new Error(`Candidate skill not found: ${candidateSkillDir}`);
     }
 
-    const backupPath = join(this.getSkillLabDir(skillName), 'snapshots', `${candidateId}-before-apply`, skillName);
+    const backupPath = join(
+      this.getSkillLabDir(skillName),
+      'snapshots',
+      `${candidateId}-before-apply`,
+      skillName,
+    );
     mkdirSync(dirname(backupPath), { recursive: true });
     cpSync(targetManifest.rootDir, backupPath, { recursive: true });
 
@@ -734,7 +804,10 @@ Use this skill when the request clearly matches its domain.
     const manifest = manifests.find((entry) => normalizeText(entry.name) === normalizedTarget);
 
     if (!manifest) {
-      const available = manifests.map((entry) => entry.name).sort().join(', ');
+      const available = manifests
+        .map((entry) => entry.name)
+        .sort()
+        .join(', ');
       throw new Error(`Skill not found: ${skillName}. Available skills: ${available || '(none)'}`);
     }
 
@@ -764,17 +837,25 @@ Use this skill when the request clearly matches its domain.
   }
 
   private resolveEvalSuitePath(skillName: string, evalSuitePath?: string): string {
-    const path = resolve(evalSuitePath ?? join(this.getSkillLabDir(skillName), 'trigger-evals.json'));
+    const path = resolve(
+      evalSuitePath ?? join(this.getSkillLabDir(skillName), 'trigger-evals.json'),
+    );
     if (!existsSync(path)) {
-      throw new Error(`Trigger eval suite not found: ${path}. Run initTriggerEvals first or pass --eval.`);
+      throw new Error(
+        `Trigger eval suite not found: ${path}. Run initTriggerEvals first or pass --eval.`,
+      );
     }
     return path;
   }
 
   private resolveBehaviorEvalSuitePath(skillName: string, evalSuitePath?: string): string {
-    const path = resolve(evalSuitePath ?? join(this.getSkillLabDir(skillName), 'behavior-evals.json'));
+    const path = resolve(
+      evalSuitePath ?? join(this.getSkillLabDir(skillName), 'behavior-evals.json'),
+    );
     if (!existsSync(path)) {
-      throw new Error(`Behavior eval suite not found: ${path}. Run initBehaviorEvals first or pass --behavior-eval.`);
+      throw new Error(
+        `Behavior eval suite not found: ${path}. Run initBehaviorEvals first or pass --behavior-eval.`,
+      );
     }
     return path;
   }
@@ -806,7 +887,9 @@ Use this skill when the request clearly matches its domain.
     const resolver = this.createResolver(resolverProjectRoot, userSkillRoots);
     const results: SkillTriggerEvalCaseResult[] = suite.cases.map((testCase) => {
       const resolution = resolver.resolveForTask(testCase.prompt);
-      const matchedEntries = resolution.matchedSkills.filter((match) => normalizeText(match.name) === normalizeText(skillName));
+      const matchedEntries = resolution.matchedSkills.filter(
+        (match) => normalizeText(match.name) === normalizeText(skillName),
+      );
       const triggered = matchedEntries.length > 0;
 
       return {
@@ -844,11 +927,13 @@ Use this skill when the request clearly matches its domain.
     const results: SkillBehaviorEvalCaseResult[] = [];
 
     for (const testCase of suite.cases) {
-      results.push(await this.runBehaviorCase({
-        skillName,
-        testCase,
-        resolver,
-      }));
+      results.push(
+        await this.runBehaviorCase({
+          skillName,
+          testCase,
+          resolver,
+        }),
+      );
     }
 
     return {
@@ -869,14 +954,13 @@ Use this skill when the request clearly matches its domain.
   }): Promise<SkillBehaviorEvalCaseResult> {
     const { skillName, testCase, resolver } = input;
     const resolution = resolver.resolveForTask(testCase.prompt);
-    const matchedEntries = resolution.matchedSkills.filter((match) => normalizeText(match.name) === normalizeText(skillName));
+    const matchedEntries = resolution.matchedSkills.filter(
+      (match) => normalizeText(match.name) === normalizeText(skillName),
+    );
     const triggered = matchedEntries.length > 0;
     const expectation = testCase.expectation ?? 'trigger';
-    const triggerPass = expectation === 'either'
-      ? true
-      : expectation === 'trigger'
-        ? triggered
-        : !triggered;
+    const triggerPass =
+      expectation === 'either' ? true : expectation === 'trigger' ? triggered : !triggered;
     const sanitizedPrompt = resolution.sanitizedTaskDescription?.trim() || testCase.prompt;
     const skillContext = resolution.promptContext?.trim();
 
@@ -888,7 +972,9 @@ Use this skill when the request clearly matches its domain.
         'Do not mention hidden reasoning or evaluation setup.',
         skillContext ? '' : 'No content skill was activated.',
         skillContext ?? '',
-      ].join('\n').trim(),
+      ]
+        .join('\n')
+        .trim(),
       messages: [
         {
           role: 'user',
@@ -935,8 +1021,9 @@ Use this skill when the request clearly matches its domain.
     prompt: string;
     output: string;
   }): Promise<SkillBehaviorCheckResult[]> {
-    const grade: z.infer<typeof BehaviorCaseGradeSchema> = await this.requireLlmService().generateObject({
-      system: `You are a strict binary grader for FrontAgent skill behavior evals.
+    const grade: z.infer<typeof BehaviorCaseGradeSchema> =
+      await this.requireLlmService().generateObject({
+        system: `You are a strict binary grader for FrontAgent skill behavior evals.
 
 Rules:
 - Evaluate each check independently.
@@ -944,28 +1031,28 @@ Rules:
 - If evidence is missing or ambiguous, fail the check.
 - Keep rationale short and concrete.
 - Return JSON only.`,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            `Eval case: ${input.testCase.id}`,
-            '',
-            'Prompt:',
-            input.prompt,
-            '',
-            'Model output:',
-            input.output,
-            '',
-            'Checks:',
-            JSON.stringify(input.testCase.checks, null, 2),
-          ].join('\n'),
-        },
-      ],
-      schema: BehaviorCaseGradeSchema,
-      temperature: 0,
-      maxTokens: 1800,
-      maxRetries: 1,
-    });
+        messages: [
+          {
+            role: 'user',
+            content: [
+              `Eval case: ${input.testCase.id}`,
+              '',
+              'Prompt:',
+              input.prompt,
+              '',
+              'Model output:',
+              input.output,
+              '',
+              'Checks:',
+              JSON.stringify(input.testCase.checks, null, 2),
+            ].join('\n'),
+          },
+        ],
+        schema: BehaviorCaseGradeSchema,
+        temperature: 0,
+        maxTokens: 1800,
+        maxRetries: 1,
+      });
 
     const byId = new Map<string, { pass: boolean; rationale: string }>();
     for (const check of grade.checks) {
@@ -1016,10 +1103,7 @@ Rules:
       .slice(0, 6)
       .map(([id, data]) => `${id}: failed in ${data.count} case(s) - ${data.question}`);
 
-    return [
-      `Failing cases: ${failingCases.length}/${benchmark.summary.totalCases}.`,
-      ...topChecks,
-    ];
+    return [`Failing cases: ${failingCases.length}/${benchmark.summary.totalCases}.`, ...topChecks];
   }
 
   private createStarterSuite(manifest: SkillManifest): SkillTriggerEvalSuite {
@@ -1096,9 +1180,10 @@ Rules:
       cases.push(testCase);
     };
 
-    const seedKeywords = manifest.triggers.keywords.length > 0
-      ? manifest.triggers.keywords.slice(0, 3)
-      : [manifest.name];
+    const seedKeywords =
+      manifest.triggers.keywords.length > 0
+        ? manifest.triggers.keywords.slice(0, 3)
+        : [manifest.name];
 
     for (const keyword of seedKeywords) {
       const keywordToken = sanitizeToken(keyword) || 'behavior';
@@ -1141,23 +1226,29 @@ Rules:
     return [
       {
         id: 'actionable-output',
-        question: 'Does the answer provide concrete implementation guidance instead of vague high-level advice?',
-        passCriteria: 'Contains specific steps, code-level instructions, or implementation details tied to the request.',
+        question:
+          'Does the answer provide concrete implementation guidance instead of vague high-level advice?',
+        passCriteria:
+          'Contains specific steps, code-level instructions, or implementation details tied to the request.',
         failCriteria: 'Only gives generic principles with no actionable implementation details.',
         weight: 1,
       },
       {
         id: 'scope-discipline',
-        question: 'Does the answer stay focused on the task scope implied by the prompt and keyword?',
+        question:
+          'Does the answer stay focused on the task scope implied by the prompt and keyword?',
         passCriteria: `Focuses on "${keyword}" and related request scope without drifting into unrelated domains.`,
-        failCriteria: 'Derails into unrelated topics or broad advice that does not help complete the requested task.',
+        failCriteria:
+          'Derails into unrelated topics or broad advice that does not help complete the requested task.',
         weight: 1,
       },
       {
         id: 'clarity-structure',
         question: 'Is the answer well-structured and easy to execute?',
-        passCriteria: 'Uses clear sections or steps, avoids contradictions, and remains concise enough to follow.',
-        failCriteria: 'Hard to follow, contradictory, or excessively verbose for the requested task.',
+        passCriteria:
+          'Uses clear sections or steps, avoids contradictions, and remains concise enough to follow.',
+        failCriteria:
+          'Hard to follow, contradictory, or excessively verbose for the requested task.',
         weight: 1,
       },
     ];
@@ -1167,15 +1258,18 @@ Rules:
     return [
       {
         id: 'direct-answer',
-        question: 'Does the answer still solve the user request directly even when the target skill should not trigger?',
+        question:
+          'Does the answer still solve the user request directly even when the target skill should not trigger?',
         passCriteria: 'Provides a useful direct answer to the prompt.',
         failCriteria: 'Avoids answering or turns into meta discussion about skills/evaluation.',
         weight: 1,
       },
       {
         id: 'no-internal-leakage',
-        question: 'Does the answer avoid exposing internal evaluation setup or hidden skill-context artifacts?',
-        passCriteria: 'Contains no references to internal grading, benchmark, or activated-skill metadata.',
+        question:
+          'Does the answer avoid exposing internal evaluation setup or hidden skill-context artifacts?',
+        passCriteria:
+          'Contains no references to internal grading, benchmark, or activated-skill metadata.',
         failCriteria: 'Mentions internal benchmark/eval setup or leaked skill-context internals.',
         weight: 1,
       },
@@ -1187,7 +1281,10 @@ Rules:
     if (/review|audit|bug|issue/.test(normalized)) {
       return `Review this frontend change request around "${keyword}" and provide a concrete, prioritized action plan.`;
     }
-    if (/landing|dashboard|hero|page|screen|ui|design|marketing/.test(normalized) || /[\u4e00-\u9fff]/.test(normalized)) {
+    if (
+      /landing|dashboard|hero|page|screen|ui|design|marketing/.test(normalized) ||
+      /[\u4e00-\u9fff]/.test(normalized)
+    ) {
       return `Implement a frontend task centered on "${keyword}" and explain the final deliverable clearly.`;
     }
     return `Handle this frontend task involving "${keyword}" with implementation-ready instructions.`;
@@ -1195,7 +1292,10 @@ Rules:
 
   private buildPositivePrompt(keyword: string): string {
     const normalized = normalizeText(keyword);
-    if (/landing|dashboard|hero|page|screen|ui|design|marketing/.test(normalized) || /[\u4e00-\u9fff]/.test(normalized)) {
+    if (
+      /landing|dashboard|hero|page|screen|ui|design|marketing/.test(normalized) ||
+      /[\u4e00-\u9fff]/.test(normalized)
+    ) {
       return `Please help with a frontend task involving "${keyword}" and deliver a working implementation.`;
     }
 
@@ -1216,17 +1316,18 @@ Rules:
     behaviorAnalysis?: string[];
   }): Promise<z.infer<typeof SkillImprovementSchema>> {
     const failureResults = input.benchmark.results.filter((result) => !result.pass);
-    const failureSummary = failureResults.length === 0
-      ? 'No failing evals. Improve concision and trigger precision without broadening scope.'
-      : failureResults.map((result) => ({
-          id: result.id,
-          prompt: result.prompt,
-          expected: result.expected,
-          triggered: result.triggered,
-          matchedSkillNames: result.matchedSkillNames,
-          matchedTerms: result.matchedTerms,
-          matchTypes: result.matchTypes,
-        }));
+    const failureSummary =
+      failureResults.length === 0
+        ? 'No failing evals. Improve concision and trigger precision without broadening scope.'
+        : failureResults.map((result) => ({
+            id: result.id,
+            prompt: result.prompt,
+            expected: result.expected,
+            triggered: result.triggered,
+            matchedSkillNames: result.matchedSkillNames,
+            matchedTerms: result.matchedTerms,
+            matchTypes: result.matchTypes,
+          }));
     const behaviorFailureSummary = input.behaviorBenchmark
       ? input.behaviorBenchmark.results
           .filter((result) => !result.pass)
@@ -1237,11 +1338,13 @@ Rules:
             triggered: result.triggered,
             triggerPass: result.triggerPass,
             score: `${result.score}/${result.maxScore}`,
-            failedChecks: result.checks.filter((check) => !check.pass).map((check) => ({
-              id: check.id,
-              question: check.question,
-              rationale: check.rationale,
-            })),
+            failedChecks: result.checks
+              .filter((check) => !check.pass)
+              .map((check) => ({
+                id: check.id,
+                question: check.question,
+                rationale: check.rationale,
+              })),
           }))
       : undefined;
 
@@ -1289,7 +1392,9 @@ Behavior-quality guidance:
           JSON.stringify(input.benchmark.summary, null, 2),
           '',
           'Failing cases:',
-          typeof failureSummary === 'string' ? failureSummary : JSON.stringify(failureSummary, null, 2),
+          typeof failureSummary === 'string'
+            ? failureSummary
+            : JSON.stringify(failureSummary, null, 2),
           '',
           'Behavior benchmark summary:',
           input.behaviorBenchmark
@@ -1362,12 +1467,18 @@ Behavior-quality guidance:
       lines.push('');
       lines.push(`- Behavior cases: ${behavior.summary.totalCases}`);
       lines.push(`- Behavior pass rate: ${(behavior.summary.passRate * 100).toFixed(1)}%`);
-      lines.push(`- Behavior check pass rate: ${(behavior.summary.checkPassRate * 100).toFixed(1)}%`);
+      lines.push(
+        `- Behavior check pass rate: ${(behavior.summary.checkPassRate * 100).toFixed(1)}%`,
+      );
       lines.push(`- Behavior score rate: ${(behavior.summary.scoreRate * 100).toFixed(1)}%`);
       lines.push(`- Trigger expectation failures: ${behavior.summary.triggerExpectationFailures}`);
       if (extras.baselineBehaviorBenchmark && comparison?.behavior) {
-        lines.push(`- Baseline behavior score rate: ${(extras.baselineBehaviorBenchmark.summary.scoreRate * 100).toFixed(1)}%`);
-        lines.push(`- Candidate behavior score rate: ${(behavior.summary.scoreRate * 100).toFixed(1)}%`);
+        lines.push(
+          `- Baseline behavior score rate: ${(extras.baselineBehaviorBenchmark.summary.scoreRate * 100).toFixed(1)}%`,
+        );
+        lines.push(
+          `- Candidate behavior score rate: ${(behavior.summary.scoreRate * 100).toFixed(1)}%`,
+        );
         lines.push(`- Behavior improved: ${comparison.behavior.improved ? 'yes' : 'no'}`);
       }
       lines.push('');
@@ -1410,7 +1521,9 @@ Behavior-quality guidance:
       lines.push('## Failing Cases');
       lines.push('');
       for (const result of failing) {
-        lines.push(`- ${result.id}: expected=${result.expected}, triggered=${result.triggered}, matched=${result.matchedSkillNames.join(', ') || '(none)'}`);
+        lines.push(
+          `- ${result.id}: expected=${result.expected}, triggered=${result.triggered}, matched=${result.matchedSkillNames.join(', ') || '(none)'}`,
+        );
         lines.push(`  Prompt: ${result.prompt}`);
       }
       lines.push('');
@@ -1423,9 +1536,13 @@ Behavior-quality guidance:
         lines.push('');
         for (const result of behaviorFailing) {
           const failedChecks = result.checks.filter((check) => !check.pass);
-          lines.push(`- ${result.id}: expectation=${result.expectation}, triggered=${result.triggered}, score=${result.score}/${result.maxScore}`);
+          lines.push(
+            `- ${result.id}: expectation=${result.expectation}, triggered=${result.triggered}, score=${result.score}/${result.maxScore}`,
+          );
           lines.push(`  Prompt: ${result.prompt}`);
-          lines.push(`  Failed checks: ${failedChecks.map((check) => check.id).join(', ') || '(none)'}`);
+          lines.push(
+            `  Failed checks: ${failedChecks.map((check) => check.id).join(', ') || '(none)'}`,
+          );
         }
         lines.push('');
       }

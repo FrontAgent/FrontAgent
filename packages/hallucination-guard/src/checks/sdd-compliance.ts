@@ -3,8 +3,8 @@
  * 验证 Agent 操作是否符合 SDD 约束
  */
 
-import { SDDValidator, type AgentAction } from '@frontagent/sdd';
-import type { SDDConfig, HallucinationCheckResult } from '@frontagent/shared';
+import { type AgentAction, SDDValidator } from '@frontagent/sdd';
+import type { HallucinationCheckResult, SDDConfig } from '@frontagent/shared';
 
 export interface SDDComplianceCheckInput {
   action: AgentAction;
@@ -15,7 +15,7 @@ export interface SDDComplianceCheckInput {
  * 检查操作是否符合 SDD 约束
  */
 export async function checkSDDCompliance(
-  input: SDDComplianceCheckInput
+  input: SDDComplianceCheckInput,
 ): Promise<HallucinationCheckResult> {
   const { action, sddConfig } = input;
 
@@ -23,21 +23,21 @@ export async function checkSDDCompliance(
   const result = validator.validate(action);
 
   // 收集所有错误级别的违规
-  const errors = result.violations.filter(v => v.type === 'error');
-  const warnings = result.violations.filter(v => v.type === 'warning');
+  const errors = result.violations.filter((v) => v.type === 'error');
+  const warnings = result.violations.filter((v) => v.type === 'warning');
 
   if (errors.length > 0) {
     return {
       pass: false,
       type: 'sdd_compliance',
       severity: 'block',
-      message: `SDD compliance violations: ${errors.map(e => e.message).join('; ')}`,
+      message: `SDD compliance violations: ${errors.map((e) => e.message).join('; ')}`,
       details: {
         errors,
         warnings,
         requiresApproval: result.requiresApproval,
-        approvalReasons: result.approvalReasons
-      }
+        approvalReasons: result.approvalReasons,
+      },
     };
   }
 
@@ -50,8 +50,8 @@ export async function checkSDDCompliance(
       details: {
         warnings,
         requiresApproval: true,
-        approvalReasons: result.approvalReasons
-      }
+        approvalReasons: result.approvalReasons,
+      },
     };
   }
 
@@ -60,8 +60,8 @@ export async function checkSDDCompliance(
       pass: true,
       type: 'sdd_compliance',
       severity: 'warn',
-      message: `SDD compliance warnings: ${warnings.map(w => w.message).join('; ')}`,
-      details: { warnings }
+      message: `SDD compliance warnings: ${warnings.map((w) => w.message).join('; ')}`,
+      details: { warnings },
     };
   }
 
@@ -69,7 +69,7 @@ export async function checkSDDCompliance(
     pass: true,
     type: 'sdd_compliance',
     severity: 'info',
-    message: 'Action is SDD compliant'
+    message: 'Action is SDD compliant',
   };
 }
 
@@ -78,10 +78,7 @@ export async function checkSDDCompliance(
  */
 export async function checkActionsCompliance(
   actions: AgentAction[],
-  sddConfig: SDDConfig
+  sddConfig: SDDConfig,
 ): Promise<HallucinationCheckResult[]> {
-  return Promise.all(
-    actions.map(action => checkSDDCompliance({ action, sddConfig }))
-  );
+  return Promise.all(actions.map((action) => checkSDDCompliance({ action, sddConfig })));
 }
-

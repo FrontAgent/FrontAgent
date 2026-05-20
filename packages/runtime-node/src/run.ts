@@ -1,22 +1,22 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  createAgent,
   type AgentConfig,
   type AgentEvent,
   type AgentExecutionResult,
   type AgentPlanResult,
   type ExecutorStepTrace,
   type LLMBackend,
+  createAgent,
 } from '@frontagent/core';
-import type { ApprovalRequest, TaskType } from '@frontagent/shared';
 import { createShellMCPClient } from '@frontagent/mcp-shell';
+import type { ApprovalRequest, TaskType } from '@frontagent/shared';
 import {
-  parseTaskType,
+  type RuntimeConfigInput,
   getDefaultRagCacheDir,
+  parseTaskType,
   resolveBuiltInSkillRoots,
   resolveRuntimeConfig,
-  type RuntimeConfigInput,
 } from './config.js';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-clients.js';
 import { createRunLogger, installRunConsoleFilter } from './run-logger.js';
@@ -223,8 +223,16 @@ export async function runFrontAgentTask(
     };
   } finally {
     try {
-      options.onEvent?.({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
-      runLogger?.event({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      options.onEvent?.({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
+      runLogger?.event({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
       await webClient.close();
     } catch (error) {
       runLogger?.error(error);
@@ -383,8 +391,16 @@ export async function planFrontAgentTask(
     };
   } finally {
     try {
-      options.onEvent?.({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
-      runLogger?.event({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      options.onEvent?.({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
+      runLogger?.event({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
       await webClient.close();
     } catch (error) {
       runLogger?.error(error);

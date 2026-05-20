@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { createSDDParser, createPromptGenerator } from '@frontagent/sdd';
+import { createPromptGenerator, createSDDParser } from '@frontagent/sdd';
 
 export interface SddInitResult {
   created: boolean;

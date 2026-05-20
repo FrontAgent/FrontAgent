@@ -5,19 +5,16 @@
 
 import type { MCPClient } from '@frontagent/core';
 import {
-  readFile,
+  SnapshotManager,
   applyPatch,
   createFile,
-  searchCode,
-  listDirectory,
   getAST,
-  SnapshotManager,
+  listDirectory,
+  readFile,
+  searchCode,
 } from '@frontagent/mcp-file';
-import {
-  ragQuery,
-  type KnowledgeBaseConfig,
-} from '@frontagent/mcp-memory';
-import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
+import { type KnowledgeBaseConfig, ragQuery } from '@frontagent/mcp-memory';
+import { type BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 /**
  * 文件操作 MCP 客户端
@@ -90,7 +87,7 @@ export class WebMCPClient implements MCPClient {
   constructor() {
     this.browserManager = createBrowserManager({
       headless: true,
-      timeout: 30000
+      timeout: 30000,
     });
   }
 
@@ -136,7 +133,10 @@ export class WebMCPClient implements MCPClient {
 
       case 'browser_scroll':
       case 'scroll': {
-        const { direction, amount } = args as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number };
+        const { direction, amount } = args as {
+          direction: 'up' | 'down' | 'left' | 'right';
+          amount?: number;
+        };
         return await this.browserManager.scroll(direction, amount);
       }
 
@@ -161,7 +161,7 @@ export class WebMCPClient implements MCPClient {
       { name: 'browser_type', description: '在输入框中输入文本' },
       { name: 'browser_scroll', description: '滚动页面' },
       { name: 'browser_screenshot', description: '截取页面截图' },
-      { name: 'browser_wait_for_selector', description: '等待元素出现' }
+      { name: 'browser_wait_for_selector', description: '等待元素出现' },
     ];
   }
 
@@ -193,8 +193,6 @@ export class MemoryMCPClient implements MCPClient {
   }
 
   async listTools() {
-    return [
-      { name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' },
-    ];
+    return [{ name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' }];
   }
 }

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import type { AgentTask, ExecutionStep, SDDConfig, SecurityDecision } from '@frontagent/shared';
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
+import type { AgentTask, ExecutionStep, SDDConfig, SecurityDecision } from '@frontagent/shared';
+import { describe, expect, it } from 'vitest';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
 import { SecurityManager } from './security.js';
@@ -36,9 +36,7 @@ function createSddConfig(): SDDConfig {
     modificationRules: {
       protectedFiles: ['src/protected.ts'],
       protectedDirectories: ['generated'],
-      requireApproval: [
-        { pattern: 'src/api/**', reason: 'API changes need review' },
-      ],
+      requireApproval: [{ pattern: 'src/api/**', reason: 'API changes need review' }],
     },
   };
 }

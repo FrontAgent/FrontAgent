@@ -6,30 +6,29 @@ export {
   HallucinationGuard,
   createHallucinationGuard,
   type AgentOutput,
-  type GuardConfig
+  type GuardConfig,
 } from './guard.js';
 
 export {
   checkFileExistence,
   checkFilesExistence,
-  type FileExistenceCheckInput
+  type FileExistenceCheckInput,
 } from './checks/file-existence.js';
 
 export {
   checkImportValidity,
   checkAllImports,
   extractImports,
-  type ImportValidityCheckInput
+  type ImportValidityCheckInput,
 } from './checks/import-validity.js';
 
 export {
   checkSyntaxValidity,
-  type SyntaxValidityCheckInput
+  type SyntaxValidityCheckInput,
 } from './checks/syntax-validity.js';
 
 export {
   checkSDDCompliance,
   checkActionsCompliance,
-  type SDDComplianceCheckInput
+  type SDDComplianceCheckInput,
 } from './checks/sdd-compliance.js';
-

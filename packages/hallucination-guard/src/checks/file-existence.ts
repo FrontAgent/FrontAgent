@@ -17,12 +17,12 @@ export interface FileExistenceCheckInput {
  * 检查文件是否存在
  */
 export async function checkFileExistence(
-  input: FileExistenceCheckInput
+  input: FileExistenceCheckInput,
 ): Promise<HallucinationCheckResult> {
   const { path, projectRoot, shouldExist = true } = input;
-  
+
   const fullPath = resolve(projectRoot, path);
-  
+
   // 安全检查：确保路径在项目根目录内
   if (!fullPath.startsWith(projectRoot)) {
     return {
@@ -30,19 +30,19 @@ export async function checkFileExistence(
       type: 'file_existence',
       severity: 'block',
       message: `Security violation: Path "${path}" is outside project root`,
-      details: { path, projectRoot }
+      details: { path, projectRoot },
     };
   }
 
   const exists = existsSync(fullPath);
-  
+
   if (shouldExist && !exists) {
     return {
       pass: false,
       type: 'file_existence',
       severity: 'block',
       message: `Hallucination detected: File "${path}" does not exist`,
-      details: { path, exists: false }
+      details: { path, exists: false },
     };
   }
 
@@ -52,7 +52,7 @@ export async function checkFileExistence(
       type: 'file_existence',
       severity: 'warn',
       message: `File "${path}" already exists`,
-      details: { path, exists: true }
+      details: { path, exists: true },
     };
   }
 
@@ -66,7 +66,7 @@ export async function checkFileExistence(
           type: 'file_existence',
           severity: 'block',
           message: `"${path}" exists but is not a file`,
-          details: { path, isFile: false, isDirectory: stat.isDirectory() }
+          details: { path, isFile: false, isDirectory: stat.isDirectory() },
         };
       }
     } catch (error) {
@@ -75,7 +75,7 @@ export async function checkFileExistence(
         type: 'file_existence',
         severity: 'block',
         message: `Cannot access "${path}": ${error instanceof Error ? error.message : String(error)}`,
-        details: { path, error: String(error) }
+        details: { path, error: String(error) },
       };
     }
   }
@@ -84,7 +84,7 @@ export async function checkFileExistence(
     pass: true,
     type: 'file_existence',
     severity: 'info',
-    message: shouldExist ? `File "${path}" exists` : `File "${path}" does not exist (as expected)`
+    message: shouldExist ? `File "${path}" exists` : `File "${path}" does not exist (as expected)`,
   };
 }
 
@@ -93,10 +93,7 @@ export async function checkFileExistence(
  */
 export async function checkFilesExistence(
   paths: string[],
-  projectRoot: string
+  projectRoot: string,
 ): Promise<HallucinationCheckResult[]> {
-  return Promise.all(
-    paths.map(path => checkFileExistence({ path, projectRoot }))
-  );
+  return Promise.all(paths.map((path) => checkFileExistence({ path, projectRoot })));
 }
-

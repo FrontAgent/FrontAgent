@@ -5,13 +5,20 @@
 
 import { resolve } from 'node:path';
 import * as engine from './engine.js';
-import type { SyncSummary, SummarizeSummary, CheckSummary, QueryResult, NavigateResult } from './types.js';
+import type {
+  CheckSummary,
+  NavigateResult,
+  QueryResult,
+  SummarizeSummary,
+  SyncSummary,
+} from './types.js';
 
 // ─── Tool Schemas ──────────────────────────────────────────────────────────────
 
 export const filesenseInitSchema = {
   name: 'filesense_init',
-  description: '初始化 Filesense 目录索引。在项目根目录创建 .filesrc.json 配置、.filesignore 忽略规则、JSON Schema 文件，并执行首次索引同步。适用于首次在项目中启用 Filesense 时调用。',
+  description:
+    '初始化 Filesense 目录索引。在项目根目录创建 .filesrc.json 配置、.filesignore 忽略规则、JSON Schema 文件，并执行首次索引同步。适用于首次在项目中启用 Filesense 时调用。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -26,7 +33,8 @@ export const filesenseInitSchema = {
 
 export const filesenseSyncSchema = {
   name: 'filesense_sync',
-  description: '同步目录索引。递归扫描目录树，更新每个目录的 FILES.json 索引文件。仅在文件发生变化时重新计算哈希，增量更新高效。用于在文件操作后保持索引最新。',
+  description:
+    '同步目录索引。递归扫描目录树，更新每个目录的 FILES.json 索引文件。仅在文件发生变化时重新计算哈希，增量更新高效。用于在文件操作后保持索引最新。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -58,7 +66,8 @@ export const filesenseSyncSchema = {
 
 export const filesenseSummarizeSchema = {
   name: 'filesense_summarize',
-  description: '为目录生成语义摘要。基于目录内容推断目录用途、Agent 提示、编码约定和关键入口点，写入 FILES.notes.json。帮助 Agent 快速理解目录结构和导航策略。',
+  description:
+    '为目录生成语义摘要。基于目录内容推断目录用途、Agent 提示、编码约定和关键入口点，写入 FILES.notes.json。帮助 Agent 快速理解目录结构和导航策略。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -78,7 +87,8 @@ export const filesenseSummarizeSchema = {
 
 export const filesenseQuerySchema = {
   name: 'filesense_query',
-  description: '查询目录的索引和语义摘要。返回 FILES.json 中的文件列表（含哈希、大小、类型）和 FILES.notes.json 中的目录用途、Agent 提示等信息。用于快速了解目录内容而无需逐个读取文件。',
+  description:
+    '查询目录的索引和语义摘要。返回 FILES.json 中的文件列表（含哈希、大小、类型）和 FILES.notes.json 中的目录用途、Agent 提示等信息。用于快速了解目录内容而无需逐个读取文件。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -93,7 +103,8 @@ export const filesenseQuerySchema = {
 
 export const filesenseCheckSchema = {
   name: 'filesense_check',
-  description: '检查索引覆盖率和新鲜度。报告缺失索引、过期索引、无效索引等问题。用于验证 Filesense 索引是否完整且最新。',
+  description:
+    '检查索引覆盖率和新鲜度。报告缺失索引、过期索引、无效索引等问题。用于验证 Filesense 索引是否完整且最新。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -108,7 +119,8 @@ export const filesenseCheckSchema = {
 
 export const filesenseSyncAndSummarizeSchema = {
   name: 'filesense_sync_and_summarize',
-  description: '持久化生成/刷新 Filesense 索引和语义摘要（sync + summarize）。这是较重的维护操作；普通规划、定位、结构理解应优先使用只读轻量的 filesense_navigate。',
+  description:
+    '持久化生成/刷新 Filesense 索引和语义摘要（sync + summarize）。这是较重的维护操作；普通规划、定位、结构理解应优先使用只读轻量的 filesense_navigate。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -128,7 +140,8 @@ export const filesenseSyncAndSummarizeSchema = {
 
 export const filesenseNavigateSchema = {
   name: 'filesense_navigate',
-  description: '首选的 Agent 目录导航工具：按需、只读/预算化扫描当前仓库，返回 summary、candidates、factsDelta、warnings 和 scanned 元信息。用于结构理解、入口定位、创建/重构前探路；避免为普通导航触发全仓 sync_and_summarize。',
+  description:
+    '首选的 Agent 目录导航工具：按需、只读/预算化扫描当前仓库，返回 summary、candidates、factsDelta、warnings 和 scanned 元信息。用于结构理解、入口定位、创建/重构前探路；避免为普通导航触发全仓 sync_and_summarize。',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -139,7 +152,14 @@ export const filesenseNavigateSchema = {
       },
       intent: {
         type: 'string',
-        enum: ['locate', 'understand_structure', 'find_conventions', 'prepare_refactor', 'prepare_create', 'validate_freshness'],
+        enum: [
+          'locate',
+          'understand_structure',
+          'find_conventions',
+          'prepare_refactor',
+          'prepare_create',
+          'validate_freshness',
+        ],
         description: '导航意图，用于候选路径排序和摘要聚焦',
       },
       depth: { type: 'number', description: '最大递归深度，默认 2' },
@@ -177,7 +197,13 @@ export const allFilesenseSchemas = [
 
 export interface FilesenseToolResult {
   success: boolean;
-  data?: SyncSummary | SummarizeSummary | CheckSummary | QueryResult | NavigateResult | { sync: SyncSummary; summarize: SummarizeSummary };
+  data?:
+    | SyncSummary
+    | SummarizeSummary
+    | CheckSummary
+    | QueryResult
+    | NavigateResult
+    | { sync: SyncSummary; summarize: SummarizeSummary };
   error?: string;
 }
 
@@ -189,7 +215,7 @@ function resolvePath(inputPath: string | undefined, projectRoot: string): string
 export async function handleFilesenseTool(
   toolName: string,
   args: Record<string, unknown>,
-  projectRoot: string
+  projectRoot: string,
 ): Promise<FilesenseToolResult> {
   try {
     const targetPath = resolvePath(args.path as string | undefined, projectRoot);
@@ -224,11 +250,14 @@ export async function handleFilesenseTool(
         return { success: true, data: result };
       }
       case 'filesense_navigate': {
-        const firstPath = Array.isArray(args.paths) && typeof args.paths[0] === 'string'
-          ? resolvePath(args.paths[0], projectRoot)
-          : targetPath;
+        const firstPath =
+          Array.isArray(args.paths) && typeof args.paths[0] === 'string'
+            ? resolvePath(args.paths[0], projectRoot)
+            : targetPath;
         const result = await engine.navigate(firstPath, {
-          paths: Array.isArray(args.paths) ? args.paths.filter((item): item is string => typeof item === 'string') : undefined,
+          paths: Array.isArray(args.paths)
+            ? args.paths.filter((item): item is string => typeof item === 'string')
+            : undefined,
           intent: args.intent as never,
           depth: args.depth as number | undefined,
           maxEntries: args.maxEntries as number | undefined,

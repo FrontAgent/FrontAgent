@@ -5,26 +5,26 @@
 
 import { existsSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import type { HallucinationGuard } from '@frontagent/hallucination-guard';
 import type {
+  AgentTask,
   ApprovalRequest,
   ExecutionStep,
-  StepResult,
-  ValidationResult,
-  AgentTask,
   SDDConfig,
   SecurityConfig,
   SecurityDecision,
+  StepResult,
+  ValidationResult,
 } from '@frontagent/shared';
-import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
-import type { ExecutorOutput } from './types.js';
-import { LLMService } from './llm.js';
+import type { LLMService } from './llm.js';
 import { SecurityManager, toApprovalRequest } from './security.js';
 import {
-  createDefaultExecutorSkillRegistry,
   type ExecutorActionSkill,
   type ExecutorSkillsLayerSnapshot,
+  createDefaultExecutorSkillRegistry,
 } from './skills/index.js';
+import type { ExecutorOutput } from './types.js';
 
 /**
  * MCP 客户端接口
@@ -53,12 +53,14 @@ export interface ExecutorConfig {
   /** 获取内容层 skill 上下文的回调（用于代码生成时遵守已激活 skill） */
   getSkillContext?: () => string | undefined;
   /** 获取文件系统事实的回调（用于验证文件是否存在） */
-  getFileSystemFacts?: () => {
-    existingFiles: Set<string>;
-    existingDirectories: Set<string>;
-    nonExistentPaths: Set<string>;
-    directoryContents: Map<string, string[]>;
-  } | undefined;
+  getFileSystemFacts?: () =>
+    | {
+        existingFiles: Set<string>;
+        existingDirectories: Set<string>;
+        nonExistentPaths: Set<string>;
+        directoryContents: Map<string, string[]>;
+      }
+    | undefined;
   /** Recall relevant memories for a code-generation step (Phase 2) */
   getMemoryRecall?: (filePath: string, action: string) => string | undefined;
   /** Optional callback invoked for each streamed token during code generation */
@@ -142,7 +144,12 @@ function calcStats(values: number[]): { avg: number; min: number; median: number
   if (values.length === 0) return { avg: 0, min: 0, median: 0, max: 0 };
   const sorted = [...values].sort((a, b) => a - b);
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
-  return { avg, min: sorted[0], median: sorted[Math.floor(sorted.length / 2)], max: sorted[sorted.length - 1] };
+  return {
+    avg,
+    min: sorted[0],
+    median: sorted[Math.floor(sorted.length / 2)],
+    max: sorted[sorted.length - 1],
+  };
 }
 
 export interface ExecutorTraceSummary {
@@ -204,7 +211,7 @@ function summarizeTraces(traces: ExecutorStepTrace[]): Record<string, ExecutorTr
 
     result[tool] = {
       count: group.length,
-      totalMs: calcStats(group.map(t => t.totalMs)),
+      totalMs: calcStats(group.map((t) => t.totalMs)),
       toolDurationMs: calcStats(toolDurations),
       stages,
       subStages,
@@ -339,7 +346,7 @@ export class Executor {
     context: {
       task: AgentTask;
       collectedContext: ExecutorCollectedContext;
-    }
+    },
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
     const traceEnabled = this.isTraceEnabled();
@@ -358,7 +365,10 @@ export class Executor {
           tool: step.tool,
           totalMs: this.nowMs() - traceStartedAt,
           success: stepResult.success,
-          skipped: typeof stepResult.output === 'object' && stepResult.output !== null && Boolean((stepResult.output as { skipped?: boolean }).skipped),
+          skipped:
+            typeof stepResult.output === 'object' &&
+            stepResult.output !== null &&
+            Boolean((stepResult.output as { skipped?: boolean }).skipped),
           error: stepResult.error,
           stages: traceStages,
           toolDurationMs: toolResult?.__toolDurationMs,
@@ -368,7 +378,10 @@ export class Executor {
       return output;
     };
 
-    const withStage = async <T>(name: ExecutorTraceStage['name'], fn: () => Promise<T> | T): Promise<T> => {
+    const withStage = async <T>(
+      name: ExecutorTraceStage['name'],
+      fn: () => Promise<T> | T,
+    ): Promise<T> => {
       if (!traceEnabled) {
         return fn();
       }
@@ -379,14 +392,23 @@ export class Executor {
         traceStages.push(this.createTraceStage(name, stageStartedAt, true));
         return result;
       } catch (error) {
-        traceStages.push(this.createTraceStage(name, stageStartedAt, false, error instanceof Error ? error.message : String(error)));
+        traceStages.push(
+          this.createTraceStage(
+            name,
+            stageStartedAt,
+            false,
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
         throw error;
       }
     };
 
     try {
       // 0. 参数有效性检查（检查关键参数是否为空）
-      const paramValidation = await withStage('validate_params', () => this.validateStepParams(step));
+      const paramValidation = await withStage('validate_params', () =>
+        this.validateStepParams(step),
+      );
       if (!paramValidation.valid) {
         if (this.config.debug) {
           console.log(`[Executor] Skipping step due to invalid params: ${paramValidation.reason}`);
@@ -395,19 +417,22 @@ export class Executor {
           stepResult: {
             success: true,
             output: { skipped: true, reason: paramValidation.reason },
-            duration: Date.now() - startTime
+            duration: Date.now() - startTime,
           },
           validation: { pass: true, results: [] },
-          needsRollback: false
+          needsRollback: false,
         });
       }
 
       // 1. 执行前验证
-      const preValidation = await withStage('validate_before', () => this.validateBeforeExecution(step, context));
+      const preValidation = await withStage('validate_before', () =>
+        this.validateBeforeExecution(step, context),
+      );
       if (!preValidation.pass) {
         // 检查是否是可以跳过的错误
         const errorMsg = preValidation.blockedBy?.join('; ') || '';
-        const isDirectoryError = errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
+        const isDirectoryError =
+          errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
         const isFileNotExist = errorMsg.includes('does not exist') && step.action === 'read_file';
 
         if (isDirectoryError || isFileNotExist) {
@@ -421,10 +446,10 @@ export class Executor {
             stepResult: {
               success: true, // 标记为成功，这样不会阻塞后续步骤
               output: { skipped: true, reason: errorMsg, exists: false },
-              duration: Date.now() - startTime
+              duration: Date.now() - startTime,
             },
             validation: { pass: true, results: [] },
-            needsRollback: false
+            needsRollback: false,
           });
         }
 
@@ -433,10 +458,10 @@ export class Executor {
           stepResult: {
             success: false,
             error: `Pre-execution validation failed: ${errorMsg}`,
-            duration: Date.now() - startTime
+            duration: Date.now() - startTime,
           },
           validation: preValidation,
-          needsRollback: false
+          needsRollback: false,
         });
       }
 
@@ -448,17 +473,19 @@ export class Executor {
         console.log(
           `[Executor] Step action: ${step.action}, needsCodeGeneration: ${Boolean(stepAny.needsCodeGeneration)}`,
         );
-        console.log(`[Executor] Step params:`, toolParams);
+        console.log('[Executor] Step params:', toolParams);
       }
 
-      toolParams = await withStage('prepare_tool_params', () => this.actionSkills.prepareToolParams({
-        step,
-        params: toolParams,
-        context,
-        onSubStageTiming: (name, durationMs) => {
-          subStages.push({ name, durationMs, success: true });
-        },
-      }));
+      toolParams = await withStage('prepare_tool_params', () =>
+        this.actionSkills.prepareToolParams({
+          step,
+          params: toolParams,
+          context,
+          onSubStageTiming: (name, durationMs) => {
+            subStages.push({ name, durationMs, success: true });
+          },
+        }),
+      );
 
       // 3. 调用 MCP 工具
       const toolResult = await withStage('call_tool', () => this.callTool(step.tool, toolParams));
@@ -479,17 +506,19 @@ export class Executor {
               stepResult: {
                 success: true, // 标记为成功，不阻塞后续步骤
                 output: { skipped: true, reason: errorMsg },
-                duration: Date.now() - startTime
+                duration: Date.now() - startTime,
               },
               validation: { pass: true, results: [] },
-              needsRollback: false
+              needsRollback: false,
             });
           }
         }
       }
 
       // 4. 执行后验证
-      const postValidation = await withStage('validate_after', () => this.validateAfterExecution(step, toolResult, toolParams));
+      const postValidation = await withStage('validate_after', () =>
+        this.validateAfterExecution(step, toolResult, toolParams),
+      );
 
       // 5. 构建结果
       const stepResult: StepResult = {
@@ -497,30 +526,37 @@ export class Executor {
         output: toolResult,
         error: postValidation.pass ? undefined : postValidation.blockedBy?.join('; '),
         duration: Date.now() - startTime,
-        snapshotId: (toolResult as { snapshotId?: string })?.snapshotId
+        snapshotId: (toolResult as { snapshotId?: string })?.snapshotId,
       };
 
       return finish({
         stepResult,
         validation: postValidation,
-        needsRollback: !postValidation.pass && step.validation.some(v => v.required)
+        needsRollback: !postValidation.pass && step.validation.some((v) => v.required),
       });
     } catch (error) {
       if (traceEnabled && traceStages.length === 0) {
-        traceStages.push(this.createTraceStage('catch', traceStartedAt, false, error instanceof Error ? error.message : String(error)));
+        traceStages.push(
+          this.createTraceStage(
+            'catch',
+            traceStartedAt,
+            false,
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
       }
       return finish({
         stepResult: {
           success: false,
           error: error instanceof Error ? error.message : String(error),
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         },
         validation: {
           pass: false,
           results: [],
-          blockedBy: [error instanceof Error ? error.message : String(error)]
+          blockedBy: [error instanceof Error ? error.message : String(error)],
         },
-        needsRollback: true
+        needsRollback: true,
       });
     }
   }
@@ -540,9 +576,7 @@ export class Executor {
     for (const paramName of requiredParams) {
       const value = params[paramName];
       const missing =
-        value === undefined ||
-        value === null ||
-        (typeof value === 'string' && value.trim() === '');
+        value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 
       if (missing) {
         return {
@@ -573,9 +607,11 @@ export class Executor {
     }
 
     // 尝试读取目录而不是文件的错误
-    if (errorMsg.includes('Not a directory') ||
-        errorMsg.includes('is not a file') ||
-        errorMsg.includes('Not a file')) {
+    if (
+      errorMsg.includes('Not a directory') ||
+      errorMsg.includes('is not a file') ||
+      errorMsg.includes('Not a file')
+    ) {
       return true;
     }
 
@@ -585,17 +621,14 @@ export class Executor {
   /**
    * 构建上下文字符串
    */
-  private buildContextString(
-    collectedContext: ExecutorCollectedContext
-  ): string {
+  private buildContextString(collectedContext: ExecutorCollectedContext): string {
     const parts: string[] = [];
 
     if (collectedContext.files.size > 0) {
       parts.push('相关文件:');
       for (const [path, content] of collectedContext.files) {
-        const truncatedContent = content.length > 1000
-          ? content.substring(0, 1000) + '\n... (内容已截断)'
-          : content;
+        const truncatedContent =
+          content.length > 1000 ? `${content.substring(0, 1000)}\n... (内容已截断)` : content;
         parts.push(`\n--- ${path} ---\n${truncatedContent}`);
       }
     }
@@ -619,7 +652,7 @@ export class Executor {
    */
   private async validateBeforeExecution(
     step: ExecutionStep,
-    context: { task: AgentTask; collectedContext: ExecutorCollectedContext }
+    context: { task: AgentTask; collectedContext: ExecutorCollectedContext },
   ): Promise<ValidationResult> {
     const results: ValidationResult['results'] = [];
 
@@ -631,32 +664,44 @@ export class Executor {
       // 如果我们已经知道这个文件不存在（通过之前的 list_directory 或 read_file）
       if (facts?.nonExistentPaths.has(path)) {
         if (this.config.debug) {
-          console.log(`[Executor] ⚠️  File ${path} is known to not exist. Suggest using create_file instead.`);
+          console.log(
+            `[Executor] ⚠️  File ${path} is known to not exist. Suggest using create_file instead.`,
+          );
         }
         return {
           pass: false,
-          results: [{
-            pass: false,
-            type: 'file_not_found',
-            severity: 'block',
-            message: `Cannot apply patch: file ${path} does not exist (confirmed by previous directory listing). Please use create_file instead.`
-          }],
-          blockedBy: [`File ${path} does not exist. Use create_file instead of apply_patch.`]
+          results: [
+            {
+              pass: false,
+              type: 'file_not_found',
+              severity: 'block',
+              message: `Cannot apply patch: file ${path} does not exist (confirmed by previous directory listing). Please use create_file instead.`,
+            },
+          ],
+          blockedBy: [`File ${path} does not exist. Use create_file instead of apply_patch.`],
         };
       }
 
       // 🔧 优化：如果文件不在上下文中，自动读取文件（类似 vscode-copilot-chat 的 openFn 机制）
       if (!context.collectedContext.files.has(path)) {
-        this.debugLog(`[Executor] 📖 File ${path} not in context, auto-reading before apply_patch...`);
+        this.debugLog(
+          `[Executor] 📖 File ${path} not in context, auto-reading before apply_patch...`,
+        );
 
         try {
           // 自动调用 read_file 工具读取文件
-          const readResult = await this.callTool('read_file', { path }) as { success: boolean; content?: string; error?: string };
+          const readResult = (await this.callTool('read_file', { path })) as {
+            success: boolean;
+            content?: string;
+            error?: string;
+          };
 
           if (readResult.success && readResult.content !== undefined) {
             // 将文件内容添加到上下文
             context.collectedContext.files.set(path, readResult.content);
-            this.debugLog(`[Executor] ✅ Auto-read file ${path} (${readResult.content.length} chars) into context`);
+            this.debugLog(
+              `[Executor] ✅ Auto-read file ${path} (${readResult.content.length} chars) into context`,
+            );
           } else {
             // 读取失败，返回错误
             const errorMsg = readResult.error || 'Failed to read file';
@@ -665,13 +710,15 @@ export class Executor {
             }
             return {
               pass: false,
-              results: [{
-                pass: false,
-                type: 'file_read_failed',
-                severity: 'block',
-                message: `Cannot apply patch: failed to auto-read file ${path}. Error: ${errorMsg}`
-              }],
-              blockedBy: [`Failed to auto-read file ${path}: ${errorMsg}`]
+              results: [
+                {
+                  pass: false,
+                  type: 'file_read_failed',
+                  severity: 'block',
+                  message: `Cannot apply patch: failed to auto-read file ${path}. Error: ${errorMsg}`,
+                },
+              ],
+              blockedBy: [`Failed to auto-read file ${path}: ${errorMsg}`],
             };
           }
         } catch (error) {
@@ -679,13 +726,15 @@ export class Executor {
           this.debugLog(`[Executor] ❌ Auto-read exception: ${errorMsg}`);
           return {
             pass: false,
-            results: [{
-              pass: false,
-              type: 'file_read_error',
-              severity: 'block',
-              message: `Cannot apply patch: error reading file ${path}. Error: ${errorMsg}`
-            }],
-            blockedBy: [`Error auto-reading file ${path}: ${errorMsg}`]
+            results: [
+              {
+                pass: false,
+                type: 'file_read_error',
+                severity: 'block',
+                message: `Cannot apply patch: error reading file ${path}. Error: ${errorMsg}`,
+              },
+            ],
+            blockedBy: [`Error auto-reading file ${path}: ${errorMsg}`],
           };
         }
       }
@@ -695,7 +744,7 @@ export class Executor {
     if (step.action === 'read_file' && step.params.path) {
       const fileCheck = await this.config.hallucinationGuard.validateFilePath(
         step.params.path as string,
-        true
+        true,
       );
       results.push(fileCheck);
     }
@@ -708,13 +757,15 @@ export class Executor {
       if (facts?.existingFiles.has(path)) {
         return {
           pass: false,
-          results: [{
-            pass: false,
-            type: 'file_existence',
-            severity: 'block',
-            message: `Cannot create file: ${path} already exists. Use apply_patch after reading the file instead.`
-          }],
-          blockedBy: [`File ${path} already exists. Use apply_patch instead of create_file.`]
+          results: [
+            {
+              pass: false,
+              type: 'file_existence',
+              severity: 'block',
+              message: `Cannot create file: ${path} already exists. Use apply_patch after reading the file instead.`,
+            },
+          ],
+          blockedBy: [`File ${path} already exists. Use apply_patch instead of create_file.`],
         };
       }
 
@@ -728,13 +779,15 @@ export class Executor {
         if (facts?.nonExistentPaths.has(parentDir)) {
           return {
             pass: false,
-            results: [{
-              pass: false,
-              type: 'parent_directory_not_found',
-              severity: 'block',
-              message: `Cannot create file: parent directory ${parentDir} is known to not exist.`
-            }],
-            blockedBy: [`Parent directory ${parentDir} is known to not exist.`]
+            results: [
+              {
+                pass: false,
+                type: 'parent_directory_not_found',
+                severity: 'block',
+                message: `Cannot create file: parent directory ${parentDir} is known to not exist.`,
+              },
+            ],
+            blockedBy: [`Parent directory ${parentDir} is known to not exist.`],
           };
         }
 
@@ -750,48 +803,47 @@ export class Executor {
               : `target ${path} already exists`;
             return {
               pass: false,
-              results: [{
-                pass: false,
-                type: 'progressive_exploration_required',
-                severity: 'block',
-                message: `Cannot create file until the target path is precisely confirmed. ${reason}.`
-              }],
+              results: [
+                {
+                  pass: false,
+                  type: 'progressive_exploration_required',
+                  severity: 'block',
+                  message: `Cannot create file until the target path is precisely confirmed. ${reason}.`,
+                },
+              ],
               blockedBy: [
-                `Create_file requires progressive exploration: use search_code globOnly/list_directory to narrow candidates before writing ${path}.`
-              ]
+                `Create_file requires progressive exploration: use search_code globOnly/list_directory to narrow candidates before writing ${path}.`,
+              ],
             };
           }
         } catch (error) {
           return {
             pass: false,
-            results: [{
-              pass: false,
-              type: 'progressive_exploration_required',
-              severity: 'block',
-              message: `Cannot create file before precise Bash confirmation for ${path}: ${error instanceof Error ? error.message : String(error)}`
-            }],
-            blockedBy: [
-              `Create_file requires precise confirmation before writing ${path}.`
-            ]
+            results: [
+              {
+                pass: false,
+                type: 'progressive_exploration_required',
+                severity: 'block',
+                message: `Cannot create file before precise Bash confirmation for ${path}: ${error instanceof Error ? error.message : String(error)}`,
+              },
+            ],
+            blockedBy: [`Create_file requires precise confirmation before writing ${path}.`],
           };
         }
       }
 
-      const fileCheck = await this.config.hallucinationGuard.validateFilePath(
-        path,
-        false
-      );
+      const fileCheck = await this.config.hallucinationGuard.validateFilePath(path, false);
       results.push(fileCheck);
     }
 
     const blockedBy = results
-      .filter(r => !r.pass && r.severity === 'block')
-      .map(r => r.message ?? r.type);
+      .filter((r) => !r.pass && r.severity === 'block')
+      .map((r) => r.message ?? r.type);
 
     return {
       pass: blockedBy.length === 0,
       results,
-      blockedBy: blockedBy.length > 0 ? blockedBy : undefined
+      blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
     };
   }
 
@@ -810,16 +862,17 @@ export class Executor {
         return {
           pass: false,
           results: [],
-          blockedBy: [resultObj.error ?? 'Tool execution failed']
+          blockedBy: [resultObj.error ?? 'Tool execution failed'],
         };
       }
     }
 
     // 对于代码修改操作，进行额外验证
     if (['apply_patch', 'create_file'].includes(step.action)) {
-      const content = (result as { content?: string })?.content ??
-                     (toolParams?.content as string | undefined) ??
-                     step.params.content as string | undefined;
+      const content =
+        (result as { content?: string })?.content ??
+        (toolParams?.content as string | undefined) ??
+        (step.params.content as string | undefined);
       const path = step.params.path as string;
 
       if (content && path) {
@@ -828,7 +881,7 @@ export class Executor {
           const codeValidation = await this.config.hallucinationGuard.validateCode(
             content,
             language,
-            path
+            path,
           );
           return codeValidation;
         }
@@ -837,14 +890,14 @@ export class Executor {
 
     return {
       pass: true,
-      results: []
+      results: [],
     };
   }
 
   /**
    * 调用 MCP 工具
    */
-  private async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
+  async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
     const clientName = this.toolToClient.get(toolName);
     if (!clientName) {
       throw new Error(`No MCP client registered for tool: ${toolName}`);
@@ -881,7 +934,7 @@ export class Executor {
     }
 
     if (this.config.debug) {
-      console.log(`[Executor] Tool result:`, result);
+      console.log('[Executor] Tool result:', result);
     }
 
     return result;
@@ -942,7 +995,10 @@ export class Executor {
     this.emitSecurityDecision(finalDecision);
 
     if (!approved) {
-      return { allowed: false, error: `Security approval rejected for ${toolName}: ${decision.message}` };
+      return {
+        allowed: false,
+        error: `Security approval rejected for ${toolName}: ${decision.message}`,
+      };
     }
 
     return {
@@ -980,7 +1036,7 @@ export class Executor {
       task: AgentTask;
       collectedContext: ExecutorCollectedContext;
     },
-    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void
+    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
   ): Promise<ExecutorOutput[]> {
     const results: ExecutorOutput[] = [];
     const completedSteps = new Set<string>();
@@ -990,8 +1046,8 @@ export class Executor {
 
     while (pendingSteps.length > 0) {
       // 找到可以执行的步骤（依赖已完成）
-      const executableIndex = pendingSteps.findIndex(step =>
-        step.dependencies.every(dep => completedSteps.has(dep))
+      const executableIndex = pendingSteps.findIndex((step) =>
+        step.dependencies.every((dep) => completedSteps.has(dep)),
       );
 
       if (executableIndex === -1) {
@@ -1045,7 +1101,7 @@ export class Executor {
           steps: [],
           dependencies: new Set<string>(),
           firstSeenIndex: i,
-          priority: this.getPhasePriority(phase)
+          priority: this.getPhasePriority(phase),
         });
       }
 
@@ -1075,7 +1131,7 @@ export class Executor {
       return groups;
     }
 
-    const groupMap = new Map(groups.map(group => [group.phase, group]));
+    const groupMap = new Map(groups.map((group) => [group.phase, group]));
     const indegree = new Map<string, number>();
     const outgoing = new Map<string, Set<string>>();
 
@@ -1092,7 +1148,7 @@ export class Executor {
       }
     }
 
-    const ready = groups.filter(group => (indegree.get(group.phase) ?? 0) === 0);
+    const ready = groups.filter((group) => (indegree.get(group.phase) ?? 0) === 0);
     ready.sort((a, b) => this.comparePhaseGroup(a, b));
 
     const ordered: PhaseExecutionGroup[] = [];
@@ -1144,12 +1200,30 @@ export class Executor {
     const normalized = phase.toLowerCase();
 
     if (normalized.includes('分析') || normalized.includes('analy')) return 10;
-    if (normalized.includes('创建') || normalized.includes('实现') || normalized.includes('create') || normalized.includes('implement')) return 20;
+    if (
+      normalized.includes('创建') ||
+      normalized.includes('实现') ||
+      normalized.includes('create') ||
+      normalized.includes('implement')
+    )
+      return 20;
     if (normalized.includes('安装') || normalized.includes('install')) return 30;
-    if (normalized.includes('验证') || normalized.includes('验收') || normalized.includes('valid') || normalized.includes('accept')) return 40;
-    if (normalized.includes('启动') || normalized.includes('start') || normalized.includes('serve')) return 50;
+    if (
+      normalized.includes('验证') ||
+      normalized.includes('验收') ||
+      normalized.includes('valid') ||
+      normalized.includes('accept')
+    )
+      return 40;
+    if (normalized.includes('启动') || normalized.includes('start') || normalized.includes('serve'))
+      return 50;
     if (normalized.includes('浏览器') || normalized.includes('browser')) return 60;
-    if (normalized.includes('仓库') || normalized.includes('repo') || normalized.includes('repository')) return 70;
+    if (
+      normalized.includes('仓库') ||
+      normalized.includes('repo') ||
+      normalized.includes('repository')
+    )
+      return 70;
     if (normalized.includes('未分组') || normalized.includes('ungroup')) return 90;
 
     return 80;
@@ -1175,11 +1249,12 @@ export class Executor {
   private createRecoveryFingerprint(errors: Array<{ step: ExecutionStep; error: string }>): string {
     return errors
       .map(({ step, error }) => {
-        const target = typeof step.params.path === 'string'
-          ? step.params.path
-          : typeof step.params.command === 'string'
-            ? step.params.command
-            : '';
+        const target =
+          typeof step.params.path === 'string'
+            ? step.params.path
+            : typeof step.params.command === 'string'
+              ? step.params.command
+              : '';
         const normalizedError = error
           .replace(/:\d+:\d+/g, '')
           .replace(/\bline\s+\d+\b/gi, 'line')
@@ -1214,24 +1289,36 @@ export class Executor {
     onStepStart?: (step: ExecutionStep) => void,
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseStart?: (phase: string, stepCount: number) => void,
-    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>,
-    signal?: AbortSignal
+    onPhaseError?: (
+      phase: string,
+      errors: Array<{ step: ExecutionStep; error: string }>,
+    ) => Promise<ExecutionStep[]>,
+    onPhaseComplete?: (
+      phase: string,
+      results: ExecutorOutput[],
+    ) => Promise<Array<{ step: ExecutionStep; error: string }>>,
+    signal?: AbortSignal,
   ): Promise<void> {
     const phase = phaseGroup.phase;
     const phaseSteps = phaseGroup.steps;
 
-    this.debugLog(`[Executor] ========================================`);
+    this.debugLog('[Executor] ========================================');
     this.debugLog(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
 
     onPhaseStart?.(phase, phaseSteps.length);
-    this.debugLog(`[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`);
-    this.debugLog(`[Executor] 📋 Steps in this phase:`);
+    this.debugLog(
+      `[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`,
+    );
+    this.debugLog('[Executor] 📋 Steps in this phase:');
     for (const s of phaseSteps) {
-      this.debugLog(`[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`);
+      this.debugLog(
+        `[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`,
+      );
     }
-    this.debugLog(`[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`);
-    this.debugLog(`[Executor] ----------------------------------------`);
+    this.debugLog(
+      `[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`,
+    );
+    this.debugLog('[Executor] ----------------------------------------');
 
     const phaseResults: ExecutorOutput[] = [];
     let phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
@@ -1243,14 +1330,14 @@ export class Executor {
       while (pending.length > 0) {
         this.throwIfAborted(signal);
 
-        const ready = pending.filter(step =>
-          step.dependencies.every(dep => completedStepIds.has(dep))
+        const ready = pending.filter((step) =>
+          step.dependencies.every((dep) => completedStepIds.has(dep)),
         );
 
         if (ready.length === 0) {
           // Skip steps with unmet external dependencies
-          const skippable = pending.filter(step =>
-            step.dependencies.some(dep => !completedStepIds.has(dep))
+          const skippable = pending.filter((step) =>
+            step.dependencies.some((dep) => !completedStepIds.has(dep)),
           );
           for (const s of skippable) {
             this.debugWarn(`[Executor] ⏭️  Skipping step ${s.stepId}: dependencies not met`);
@@ -1273,7 +1360,7 @@ export class Executor {
             onStepStart?.(step);
             const output = await this.executeStep(step, context);
             return { step, output };
-          })
+          }),
         );
 
         for (const result of results) {
@@ -1296,14 +1383,16 @@ export class Executor {
       // Sequential execution (existing behavior)
       for (const step of phaseSteps) {
         this.throwIfAborted(signal);
-        const dependenciesMet = step.dependencies.every(dep => completedStepIds.has(dep));
+        const dependenciesMet = step.dependencies.every((dep) => completedStepIds.has(dep));
         if (!dependenciesMet) {
-          const missingDeps = step.dependencies.filter(dep => !completedStepIds.has(dep));
+          const missingDeps = step.dependencies.filter((dep) => !completedStepIds.has(dep));
           this.debugWarn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
           this.debugWarn(`[Executor]    Step description: ${step.description}`);
           this.debugWarn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
           this.debugWarn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
-          this.debugWarn(`[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`);
+          this.debugWarn(
+            `[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`,
+          );
           step.status = 'skipped';
           continue;
         }
@@ -1322,7 +1411,7 @@ export class Executor {
         } else {
           phaseErrors.push({
             step,
-            error: output.stepResult.error || 'Unknown error'
+            error: output.stepResult.error || 'Unknown error',
           });
         }
 
@@ -1337,11 +1426,13 @@ export class Executor {
         this.throwIfAborted(signal);
         const additionalErrors = await onPhaseComplete(phase, phaseResults);
         if (additionalErrors.length > 0) {
-          this.debugLog(`[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`);
+          this.debugLog(
+            `[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`,
+          );
           phaseErrors.push(...additionalErrors);
         }
       } catch (error) {
-        this.debugError(`[Executor] Phase complete validation failed:`, error);
+        this.debugError('[Executor] Phase complete validation failed:', error);
       }
     }
 
@@ -1353,22 +1444,28 @@ export class Executor {
       this.throwIfAborted(signal);
       const recoveryFingerprint = this.createRecoveryFingerprint(phaseErrors);
       if (seenRecoveryFingerprints.has(recoveryFingerprint)) {
-        this.debugWarn(`[Executor] Repeated recovery error fingerprint detected, stopping recovery attempts`);
+        this.debugWarn(
+          '[Executor] Repeated recovery error fingerprint detected, stopping recovery attempts',
+        );
         break;
       }
       seenRecoveryFingerprints.add(recoveryFingerprint);
 
       recoveryAttempt++;
-      this.debugLog(`[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`);
+      this.debugLog(
+        `[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`,
+      );
 
       try {
         const recoverySteps = await onPhaseError(phase, phaseErrors);
         if (recoverySteps.length === 0) {
-          this.debugLog(`[Executor] No recovery steps generated, stopping recovery attempts`);
+          this.debugLog('[Executor] No recovery steps generated, stopping recovery attempts');
           break;
         }
 
-        this.debugLog(`[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`);
+        this.debugLog(
+          `[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`,
+        );
 
         for (const recoveryStep of recoverySteps) {
           recoveryStep.phase = phase;
@@ -1389,7 +1486,10 @@ export class Executor {
           if (output.stepResult.success) {
             completedStepIds.add(recoveryStep.stepId);
           } else {
-            recoveryFailed.push({ step: recoveryStep, error: output.stepResult.error || 'Unknown error' });
+            recoveryFailed.push({
+              step: recoveryStep,
+              error: output.stepResult.error || 'Unknown error',
+            });
           }
 
           if (onStepComplete) {
@@ -1398,7 +1498,9 @@ export class Executor {
         }
 
         if (onPhaseComplete) {
-          this.debugLog(`[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`);
+          this.debugLog(
+            `[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`,
+          );
           const previousPhaseErrors = phaseErrors;
           phaseErrors = [];
 
@@ -1408,29 +1510,39 @@ export class Executor {
             phaseErrors = verificationErrors;
 
             if (phaseErrors.length === 0) {
-              this.debugLog(`[Executor] ✅ Recovery successful! All errors fixed.`);
+              this.debugLog('[Executor] ✅ Recovery successful! All errors fixed.');
 
               for (const errorInfo of previousPhaseErrors) {
                 if (errorInfo.step.status === 'failed') {
-                  this.debugLog(`[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`);
+                  this.debugLog(
+                    `[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`,
+                  );
                   this.debugLog(`[Executor]    Step description: ${errorInfo.step.description}`);
                   errorInfo.step.status = 'completed';
                   completedStepIds.add(errorInfo.step.stepId);
                 }
               }
 
-              this.debugLog(`[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`);
+              this.debugLog(
+                `[Executor] 📊 Completed steps after recovery: [${Array.from(completedStepIds).join(', ')}]`,
+              );
 
-              const skippedSteps = phaseSteps.filter(s => s.status === 'skipped');
+              const skippedSteps = phaseSteps.filter((s) => s.status === 'skipped');
               if (skippedSteps.length > 0) {
-                this.debugLog(`[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`);
+                this.debugLog(
+                  `[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`,
+                );
 
                 for (const skippedStep of skippedSteps) {
                   this.throwIfAborted(signal);
-                  const dependenciesMet = skippedStep.dependencies.every(dep => completedStepIds.has(dep));
+                  const dependenciesMet = skippedStep.dependencies.every((dep) =>
+                    completedStepIds.has(dep),
+                  );
 
                   if (dependenciesMet) {
-                    this.debugLog(`[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`);
+                    this.debugLog(
+                      `[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`,
+                    );
                     this.debugLog(`[Executor]    Step description: ${skippedStep.description}`);
 
                     skippedStep.status = 'running';
@@ -1443,12 +1555,16 @@ export class Executor {
 
                     if (output.stepResult.success) {
                       completedStepIds.add(skippedStep.stepId);
-                      this.debugLog(`[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`);
+                      this.debugLog(
+                        `[Executor] ✅ Re-executed step ${skippedStep.stepId} successfully`,
+                      );
                     } else {
-                      this.debugLog(`[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`);
+                      this.debugLog(
+                        `[Executor] ❌ Re-executed step ${skippedStep.stepId} failed: ${output.stepResult.error}`,
+                      );
                       phaseErrors.push({
                         step: skippedStep,
-                        error: output.stepResult.error || 'Unknown error'
+                        error: output.stepResult.error || 'Unknown error',
                       });
                     }
 
@@ -1456,49 +1572,61 @@ export class Executor {
                       onStepComplete(skippedStep, output);
                     }
                   } else {
-                    const missingDeps = skippedStep.dependencies.filter(dep => !completedStepIds.has(dep));
-                    this.debugLog(`[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`);
+                    const missingDeps = skippedStep.dependencies.filter(
+                      (dep) => !completedStepIds.has(dep),
+                    );
+                    this.debugLog(
+                      `[Executor] ⏭️  Step ${skippedStep.stepId} still has missing deps: [${missingDeps.join(', ')}]`,
+                    );
                   }
                 }
 
-                this.debugLog(`[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`);
+                this.debugLog(
+                  `[Executor] 📊 Completed steps after re-execution: [${Array.from(completedStepIds).join(', ')}]`,
+                );
               }
 
               if (phaseErrors.length === 0) {
                 break;
-              } else {
-                this.debugLog(`[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`);
-                continue;
               }
+              this.debugLog(
+                `[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`,
+              );
             } else {
-              this.debugLog(`[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`);
+              this.debugLog(
+                `[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`,
+              );
               if (recoveryAttempt >= maxRecoveryAttempts) {
-                this.debugWarn(`[Executor] ❌ Max recovery attempts (${maxRecoveryAttempts}) reached. Stopping recovery.`);
+                this.debugWarn(
+                  `[Executor] ❌ Max recovery attempts (${maxRecoveryAttempts}) reached. Stopping recovery.`,
+                );
               }
             }
           } catch (error) {
-            this.debugError(`[Executor] Verification check failed:`, error);
+            this.debugError('[Executor] Verification check failed:', error);
             break;
           }
         } else {
           break;
         }
       } catch (error) {
-        this.debugError(`[Executor] Failed to generate/execute recovery plan:`, error);
+        this.debugError('[Executor] Failed to generate/execute recovery plan:', error);
         break;
       }
     }
 
     const phaseStats = {
       total: phaseSteps.length,
-      completed: phaseSteps.filter(s => s.status === 'completed').length,
-      failed: phaseSteps.filter(s => s.status === 'failed').length,
-      skipped: phaseSteps.filter(s => s.status === 'skipped').length,
+      completed: phaseSteps.filter((s) => s.status === 'completed').length,
+      failed: phaseSteps.filter((s) => s.status === 'failed').length,
+      skipped: phaseSteps.filter((s) => s.status === 'skipped').length,
     };
-    this.debugLog(`[Executor] ----------------------------------------`);
+    this.debugLog('[Executor] ----------------------------------------');
     this.debugLog(`[Executor] Phase ${phase} completed`);
-    this.debugLog(`[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`);
-    this.debugLog(`[Executor] ========================================`);
+    this.debugLog(
+      `[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`,
+    );
+    this.debugLog('[Executor] ========================================');
   }
 
   /**
@@ -1513,18 +1641,26 @@ export class Executor {
     onStepStart?: (step: ExecutionStep) => void,
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseStart?: (phase: string, stepCount: number) => void,
-    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>,
-    signal?: AbortSignal
+    onPhaseError?: (
+      phase: string,
+      errors: Array<{ step: ExecutionStep; error: string }>,
+    ) => Promise<ExecutionStep[]>,
+    onPhaseComplete?: (
+      phase: string,
+      results: ExecutorOutput[],
+    ) => Promise<Array<{ step: ExecutionStep; error: string }>>,
+    signal?: AbortSignal,
   ): Promise<ExecutorOutput[]> {
     const orderedPhaseGroups = this.buildOrderedPhaseGroups(steps);
-    const serializablePhaseGroups: SerializablePhaseExecutionGroup[] = orderedPhaseGroups.map(group => ({
-      phase: group.phase,
-      steps: group.steps,
-      dependencies: Array.from(group.dependencies),
-      firstSeenIndex: group.firstSeenIndex,
-      priority: group.priority
-    }));
+    const serializablePhaseGroups: SerializablePhaseExecutionGroup[] = orderedPhaseGroups.map(
+      (group) => ({
+        phase: group.phase,
+        steps: group.steps,
+        dependencies: Array.from(group.dependencies),
+        firstSeenIndex: group.firstSeenIndex,
+        priority: group.priority,
+      }),
+    );
 
     const RuntimeStateAnnotation = Annotation.Root({
       runtime: Annotation<LangGraphRuntimeState>({
@@ -1533,9 +1669,9 @@ export class Executor {
           phaseGroups: [],
           phaseIndex: 0,
           completedStepIds: [],
-          allResults: []
-        })
-      })
+          allResults: [],
+        }),
+      }),
     });
 
     const graph = new StateGraph(RuntimeStateAnnotation)
@@ -1549,7 +1685,7 @@ export class Executor {
         const phaseGroupData = runtime.phaseGroups[runtime.phaseIndex];
         const phaseGroup: PhaseExecutionGroup = {
           ...phaseGroupData,
-          dependencies: new Set(phaseGroupData.dependencies)
+          dependencies: new Set(phaseGroupData.dependencies),
         };
         const completedStepIds = new Set(runtime.completedStepIds);
         const allResults = [...runtime.allResults];
@@ -1564,15 +1700,15 @@ export class Executor {
           onPhaseStart,
           onPhaseError,
           onPhaseComplete,
-          signal
+          signal,
         );
 
         return {
           runtime: {
             ...runtime,
             completedStepIds: Array.from(completedStepIds),
-            allResults
-          }
+            allResults,
+          },
         };
       })
       .addNode('advance_phase', (state) => {
@@ -1580,8 +1716,8 @@ export class Executor {
         return {
           runtime: {
             ...runtime,
-            phaseIndex: runtime.phaseIndex + 1
-          }
+            phaseIndex: runtime.phaseIndex + 1,
+          },
         };
       })
       .addEdge(START, 'select_phase')
@@ -1593,25 +1729,25 @@ export class Executor {
       .addEdge('advance_phase', 'select_phase')
       .compile({
         checkpointer: this.config.langGraph?.useCheckpoint ? new MemorySaver() : undefined,
-        name: 'frontagent.phase.flow'
+        name: 'frontagent.phase.flow',
       });
 
     const initialState: LangGraphRuntimeState = {
       phaseGroups: serializablePhaseGroups,
       phaseIndex: 0,
       completedStepIds: [],
-      allResults: []
+      allResults: [],
     };
 
     const runnableConfig = this.config.langGraph?.useCheckpoint
       ? {
-        configurable: {
-          thread_id: `${this.config.langGraph?.threadIdPrefix ?? 'frontagent'}-${Date.now()}`
+          configurable: {
+            thread_id: `${this.config.langGraph?.threadIdPrefix ?? 'frontagent'}-${Date.now()}`,
+          },
         }
-      }
       : undefined;
 
-    const finalState = await graph.invoke({ runtime: initialState }, runnableConfig as any) as {
+    const finalState = (await graph.invoke({ runtime: initialState }, runnableConfig as any)) as {
       runtime?: LangGraphRuntimeState;
     };
 
@@ -1630,9 +1766,15 @@ export class Executor {
     onStepStart?: (step: ExecutionStep) => void,
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     onPhaseStart?: (phase: string, stepCount: number) => void,
-    onPhaseError?: (phase: string, errors: Array<{ step: ExecutionStep; error: string }>) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (phase: string, results: ExecutorOutput[]) => Promise<Array<{ step: ExecutionStep; error: string }>>,
-    signal?: AbortSignal
+    onPhaseError?: (
+      phase: string,
+      errors: Array<{ step: ExecutionStep; error: string }>,
+    ) => Promise<ExecutionStep[]>,
+    onPhaseComplete?: (
+      phase: string,
+      results: ExecutorOutput[],
+    ) => Promise<Array<{ step: ExecutionStep; error: string }>>,
+    signal?: AbortSignal,
   ): Promise<ExecutorOutput[]> {
     if (this.shouldUseLangGraphEngine()) {
       if (this.config.debug) {
@@ -1646,7 +1788,7 @@ export class Executor {
         onPhaseStart,
         onPhaseError,
         onPhaseComplete,
-        signal
+        signal,
       );
     }
 
@@ -1667,7 +1809,7 @@ export class Executor {
         onPhaseStart,
         onPhaseError,
         onPhaseComplete,
-        signal
+        signal,
       );
     }
 
@@ -1684,7 +1826,7 @@ export class Executor {
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
       };
     }
   }

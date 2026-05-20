@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveRuntimeConfig, redactForLog } from './index.js';
+import { redactForLog, resolveRuntimeConfig } from './index.js';
 
 describe('runtime config', () => {
   it('prefers explicit settings over environment values', () => {
@@ -105,7 +105,9 @@ describe('runtime config', () => {
     vi.stubEnv('FRONTAGENT_RAG_SYNC_ON_QUERY', 'true');
     expect(resolveRuntimeConfig({}, process.cwd()).rag.syncOnQuery).toBe(true);
 
-    expect(resolveRuntimeConfig({ ragSyncOnQuery: false }, process.cwd()).rag.syncOnQuery).toBe(false);
+    expect(resolveRuntimeConfig({ ragSyncOnQuery: false }, process.cwd()).rag.syncOnQuery).toBe(
+      false,
+    );
     vi.unstubAllEnvs();
   });
 

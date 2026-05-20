@@ -72,9 +72,7 @@ export function resolveProviderBaseURL(
 
 export function resolveEmbeddingBaseURL(baseURL?: string): string | undefined {
   if (!baseURL) return undefined;
-  const normalized = baseURL
-    .replace(/\/+$/, '')
-    .replace(/\/chat\/completions$/, '');
+  const normalized = baseURL.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
   return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
 }
 
@@ -88,7 +86,9 @@ export function resolveLLMConfigFromOptions(options: {
   topP?: string;
   topK?: string;
 }) {
-  const provider = (options.provider || process.env.PROVIDER || 'anthropic').toLowerCase() as 'openai' | 'anthropic';
+  const provider = (options.provider || process.env.PROVIDER || 'anthropic').toLowerCase() as
+    | 'openai'
+    | 'anthropic';
   const model = options.model || process.env.MODEL || getDefaultModel(provider);
 
   return {
@@ -103,7 +103,10 @@ export function resolveLLMConfigFromOptions(options: {
   } as const;
 }
 
-export function parsePathList(values: string[] | undefined, fallback?: string): string[] | undefined {
+export function parsePathList(
+  values: string[] | undefined,
+  fallback?: string,
+): string[] | undefined {
   if (values && values.length > 0) {
     return values.map((value) => value.trim()).filter(Boolean);
   }

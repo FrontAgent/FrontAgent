@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@frontagent/core';
 import type { ExecutionPlan, ExecutionStep } from '@frontagent/shared';
+import { describe, expect, it } from 'vitest';
 import { createEventBridge } from './bridge.js';
 import { createStore, isRunPossiblyStalled } from './store.js';
 
@@ -71,8 +71,12 @@ describe('run activity state', () => {
 
     expect(store.getState().lastActivityLabel).toBe('生成最终回答');
     expect(store.getState().currentOperation).toBe('LLM 合成');
-    expect(isRunPossiblyStalled(store.getState(), store.getState().lastActivityAt + 29_999)).toBe(false);
-    expect(isRunPossiblyStalled(store.getState(), store.getState().lastActivityAt + 30_000)).toBe(true);
+    expect(isRunPossiblyStalled(store.getState(), store.getState().lastActivityAt + 29_999)).toBe(
+      false,
+    );
+    expect(isRunPossiblyStalled(store.getState(), store.getState().lastActivityAt + 30_000)).toBe(
+      true,
+    );
   });
 
   it('upserts recovery steps that are not in the original plan', () => {

@@ -1,6 +1,6 @@
 import { Box, Text } from 'ink';
-import type { Store } from '../store.js';
 import { useStoreSelector } from '../hooks.js';
+import type { Store } from '../store.js';
 
 interface ResultSummaryProps {
   store: Store;
@@ -14,15 +14,15 @@ export function ResultSummary({ store }: ResultSummaryProps) {
 
   if (status !== 'done' && status !== 'error') return null;
 
-  const elapsed = result?.duration ?? (Date.now() - startTime);
-  const elapsedStr = elapsed > 1000
-    ? `${(elapsed / 1000).toFixed(1)}s`
-    : `${elapsed}ms`;
+  const elapsed = result?.duration ?? Date.now() - startTime;
+  const elapsedStr = elapsed > 1000 ? `${(elapsed / 1000).toFixed(1)}s` : `${elapsed}ms`;
 
   if (status === 'error') {
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="red" bold>最终回答</Text>
+        <Text color="red" bold>
+          最终回答
+        </Text>
         <Box paddingLeft={2} marginTop={1}>
           <Text color="red">{result?.error || '任务未能生成最终回答。'}</Text>
         </Box>
@@ -34,7 +34,9 @@ export function ResultSummary({ store }: ResultSummaryProps) {
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text color="green" bold>最终回答</Text>
+      <Text color="green" bold>
+        最终回答
+      </Text>
       {result?.output ? (
         <Box paddingLeft={2} marginTop={1}>
           <Text>{String(result.output)}</Text>

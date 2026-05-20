@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { inspect } from 'node:util';
 import type { AgentEvent, AgentExecutionResult } from '@frontagent/core';
 
@@ -27,7 +27,10 @@ export interface RunLogger {
 }
 
 function timestampForPath(date = new Date()): string {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  return date
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
 }
 
 function timestampForLine(date = new Date()): string {
@@ -47,7 +50,10 @@ function redactString(input: string): string {
   return input
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[REDACTED]')
     .replace(/(--(?:api-key|token|password|secret)(?:=|\s+))\S+/gi, '$1[REDACTED]')
-    .replace(/((?:api[-_]?key|token|authorization|password|secret)\s*[:=]\s*)["']?[^"',\s}]+["']?/gi, '$1[REDACTED]');
+    .replace(
+      /((?:api[-_]?key|token|authorization|password|secret)\s*[:=]\s*)["']?[^"',\s}]+["']?/gi,
+      '$1[REDACTED]',
+    );
 }
 
 function redactValue(value: unknown, seen = new WeakSet<object>()): unknown {
@@ -113,27 +119,23 @@ function summarizeEvent(event: AgentEvent): unknown {
 class FileRunLogger implements RunLogger {
   private closed = false;
 
-  constructor(readonly path: string, header: Record<string, unknown>) {
+  constructor(
+    readonly path: string,
+    header: Record<string, unknown>,
+  ) {
     mkdirSync(dirname(path), { recursive: true });
     appendFileSync(
       this.path,
-      [
-        '# FrontAgent Run Log',
-        `startedAt: ${timestampForLine()}`,
-        stringify(header),
-        '',
-      ].join('\n'),
+      ['# FrontAgent Run Log', `startedAt: ${timestampForLine()}`, stringify(header), ''].join(
+        '\n',
+      ),
       'utf8',
     );
   }
 
   private write(kind: string, payload: unknown): void {
     if (this.closed) return;
-    appendFileSync(
-      this.path,
-      `[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`,
-      'utf8',
-    );
+    appendFileSync(this.path, `[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`, 'utf8');
   }
 
   console(level: 'log' | 'warn' | 'error', args: unknown[]): void {
