@@ -196,11 +196,11 @@
   },
   "devDependencies": {
     "@frontagent/runtime-node": "workspace:*",
-    "@types/node": "^20.10.0",
+    "@types/node": "^25.9.1",
     "@types/vscode": "^1.95.0",
     "@vscode/test-electron": "^2.5.2",
-    "esbuild": "^0.27.2",
-    "typescript": "^5.3.0",
-    "vitest": "^3.1.4"
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }
