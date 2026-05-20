@@ -2,6 +2,7 @@
  * Checklist 评估引擎
  */
 
+import { escapeRegex } from '@frontagent/shared';
 import type {
   ChecklistEvaluator,
   ChecklistItem,
@@ -62,10 +63,7 @@ export class ChecklistValidator {
       }
 
       case 'section_exists': {
-        const headingPattern = new RegExp(
-          `^#{1,4}\\s+.*${this.escapeRegex(evaluator.heading)}`,
-          'im',
-        );
+        const headingPattern = new RegExp(`^#{1,4}\\s+.*${escapeRegex(evaluator.heading)}`, 'im');
         return headingPattern.test(content);
       }
 
@@ -95,10 +93,6 @@ export class ChecklistValidator {
       default:
         return 'Review and address this checklist item';
     }
-  }
-
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }
 

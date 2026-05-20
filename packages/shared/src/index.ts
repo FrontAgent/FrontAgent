@@ -84,4 +84,5 @@ export {
   deepMerge,
   normalizePath,
   matchGlob,
+  escapeRegex,
 } from './utils.js';
