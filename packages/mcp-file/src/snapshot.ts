@@ -192,7 +192,10 @@ export class SnapshotManager {
     const toRemove = fileHistory.slice(0, fileHistory.length - keepCount);
     for (const snapshotId of toRemove) {
       this.snapshots.delete(snapshotId);
-      // TODO: 删除持久化的快照文件
+      const snapshotPath = join(this.snapshotDir, `${snapshotId}.json`);
+      if (existsSync(snapshotPath)) {
+        unlinkSync(snapshotPath);
+      }
     }
 
     this.fileSnapshots.set(filePath, fileHistory.slice(-keepCount));
