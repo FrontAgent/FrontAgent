@@ -15,6 +15,7 @@ import type {
   ValidationResult
 } from '@frontagent/shared';
 import type { MemoryConfig } from './memory/types.js';
+import type { WorkflowConfig, VerificationPolicy } from '@frontagent/sdd';
 
 /**
  * Agent 配置
@@ -24,6 +25,10 @@ export interface AgentConfig {
   projectRoot: string;
   /** SDD 配置文件路径 */
   sddPath?: string;
+  /** Constitution 配置文件路径 */
+  constitutionPath?: string;
+  /** SDD 工作流配置 */
+  sddWorkflow?: SDDWorkflowConfig;
   /** LLM 配置 */
   llm: LLMConfig;
   /** 执行引擎配置 */
@@ -61,6 +66,20 @@ export interface AgentPlanResult {
 export interface AgentSecurityConfig extends SecurityConfig {
   /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
   approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+}
+
+/**
+ * SDD 规格驱动工作流配置
+ */
+export interface SDDWorkflowConfig {
+  /** 是否启用工作流引擎（默认 false） */
+  enabled: boolean;
+  /** 工作流配置覆盖 */
+  workflow?: Partial<WorkflowConfig>;
+  /** 验证策略覆盖 */
+  verification?: Partial<VerificationPolicy>;
+  /** 产物存储根目录（默认 .frontagent/specs） */
+  artifactRoot?: string;
 }
 
 export interface SkillContentConfig {
