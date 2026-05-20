@@ -505,7 +505,7 @@ export interface ContextInfo {
   /** 结构化 RAG 命中 */
   ragMatches?: RagContextMatch[];
   /** RAG 检索模式 */
-  ragSearchMode?: 'hybrid' | 'keyword_only';
+  ragSearchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
   /** RAG 告警 */
   ragWarnings?: string[];
   /** 命中的内容层 skill prompt 上下文 */
@@ -636,7 +636,7 @@ export type AgentEvent =
   | { type: 'planning_started' }
   | {
       type: 'rag_retrieved';
-      searchMode?: 'hybrid' | 'keyword_only';
+      searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
       reranked?: boolean;
       warnings?: string[];
       timing?: RagQueryTiming;
