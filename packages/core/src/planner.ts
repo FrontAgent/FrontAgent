@@ -12,7 +12,7 @@ import type {
   SDDConfig,
   ValidationRule,
 } from '@frontagent/shared';
-import { generateId } from '@frontagent/shared';
+import { generateId, logger } from '@frontagent/shared';
 import { type GeneratedPlan, LLMService } from './llm.js';
 import {
   type PhaseInjectionSkill,
@@ -155,7 +155,7 @@ export class Planner {
       } catch (error) {
         this.fallbackReason = error instanceof Error ? error.message : String(error);
         if (this.config.debug) {
-          console.warn('LLM plan generation failed, falling back to rule-based:', error);
+          logger.warn('LLM plan generation failed, falling back to rule-based:', error);
         }
         // 回退到规则生成
         steps = this.generateStepsForTask(task, context);

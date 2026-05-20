@@ -4,6 +4,7 @@
  */
 
 import { join } from 'node:path';
+import { logger } from '@frontagent/shared';
 import {
   type ArtifactStore,
   type ChecklistResult,
@@ -82,7 +83,7 @@ export class WorkflowIntegration {
       }
     } catch (error) {
       if (this.debug) {
-        console.warn('[WorkflowIntegration] Failed to load constitution:', error);
+        logger.warn('[WorkflowIntegration] Failed to load constitution:', error);
       }
     }
   }

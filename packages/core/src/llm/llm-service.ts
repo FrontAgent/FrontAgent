@@ -1,5 +1,6 @@
 import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
+import { logger } from '@frontagent/shared';
 import { type CoreMessage, type LanguageModel, generateObject, generateText, streamText } from 'ai';
 import type { z } from 'zod';
 import type { LLMConfig, Message } from '../types.js';
@@ -63,19 +64,19 @@ export class LLMService {
 
   private debugLog(...args: unknown[]): void {
     if (this.isDebug()) {
-      console.log(...args);
+      logger.debug(...args);
     }
   }
 
   private debugWarn(...args: unknown[]): void {
     if (this.isDebug()) {
-      console.warn(...args);
+      logger.warn(...args);
     }
   }
 
   private debugError(...args: unknown[]): void {
     if (this.isDebug()) {
-      console.error(...args);
+      logger.error(...args);
     }
   }
 

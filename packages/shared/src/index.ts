@@ -86,3 +86,6 @@ export {
   matchGlob,
   escapeRegex,
 } from './utils.js';
+
+// Logger
+export { logger, setLogLevel, getLogLevel, type LogLevel } from './logger.js';
