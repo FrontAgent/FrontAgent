@@ -17,6 +17,7 @@ import { SkillContentLoader } from './skill-content/loader.js';
 import { SkillContentResolver } from './skill-content/resolver.js';
 import { MemoryStore } from './memory/index.js';
 import type { PersistenceInput } from './memory/types.js';
+import { WorkflowIntegration } from './workflow-integration.js';
 import {
   CodeQualitySubAgent,
   ProcessIsolatedCodeQualitySubAgent,
@@ -121,6 +122,7 @@ export class FrontAgent {
   private codeQualitySubAgent?: A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>;
   private skillContentResolver?: SkillContentResolver;
   private memoryStore: MemoryStore;
+  private workflowIntegration?: WorkflowIntegration;
   private pendingFactsUpdates: ProjectFactsUpdate[] = [];
   private factsUpdateFlushInProgress = false;
   private lastAnswerGenerationError?: string;
@@ -212,6 +214,16 @@ export class FrontAgent {
     // 初始化跨会话记忆
     this.memoryStore = new MemoryStore(config.projectRoot, config.memory);
 
+    // 初始化 SDD 工作流引擎（可选）
+    if (config.sddWorkflow?.enabled) {
+      this.workflowIntegration = new WorkflowIntegration({
+        projectRoot: config.projectRoot,
+        config: config.sddWorkflow,
+        constitutionPath: config.constitutionPath,
+        debug: config.debug,
+      });
+    }
+
     // 初始化 A2A 总线和代码质量 SubAgent
     this.a2aBus = new InMemoryA2ABus();
     const codeQualityConfig = config.subAgents?.codeQualityEvaluator;
@@ -242,6 +254,13 @@ export class FrontAgent {
 
       this.a2aBus.registerAgent(this.codeQualitySubAgent);
     }
+  }
+
+  /**
+   * 获取 SDD 工作流集成实例（如果已启用）
+   */
+  getWorkflowIntegration(): WorkflowIntegration | undefined {
+    return this.workflowIntegration;
   }
 
   /**
@@ -475,6 +494,11 @@ export class FrontAgent {
       this.preloadMemory(task.id, context);
 
       if (this.promptGenerator) {
+        // Constitution (Tier 1) 在 SDD (Tier 2) 之前注入
+        const constitutionPrompt = this.workflowIntegration?.getConstitutionPrompt();
+        if (constitutionPrompt) {
+          this.contextManager.addMessage(task.id, { role: 'system', content: constitutionPrompt });
+        }
         this.contextManager.addMessage(task.id, {
           role: 'system',
           content: this.promptGenerator.generate()
@@ -671,6 +695,11 @@ export class FrontAgent {
 
       // 添加 SDD 约束到系统提示 (Rules zone)
       if (this.promptGenerator) {
+        // Constitution (Tier 1) 在 SDD (Tier 2) 之前注入
+        const constitutionPrompt = this.workflowIntegration?.getConstitutionPrompt();
+        if (constitutionPrompt) {
+          this.contextManager.addMessage(task.id, { role: 'system', content: constitutionPrompt });
+        }
         const sddPrompt = this.promptGenerator.generate();
         this.contextManager.addMessage(task.id, {
           role: 'system',
