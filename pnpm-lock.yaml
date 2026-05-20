@@ -11,6 +11,9 @@ importers:
       playwright:
         specifier: ^1.40.0
         version: 1.57.0
+      ts-morph:
+        specifier: ^21.0.0
+        version: 21.0.1
     devDependencies:
       '@biomejs/biome':
         specifier: 1.9.4

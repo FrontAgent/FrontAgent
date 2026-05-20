@@ -14,6 +14,7 @@ await build({
   outfile: resolve(__dirname, 'dist/index.mjs'),
   external: [
     'playwright',
+    'ts-morph',
   ],
   jsx: 'automatic',
   plugins: [{
