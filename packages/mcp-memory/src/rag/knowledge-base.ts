@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { aggregateChunkCandidates, buildSnippet, searchBm25 } from './bm25.js';
@@ -164,7 +165,7 @@ export class HybridRepositoryKnowledgeBase {
               try {
                 embeddingStore = await this.ensureEmbeddings(index);
               } catch (error) {
-                const cachedStore = this.readEmbeddingStore();
+                const cachedStore = await this.readEmbeddingStore();
                 if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
                   embeddingStore = cachedStore;
                   usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
@@ -343,7 +344,7 @@ export class HybridRepositoryKnowledgeBase {
 
   private async ensureIndex(forceRefresh: boolean): Promise<RepositoryIndex> {
     mkdirSync(this.config.cacheDir, { recursive: true });
-    const existing = this.readIndex();
+    const existing = await this.readIndex();
     const targetRepoDir = this.getRepoDir();
     if (existing && this.canReuseWarmIndex(existing, targetRepoDir, forceRefresh)) {
       return existing;
@@ -358,7 +359,7 @@ export class HybridRepositoryKnowledgeBase {
       sync: shouldSyncRepository,
     });
     const revision = await getRepositoryHead(repoDir);
-    const submodulePaths = getSubmodulePaths(repoDir);
+    const submodulePaths = await getSubmodulePaths(repoDir);
     const excludedPathPrefixes = [
       ...new Set([...this.config.excludedPathPrefixes, ...submodulePaths].map(normalizeRepoPath)),
     ];
@@ -380,7 +381,7 @@ export class HybridRepositoryKnowledgeBase {
       return existing;
     }
 
-    const index = buildRepositoryIndex({
+    const index = await buildRepositoryIndex({
       repoDir,
       repoUrl: this.config.repoUrl,
       branch: this.config.branch,
@@ -391,7 +392,7 @@ export class HybridRepositoryKnowledgeBase {
       chunkOverlap: this.config.chunkOverlap,
       maxFileSizeBytes: this.config.maxFileSizeBytes,
     });
-    this.writeIndex(index);
+    await this.writeIndex(index);
     return index;
   }
 
@@ -417,14 +418,14 @@ export class HybridRepositoryKnowledgeBase {
     );
   }
 
-  private readIndex(): RepositoryIndex | null {
+  private async readIndex(): Promise<RepositoryIndex | null> {
     const indexPath = this.getIndexPath();
     if (!existsSync(indexPath)) {
       return null;
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(indexPath, 'utf-8')) as RepositoryIndex;
+      const parsed = JSON.parse(await readFile(indexPath, 'utf-8')) as RepositoryIndex;
       if (parsed.version !== INDEX_VERSION) {
         return null;
       }
@@ -434,12 +435,12 @@ export class HybridRepositoryKnowledgeBase {
     }
   }
 
-  private writeIndex(index: RepositoryIndex): void {
-    writeFileSync(this.getIndexPath(), JSON.stringify(index, null, 2), 'utf-8');
+  private async writeIndex(index: RepositoryIndex): Promise<void> {
+    await writeFile(this.getIndexPath(), JSON.stringify(index, null, 2), 'utf-8');
   }
 
   private async ensureEmbeddings(index: RepositoryIndex): Promise<EmbeddingStore> {
-    const current = this.readEmbeddingStore();
+    const current = await this.readEmbeddingStore();
     const compatible =
       current &&
       current.model === this.config.embedding.model &&
@@ -496,7 +497,7 @@ export class HybridRepositoryKnowledgeBase {
       }
 
       store.updatedAt = new Date().toISOString();
-      this.writeEmbeddingStore(store);
+      await this.writeEmbeddingStore(store);
 
       if (batches.length > 1) {
         await sleep(DEFAULT_EMBEDDING_INTER_BATCH_DELAY_MS);
@@ -504,18 +505,18 @@ export class HybridRepositoryKnowledgeBase {
     }
 
     store.updatedAt = new Date().toISOString();
-    this.writeEmbeddingStore(store);
+    await this.writeEmbeddingStore(store);
     return store;
   }
 
-  private readEmbeddingStore(): EmbeddingStore | null {
+  private async readEmbeddingStore(): Promise<EmbeddingStore | null> {
     const path = this.getEmbeddingStorePath();
     if (!existsSync(path)) {
       return null;
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(path, 'utf-8')) as EmbeddingStore;
+      const parsed = JSON.parse(await readFile(path, 'utf-8')) as EmbeddingStore;
       if (parsed.version !== EMBEDDING_STORE_VERSION) {
         return null;
       }
@@ -525,15 +526,15 @@ export class HybridRepositoryKnowledgeBase {
     }
   }
 
-  private writeEmbeddingStore(store: EmbeddingStore): void {
-    writeFileSync(this.getEmbeddingStorePath(), JSON.stringify(store), 'utf-8');
+  private async writeEmbeddingStore(store: EmbeddingStore): Promise<void> {
+    await writeFile(this.getEmbeddingStorePath(), JSON.stringify(store), 'utf-8');
   }
 
   private async ensureWeaviateSemanticIndex(
     index: RepositoryIndex,
   ): Promise<WeaviateVectorStoreState> {
     const collectionName = getWeaviateCollectionName(this.config);
-    const current = this.readWeaviateVectorStoreState();
+    const current = await this.readWeaviateVectorStoreState();
     const collectionStatus = await ensureWeaviateCollection(
       this.config.vectorStore.weaviate,
       collectionName,
@@ -603,18 +604,18 @@ export class HybridRepositoryKnowledgeBase {
       chunkSignature: index.build.chunkSignature,
       updatedAt: new Date().toISOString(),
     };
-    this.writeWeaviateVectorStoreState(state);
+    await this.writeWeaviateVectorStoreState(state);
     return state;
   }
 
-  private readWeaviateVectorStoreState(): WeaviateVectorStoreState | null {
+  private async readWeaviateVectorStoreState(): Promise<WeaviateVectorStoreState | null> {
     const path = this.getVectorStoreStatePath();
     if (!existsSync(path)) {
       return null;
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(path, 'utf-8')) as WeaviateVectorStoreState;
+      const parsed = JSON.parse(await readFile(path, 'utf-8')) as WeaviateVectorStoreState;
       if (parsed.version !== VECTOR_STORE_STATE_VERSION) {
         return null;
       }
@@ -624,8 +625,8 @@ export class HybridRepositoryKnowledgeBase {
     }
   }
 
-  private writeWeaviateVectorStoreState(state: WeaviateVectorStoreState): void {
-    writeFileSync(this.getVectorStoreStatePath(), JSON.stringify(state, null, 2), 'utf-8');
+  private async writeWeaviateVectorStoreState(state: WeaviateVectorStoreState): Promise<void> {
+    await writeFile(this.getVectorStoreStatePath(), JSON.stringify(state, null, 2), 'utf-8');
   }
 
   private getRepoDir(): string {

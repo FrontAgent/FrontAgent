@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -74,13 +75,13 @@ export async function getRepositoryHead(repoDir: string): Promise<string> {
   return result.stdout.trim();
 }
 
-export function getSubmodulePaths(repoDir: string): string[] {
+export async function getSubmodulePaths(repoDir: string): Promise<string[]> {
   const gitmodulesPath = join(repoDir, '.gitmodules');
   if (!existsSync(gitmodulesPath)) {
     return [];
   }
 
-  const content = readFileSync(gitmodulesPath, 'utf-8');
+  const content = await readFile(gitmodulesPath, 'utf-8');
   const pattern = /^\s*path\s*=\s*(.+)\s*$/gm;
   const paths: string[] = [];
   let match: RegExpExecArray | null;
@@ -126,7 +127,7 @@ export function canReuseIndex(
   );
 }
 
-export function buildRepositoryIndex(input: {
+export async function buildRepositoryIndex(input: {
   repoDir: string;
   repoUrl: string;
   branch: string;
@@ -136,8 +137,8 @@ export function buildRepositoryIndex(input: {
   chunkSize: number;
   chunkOverlap: number;
   maxFileSizeBytes: number;
-}): RepositoryIndex {
-  const files = listRepositoryFiles(
+}): Promise<RepositoryIndex> {
+  const files = await listRepositoryFiles(
     input.repoDir,
     input.excludedPathPrefixes,
     input.maxFileSizeBytes,
@@ -148,7 +149,7 @@ export function buildRepositoryIndex(input: {
   let totalDocumentLength = 0;
 
   for (const file of files) {
-    const fileBuffer = readFileSync(join(input.repoDir, file.path));
+    const fileBuffer = await readFile(join(input.repoDir, file.path));
     if (looksBinary(fileBuffer, file.path)) {
       continue;
     }
@@ -249,18 +250,18 @@ export function buildRepositoryIndex(input: {
   };
 }
 
-function listRepositoryFiles(
+async function listRepositoryFiles(
   repoDir: string,
   excludedPathPrefixes: string[],
   maxFileSizeBytes: number,
-): Array<{ path: string; sizeBytes: number }> {
+): Promise<Array<{ path: string; sizeBytes: number }>> {
   const results: Array<{ path: string; sizeBytes: number }> = [];
   const stack = [''];
 
   while (stack.length > 0) {
     const relativeDir = stack.pop()!;
     const absoluteDir = join(repoDir, relativeDir);
-    const entries = readdirSync(absoluteDir, { withFileTypes: true });
+    const entries = await readdir(absoluteDir, { withFileTypes: true });
 
     for (const entry of entries) {
       if (entry.name.startsWith('.') && entry.name !== '.gitmodules') {
@@ -284,7 +285,7 @@ function listRepositoryFiles(
         continue;
       }
 
-      const stats = statSync(join(repoDir, normalizedPath));
+      const stats = await stat(join(repoDir, normalizedPath));
       if (!stats.isFile() || stats.size > maxFileSizeBytes) {
         continue;
       }
