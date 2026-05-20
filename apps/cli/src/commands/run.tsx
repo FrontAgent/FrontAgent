@@ -109,7 +109,9 @@ export default async function runCommand(task: string, options: Record<string, a
         taskId: '',
         executedSteps: [],
         error: errorMessage,
-      } as any,
+        duration: 0,
+        validations: [],
+      },
     });
   } finally {
     store.recordActivity('收尾完成', null);
