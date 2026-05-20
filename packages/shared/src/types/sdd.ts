@@ -27,7 +27,6 @@ export interface TechStackConfig {
   uiLibraryVersion?: string;
   routing?: string;
   buildTool?: string;
-  [key: string]: any;
 }
 
 export interface DirectoryStructureConfig {
