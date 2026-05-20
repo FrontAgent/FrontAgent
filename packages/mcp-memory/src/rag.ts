@@ -65,7 +65,21 @@ const BINARY_EXTENSIONS = new Set([
   '.map',
 ]);
 
+export type KnowledgeBaseSource = 'git' | 'openviking' | 'composite';
+
+export interface OpenVikingConfig {
+  enabled?: boolean;
+  endpoint?: string;
+  apiKey?: string;
+  corpus?: string;
+  namespace?: string;
+  l1Entry?: string;
+  timeoutMs?: number;
+  fallbackToGit?: boolean;
+}
+
 export interface KnowledgeBaseConfig {
+  source?: KnowledgeBaseSource;
   repoUrl: string;
   branch: string;
   cacheDir: string;
@@ -79,6 +93,7 @@ export interface KnowledgeBaseConfig {
   chunkSize?: number;
   chunkOverlap?: number;
   maxFileSizeBytes?: number;
+  openViking?: OpenVikingConfig;
   reranker?: RerankerConfig;
   embedding?: EmbeddingConfig;
   vectorStore?: VectorStoreConfig;
@@ -135,7 +150,7 @@ export interface RagQueryParams {
 
 export interface RagQueryMatch {
   id: string;
-  type: 'file';
+  type: 'file' | 'wiki' | 'doc';
   title: string;
   sourceUrl: string;
   snippet: string;
@@ -150,6 +165,11 @@ export interface RagQueryMatch {
     chunkIndex: number;
     lineStart: number;
     lineEnd: number;
+    provider?: 'git' | 'openviking';
+    corpus?: string;
+    namespace?: string;
+    l1Entry?: string;
+    [key: string]: unknown;
   };
 }
 
@@ -169,7 +189,7 @@ export interface RagQueryResult {
   sourceRevision?: string;
   results?: RagQueryMatch[];
   warnings?: string[];
-  searchMode?: 'hybrid' | 'keyword_only';
+  searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
   reranked?: boolean;
   timing?: RagQueryTiming;
   error?: string;
@@ -291,8 +311,24 @@ interface DocumentCandidate {
   rerankScore?: number;
 }
 
-export function createKnowledgeBase(config: KnowledgeBaseConfig) {
-  return new HybridRepositoryKnowledgeBase(config);
+export interface KnowledgeProvider {
+  query(params: RagQueryParams): Promise<RagQueryResult>;
+}
+
+export function createKnowledgeBase(config: KnowledgeBaseConfig): KnowledgeProvider {
+  const normalizedSource = normalizeKnowledgeBaseSource(config);
+  const gitProvider = new HybridRepositoryKnowledgeBase(config);
+
+  if (normalizedSource === 'git') {
+    return gitProvider;
+  }
+
+  const openVikingProvider = new OpenVikingKnowledgeProvider(config);
+  if (normalizedSource === 'openviking') {
+    return openVikingProvider;
+  }
+
+  return new CompositeKnowledgeProvider(openVikingProvider, gitProvider, config);
 }
 
 export async function ragQuery(
@@ -301,6 +337,231 @@ export async function ragQuery(
 ): Promise<RagQueryResult> {
   const knowledgeBase = createKnowledgeBase(config);
   return knowledgeBase.query(params);
+}
+
+
+class OpenVikingKnowledgeProvider implements KnowledgeProvider {
+  private readonly config: RequiredOpenVikingConfig;
+
+  constructor(config: KnowledgeBaseConfig) {
+    this.config = normalizeOpenVikingConfig(config.openViking);
+  }
+
+  async query(params: RagQueryParams): Promise<RagQueryResult> {
+    if (!this.config.enabled) {
+      return { success: false, error: 'OpenViking knowledge provider is disabled.' };
+    }
+    if (!this.config.endpoint) {
+      return { success: false, error: 'OpenViking endpoint is not configured.' };
+    }
+    if (!params.query?.trim()) {
+      return { success: false, error: 'query is required' };
+    }
+
+    const startedAt = performance.now();
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), this.config.timeoutMs);
+
+    try {
+      const response = await fetch(this.config.endpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(this.config.apiKey ? { authorization: `Bearer ${this.config.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          query: params.query.trim(),
+          maxResults: params.maxResults,
+          refresh: params.refresh,
+          filters: params.filters,
+          corpus: this.config.corpus || undefined,
+          namespace: this.config.namespace || undefined,
+          l1Entry: this.config.l1Entry || undefined,
+        }),
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `OpenViking query failed: ${response.status} ${response.statusText}`,
+          timing: createOpenVikingTiming(startedAt),
+        };
+      }
+
+      const payload = await response.json() as unknown;
+      const matches = normalizeOpenVikingMatches(payload, this.config, params.maxResults);
+      return {
+        success: true,
+        syncedAt: getString((payload as any)?.syncedAt) ?? new Date().toISOString(),
+        sourceRevision: getString((payload as any)?.sourceRevision) ?? getString((payload as any)?.revision),
+        searchMode: 'openviking',
+        reranked: Boolean((payload as any)?.reranked),
+        warnings: normalizeWarnings((payload as any)?.warnings),
+        results: matches,
+        timing: createOpenVikingTiming(startedAt),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `OpenViking query unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        timing: createOpenVikingTiming(startedAt),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+class CompositeKnowledgeProvider implements KnowledgeProvider {
+  constructor(
+    private readonly openViking: KnowledgeProvider,
+    private readonly git: KnowledgeProvider,
+    private readonly config: KnowledgeBaseConfig,
+  ) {}
+
+  async query(params: RagQueryParams): Promise<RagQueryResult> {
+    const openVikingResult = await this.openViking.query(params);
+    if (openVikingResult.success && (openVikingResult.results?.length ?? 0) > 0) {
+      return {
+        ...openVikingResult,
+        searchMode: 'composite',
+        warnings: [
+          ...(openVikingResult.warnings ?? []),
+          'OpenViking provider returned results; Git RAG fallback was not used.',
+        ],
+      };
+    }
+
+    if (this.config.openViking?.fallbackToGit === false) {
+      return openVikingResult;
+    }
+
+    const gitResult = await this.git.query(params);
+    return {
+      ...gitResult,
+      searchMode: gitResult.searchMode ?? 'composite',
+      warnings: [
+        ...(openVikingResult.error ? [`OpenViking fallback reason: ${openVikingResult.error}`] : []),
+        ...(openVikingResult.warnings ?? []),
+        ...(gitResult.warnings ?? []),
+      ],
+    };
+  }
+}
+
+interface RequiredOpenVikingConfig {
+  enabled: boolean;
+  endpoint: string;
+  apiKey: string;
+  corpus: string;
+  namespace: string;
+  l1Entry: string;
+  timeoutMs: number;
+}
+
+export function normalizeKnowledgeBaseSource(config: KnowledgeBaseConfig): KnowledgeBaseSource {
+  const source = config.source ?? (process.env.FRONTAGENT_RAG_SOURCE as KnowledgeBaseSource | undefined);
+  if (source === 'git' || source === 'openviking' || source === 'composite') {
+    return source;
+  }
+  return config.openViking?.enabled || process.env.FRONTAGENT_OPENVIKING_ENDPOINT
+    ? 'composite'
+    : 'git';
+}
+
+export function normalizeOpenVikingConfig(config?: OpenVikingConfig): RequiredOpenVikingConfig {
+  return {
+    enabled: config?.enabled ?? parseOptionalBoolean(process.env.FRONTAGENT_OPENVIKING_ENABLED) ?? true,
+    endpoint: normalizeOptionalBaseUrl(config?.endpoint ?? process.env.FRONTAGENT_OPENVIKING_ENDPOINT) ?? '',
+    apiKey: config?.apiKey ?? process.env.FRONTAGENT_OPENVIKING_API_KEY ?? '',
+    corpus: config?.corpus ?? process.env.FRONTAGENT_OPENVIKING_CORPUS ?? '',
+    namespace: config?.namespace ?? process.env.FRONTAGENT_OPENVIKING_NAMESPACE ?? '',
+    l1Entry:
+      config?.l1Entry ??
+      process.env.FRONTAGENT_OPENVIKING_L1_ENTRY ??
+      'docs/openviking/frontagent-l1.md',
+    timeoutMs:
+      config?.timeoutMs ??
+      parseOptionalInt(process.env.FRONTAGENT_OPENVIKING_TIMEOUT_MS) ??
+      DEFAULT_FETCH_TIMEOUT_MS,
+  };
+}
+
+function createOpenVikingTiming(startedAt: number): RagQueryTiming {
+  return {
+    ensureIndexMs: 0,
+    bm25Ms: 0,
+    semanticMs: 0,
+    fusionMs: 0,
+    rerankMs: 0,
+    totalMs: performance.now() - startedAt,
+    cacheHit: false,
+  };
+}
+
+export function normalizeOpenVikingMatches(
+  payload: unknown,
+  config: RequiredOpenVikingConfig,
+  maxResults?: number,
+): RagQueryMatch[] {
+  const rawItems = Array.isArray((payload as any)?.results)
+    ? (payload as any).results
+    : Array.isArray((payload as any)?.matches)
+      ? (payload as any).matches
+      : Array.isArray((payload as any)?.data)
+        ? (payload as any).data
+        : [];
+
+  return rawItems.slice(0, maxResults ?? rawItems.length).map((item: any, index: number) => {
+    const path = getString(item.path) ?? getString(item.uri) ?? getString(item.id) ?? `openviking:${index}`;
+    const title = getString(item.title) ?? basename(path) ?? path;
+    const metadata = typeof item.metadata === 'object' && item.metadata !== null ? item.metadata : {};
+    const extension = getString(metadata.extension) ?? (extname(path).toLowerCase() || '.md');
+    const topLevelDir = getString(metadata.topLevelDir) ?? getTopLevelDir(path);
+    return {
+      id: getString(item.id) ?? `openviking:${path}:${index}`,
+      type: getRagMatchType(item.type),
+      title,
+      sourceUrl: getString(item.sourceUrl) ?? getString(item.url) ?? path,
+      path,
+      score: getNumber(item.score) ?? getNumber(item.rerankScore) ?? 0,
+      keywordScore: getNumber(item.keywordScore),
+      semanticScore: getNumber(item.semanticScore),
+      rerankScore: getNumber(item.rerankScore),
+      snippet: getString(item.snippet) ?? getString(item.content) ?? getString(item.text) ?? '',
+      metadata: {
+        ...metadata,
+        topLevelDir,
+        extension,
+        chunkIndex: getNumber(metadata.chunkIndex) ?? index,
+        lineStart: getNumber(metadata.lineStart) ?? getNumber(item.lineStart) ?? 1,
+        lineEnd: getNumber(metadata.lineEnd) ?? getNumber(item.lineEnd) ?? 1,
+        provider: 'openviking',
+        corpus: config.corpus || undefined,
+        namespace: config.namespace || undefined,
+        l1Entry: config.l1Entry || undefined,
+      },
+    };
+  });
+}
+
+function getRagMatchType(value: unknown): RagQueryMatch['type'] {
+  return value === 'wiki' || value === 'doc' || value === 'file' ? value : 'wiki';
+}
+
+function normalizeWarnings(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const warnings = value.map((item) => String(item)).filter(Boolean);
+  return warnings.length > 0 ? warnings : undefined;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function getNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 export const ragQuerySchema = {

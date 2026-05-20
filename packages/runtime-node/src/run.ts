@@ -94,6 +94,7 @@ export async function runFrontAgentTask(
     options: {
       ...options,
       apiKey: options.apiKey ? '[REDACTED]' : undefined,
+      openVikingApiKey: options.openVikingApiKey ? '[REDACTED]' : undefined,
       ragEmbeddingApiKey: options.ragEmbeddingApiKey ? '[REDACTED]' : undefined,
       ragRerankerApiKey: options.ragRerankerApiKey ? '[REDACTED]' : undefined,
       ragWeaviateApiKey: options.ragWeaviateApiKey ? '[REDACTED]' : undefined,
@@ -148,6 +149,8 @@ export async function runFrontAgentTask(
 
   if (resolved.rag.enabled !== false) {
     const memoryClient = new MemoryMCPClient({
+      source: resolved.rag.source,
+      openViking: resolved.rag.openViking,
       repoUrl: resolved.rag.repoUrl,
       branch: resolved.rag.branch ?? 'main',
       cacheDir: resolved.rag.cacheDir ?? getDefaultRagCacheDir(projectRoot),
@@ -253,6 +256,7 @@ export async function planFrontAgentTask(
     options: {
       ...options,
       apiKey: options.apiKey ? '[REDACTED]' : undefined,
+      openVikingApiKey: options.openVikingApiKey ? '[REDACTED]' : undefined,
       ragEmbeddingApiKey: options.ragEmbeddingApiKey ? '[REDACTED]' : undefined,
       ragRerankerApiKey: options.ragRerankerApiKey ? '[REDACTED]' : undefined,
       ragWeaviateApiKey: options.ragWeaviateApiKey ? '[REDACTED]' : undefined,
@@ -307,6 +311,8 @@ export async function planFrontAgentTask(
 
   if (resolved.rag.enabled !== false) {
     const memoryClient = new MemoryMCPClient({
+      source: resolved.rag.source,
+      openViking: resolved.rag.openViking,
       repoUrl: resolved.rag.repoUrl,
       branch: resolved.rag.branch ?? 'main',
       cacheDir: resolved.rag.cacheDir ?? getDefaultRagCacheDir(projectRoot),

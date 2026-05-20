@@ -84,6 +84,19 @@ export interface SkillContentConfig {
 export interface RagConfig {
   /** 是否启用（默认 true） */
   enabled?: boolean;
+  /** 知识库来源（默认 git；配置 OpenViking 时默认 composite） */
+  source?: 'git' | 'openviking' | 'composite';
+  /** OpenViking 知识库配置 */
+  openViking?: {
+    enabled?: boolean;
+    endpoint?: string;
+    apiKey?: string;
+    corpus?: string;
+    namespace?: string;
+    l1Entry?: string;
+    timeoutMs?: number;
+    fallbackToGit?: boolean;
+  };
   /** 远程知识库 Git 仓库地址 */
   repoUrl: string;
   /** 分支名 */
