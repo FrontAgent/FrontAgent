@@ -1,6 +1,6 @@
 {
   "name": "frontagent",
-  "version": "1.0.4",
+  "version": "1.0.7",
   "description": "FrontAgent CLI and VS Code extension for frontend AI engineering with SDD constraints, MCP-controlled execution, and RAG planning",
   "type": "module",
   "bin": {
@@ -18,7 +18,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "turbo build && node build.mjs",
+    "build": "turbo build && node build.mjs && pnpm --dir apps/vscode package",
     "bundle": "node build.mjs",
     "dev": "turbo dev",
     "lint": "turbo lint",

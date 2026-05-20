@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-05-20
+
+### Changed
+- Unified the npm package and VS Code extension versions at `1.0.7`.
+- Updated the root build script to generate the VS Code `.vsix` package alongside the npm CLI bundle.
+
 ## [1.0.4] - 2026-05-19
 
 ### Added
