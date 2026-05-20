@@ -123,7 +123,7 @@ export class Executor {
     const finish = (output: ExecutorOutput): ExecutorOutput => {
       if (traceEnabled) {
         const stepResult = output.stepResult;
-        const toolResult = stepResult.output as any;
+        const toolResult = stepResult.output as Record<string, unknown> | undefined;
         this.config.trace?.onStepTrace?.({
           taskId: context.task.id,
           stepId: step.stepId,
@@ -137,7 +137,7 @@ export class Executor {
             Boolean((stepResult.output as { skipped?: boolean }).skipped),
           error: stepResult.error,
           stages: traceStages,
-          toolDurationMs: toolResult?.__toolDurationMs,
+          toolDurationMs: toolResult?.__toolDurationMs as number | undefined,
           subStages: subStages.length > 0 ? subStages : undefined,
         });
       }
@@ -645,7 +645,7 @@ export class Executor {
     const result = await client.callTool(toolName, security.args);
     const mcpDurationMs = this.nowMs() - mcpStart;
     if (typeof result === 'object' && result !== null) {
-      (result as any).__toolDurationMs = mcpDurationMs;
+      (result as Record<string, unknown>).__toolDurationMs = mcpDurationMs;
     }
 
     if (toolName === 'browser_navigate' || toolName === 'navigate') {
@@ -1350,7 +1350,10 @@ export class Executor {
         }
       : undefined;
 
-    const finalState = (await graph.invoke({ runtime: initialState }, runnableConfig as any)) as {
+    const finalState = (await graph.invoke(
+      { runtime: initialState },
+      runnableConfig as unknown as Record<string, unknown>,
+    )) as {
       runtime?: LangGraphRuntimeState;
     };
 

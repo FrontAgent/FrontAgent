@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SDDParser } from './parser.js';
 import { SDDPromptGenerator } from './prompt-generator.js';
-import { SDDValidator } from './validator.js';
 import { defaultSDDConfig } from './schema.js';
+import { SDDValidator } from './validator.js';
 
 const VALID_YAML = `
 version: "1.0"
@@ -174,7 +174,10 @@ describe('SDDValidator', () => {
   });
 
   it('warns on file exceeding maxFileLines', () => {
-    const config = { ...defaultSDDConfig, codeQuality: { ...defaultSDDConfig.codeQuality, maxFileLines: 10 } };
+    const config = {
+      ...defaultSDDConfig,
+      codeQuality: { ...defaultSDDConfig.codeQuality, maxFileLines: 10 },
+    };
     const validator = new SDDValidator(config);
     const result = validator.validate({
       type: 'create_file',

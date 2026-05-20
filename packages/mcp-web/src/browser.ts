@@ -162,7 +162,9 @@ export class BrowserManager {
   async getAccessibilityTree(): Promise<AXNode[]> {
     await this.ensurePage();
 
-    const snapshot = await (this.page as any).accessibility?.snapshot();
+    const snapshot = await (
+      this.page as unknown as { accessibility?: { snapshot(): Promise<unknown> } }
+    ).accessibility?.snapshot();
     if (!snapshot) {
       return [];
     }

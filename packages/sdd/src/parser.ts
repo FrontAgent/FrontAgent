@@ -25,9 +25,10 @@ type ValidateFn = {
   errors?: Array<{ instancePath?: string; message?: string }>;
 };
 
-// 兼容 ESM 和 CJS 的 Ajv 构造函数
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const Ajv = (AjvModule as any).default ?? AjvModule;
+// 兼容 ESM 和 CJS 的 Ajv 构造函数 — ESM/CJS interop requires unsafe cast
+const Ajv = ((AjvModule as unknown as { default?: unknown }).default ?? AjvModule) as unknown as {
+  new (opts?: Record<string, unknown>): AjvInstance;
+};
 
 /**
  * SDD 解析器类

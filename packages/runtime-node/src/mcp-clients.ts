@@ -1,5 +1,11 @@
 import type { MCPClient } from '@frontagent/core';
 import {
+  type ApplyPatchParams,
+  type CreateFileParams,
+  type GetASTParams,
+  type ListDirectoryParams,
+  type ReadFileParams,
+  type SearchCodeParams,
   SnapshotManager,
   applyPatch,
   createFile,
@@ -9,7 +15,11 @@ import {
   searchCode,
 } from '@frontagent/mcp-file';
 import { handleFilesenseTool } from '@frontagent/mcp-filesense';
-import { type KnowledgeBaseConfig, createKnowledgeBase } from '@frontagent/mcp-memory';
+import {
+  type KnowledgeBaseConfig,
+  type RagQueryParams,
+  createKnowledgeBase,
+} from '@frontagent/mcp-memory';
 import { type BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 export class FileMCPClient implements MCPClient {
@@ -22,21 +32,29 @@ export class FileMCPClient implements MCPClient {
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'read_file':
-        return readFile(args as any, this.projectRoot);
+        return readFile(args as unknown as ReadFileParams, this.projectRoot);
       case 'apply_patch':
-        return applyPatch(args as any, this.projectRoot, this.snapshotManager);
+        return applyPatch(
+          args as unknown as ApplyPatchParams,
+          this.projectRoot,
+          this.snapshotManager,
+        );
       case 'create_file':
-        return createFile(args as any, this.projectRoot, this.snapshotManager);
+        return createFile(
+          args as unknown as CreateFileParams,
+          this.projectRoot,
+          this.snapshotManager,
+        );
       case 'search_code':
-        return searchCode(args as any, this.projectRoot);
+        return searchCode(args as unknown as SearchCodeParams, this.projectRoot);
       case 'list_directory':
-        return listDirectory(args as any, this.projectRoot);
+        return listDirectory(args as unknown as ListDirectoryParams, this.projectRoot);
       case 'get_ast':
-        return getAST(args as any, this.projectRoot);
+        return getAST(args as unknown as GetASTParams, this.projectRoot);
       case 'rollback':
-        return this.snapshotManager.rollback((args as any).snapshotId);
+        return this.snapshotManager.rollback(args.snapshotId as string);
       case 'get_snapshots': {
-        const filePath = (args as any).filePath;
+        const filePath = args.filePath as string | undefined;
         if (filePath) {
           return { snapshots: this.snapshotManager.getFileSnapshots(filePath) };
         }
@@ -159,7 +177,7 @@ export class MemoryMCPClient implements MCPClient {
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'rag_query':
-        return this.knowledgeBase.query(args as any);
+        return this.knowledgeBase.query(args as unknown as RagQueryParams);
       default:
         throw new Error(`Unknown memory tool: ${name}`);
     }
