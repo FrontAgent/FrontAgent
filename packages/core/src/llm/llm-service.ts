@@ -1,4 +1,4 @@
-import { createAnthropic } from '@ai-sdk/anthropic';
+import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { type CoreMessage, type LanguageModel, generateObject, generateText, streamText } from 'ai';
 import type { z } from 'zod';
@@ -127,7 +127,7 @@ export class LLMService {
         const betaHeaders: string[] = [];
         betaHeaders.push('advanced-tool-use-2025-11-20');
 
-        const anthropicConfig: any = {
+        const anthropicConfig: AnthropicProviderSettings = {
           apiKey: key,
           baseURL: endpoint,
         };
