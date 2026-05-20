@@ -18,6 +18,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/server.js",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
