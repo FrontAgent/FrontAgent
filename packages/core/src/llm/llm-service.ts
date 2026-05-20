@@ -274,7 +274,7 @@ export class LLMService {
         }
 
         return result.object;
-      } catch (error: any) {
+      } catch (error: unknown) {
         const isLastAttempt = attempt === maxRetries;
 
         this.debugLog(

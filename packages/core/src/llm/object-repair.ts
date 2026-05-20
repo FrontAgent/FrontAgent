@@ -14,11 +14,12 @@ const STRATEGY_NAMES = {
 } as const;
 
 export function tryFixGeneratedObject<T>(
-  error: any,
+  error: unknown,
   schema: z.ZodType<T>,
   deps: ObjectRepairDeps,
 ): T | null {
-  const errorToCheck = error.cause || error;
+  const err = error as Record<string, unknown>;
+  const errorToCheck = (err.cause || err) as Record<string, unknown>;
 
   if (!errorToCheck.value || typeof errorToCheck.value !== 'object') {
     deps.debugLog('[LLMService] No value to fix');
@@ -28,20 +29,26 @@ export function tryFixGeneratedObject<T>(
   deps.debugLog('[LLMService] ========================================');
   deps.debugLog('[LLMService] Schema Validation Error Detected');
   deps.debugLog('[LLMService] ========================================');
-  deps.debugLog('[LLMService] Error name:', error.name);
-  deps.debugLog('[LLMService] Error type:', error.constructor.name);
-  deps.debugLog('[LLMService] Has cause:', !!error.cause);
+  deps.debugLog('[LLMService] Error name:', err.name);
+  deps.debugLog(
+    '[LLMService] Error type:',
+    (error as { constructor?: { name?: string } })?.constructor?.name,
+  );
+  deps.debugLog('[LLMService] Has cause:', !!err.cause);
   deps.debugLog('[LLMService] Original value keys:', Object.keys(errorToCheck.value));
   deps.debugLog(
     '[LLMService] Original value structure:',
     `${JSON.stringify(errorToCheck.value, null, 2).substring(0, 500)}...`,
   );
 
-  if (errorToCheck.cause?.issues) {
+  if ((errorToCheck.cause as Record<string, unknown>)?.issues) {
     deps.debugLog('[LLMService] Zod validation issues:');
-    errorToCheck.cause.issues.forEach((issue: any, index: number) => {
+    const issues = (errorToCheck.cause as Record<string, unknown>).issues as Array<
+      Record<string, unknown>
+    >;
+    issues.forEach((issue, index: number) => {
       deps.debugLog(`[LLMService]   Issue ${index + 1}:`, {
-        path: issue.path.join('.'),
+        path: (issue.path as string[])?.join('.'),
         message: issue.message,
         expected: issue.expected,
         received: issue.received,
@@ -110,7 +117,7 @@ export function tryFixGeneratedObject<T>(
   return null;
 }
 
-export function unwrapDollarKeys(obj: any, deps: ObjectRepairDeps): any {
+export function unwrapDollarKeys(obj: unknown, deps: ObjectRepairDeps): unknown {
   if (typeof obj !== 'object' || obj === null) {
     return obj;
   }
@@ -119,15 +126,16 @@ export function unwrapDollarKeys(obj: any, deps: ObjectRepairDeps): any {
     return obj.map((item) => unwrapDollarKeys(item, deps));
   }
 
-  const dollarKeys = Object.keys(obj).filter((key) => key.startsWith('$'));
+  const record = obj as Record<string, unknown>;
+  const dollarKeys = Object.keys(record).filter((key) => key.startsWith('$'));
 
-  if (dollarKeys.length === 1 && Object.keys(obj).length === 1) {
+  if (dollarKeys.length === 1 && Object.keys(record).length === 1) {
     deps.debugLog(`[LLMService] Unwrapping ${dollarKeys[0]}`);
-    return unwrapDollarKeys(obj[dollarKeys[0]], deps);
+    return unwrapDollarKeys(record[dollarKeys[0]], deps);
   }
 
-  const result: any = {};
-  for (const [key, value] of Object.entries(obj)) {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
     if (!key.startsWith('$')) {
       result[key] = unwrapDollarKeys(value, deps);
     }
@@ -136,7 +144,7 @@ export function unwrapDollarKeys(obj: any, deps: ObjectRepairDeps): any {
   return result;
 }
 
-export function deepParseStringifiedFields(obj: any, deps: ObjectRepairDeps): any {
+export function deepParseStringifiedFields(obj: unknown, deps: ObjectRepairDeps): unknown {
   if (typeof obj !== 'object' || obj === null) {
     return obj;
   }
@@ -145,9 +153,10 @@ export function deepParseStringifiedFields(obj: any, deps: ObjectRepairDeps): an
     return obj.map((item) => deepParseStringifiedFields(item, deps));
   }
 
-  const result: any = {};
+  const record = obj as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(obj)) {
+  for (const [key, value] of Object.entries(record)) {
     if (typeof value === 'string' && value.trim().length > 0) {
       if (value.trim().startsWith('[') || value.trim().startsWith('{')) {
         try {
