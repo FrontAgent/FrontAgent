@@ -62,3 +62,7 @@ export function matchGlob(path: string, pattern: string): boolean {
   const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(normalizePath(path));
 }
+
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

@@ -5,6 +5,7 @@
 
 import { readFileSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import { escapeRegex } from '@frontagent/shared';
 import { glob } from 'glob';
 import { getRealProjectRoot, isInsidePath, isUnsafeGlobPattern } from '../path-safety.js';
 
@@ -165,13 +166,6 @@ export async function searchCode(
       error: `Search failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
-}
-
-/**
- * 转义正则特殊字符
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
