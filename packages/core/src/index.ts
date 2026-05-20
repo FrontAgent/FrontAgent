@@ -2,7 +2,7 @@
  * @frontagent/core - FrontAgent 核心模块
  */
 
-export { FrontAgent, createAgent } from './agent.js';
+export { FrontAgent, createAgent } from './agent/index.js';
 export { Planner, createPlanner, type PlannerConfig } from './planner.js';
 export {
   Executor,
