@@ -1,5 +1,5 @@
 # LLM 等工具配置
-CONFIG*
+/CONFIG*
 
 # Dependencies
 node_modules/
@@ -40,7 +40,7 @@ temp/
 
 # FrontAgent specific
 .frontagent/
-artifacts/
+/artifacts/
 
 # claude code
 .claude/
