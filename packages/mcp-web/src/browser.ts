@@ -160,7 +160,8 @@ export class BrowserManager {
       const root = sel ? document.querySelector(sel) : document.body;
       if (!root) return [];
 
-      return [parseNode(root as Element)];
+      const parsed = parseNode(root as Element);
+      return parsed ? [parsed] : [];
     }, selector);
 
     return { title, url, viewport, domTree };
@@ -201,7 +202,7 @@ export class BrowserManager {
       };
     }
 
-    return [transformNode(snapshot)];
+    return [transformNode(snapshot as RawAXNode)];
   }
 
   /**
@@ -223,14 +224,8 @@ export class BrowserManager {
 
     return await this.page!.evaluate((sel) => {
       const elements = document.querySelectorAll(sel);
-      const result: {
-        selector: string;
-        type: string;
-        text?: string;
-        ariaLabel?: string | null;
-        boundingBox: { x: number; y: number; width: number; height: number };
-        enabled: boolean;
-      }[] = [];
+      // biome-ignore lint/suspicious/noExplicitAny: page.evaluate runs in browser context
+      const result: any[] = [];
 
       elements.forEach((el: Element, index: number) => {
         const rect = el.getBoundingClientRect();

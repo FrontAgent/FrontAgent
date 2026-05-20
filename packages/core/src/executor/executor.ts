@@ -7,6 +7,7 @@ import type {
   StepResult,
   ValidationResult,
 } from '@frontagent/shared';
+import { logger } from '@frontagent/shared';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { SecurityManager, toApprovalRequest } from '../security.js';
 import {
@@ -53,19 +54,19 @@ export class Executor {
 
   private debugLog(...args: unknown[]): void {
     if (this.config.debug) {
-      console.log(...args);
+      logger.debug(...args);
     }
   }
 
   private debugWarn(...args: unknown[]): void {
     if (this.config.debug) {
-      console.warn(...args);
+      logger.warn(...args);
     }
   }
 
   private debugError(...args: unknown[]): void {
     if (this.config.debug) {
-      console.error(...args);
+      logger.error(...args);
     }
   }
 

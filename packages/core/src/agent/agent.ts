@@ -13,7 +13,7 @@ import type {
   SDDConfig,
   ValidationResult,
 } from '@frontagent/shared';
-import { generateId } from '@frontagent/shared';
+import { generateId, logger } from '@frontagent/shared';
 import { type A2AAgent, InMemoryA2ABus } from '../a2a.js';
 import { ContextManager } from '../context.js';
 import { Executor, type MCPClient } from '../executor.js';
@@ -322,19 +322,19 @@ export class FrontAgent {
 
   private debugLog(...args: unknown[]): void {
     if (this.config.debug) {
-      console.log(...args);
+      logger.debug(...args);
     }
   }
 
   private debugWarn(...args: unknown[]): void {
     if (this.config.debug) {
-      console.warn(...args);
+      logger.warn(...args);
     }
   }
 
   private debugError(...args: unknown[]): void {
     if (this.config.debug) {
-      console.error(...args);
+      logger.error(...args);
     }
   }
 

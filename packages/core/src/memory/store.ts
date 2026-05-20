@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { logger } from '@frontagent/shared';
 import type { ProjectFactsSnapshot } from '../types.js';
 import type {
   MemoryConfig,
@@ -488,7 +489,7 @@ export class MemoryStore {
     } catch (error) {
       // Non-blocking: swallow errors to avoid disrupting the main task
       if (process.env.DEBUG) {
-        console.warn('[MemoryStore] Persistence failed:', error);
+        logger.warn('[MemoryStore] Persistence failed:', error);
       }
     }
   }
