@@ -2,7 +2,7 @@
   "name": "frontagent",
   "displayName": "FrontAgent",
   "description": "Chat with FrontAgent from a VS Code sidebar.",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "publisher": "ceilf6",
   "icon": "media/icon.png",
   "license": "MIT",

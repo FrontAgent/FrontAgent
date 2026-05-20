@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-05-20
+
+### Fixed
+- **mcp-shell**: Enforced the `timeout` parameter that was previously accepted but never used, preventing runaway commands from hanging indefinitely (default 60s with SIGTERM/SIGKILL escalation).
+- **mcp-shell**: Added a 10MB output size cap to prevent OOM when commands produce excessive stdout/stderr.
+- **shared**: Fixed `matchGlob` to escape regex metacharacters (`.`, `(`, `)`, `[`, `]`, `+`, `{`, `}`) before glob-to-regex conversion. Previously `src/utils.ts` would incorrectly match `src/utilsXts`.
+- **shared**: Fixed `deepMerge` to skip `undefined` source values instead of overwriting existing target values. Explicit `null` still overwrites as intended.
+- **mcp-file**: Fixed `isRegularFile` and `isDirectory` to return `false` for non-existent paths instead of throwing `ENOENT`.
+
+### Changed
+- **shared**: Extracted `DEFAULT_LLM_TEMPERATURE` (0.2) and `DEFAULT_LLM_MAX_TOKENS` (4096) as shared constants. Previously CLI used 0.2 while runtime-node used 0.7, causing inconsistent model behavior.
+
 ## [1.0.7] - 2026-05-20
 
 ### Changed
