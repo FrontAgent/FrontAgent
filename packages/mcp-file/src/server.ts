@@ -136,7 +136,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_ast': {
-        const result = getAST(args as unknown as Parameters<typeof getAST>[0], projectRoot);
+        const result = await getAST(args as unknown as Parameters<typeof getAST>[0], projectRoot);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };

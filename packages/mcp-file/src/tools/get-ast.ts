@@ -4,8 +4,10 @@
  */
 
 import { extname } from 'node:path';
-import { Project, SyntaxKind } from 'ts-morph';
 import { resolveReadPath } from '../path-safety.js';
+
+type TsMorph = typeof import('ts-morph');
+let cachedTsMorph: TsMorph | undefined;
 
 export interface GetASTParams {
   path: string;
@@ -51,7 +53,7 @@ export interface ASTResult {
 /**
  * 获取文件的 AST 分析
  */
-export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
+export async function getAST(params: GetASTParams, projectRoot: string): Promise<ASTResult> {
   const { path: filePath } = params;
 
   const safePath = resolveReadPath(filePath, projectRoot);
@@ -72,6 +74,11 @@ export function getAST(params: GetASTParams, projectRoot: string): ASTResult {
   }
 
   try {
+    if (!cachedTsMorph) {
+      cachedTsMorph = await import('ts-morph');
+    }
+    const { Project, SyntaxKind } = cachedTsMorph;
+
     const project = new Project({
       compilerOptions: {
         allowJs: true,
