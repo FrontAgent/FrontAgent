@@ -95,39 +95,43 @@ export function normalizeOpenVikingMatches(
         ? record.data
         : [];
 
-  return rawItems.slice(0, maxResults ?? rawItems.length).map((item: any, index: number) => {
-    const path =
-      getString(item.path) ?? getString(item.uri) ?? getString(item.id) ?? `openviking:${index}`;
-    const title = getString(item.title) ?? basename(path) ?? path;
-    const metadata =
-      typeof item.metadata === 'object' && item.metadata !== null ? item.metadata : {};
-    const extension = getString(metadata.extension) ?? (extname(path).toLowerCase() || '.md');
-    const topLevelDir = getString(metadata.topLevelDir) ?? getTopLevelDir(path);
-    return {
-      id: getString(item.id) ?? `openviking:${path}:${index}`,
-      type: getRagMatchType(item.type),
-      title,
-      sourceUrl: getString(item.sourceUrl) ?? getString(item.url) ?? path,
-      path,
-      score: getNumber(item.score) ?? getNumber(item.rerankScore) ?? 0,
-      keywordScore: getNumber(item.keywordScore),
-      semanticScore: getNumber(item.semanticScore),
-      rerankScore: getNumber(item.rerankScore),
-      snippet: getString(item.snippet) ?? getString(item.content) ?? getString(item.text) ?? '',
-      metadata: {
-        ...metadata,
-        topLevelDir,
-        extension,
-        chunkIndex: getNumber(metadata.chunkIndex) ?? index,
-        lineStart: getNumber(metadata.lineStart) ?? getNumber(item.lineStart) ?? 1,
-        lineEnd: getNumber(metadata.lineEnd) ?? getNumber(item.lineEnd) ?? 1,
-        provider: 'openviking',
-        corpus: config.corpus || undefined,
-        namespace: config.namespace || undefined,
-        l1Entry: config.l1Entry || undefined,
-      },
-    };
-  });
+  return rawItems
+    .slice(0, maxResults ?? rawItems.length)
+    .map((item: Record<string, unknown>, index: number) => {
+      const path =
+        getString(item.path) ?? getString(item.uri) ?? getString(item.id) ?? `openviking:${index}`;
+      const title = getString(item.title) ?? basename(path) ?? path;
+      const metadata: Record<string, unknown> =
+        typeof item.metadata === 'object' && item.metadata !== null
+          ? (item.metadata as Record<string, unknown>)
+          : {};
+      const extension = getString(metadata.extension) ?? (extname(path).toLowerCase() || '.md');
+      const topLevelDir = getString(metadata.topLevelDir) ?? getTopLevelDir(path);
+      return {
+        id: getString(item.id) ?? `openviking:${path}:${index}`,
+        type: getRagMatchType(item.type),
+        title,
+        sourceUrl: getString(item.sourceUrl) ?? getString(item.url) ?? path,
+        path,
+        score: getNumber(item.score) ?? getNumber(item.rerankScore) ?? 0,
+        keywordScore: getNumber(item.keywordScore),
+        semanticScore: getNumber(item.semanticScore),
+        rerankScore: getNumber(item.rerankScore),
+        snippet: getString(item.snippet) ?? getString(item.content) ?? getString(item.text) ?? '',
+        metadata: {
+          ...metadata,
+          topLevelDir,
+          extension,
+          chunkIndex: getNumber(metadata.chunkIndex) ?? index,
+          lineStart: getNumber(metadata.lineStart) ?? getNumber(item.lineStart) ?? 1,
+          lineEnd: getNumber(metadata.lineEnd) ?? getNumber(item.lineEnd) ?? 1,
+          provider: 'openviking',
+          corpus: config.corpus || undefined,
+          namespace: config.namespace || undefined,
+          l1Entry: config.l1Entry || undefined,
+        },
+      };
+    });
 }
 
 function getRagMatchType(value: unknown): RagQueryMatch['type'] {

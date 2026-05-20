@@ -102,10 +102,20 @@ export class BrowserManager {
 
     // 获取 DOM 树
     const domTree = await page.evaluate((sel) => {
-      function parseNode(node: Element, depth = 0): any {
-        if (depth > 10) return null; // 限制深度
+      interface ParsedNode {
+        tag: string;
+        id?: string;
+        className?: string;
+        text?: string;
+        attributes: Record<string, string>;
+        children: ParsedNode[];
+        boundingBox: { x: number; y: number; width: number; height: number };
+      }
 
-        const children: any[] = [];
+      function parseNode(node: Element, depth = 0): ParsedNode | null {
+        if (depth > 10) return null;
+
+        const children: ParsedNode[] = [];
         for (const child of node.children) {
           const parsed = parseNode(child, depth + 1);
           if (parsed) {
@@ -169,7 +179,17 @@ export class BrowserManager {
       return [];
     }
 
-    function transformNode(node: any): AXNode {
+    interface RawAXNode {
+      role: string;
+      name?: string;
+      value?: string;
+      description?: string;
+      focused?: boolean;
+      disabled?: boolean;
+      children?: RawAXNode[];
+    }
+
+    function transformNode(node: RawAXNode): AXNode {
       return {
         role: node.role,
         name: node.name,
@@ -203,7 +223,14 @@ export class BrowserManager {
 
     return await this.page!.evaluate((sel) => {
       const elements = document.querySelectorAll(sel);
-      const result: any[] = [];
+      const result: {
+        selector: string;
+        type: string;
+        text?: string;
+        ariaLabel?: string | null;
+        boundingBox: { x: number; y: number; width: number; height: number };
+        enabled: boolean;
+      }[] = [];
 
       elements.forEach((el: Element, index: number) => {
         const rect = el.getBoundingClientRect();

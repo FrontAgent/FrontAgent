@@ -40,7 +40,7 @@ type RagCacheBundleManifest = {
   indexVersion?: number;
 };
 
-function readJsonFile(path: string): any {
+function readJsonFile(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 

@@ -32,7 +32,7 @@ function isDebugEnabled(value: unknown): boolean {
   return value === true || value === 'true' || value === '1';
 }
 
-export default async function runCommand(task: string, options: Record<string, any>) {
+export default async function runCommand(task: string, options: Record<string, unknown>) {
   const projectRoot = process.cwd();
   const sddPath = resolve(projectRoot, options.sdd);
   const debug = isDebugEnabled(options.debug);

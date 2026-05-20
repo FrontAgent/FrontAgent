@@ -17,7 +17,7 @@
         "noParameterAssign": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off",
+        "noExplicitAny": "warn",
         "noAssignInExpressions": "off",
         "noArrayIndexKey": "off",
         "noImplicitAnyLet": "off",
