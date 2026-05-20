@@ -12,7 +12,7 @@ describe('SDDValidator', () => {
     it('blocks modification of protected directories', () => {
       const validator = new SDDValidator(makeConfig());
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'node_modules/pkg/index.js',
       });
       expect(result.valid).toBe(false);
@@ -22,7 +22,7 @@ describe('SDDValidator', () => {
     it('blocks modification of .git directory', () => {
       const validator = new SDDValidator(makeConfig());
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: '.git/config',
       });
       expect(result.valid).toBe(false);
@@ -37,7 +37,7 @@ describe('SDDValidator', () => {
       });
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'package-lock.json',
       });
       expect(result.valid).toBe(false);
@@ -53,7 +53,7 @@ describe('SDDValidator', () => {
       });
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'vite.config.ts',
       });
       expect(result.valid).toBe(true);
@@ -64,7 +64,7 @@ describe('SDDValidator', () => {
     it('allows modification of non-protected paths', () => {
       const validator = new SDDValidator(makeConfig());
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'src/components/Button.tsx',
       });
       expect(result.valid).toBe(true);
@@ -86,7 +86,7 @@ describe('SDDValidator', () => {
     it('blocks forbidden imports', () => {
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'src/components/Button.tsx',
         imports: ['./../../api/client'],
       });
@@ -96,7 +96,7 @@ describe('SDDValidator', () => {
     it('allows imports from permitted modules', () => {
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'src/components/Button.tsx',
         imports: ['src/utils/format'],
       });
@@ -107,7 +107,7 @@ describe('SDDValidator', () => {
     it('allows external package imports', () => {
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         targetPath: 'src/components/Button.tsx',
         imports: ['react', 'lodash'],
       });
@@ -123,7 +123,7 @@ describe('SDDValidator', () => {
       });
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         dependencies: ['moment'],
       });
       expect(result.valid).toBe(false);
@@ -136,7 +136,7 @@ describe('SDDValidator', () => {
       });
       const validator = new SDDValidator(config);
       const result = validator.validate({
-        type: 'modify_file',
+        type: 'write_file',
         dependencies: ['date-fns'],
       });
       expect(result.valid).toBe(true);
