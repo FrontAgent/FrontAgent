@@ -780,10 +780,13 @@ export function normalizePath(path: string): string {
  */
 export function matchGlob(path: string, pattern: string): boolean {
   const regexPattern = pattern
-    .replace(/\*\*/g, '{{GLOBSTAR}}')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')
-    .replace(/{{GLOBSTAR}}/g, '.*');
+    .replace(/\*\*/g, '\0GLOBSTAR\0')
+    .replace(/\*/g, '\0STAR\0')
+    .replace(/\?/g, '\0QUESTION\0')
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\0GLOBSTAR\0/g, '.*')
+    .replace(/\0STAR\0/g, '[^/]*')
+    .replace(/\0QUESTION\0/g, '[^/]');
   const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(normalizePath(path));
 }
