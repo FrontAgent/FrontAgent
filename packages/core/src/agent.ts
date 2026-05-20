@@ -46,7 +46,7 @@ import type {
 interface RetrievedRagContext {
   formattedResults: string[];
   matches: RagContextMatch[];
-  searchMode?: 'hybrid' | 'keyword_only';
+  searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
   reranked?: boolean;
   warnings?: string[];
   timing?: RagQueryTiming;
@@ -1824,7 +1824,7 @@ export class FrontAgent {
         maxResults: this.config.rag?.maxResults ?? 5,
       }) as {
         success?: boolean;
-        searchMode?: 'hybrid' | 'keyword_only';
+        searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
         reranked?: boolean;
         warnings?: string[];
         results?: Array<{

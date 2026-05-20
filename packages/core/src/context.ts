@@ -306,7 +306,7 @@ export class ContextManager {
     taskId: string,
     input: {
       matches?: RagContextMatch[];
-      searchMode?: 'hybrid' | 'keyword_only';
+      searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
       warnings?: string[];
     }
   ): void {
