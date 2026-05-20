@@ -8,6 +8,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_LLM_MAX_TOKENS, DEFAULT_LLM_TEMPERATURE } from '@frontagent/shared';
 
 const currentModuleDir = dirname(fileURLToPath(import.meta.url));
 
@@ -95,8 +96,8 @@ export function resolveLLMConfigFromOptions(options: {
     model,
     baseURL: resolveProviderBaseURL(provider, options.baseUrl),
     apiKey: resolveProviderApiKey(provider, options.apiKey),
-    maxTokens: parseOptionalInt(options.maxTokens) ?? 4096,
-    temperature: parseOptionalFloat(options.temperature) ?? 0.2,
+    maxTokens: parseOptionalInt(options.maxTokens) ?? DEFAULT_LLM_MAX_TOKENS,
+    temperature: parseOptionalFloat(options.temperature) ?? DEFAULT_LLM_TEMPERATURE,
     topP: parseOptionalFloat(options.topP) ?? parseOptionalFloat(process.env.TOP_P),
     topK: parseOptionalInt(options.topK) ?? parseOptionalInt(process.env.TOP_K),
   } as const;

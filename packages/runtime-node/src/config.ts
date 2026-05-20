@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentConfig, FilesenseConfig, RagConfig } from '@frontagent/core';
 import type { SecurityMode, TaskType } from '@frontagent/shared';
+import { DEFAULT_LLM_MAX_TOKENS, DEFAULT_LLM_TEMPERATURE } from '@frontagent/shared';
 
 export type LLMProvider = 'openai' | 'anthropic';
 
@@ -347,8 +348,8 @@ export function resolveRuntimeConfig(
       model,
       baseURL: resolvedLlmBaseURL,
       apiKey: resolvedLlmApiKey,
-      maxTokens: parseOptionalInt(input.maxTokens) ?? 4096,
-      temperature: parseOptionalFloat(input.temperature) ?? 0.7,
+      maxTokens: parseOptionalInt(input.maxTokens) ?? DEFAULT_LLM_MAX_TOKENS,
+      temperature: parseOptionalFloat(input.temperature) ?? DEFAULT_LLM_TEMPERATURE,
       topP: parseOptionalFloat(input.topP) ?? parseOptionalFloat(process.env.TOP_P),
       topK: parseOptionalInt(input.topK) ?? parseOptionalInt(process.env.TOP_K),
     },

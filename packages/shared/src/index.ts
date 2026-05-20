@@ -712,6 +712,9 @@ export interface ValidationResult {
 // 工具函数
 // ============================================================================
 
+export const DEFAULT_LLM_TEMPERATURE = 0.2;
+export const DEFAULT_LLM_MAX_TOKENS = 4096;
+
 /**
  * 生成唯一 ID
  */
