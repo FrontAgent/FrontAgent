@@ -1,6 +1,6 @@
 import type { AgentTask, ExecutionStep } from '@frontagent/shared';
-import type { ExecutorCollectedContext, PhaseExecutionGroup } from './types.js';
 import type { ExecutorOutput } from '../types.js';
+import type { ExecutorCollectedContext, PhaseExecutionGroup } from './types.js';
 
 export interface PhaseRunnerDeps {
   executeStep(
@@ -69,13 +69,27 @@ export class PhaseRunner {
 
     if (this.deps.parallelExecution) {
       await this.executePhaseParallel(
-        phaseSteps, context, completedStepIds, allResults,
-        phaseResults, phaseErrors, onStepStart, onStepComplete, signal,
+        phaseSteps,
+        context,
+        completedStepIds,
+        allResults,
+        phaseResults,
+        phaseErrors,
+        onStepStart,
+        onStepComplete,
+        signal,
       );
     } else {
       await this.executePhaseSequential(
-        phaseSteps, context, completedStepIds, allResults,
-        phaseResults, phaseErrors, onStepStart, onStepComplete, signal,
+        phaseSteps,
+        context,
+        completedStepIds,
+        allResults,
+        phaseResults,
+        phaseErrors,
+        onStepStart,
+        onStepComplete,
+        signal,
       );
     }
 
@@ -95,9 +109,17 @@ export class PhaseRunner {
     }
 
     await this.runPhaseRecovery(
-      phase, phaseSteps, phaseErrors, context,
-      completedStepIds, allResults, onStepStart, onStepComplete,
-      onPhaseError, onPhaseComplete, signal,
+      phase,
+      phaseSteps,
+      phaseErrors,
+      context,
+      completedStepIds,
+      allResults,
+      onStepStart,
+      onStepComplete,
+      onPhaseError,
+      onPhaseComplete,
+      signal,
     );
 
     const phaseStats = {
@@ -201,7 +223,9 @@ export class PhaseRunner {
         const missingDeps = step.dependencies.filter((dep) => !completedStepIds.has(dep));
         this.deps.debugWarn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
         this.deps.debugWarn(`[Executor]    Step description: ${step.description}`);
-        this.deps.debugWarn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
+        this.deps.debugWarn(
+          `[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`,
+        );
         this.deps.debugWarn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
         this.deps.debugWarn(
           `[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`,

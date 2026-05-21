@@ -122,7 +122,7 @@ describe('FileArtifactStore', () => {
       const meta = await store.loadMeta('change-001', 'spec');
       expect(meta).not.toBeNull();
       expect(meta!.id).toBe('art-1');
-      expect((meta as any).content).toBeUndefined();
+      expect((meta as unknown as Record<string, unknown>).content).toBeUndefined();
     });
 
     it('finds meta in archive if not in active', async () => {

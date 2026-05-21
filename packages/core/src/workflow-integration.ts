@@ -4,7 +4,6 @@
  */
 
 import { join } from 'node:path';
-import { logger } from '@frontagent/shared';
 import {
   type ArtifactStore,
   type ChecklistResult,
@@ -26,6 +25,7 @@ import {
   type WorkflowState,
   createWorkflowEngine,
 } from '@frontagent/sdd';
+import { logger } from '@frontagent/shared';
 import type { SDDWorkflowConfig } from './types.js';
 
 export interface WorkflowIntegrationOptions {

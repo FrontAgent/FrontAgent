@@ -56,34 +56,35 @@ describe('safeJsonParse', () => {
 
 describe('deepMerge', () => {
   it('merges flat objects', () => {
-    const result = deepMerge({ a: 1, b: 2 }, { b: 3, c: 4 } as any);
+    const target = { a: 1, b: 2 };
+    const result = deepMerge(target, { b: 3, c: 4 } as Partial<typeof target>);
     expect(result).toEqual({ a: 1, b: 3, c: 4 });
   });
 
   it('deep merges nested objects', () => {
     const target = { nested: { a: 1, b: 2 } };
     const source = { nested: { b: 3 } };
-    const result = deepMerge(target, source as any);
+    const result = deepMerge(target, source as Partial<typeof target>);
     expect(result).toEqual({ nested: { a: 1, b: 3 } });
   });
 
   it('overwrites arrays (no merge)', () => {
     const target = { arr: [1, 2, 3] };
     const source = { arr: [4, 5] };
-    const result = deepMerge(target, source as any);
+    const result = deepMerge(target, source as Partial<typeof target>);
     expect(result).toEqual({ arr: [4, 5] });
   });
 
   it('skips undefined values', () => {
     const target = { a: 1, b: 2 };
-    const source = { a: undefined, b: 3 };
-    const result = deepMerge(target, source as any);
+    const source: Partial<typeof target> = { a: undefined, b: 3 };
+    const result = deepMerge(target, source);
     expect(result).toEqual({ a: 1, b: 3 });
   });
 
   it('does not mutate target', () => {
     const target = { a: 1 };
-    deepMerge(target, { a: 2 } as any);
+    deepMerge(target, { a: 2 });
     expect(target.a).toBe(1);
   });
 });
