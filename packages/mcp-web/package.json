@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@frontagent/shared": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "playwright": "^1.40.0"
   },
   "devDependencies": {

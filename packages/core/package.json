@@ -26,7 +26,7 @@
     "@frontagent/shared": "workspace:*",
     "@langchain/core": "^1.1.32",
     "@langchain/langgraph": "^1.2.2",
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "ai": "^4.0.0",
     "zod": "^3.23.0"
   },
