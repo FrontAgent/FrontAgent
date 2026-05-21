@@ -1,11 +1,11 @@
-import type { z } from 'zod';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import type { z } from 'zod';
 import type { LLMService } from '../llm.js';
 import type { SkillContentResolver } from '../skill-content/resolver.js';
 import type { SkillManifest } from '../skill-content/types.js';
-import { compareBenchmarks } from './benchmark.js';
 import { analyzeBehaviorFailures, runBehaviorBenchmark } from './behavior-benchmark.js';
+import { compareBenchmarks } from './benchmark.js';
 import { writeBenchmarkSummary } from './reporting.js';
 import { SkillImprovementSchema } from './schemas.js';
 import { runTriggerBenchmark } from './trigger-benchmark.js';
@@ -263,10 +263,7 @@ export async function executeImprovement(
     .map((relativePath) => resolve(candidateSkillDir, relativePath))
     .filter((absolutePath) => !existsSync(absolutePath));
 
-  const fallbackRoots = [
-    join(projectRoot, 'skills'),
-    ...(userSkillRoots ?? []),
-  ];
+  const fallbackRoots = [join(projectRoot, 'skills'), ...(userSkillRoots ?? [])];
   const candidateManifest = resolveSkillManifestForRoot(
     skillName,
     candidateProjectRoot,
@@ -358,4 +355,3 @@ export async function executeImprovement(
     backupPath,
   };
 }
-
