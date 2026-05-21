@@ -10,7 +10,12 @@ import type { ContextManager } from '../context.js';
 import type { Executor } from '../executor.js';
 import type { LLMService } from '../llm.js';
 import type { CodeQualityIssue } from '../sub-agents/index.js';
-import type { AgentEvent, ExecutorOutput, FilesenseNavigationIntent, SubAgentConfig } from '../types.js';
+import type {
+  AgentEvent,
+  ExecutorOutput,
+  FilesenseNavigationIntent,
+  SubAgentConfig,
+} from '../types.js';
 import type { PhaseCheckDeps } from './phase-checks.js';
 import {
   checkMissingNpmDependencies,

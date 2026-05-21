@@ -5,12 +5,7 @@
 
 import { HallucinationGuard } from '@frontagent/hallucination-guard';
 import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
-import type {
-  AgentTask,
-  ExecutionPlan,
-  SDDConfig,
-  ValidationResult,
-} from '@frontagent/shared';
+import type { AgentTask, ExecutionPlan, SDDConfig, ValidationResult } from '@frontagent/shared';
 import { generateId, logger } from '@frontagent/shared';
 import { type A2AAgent, InMemoryA2ABus } from '../a2a.js';
 import { ContextManager } from '../context.js';
@@ -47,15 +42,15 @@ import { detectDevServerPort } from './dev-server-detection.js';
 import { mergeRetrievalQuery, normalizeSearchQuery } from './helpers.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
 import {
-  createOnPhaseComplete,
-  createOnPhaseError,
-  createOnStepComplete,
-} from './step-callbacks.js';
-import {
   formatRagResult,
   retrieveRagContext,
   rewriteRagQueryForRetrieval,
 } from './rag-retrieval.js';
+import {
+  createOnPhaseComplete,
+  createOnPhaseError,
+  createOnStepComplete,
+} from './step-callbacks.js';
 
 /**
  * FrontAgent 主类

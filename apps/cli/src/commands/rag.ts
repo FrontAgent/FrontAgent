@@ -47,28 +47,35 @@ function readJsonFile(path: string): unknown {
 function createRagCacheManifest(cacheDir: string, includesRepo: boolean): RagCacheBundleManifest {
   const indexPath = join(cacheDir, 'index.json');
   const embeddingPath = join(cacheDir, 'embeddings.json');
-  const index = existsSync(indexPath) ? readJsonFile(indexPath) : undefined;
-  const embeddingStore = existsSync(embeddingPath) ? readJsonFile(embeddingPath) : undefined;
+  const index = existsSync(indexPath)
+    ? (readJsonFile(indexPath) as Record<string, unknown>)
+    : undefined;
+  const embeddingStore = existsSync(embeddingPath)
+    ? (readJsonFile(embeddingPath) as Record<string, unknown>)
+    : undefined;
+
+  const indexSource = (index?.source ?? {}) as Record<string, unknown>;
+  const vectors = embeddingStore?.vectors as Record<string, unknown> | undefined;
 
   return {
     version: RAG_BUNDLE_VERSION,
     generatedAt: new Date().toISOString(),
     includesRepo,
     source: {
-      repoUrl: index?.source?.repoUrl,
-      branch: index?.source?.branch,
-      revision: index?.source?.revision,
-      indexedFiles: index?.source?.indexedFiles,
-      indexedChunks: index?.source?.indexedChunks,
+      repoUrl: indexSource.repoUrl as string | undefined,
+      branch: indexSource.branch as string | undefined,
+      revision: indexSource.revision as string | undefined,
+      indexedFiles: indexSource.indexedFiles as number | undefined,
+      indexedChunks: indexSource.indexedChunks as number | undefined,
     },
     embedding: {
-      model: embeddingStore?.model,
-      baseURL: embeddingStore?.baseURL,
-      dimensions: embeddingStore?.dimensions,
-      vectorCount: embeddingStore?.vectors ? Object.keys(embeddingStore.vectors).length : undefined,
-      storeVersion: embeddingStore?.version,
+      model: embeddingStore?.model as string | undefined,
+      baseURL: embeddingStore?.baseURL as string | undefined,
+      dimensions: embeddingStore?.dimensions as number | undefined,
+      vectorCount: vectors ? Object.keys(vectors).length : undefined,
+      storeVersion: embeddingStore?.version as number | undefined,
     },
-    indexVersion: index?.version,
+    indexVersion: index?.version as number | undefined,
   };
 }
 

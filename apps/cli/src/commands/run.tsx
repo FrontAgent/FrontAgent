@@ -34,7 +34,7 @@ function isDebugEnabled(value: unknown): boolean {
 
 export default async function runCommand(task: string, options: Record<string, unknown>) {
   const projectRoot = process.cwd();
-  const sddPath = resolve(projectRoot, options.sdd);
+  const sddPath = resolve(projectRoot, options.sdd as string);
   const debug = isDebugEnabled(options.debug);
   const canPromptForApproval = process.stdin.isTTY !== false;
 
@@ -56,11 +56,11 @@ export default async function runCommand(task: string, options: Record<string, u
       ...options,
       projectRoot,
       task,
-      sddPath: options.sdd,
-      type: options.type,
-      files: options.files,
-      url: options.url,
-      runLog: options.runLog,
+      sddPath: options.sdd as string | undefined,
+      type: options.type as string | undefined,
+      files: options.files as string[] | undefined,
+      url: options.url as string | undefined,
+      runLog: options.runLog as boolean | undefined,
       filterConsole: true,
       debug,
       onRunLogPath: (runLogPath) => {
