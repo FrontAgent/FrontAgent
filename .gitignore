@@ -74,3 +74,4 @@ models/frontagent-planner/data/*
 # FrontAgent planner training outputs
 models/frontagent-planner/output*/
 .gitnexus
+.codegraphcontext/
