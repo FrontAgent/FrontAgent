@@ -1,13 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectFactsSnapshot } from '../types.js';
 import { MemoryStore } from './store.js';
-import type { MemoryEntry, MemoryIndex, MemoryTopic, PersistenceInput } from './types.js';
+import type { PersistenceInput } from './types.js';
 import {
-  DEFAULT_MAX_TOPIC_FILES,
-  DEFAULT_PRELOAD_BUDGET_CHARS,
-  DEFAULT_RECALL_BUDGET_CHARS,
   FACTS_SNAPSHOT_FILE_NAME,
   INDEX_FILE_NAME,
   MEMORY_DIR_NAME,
@@ -23,7 +20,6 @@ vi.mock('@frontagent/shared', () => ({
 
 const PROJECT_ROOT = '/tmp/test-project';
 const MEMORY_DIR = join(PROJECT_ROOT, MEMORY_DIR_NAME);
-const TOPICS_DIR = join(MEMORY_DIR, TOPICS_DIR_NAME);
 const SNAPSHOTS_DIR = join(MEMORY_DIR, SNAPSHOTS_DIR_NAME);
 
 // --- Helpers ---
@@ -33,7 +29,7 @@ function makeIndexContent(topics: Array<{ title: string; id: string; summary: st
     '# FrontAgent Memory',
     '',
     `Project: \`${PROJECT_ROOT}\``,
-    `Updated: 2024-01-01T00:00:00.000Z`,
+    'Updated: 2024-01-01T00:00:00.000Z',
     '',
     '## Topics',
     '',
@@ -47,7 +43,10 @@ function makeIndexContent(topics: Array<{ title: string; id: string; summary: st
   return lines.join('\n');
 }
 
-function makeTopicContent(title: string, entries: Array<{ key: string; content: string; tags?: string[] }>): string {
+function makeTopicContent(
+  title: string,
+  entries: Array<{ key: string; content: string; tags?: string[] }>,
+): string {
   const lines = [`# ${title}`, ''];
   for (const e of entries) {
     const tagsStr = e.tags && e.tags.length > 0 ? ` [tags: ${e.tags.join(', ')}]` : '';
@@ -147,7 +146,11 @@ describe('MemoryStore', () => {
 
     it('loadTopic parses a valid topic file with entries', () => {
       const topicContent = makeTopicContent('Error Resolutions', [
-        { key: 'TypeError: x is not a function', content: 'Check import path', tags: ['error', 'TypeError'] },
+        {
+          key: 'TypeError: x is not a function',
+          content: 'Check import path',
+          tags: ['error', 'TypeError'],
+        },
         { key: 'ReferenceError: y is not defined', content: 'Add missing import', tags: ['error'] },
       ]);
       mockedExistsSync.mockReturnValue(true);
@@ -252,7 +255,11 @@ describe('MemoryStore', () => {
         factsSnapshot: createFactsSnapshot(),
         createdFiles: [],
         errorResolutions: [
-          { errorType: 'TypeError', errorMessage: 'Cannot read property x', resolution: 'Add null check' },
+          {
+            errorType: 'TypeError',
+            errorMessage: 'Cannot read property x',
+            resolution: 'Add null check',
+          },
         ],
         dependencyChanges: { installed: [], missing: [] },
         taskDescription: 'Fix bug',
@@ -577,11 +584,23 @@ describe('MemoryStore', () => {
         { title: 'Patterns', id: 'patterns', summary: 'code patterns' },
       ]);
       const errorsTopic = makeTopicContent('Errors', [
-        { key: 'TypeError in utils', content: 'Check null before access', tags: ['error', 'TypeError'] },
+        {
+          key: 'TypeError in utils',
+          content: 'Check null before access',
+          tags: ['error', 'TypeError'],
+        },
       ]);
       const patternsTopic = makeTopicContent('Patterns', [
-        { key: 'src/components/Button.tsx', content: 'Use forwardRef pattern', tags: ['component', 'react'] },
-        { key: 'src/api/client.ts', content: 'Always use try-catch', tags: ['api', 'error-handling'] },
+        {
+          key: 'src/components/Button.tsx',
+          content: 'Use forwardRef pattern',
+          tags: ['component', 'react'],
+        },
+        {
+          key: 'src/api/client.ts',
+          content: 'Always use try-catch',
+          tags: ['api', 'error-handling'],
+        },
       ]);
 
       mockedExistsSync.mockReturnValue(true);
@@ -654,7 +673,11 @@ describe('MemoryStore', () => {
 
     it('recall results are sorted by score descending', () => {
       setupRecallStore();
-      const results = store.recall({ filePath: 'src/api/client.ts', action: 'apply_patch', tags: ['api'] });
+      const results = store.recall({
+        filePath: 'src/api/client.ts',
+        action: 'apply_patch',
+        tags: ['api'],
+      });
       for (let i = 1; i < results.length; i++) {
         expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
       }
@@ -694,9 +717,7 @@ describe('MemoryStore', () => {
     });
 
     it('preload skips topics with no entries', () => {
-      const indexContent = makeIndexContent([
-        { title: 'Empty', id: 'empty', summary: 'nothing' },
-      ]);
+      const indexContent = makeIndexContent([{ title: 'Empty', id: 'empty', summary: 'nothing' }]);
       const emptyTopic = makeTopicContent('Empty', []);
 
       mockedExistsSync.mockReturnValue(true);
@@ -831,13 +852,17 @@ describe('MemoryStore', () => {
         if (path.includes('topic-a.md')) return true;
         return false;
       });
-      mockedReaddirSync.mockReturnValue(['topic-a.md'] as any);
+      mockedReaddirSync.mockReturnValue(['topic-a.md'] as unknown as ReturnType<
+        typeof readdirSync
+      >);
       mockedReadFileSync.mockReturnValue(
         makeTopicContent('Topic A', [{ key: 'entry', content: 'data' }]),
       );
 
       const input: PersistenceInput = {
-        factsSnapshot: createFactsSnapshot({ project: { devServerRunning: false, buildStatus: 'success' } }),
+        factsSnapshot: createFactsSnapshot({
+          project: { devServerRunning: false, buildStatus: 'success' },
+        }),
         createdFiles: [],
         errorResolutions: [],
         dependencyChanges: { installed: [], missing: [] },

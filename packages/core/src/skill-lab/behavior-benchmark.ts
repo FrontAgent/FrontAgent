@@ -1,8 +1,8 @@
 import type { LLMService } from '../llm.js';
 import type { SkillContentResolver } from '../skill-content/resolver.js';
 import type { SkillManifest } from '../skill-content/types.js';
-import { BehaviorCaseGradeSchema } from './schemas.js';
 import { summarizeBehaviorResults } from './benchmark.js';
+import { BehaviorCaseGradeSchema } from './schemas.js';
 import type {
   SkillBehaviorBenchmark,
   SkillBehaviorCheckResult,
@@ -283,8 +283,7 @@ export function createStarterBehaviorChecks(keyword: string): SkillBehaviorEvalC
     },
     {
       id: 'scope-discipline',
-      question:
-        'Does the answer stay focused on the task scope implied by the prompt and keyword?',
+      question: 'Does the answer stay focused on the task scope implied by the prompt and keyword?',
       passCriteria: `Focuses on "${keyword}" and related request scope without drifting into unrelated domains.`,
       failCriteria:
         'Derails into unrelated topics or broad advice that does not help complete the requested task.',
@@ -295,8 +294,7 @@ export function createStarterBehaviorChecks(keyword: string): SkillBehaviorEvalC
       question: 'Is the answer well-structured and easy to execute?',
       passCriteria:
         'Uses clear sections or steps, avoids contradictions, and remains concise enough to follow.',
-      failCriteria:
-        'Hard to follow, contradictory, or excessively verbose for the requested task.',
+      failCriteria: 'Hard to follow, contradictory, or excessively verbose for the requested task.',
       weight: 1,
     },
   ];
@@ -323,6 +321,3 @@ export function createNoTriggerBehaviorChecks(): SkillBehaviorEvalCase['checks']
     },
   ];
 }
-
-
-

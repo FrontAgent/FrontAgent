@@ -45,9 +45,21 @@ function mockLLMGeneratePlan(planner: Planner, mockFn: (...args: unknown[]) => u
 /** Default step params to reduce verbosity in mock LLM responses */
 function defaultParams(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    path: '', recursive: false, query: '', pattern: '', filePattern: '',
-    globOnly: false, maxResults: 0, directory: '', command: '', url: '',
-    selector: '', text: '', fullPage: false, codeDescription: '', changeDescription: '',
+    path: '',
+    recursive: false,
+    query: '',
+    pattern: '',
+    filePattern: '',
+    globOnly: false,
+    maxResults: 0,
+    directory: '',
+    command: '',
+    url: '',
+    selector: '',
+    text: '',
+    fullPage: false,
+    codeDescription: '',
+    changeDescription: '',
     ...overrides,
   };
 }
@@ -154,11 +166,7 @@ describe('Planner LLM-based plan generation', () => {
       alternatives: [],
     }));
 
-    const result = await planner.plan(
-      createTask({ type: 'create' }),
-      emptyContext(),
-      [],
-    );
+    const result = await planner.plan(createTask({ type: 'create' }), emptyContext(), []);
 
     expect(result.needsMoreContext).toBe(false);
     expect(result.plan).toBeDefined();
@@ -249,12 +257,14 @@ describe('Planner step ordering and dependencies', () => {
     const steps = result.plan!.steps;
     const readStep = steps.find((s) => s.action === 'read_file');
     const patchStep = steps.find((s) => s.action === 'apply_patch');
-    const runStep = steps.find((s) => s.action === 'run_command' && s.params.command === 'pnpm test');
+    const runStep = steps.find(
+      (s) => s.action === 'run_command' && s.params.command === 'pnpm test',
+    );
 
     expect(patchStep!.dependencies).toContain(readStep!.stepId);
     expect(runStep!.dependencies).toContain(patchStep!.stepId);
   });
-// PLACEHOLDER_CHUNK5
+  // PLACEHOLDER_CHUNK5
 
   it('allows parallel execution of consecutive read-only steps (no dependency)', async () => {
     const planner = createPlanner({ useLLM: true });
@@ -389,7 +399,7 @@ describe('Planner error handling', () => {
     const step = result.plan!.steps[0];
     expect(step.action).toBe('read_file');
   });
-// PLACEHOLDER_CHUNK7
+  // PLACEHOLDER_CHUNK7
 
   it('requests more context when modify task has unread relevant files', async () => {
     const planner = createPlanner({ useLLM: false });
@@ -495,7 +505,7 @@ describe('Planner edge cases', () => {
       maxRollbackSteps: 10,
     });
   });
-// PLACEHOLDER_CHUNK9
+  // PLACEHOLDER_CHUNK9
 
   it('disables rollback for query tasks', async () => {
     const planner = createPlanner({ useLLM: false });
@@ -543,7 +553,7 @@ describe('Planner edge cases', () => {
     );
     expect(hasRepoPhase).toBe(false);
   });
-// PLACEHOLDER_CHUNK10
+  // PLACEHOLDER_CHUNK10
 
   it('injects repository management phase when plan has code changes and acceptance steps', async () => {
     const planner = createPlanner({ useLLM: true });
@@ -661,9 +671,7 @@ describe('Planner skill registration', () => {
 describe('Planner configuration', () => {
   it('updates SDD config', () => {
     const planner = createPlanner();
-    expect(() =>
-      planner.updateSDDConfig({ contracts: [], invariants: [] }),
-    ).not.toThrow();
+    expect(() => planner.updateSDDConfig({ contracts: [], invariants: [] })).not.toThrow();
   });
 
   it('updates LLM config', () => {

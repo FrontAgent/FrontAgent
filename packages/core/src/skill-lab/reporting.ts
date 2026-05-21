@@ -52,9 +52,7 @@ export function writeBenchmarkSummary(
     lines.push('');
     lines.push(`- Behavior cases: ${behavior.summary.totalCases}`);
     lines.push(`- Behavior pass rate: ${(behavior.summary.passRate * 100).toFixed(1)}%`);
-    lines.push(
-      `- Behavior check pass rate: ${(behavior.summary.checkPassRate * 100).toFixed(1)}%`,
-    );
+    lines.push(`- Behavior check pass rate: ${(behavior.summary.checkPassRate * 100).toFixed(1)}%`);
     lines.push(`- Behavior score rate: ${(behavior.summary.scoreRate * 100).toFixed(1)}%`);
     lines.push(`- Trigger expectation failures: ${behavior.summary.triggerExpectationFailures}`);
     if (extras.baselineBehaviorBenchmark && comparison?.behavior) {
@@ -136,4 +134,3 @@ export function writeBenchmarkSummary(
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${lines.join('\n')}\n`, 'utf-8');
 }
-

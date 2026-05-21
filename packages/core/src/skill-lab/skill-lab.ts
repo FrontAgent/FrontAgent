@@ -4,10 +4,7 @@ import { LLMService } from '../llm.js';
 import { SkillContentLoader } from '../skill-content/loader.js';
 import { SkillContentResolver } from '../skill-content/resolver.js';
 import type { SkillManifest } from '../skill-content/types.js';
-import {
-  createStarterBehaviorSuite,
-  runBehaviorBenchmark,
-} from './behavior-benchmark.js';
+import { createStarterBehaviorSuite, runBehaviorBenchmark } from './behavior-benchmark.js';
 import { executeImprovement } from './improve.js';
 import { writeBenchmarkSummary } from './reporting.js';
 import { scaffoldSkill } from './scaffold.js';
@@ -27,13 +24,7 @@ import type {
   SkillLabSkillSummary,
   SkillTriggerEvalSuite,
 } from './types.js';
-import {
-  normalizeText,
-  sanitizeToken,
-  timestampId,
-  writeJsonFile,
-} from './utils.js';
-
+import { normalizeText, sanitizeToken, timestampId, writeJsonFile } from './utils.js';
 
 export class SkillLab {
   private readonly config: Required<Pick<SkillLabConfig, 'projectRoot' | 'outputRoot' | 'debug'>> &
@@ -134,7 +125,13 @@ export class SkillLab {
       this.config.projectRoot,
       this.config.skillContent?.userSkillRoots,
     );
-    const benchmark = runTriggerBenchmark(skillName, suite, suitePath, this.config.projectRoot, resolver);
+    const benchmark = runTriggerBenchmark(
+      skillName,
+      suite,
+      suitePath,
+      this.config.projectRoot,
+      resolver,
+    );
     const runId = timestampId();
     const runDir = join(this.getSkillLabDir(skillName), 'runs');
     const outputPath = join(runDir, `${runId}-baseline.json`);
@@ -344,10 +341,3 @@ export class SkillLab {
     return BehaviorEvalSuiteSchema.parse(raw);
   }
 }
-
-
-
-
-
-
-

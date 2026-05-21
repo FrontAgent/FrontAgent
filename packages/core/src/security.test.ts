@@ -3,12 +3,7 @@ import type { AgentTask, ExecutionStep, SDDConfig, SecurityDecision } from '@fro
 import { describe, expect, it } from 'vitest';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
-import {
-  SecurityManager,
-  normalizeSecurity,
-  toApprovalRequest,
-  type SecurityEvaluationInput,
-} from './security.js';
+import { SecurityManager, normalizeSecurity, toApprovalRequest } from './security.js';
 
 const projectRoot = '/tmp/frontagent-project';
 
@@ -82,7 +77,7 @@ describe('normalizeSecurity', () => {
 
   it('passes through unrecognized mode values without validation', () => {
     // normalizeSecurity does not validate mode values; it trusts the caller
-    const result = normalizeSecurity({ mode: 'turbo' as any });
+    const result = normalizeSecurity({ mode: 'turbo' as unknown as 'strict' });
     expect(result.mode).toBe('turbo');
   });
 });
@@ -495,11 +490,7 @@ describe('SecurityManager', () => {
     });
 
     describe('install commands', () => {
-      const installCommands = [
-        'pnpm add left-pad',
-        'npm install express',
-        'yarn add lodash',
-      ];
+      const installCommands = ['pnpm add left-pad', 'npm install express', 'yarn add lodash'];
 
       for (const cmd of installCommands) {
         it(`asks approval for install command: ${cmd}`, () => {
@@ -612,11 +603,7 @@ describe('SecurityManager', () => {
     });
 
     describe('localhost access', () => {
-      const localUrls = [
-        'http://localhost:3000',
-        'http://127.0.0.1:8080',
-        'http://[::1]:5173',
-      ];
+      const localUrls = ['http://localhost:3000', 'http://127.0.0.1:8080', 'http://[::1]:5173'];
 
       for (const url of localUrls) {
         it(`allows browser action on local URL: ${url}`, () => {
@@ -721,7 +708,6 @@ describe('SecurityManager', () => {
       const MAX_SUMMARY_LENGTH = 220;
       expect(result.argsSummary!.length).toBeLessThanOrEqual(MAX_SUMMARY_LENGTH + 3);
       expect(result.argsSummary!).toMatch(/\.\.\.$/);
-
     });
   });
 
@@ -783,4 +769,3 @@ describe('SecurityManager', () => {
     });
   });
 });
-
