@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { logger } from '@frontagent/shared';
 import type { ProjectFactsSnapshot } from '../types.js';
@@ -9,8 +9,8 @@ import type {
   MemoryTopic,
   MemoryTopicMeta,
   PersistenceInput,
-  RecallQuery,
   RecalledMemory,
+  RecallQuery,
 } from './types.js';
 import {
   DEFAULT_MAX_TOPIC_FILES,

@@ -94,7 +94,7 @@ async function checkPackageExists(packageName: string, projectRoot: string): Pro
   const packageJsonPath = join(projectRoot, 'package.json');
   if (existsSync(packageJsonPath)) {
     try {
-      const packageJson = await import(packageJsonPath, { assert: { type: 'json' } });
+      const packageJson = await import(packageJsonPath, { with: { type: 'json' } });
       const deps = {
         ...packageJson.default?.dependencies,
         ...packageJson.default?.devDependencies,

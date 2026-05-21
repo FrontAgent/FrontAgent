@@ -1,3 +1,3 @@
-export { LLMService, normalizeProviderBaseURL } from './llm-service.js';
 export { createLLMService } from './factory.js';
-export type { GeneratedPlan, GeneratedCode, GeneratedPatch } from './schemas.js';
+export { LLMService, normalizeProviderBaseURL } from './llm-service.js';
+export type { GeneratedCode, GeneratedPatch, GeneratedPlan } from './schemas.js';

@@ -3,7 +3,7 @@ import type { AgentTask, ExecutionStep, SDDConfig, SecurityDecision } from '@fro
 import { describe, expect, it } from 'vitest';
 import { Executor, type MCPClient } from './executor.js';
 import { LLMService } from './llm.js';
-import { SecurityManager, normalizeSecurity, toApprovalRequest } from './security.js';
+import { normalizeSecurity, SecurityManager, toApprovalRequest } from './security.js';
 
 const projectRoot = '/tmp/frontagent-project';
 

@@ -175,7 +175,7 @@ function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean
   }
 
   if (['.css', '.scss', '.sass', '.less'].includes(extension)) {
-    return /^(@media|@supports|@keyframes|:root\b|[.#a-zA-Z\[\]][^{}]*\{)\s*$/.test(trimmedLine);
+    return /^(@media|@supports|@keyframes|:root\b|[.#a-zA-Z[\]][^{}]*\{)\s*$/.test(trimmedLine);
   }
 
   if (['.html', '.vue', '.md'].includes(extension)) {

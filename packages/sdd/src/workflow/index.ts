@@ -2,72 +2,63 @@
  * Workflow 模块
  */
 
-export { WorkflowEngine, createWorkflowEngine, type WorkflowEngineOptions } from './engine.js';
-
+export { BUILT_IN_CHECKLISTS } from './checklist/built-in.js';
 export type {
-  WorkflowPhase,
-  WorkflowState,
-  WorkflowConfig,
-  PhaseGuard,
-  PhaseGuardResult,
-  PhaseTransition,
-  ChecklistResultRef,
-  PhaseGuardType,
-} from './types.js';
-
-export { DEFAULT_WORKFLOW_CONFIG } from './types.js';
-
+  ChecklistCategory,
+  ChecklistEvaluator,
+  ChecklistItem,
+  ChecklistItemResult,
+  ChecklistResult,
+} from './checklist/types.js';
 export {
   ChecklistValidator,
   createChecklistValidator,
 } from './checklist/validator.js';
-
-export type {
-  ChecklistItem,
-  ChecklistItemResult,
-  ChecklistResult,
-  ChecklistEvaluator,
-  ChecklistCategory,
-} from './checklist/types.js';
-
-export { BUILT_IN_CHECKLISTS } from './checklist/built-in.js';
-
+export { createWorkflowEngine, WorkflowEngine, type WorkflowEngineOptions } from './engine.js';
 export {
-  generateSpecPrompt,
-  extractSpecTitle,
-  type SpecifyInput,
-  type SpecifyOutput,
-} from './phases/specify.js';
-
-export {
-  generateClarifyPrompt,
-  parseClarifyQuestions,
-  isResolved,
   applyAnswersToSpec,
-  type ClarifyQuestion,
   type ClarifyAnswer,
+  type ClarifyQuestion,
   type ClarifyRoundResult,
+  generateClarifyPrompt,
+  isResolved,
+  parseClarifyQuestions,
 } from './phases/clarify.js';
-
 export {
-  generatePlanPrompt,
-  extractStepCount,
   extractFilePaths,
+  extractStepCount,
+  generatePlanPrompt,
   type PlanInput,
   type PlanOutput,
 } from './phases/plan.js';
 
 export {
+  extractSpecTitle,
+  generateSpecPrompt,
+  type SpecifyInput,
+  type SpecifyOutput,
+} from './phases/specify.js';
+export {
+  computeCriticalPath,
   generateTasksPrompt,
   parseTaskList,
-  computeCriticalPath,
-  type TaskItem,
   type TaskDecomposition,
+  type TaskItem,
 } from './phases/tasks.js';
-
 export {
-  generateVerifyPrompt,
   evaluateVerification,
+  generateVerifyPrompt,
   type VerifyInput,
   type VerifyOutput,
 } from './phases/verify.js';
+export type {
+  ChecklistResultRef,
+  PhaseGuard,
+  PhaseGuardResult,
+  PhaseGuardType,
+  PhaseTransition,
+  WorkflowConfig,
+  WorkflowPhase,
+  WorkflowState,
+} from './types.js';
+export { DEFAULT_WORKFLOW_CONFIG } from './types.js';

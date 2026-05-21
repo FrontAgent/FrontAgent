@@ -532,7 +532,7 @@ async function writeDirectoryIndex(
 
   for (const entry of entries) {
     const absolutePath = path.join(dirPath, entry.name);
-    const entryMtimeMs = Number(entry.stat.mtimeMs);
+    const entryMtimeMs = Number(entry.stat?.mtimeMs ?? 0);
     if (entry.type === 'dir') {
       children.push({
         name: entry.name,
@@ -549,7 +549,7 @@ async function writeDirectoryIndex(
       continue;
     }
 
-    const entrySize = Number(entry.stat.size);
+    const entrySize = Number(entry.stat?.size ?? 0);
     const prev = previousMap.get(entry.name);
     let hash = prev?.hash ?? null;
     const unchanged =
@@ -909,8 +909,8 @@ export async function navigate(
               type: entry.type,
               path: relativeToRoot(root, absolutePath),
               ext: entry.type === 'file' ? path.extname(entry.name) : '',
-              size: entry.type === 'file' ? Number(entry.stat.size) : 0,
-              mtimeMs: Number(entry.stat.mtimeMs),
+              size: entry.type === 'file' ? Number(entry.stat?.size ?? 0) : 0,
+              mtimeMs: Number(entry.stat?.mtimeMs ?? 0),
               hash: null,
               summary: entry.type === 'dir' ? 'Directory' : inferSummary(entry.name),
               importance: entry.type === 'file' ? inferImportance(entry.name) : 'normal',

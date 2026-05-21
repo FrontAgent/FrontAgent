@@ -20,16 +20,16 @@
   },
   "dependencies": {
     "@frontagent/core": "workspace:*",
-    "@frontagent/shared": "workspace:*",
-    "@frontagent/sdd": "workspace:*",
     "@frontagent/mcp-file": "workspace:*",
     "@frontagent/mcp-filesense": "workspace:*",
     "@frontagent/mcp-memory": "workspace:*",
-    "@frontagent/mcp-web": "workspace:*",
     "@frontagent/mcp-shell": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.25.2",
-    "zod": "^3.23.0",
-    "zod-to-json-schema": "^3.25.0"
+    "@frontagent/mcp-web": "workspace:*",
+    "@frontagent/sdd": "workspace:*",
+    "@frontagent/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

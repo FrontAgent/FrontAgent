@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  A2A_PROTOCOL_NAME,
+  A2A_PROTOCOL_VERSION,
   type A2AAgent,
   type A2ARequest,
   type A2AResponse,
-  A2A_PROTOCOL_NAME,
-  A2A_PROTOCOL_VERSION,
   InMemoryA2ABus,
 } from './a2a.js';
 

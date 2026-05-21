@@ -1,16 +1,16 @@
-export { SkillLab } from './skill-lab.js';
+export {
+  compareBehaviorBenchmarks,
+  compareBenchmarks,
+  summarizeBehaviorResults,
+  summarizeResults,
+} from './benchmark.js';
 export {
   BehaviorCaseGradeSchema,
   BehaviorEvalSuiteSchema,
   SkillImprovementSchema,
   TriggerEvalSuiteSchema,
 } from './schemas.js';
-export {
-  compareBenchmarks,
-  compareBehaviorBenchmarks,
-  summarizeBehaviorResults,
-  summarizeResults,
-} from './benchmark.js';
+export { SkillLab } from './skill-lab.js';
 export {
   extractReferencedFilesFromMarkdown,
   normalizeText,

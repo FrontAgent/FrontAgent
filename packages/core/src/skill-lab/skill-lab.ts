@@ -10,12 +10,12 @@ import { writeBenchmarkSummary } from './reporting.js';
 import { scaffoldSkill } from './scaffold.js';
 import { BehaviorEvalSuiteSchema, TriggerEvalSuiteSchema } from './schemas.js';
 import { createStarterTriggerSuite, runTriggerBenchmark } from './trigger-benchmark.js';
-import type { SkillLabConfig } from './types.js';
 import type {
   SkillBehaviorBenchmark,
   SkillBehaviorEvalSuite,
   SkillLabBehaviorInitResult,
   SkillLabBenchmarkResult,
+  SkillLabConfig,
   SkillLabImproveOptions,
   SkillLabImproveResult,
   SkillLabInitResult,

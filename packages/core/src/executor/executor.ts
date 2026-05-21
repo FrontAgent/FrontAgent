@@ -11,12 +11,13 @@ import { logger } from '@frontagent/shared';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { SecurityManager, toApprovalRequest } from '../security.js';
 import {
+  createDefaultExecutorSkillRegistry,
   type ExecutorActionSkill,
   type ExecutorSkillsLayerSnapshot,
-  createDefaultExecutorSkillRegistry,
 } from '../skills/index.js';
 import type { ExecutorOutput } from '../types.js';
 import { buildOrderedPhaseGroups, detectLanguage } from './phase-ordering.js';
+import { PhaseRunner } from './phase-runner.js';
 import type {
   ExecutorCollectedContext,
   ExecutorConfig,
@@ -27,8 +28,6 @@ import type {
   PhaseExecutionGroup,
   SerializablePhaseExecutionGroup,
 } from './types.js';
-
-import { PhaseRunner } from './phase-runner.js';
 
 export class Executor {
   private config: ExecutorConfig;

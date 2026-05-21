@@ -6,8 +6,8 @@
 import {
   type ActionType,
   type ConstraintViolation,
-  type SDDConfig,
   normalizePath,
+  type SDDConfig,
 } from '@frontagent/shared';
 import { minimatch } from 'minimatch';
 

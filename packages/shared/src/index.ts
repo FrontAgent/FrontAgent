@@ -2,70 +2,12 @@
  * @frontagent/shared - Shared types and utilities
  */
 
-// Types - Task & Execution
-export type {
-  TaskType,
-  StepStatus,
-  ViolationSeverity,
-  ActionType,
-  ValidationType,
-  AgentTask,
-  TaskContext,
-  ExecutionPlan,
-  ExecutionPhase,
-  ExecutionStep,
-  StepResult,
-  RollbackStrategy,
-  ValidationRule,
-  ConstraintViolation,
-} from './types/task.js';
-
-// Types - SDD
-export type {
-  SDDConfig,
-  ProjectConfig,
-  TechStackConfig,
-  DirectoryStructureConfig,
-  DirectoryRule,
-  ModuleBoundary,
-  NamingConventions,
-  CodeQualityConfig,
-  ModificationRules,
-  ApprovalRule,
-} from './types/sdd.js';
-
-// Types - MCP
-export type {
-  MCPToolDefinition,
-  MCPPropertySchema,
-  FilePatch,
-  PatchResult,
-  LintError,
-  TypeError,
-} from './types/mcp.js';
-
-// Types - Page structure
-export type { DOMNode, AXNode, InteractiveElement, BoundingBox } from './types/page.js';
-
-// Types - Validation / Hallucination
-export type { HallucinationCheckResult, ValidationResult } from './types/validation.js';
-
-// Security types
-export type {
-  SecurityMode,
-  SecurityDecisionOutcome,
-  SecurityRiskLevel,
-  SecurityRuleSource,
-  SecurityRuleProvenance,
-  SecurityConfig,
-  SecurityDecision,
-  ApprovalRequest,
-} from './security/types.js';
-
+// Logger
+export { getLogLevel, type LogLevel, logger, setLogLevel } from './logger.js';
 // Security - Shell analysis
 export type {
-  ShellCommandAnalysis,
   DangerousShellCommandResult,
+  ShellCommandAnalysis,
 } from './security/shell-analysis.js';
 export {
   analyzeShellCommand,
@@ -73,19 +15,69 @@ export {
   isCommonValidationCommand,
   isInstallCommand,
 } from './security/shell-analysis.js';
-
+// Security types
+export type {
+  ApprovalRequest,
+  SecurityConfig,
+  SecurityDecision,
+  SecurityDecisionOutcome,
+  SecurityMode,
+  SecurityRiskLevel,
+  SecurityRuleProvenance,
+  SecurityRuleSource,
+} from './security/types.js';
+// Types - MCP
+export type {
+  FilePatch,
+  LintError,
+  MCPPropertySchema,
+  MCPToolDefinition,
+  PatchResult,
+  TypeError,
+} from './types/mcp.js';
+// Types - Page structure
+export type { AXNode, BoundingBox, DOMNode, InteractiveElement } from './types/page.js';
+// Types - SDD
+export type {
+  ApprovalRule,
+  CodeQualityConfig,
+  DirectoryRule,
+  DirectoryStructureConfig,
+  ModificationRules,
+  ModuleBoundary,
+  NamingConventions,
+  ProjectConfig,
+  SDDConfig,
+  TechStackConfig,
+} from './types/sdd.js';
+// Types - Task & Execution
+export type {
+  ActionType,
+  AgentTask,
+  ConstraintViolation,
+  ExecutionPhase,
+  ExecutionPlan,
+  ExecutionStep,
+  RollbackStrategy,
+  StepResult,
+  StepStatus,
+  TaskContext,
+  TaskType,
+  ValidationRule,
+  ValidationType,
+  ViolationSeverity,
+} from './types/task.js';
+// Types - Validation / Hallucination
+export type { HallucinationCheckResult, ValidationResult } from './types/validation.js';
 // Utilities
 export {
-  DEFAULT_LLM_TEMPERATURE,
   DEFAULT_LLM_MAX_TOKENS,
-  generateId,
-  delay,
-  safeJsonParse,
+  DEFAULT_LLM_TEMPERATURE,
   deepMerge,
-  normalizePath,
-  matchGlob,
+  delay,
   escapeRegex,
+  generateId,
+  matchGlob,
+  normalizePath,
+  safeJsonParse,
 } from './utils.js';
-
-// Logger
-export { logger, setLogLevel, getLogLevel, type LogLevel } from './logger.js';

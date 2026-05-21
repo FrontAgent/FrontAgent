@@ -2,4 +2,4 @@
  * @frontagent/mcp-web - MCP Web Adapter
  */
 
-export { BrowserManager, createBrowserManager, type BrowserConfig } from './browser.js';
+export { type BrowserConfig, BrowserManager, createBrowserManager } from './browser.js';

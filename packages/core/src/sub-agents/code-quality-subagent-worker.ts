@@ -4,8 +4,8 @@
  */
 
 import { generateId } from '@frontagent/shared';
-import { A2A_PROTOCOL_NAME, A2A_PROTOCOL_VERSION } from '../a2a.js';
 import type { A2ARequest, A2AResponse } from '../a2a.js';
+import { A2A_PROTOCOL_NAME, A2A_PROTOCOL_VERSION } from '../a2a.js';
 import { LLMService } from '../llm.js';
 import type { LLMConfig } from '../types.js';
 import {

@@ -323,7 +323,10 @@ export function reduceAgentEvent(state: ViewState, event: AgentEvent): ViewState
     case 'rag_retrieved':
       return {
         ...state,
-        ragMatches: event.matches.map((match) => ({ title: match.title, path: match.path })),
+        ragMatches: event.matches.map((match) => ({
+          title: match.title,
+          path: match.path,
+        })),
         ragSearchMode: event.searchMode ?? null,
         ragReranked: event.reranked ?? false,
         ragWarnings: event.warnings ?? [],

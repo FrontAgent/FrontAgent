@@ -4,10 +4,10 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { type SDDConfig, deepMerge } from '@frontagent/shared';
+import { deepMerge, type SDDConfig } from '@frontagent/shared';
 import AjvModule from 'ajv';
 import { parse as parseYaml } from 'yaml';
-import { SDDSchema, defaultSDDConfig } from './schema.js';
+import { defaultSDDConfig, SDDSchema } from './schema.js';
 
 export interface ParseResult {
   success: boolean;

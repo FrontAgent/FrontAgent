@@ -22,7 +22,7 @@ export function safeJsonParse<T>(json: string, defaultValue: T): T {
 export function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
   const result = { ...target };
   for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
+    if (Object.hasOwn(source, key)) {
       const sourceValue = source[key];
       if (sourceValue === undefined) continue;
       const targetValue = result[key];

@@ -1,24 +1,24 @@
 import type { ApprovalRequest } from '@frontagent/runtime-node';
 import * as vscode from 'vscode';
 import {
-  SECRET_API_KEY,
   getWorkspaceFolder,
   normalizeFiles,
   resolveConfigurationStatus,
   resolveRuntimeOptions,
+  SECRET_API_KEY,
 } from './settings-resolve.js';
 import {
-  type ChatMode,
-  type ViewApproval,
-  type ViewState,
   appendChatMessage,
   applyPrefill,
   beginChatRun,
+  type ChatMode,
   createInitialViewState,
   failChatRun,
   reduceAgentEvent,
   setConfigStatus,
   setDetailsCollapsed,
+  type ViewApproval,
+  type ViewState,
 } from './state.js';
 import { getWebviewHtml } from './webview-html.js';
 
@@ -39,13 +39,25 @@ export interface PrefillRequest {
 
 type WebviewMessage =
   | { type: 'ready' }
-  | { type: 'send'; task: string; mode: ChatMode; files: string[]; url?: string }
+  | {
+      type: 'send';
+      task: string;
+      mode: ChatMode;
+      files: string[];
+      url?: string;
+    }
   | { type: 'stop' }
   | { type: 'approve'; approvalId: string }
   | { type: 'reject'; approvalId: string }
   | { type: 'openLog' }
   | { type: 'configure' }
-  | { type: 'saveConfig'; provider: string; model: string; baseUrl: string; apiKey?: string }
+  | {
+      type: 'saveConfig';
+      provider: string;
+      model: string;
+      baseUrl: string;
+      apiKey?: string;
+    }
   | { type: 'details'; collapsed: boolean }
   | { type: 'webviewError'; message: string; stack?: string };
 
@@ -257,7 +269,10 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
         this.log(
           `Run finished. success=${String(result.success)}, steps=${result.executedSteps.length}`,
         );
-        this.state = reduceAgentEvent(this.state, { type: 'task_completed', result });
+        this.state = reduceAgentEvent(this.state, {
+          type: 'task_completed',
+          result,
+        });
         this.postState();
       })
       .catch((error) => {

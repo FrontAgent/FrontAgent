@@ -23,15 +23,15 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@frontagent/shared": "workspace:*",
     "@frontagent/mcp-filesense": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@frontagent/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "diff": "^5.2.2",
-    "ts-morph": "^21.0.0",
-    "glob": "^10.3.0"
+    "glob": "^10.5.0",
+    "ts-morph": "^21.0.1"
   },
   "devDependencies": {
-    "@types/diff": "^5.0.0",
+    "@types/diff": "^5.2.3",
     "@types/node": "^25.9.1",
     "typescript": "^6.0.3"
   }
