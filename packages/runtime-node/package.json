@@ -27,7 +27,7 @@
     "@frontagent/mcp-memory": "workspace:*",
     "@frontagent/mcp-web": "workspace:*",
     "@frontagent/mcp-shell": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^3.23.0",
     "zod-to-json-schema": "^3.25.0"
   },

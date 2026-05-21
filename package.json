@@ -70,6 +70,22 @@
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
   },
+  "pnpm": {
+    "overrides": {
+      "hono": ">=4.12.18",
+      "@hono/node-server": ">=1.19.13",
+      "path-to-regexp": ">=8.4.0",
+      "fast-uri": ">=3.1.2",
+      "langsmith": ">=0.6.0",
+      "minimatch": ">=9.0.6",
+      "ws": ">=8.20.1",
+      "uuid": ">=13.0.1",
+      "brace-expansion": ">=2.0.3",
+      "jsondiffpatch": ">=0.6.0",
+      "ajv": ">=8.17.2",
+      "yaml": ">=2.8.3"
+    }
+  },
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=20.0.0"
