@@ -59,14 +59,14 @@
   },
   "homepage": "https://github.com/ceilf6/FrontAgent#readme",
   "dependencies": {
-    "playwright": "^1.40.0",
-    "ts-morph": "^21.0.0"
+    "playwright": "^1.60.0",
+    "ts-morph": "^21.0.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
     "@types/node": "^25.9.1",
     "esbuild": "^0.28.0",
-    "turbo": "^2.0.0",
+    "turbo": "^2.9.14",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
   },

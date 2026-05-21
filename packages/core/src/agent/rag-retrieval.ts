@@ -3,10 +3,10 @@ import type { Executor } from '../executor.js';
 import type { LLMService } from '../llm.js';
 import type { AgentConfig, RagQueryTiming } from '../types.js';
 import {
-  type RagContextMatchInternal,
-  type RetrievedRagContext,
   mergeRetrievalQuery,
   normalizeSearchQuery,
+  type RagContextMatchInternal,
+  type RetrievedRagContext,
   ragQueryRewriteSchema,
 } from './helpers.js';
 

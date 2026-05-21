@@ -1,14 +1,14 @@
 #!/usr/bin/env node
+
 /**
  * MCP File Server
  * 提供文件操作的 MCP 工具接口
  */
 
+import { allFilesenseSchemas, handleFilesenseTool } from '@frontagent/mcp-filesense';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-
-import { allFilesenseSchemas, handleFilesenseTool } from '@frontagent/mcp-filesense';
 import { SnapshotManager } from './snapshot.js';
 import { applyPatch, applyPatchSchema } from './tools/apply-patch.js';
 import { createFile, createFileSchema } from './tools/create-file.js';

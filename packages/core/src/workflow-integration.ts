@@ -11,6 +11,7 @@ import {
   type Constitution,
   ConstitutionParser,
   ConstitutionPromptGenerator,
+  createWorkflowEngine,
   DEFAULT_VERIFICATION_POLICY,
   FileArtifactStore,
   type PhaseGuardResult,
@@ -23,7 +24,6 @@ import {
   type WorkflowEngine,
   type WorkflowPhase,
   type WorkflowState,
-  createWorkflowEngine,
 } from '@frontagent/sdd';
 import { logger } from '@frontagent/shared';
 import type { SDDWorkflowConfig } from './types.js';

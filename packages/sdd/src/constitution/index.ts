@@ -2,22 +2,20 @@
  * Constitution 模块
  */
 
+export {
+  type ConstitutionParseResult,
+  ConstitutionParser,
+  createConstitutionParser,
+} from './parser.js';
+export {
+  ConstitutionPromptGenerator,
+  type ConstitutionPromptOptions,
+  createConstitutionPromptGenerator,
+} from './prompt-generator.js';
 export type {
+  BehaviorDirective,
   Constitution,
   Principle,
   PrinciplePriority,
-  BehaviorDirective,
   ReviewCriterion,
 } from './types.js';
-
-export {
-  ConstitutionParser,
-  createConstitutionParser,
-  type ConstitutionParseResult,
-} from './parser.js';
-
-export {
-  ConstitutionPromptGenerator,
-  createConstitutionPromptGenerator,
-  type ConstitutionPromptOptions,
-} from './prompt-generator.js';

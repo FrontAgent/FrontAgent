@@ -2,17 +2,17 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import { SDDValidator } from '@frontagent/sdd';
 import {
   type ApprovalRequest,
+  analyzeShellCommand,
+  detectDangerousShellCommand,
+  generateId,
+  isCommonValidationCommand,
+  isInstallCommand,
   type SDDConfig,
   type SecurityConfig,
   type SecurityDecision,
   type SecurityMode,
   type SecurityRiskLevel,
   type SecurityRuleProvenance,
-  analyzeShellCommand,
-  detectDangerousShellCommand,
-  generateId,
-  isCommonValidationCommand,
-  isInstallCommand,
 } from '@frontagent/shared';
 
 export interface SecurityEvaluationInput {

@@ -9,11 +9,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateId } from '@frontagent/shared';
 import {
+  A2A_PROTOCOL_NAME,
+  A2A_PROTOCOL_VERSION,
   type A2AAgent,
   type A2ARequest,
   type A2AResponse,
-  A2A_PROTOCOL_NAME,
-  A2A_PROTOCOL_VERSION,
 } from '../a2a.js';
 import type { LLMConfig } from '../types.js';
 import type {

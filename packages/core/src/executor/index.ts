@@ -1,6 +1,6 @@
-export { Executor, createExecutor } from './executor.js';
-export { createTraceCollector } from './trace.js';
+export { createExecutor, Executor } from './executor.js';
 export { buildOrderedPhaseGroups, detectLanguage, getPhasePriority } from './phase-ordering.js';
+export { createTraceCollector } from './trace.js';
 export type {
   ExecutorCollectedContext,
   ExecutorConfig,
@@ -8,8 +8,8 @@ export type {
   ExecutorSubStage,
   ExecutorTraceCollector,
   ExecutorTraceConfig,
-  ExecutorTraceSummary,
   ExecutorTraceStage,
+  ExecutorTraceSummary,
   LangGraphRuntimeState,
   MCPClient,
   PhaseExecutionGroup,

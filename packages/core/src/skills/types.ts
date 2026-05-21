@@ -38,7 +38,11 @@ export interface TaskPlanningSkill {
 
 export interface PhaseInjectionSkill {
   name: string;
-  shouldInject(input: { task: AgentTask; steps: ExecutionStep[]; filesense?: FilesenseConfig }): boolean;
+  shouldInject(input: {
+    task: AgentTask;
+    steps: ExecutionStep[];
+    filesense?: FilesenseConfig;
+  }): boolean;
   apply(input: {
     task: AgentTask;
     steps: ExecutionStep[];

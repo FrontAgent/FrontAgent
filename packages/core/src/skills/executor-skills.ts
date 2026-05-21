@@ -135,7 +135,8 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     validateParams: ({ step, params }) => {
       const stepAny = step as { needsCodeGeneration?: boolean };
       const hasContent = typeof params.content === 'string' && params.content.length > 0;
-      const hasDescription = typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
+      const hasDescription =
+        typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
 
       if (!hasContent && !stepAny.needsCodeGeneration && !hasDescription) {
         return {
@@ -149,8 +150,11 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     prepareToolParams: async ({ step, params, context, onSubStageTiming }) => {
       const stepAny = step as { needsCodeGeneration?: boolean };
       const hasContent = typeof params.content === 'string' && params.content.length > 0;
-      const hasDescription = typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
-      const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || (!hasContent && hasDescription));
+      const hasDescription =
+        typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
+      const shouldGenerateCode = Boolean(
+        stepAny.needsCodeGeneration || (!hasContent && hasDescription),
+      );
       if (!shouldGenerateCode) {
         return params;
       }
@@ -169,7 +173,9 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       if (memoryRecall) {
         contextStr = `${contextStr}\n\n${memoryRecall}`;
         if (runtime.debug) {
-          console.log(`[Executor] [Skill:create_file] Injected ${memoryRecall.length} chars of recalled memory`);
+          console.log(
+            `[Executor] [Skill:create_file] Injected ${memoryRecall.length} chars of recalled memory`,
+          );
         }
       }
       onSubStageTiming?.('memory_recall', performance.now() - t0);
@@ -177,7 +183,9 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       t0 = performance.now();
       const existingModules =
         runtime.getCreatedModules?.() ??
-        Array.from(context.collectedContext.files.keys()).filter((path) => /\.(tsx?|jsx?|mjs|cjs)$/.test(path));
+        Array.from(context.collectedContext.files.keys()).filter((path) =>
+          /\.(tsx?|jsx?|mjs|cjs)$/.test(path),
+        );
       onSubStageTiming?.('resolve_modules', performance.now() - t0);
 
       if (runtime.debug) {
@@ -240,7 +248,9 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       if (memoryRecall) {
         changeDescription = `${changeDescription}\n\n参考记忆:\n${memoryRecall}`;
         if (runtime.debug) {
-          console.log(`[Executor] [Skill:apply_patch] Injected ${memoryRecall.length} chars of recalled memory`);
+          console.log(
+            `[Executor] [Skill:apply_patch] Injected ${memoryRecall.length} chars of recalled memory`,
+          );
         }
       }
       onSubStageTiming?.('memory_recall', performance.now() - t0);
@@ -279,7 +289,10 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       };
     },
     shouldSkipToolError: ({ errorMsg }) => {
-      if (errorMsg.includes('file not found in context') || errorMsg.includes('Cannot apply patch')) {
+      if (
+        errorMsg.includes('file not found in context') ||
+        errorMsg.includes('Cannot apply patch')
+      ) {
         return true;
       }
       return undefined;

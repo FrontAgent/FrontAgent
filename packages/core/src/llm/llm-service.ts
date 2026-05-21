@@ -1,7 +1,7 @@
 import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { logger } from '@frontagent/shared';
-import { type CoreMessage, type LanguageModel, generateObject, generateText, streamText } from 'ai';
+import { type CoreMessage, generateObject, generateText, type LanguageModel, streamText } from 'ai';
 import type { z } from 'zod';
 import type { LLMConfig, Message } from '../types.js';
 import {

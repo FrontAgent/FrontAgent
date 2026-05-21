@@ -1,8 +1,6 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
@@ -43,12 +41,11 @@
     }
   },
   "files": {
-    "ignore": [
+    "ignoreUnknown": true,
+    "experimentalScannerIgnores": [
       "node_modules",
       "dist",
       "build",
-      "*.tsbuildinfo",
-      "pnpm-lock.yaml",
       "coverage",
       ".turbo",
       ".gitnexus",
@@ -59,9 +56,17 @@
       "workspace",
       "skills",
       "docs",
-      "benchmarks",
-      "*.vsix",
-      "*.mjs"
+      "benchmarks"
+    ],
+    "includes": [
+      "packages/**",
+      "apps/**",
+      "biome.json",
+      "package.json",
+      "turbo.json",
+      "tsconfig.json",
+      "build.mjs",
+      "scripts/**"
     ]
   }
 }

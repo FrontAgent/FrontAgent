@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  type KnowledgeBaseConfig,
   createKnowledgeBase,
+  type KnowledgeBaseConfig,
   normalizeKnowledgeBaseSource,
   normalizeOpenVikingConfig,
   normalizeOpenVikingMatches,

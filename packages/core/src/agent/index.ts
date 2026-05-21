@@ -1,1 +1,1 @@
-export { FrontAgent, createAgent } from './agent.js';
+export { createAgent, FrontAgent } from './agent.js';

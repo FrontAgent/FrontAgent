@@ -1,5 +1,5 @@
-import { build } from 'esbuild';
 import { resolve } from 'node:path';
+import { build } from 'esbuild';
 
 await build({
   entryPoints: [resolve('src/extension.ts')],

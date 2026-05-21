@@ -2,13 +2,12 @@
  * Artifacts 模块
  */
 
+export { createFileArtifactStore, FileArtifactStore } from './store.js';
 export type {
-  ArtifactType,
-  ArtifactStatus,
-  ArtifactRef,
-  ArtifactMeta,
   Artifact,
+  ArtifactMeta,
+  ArtifactRef,
+  ArtifactStatus,
   ArtifactStore,
+  ArtifactType,
 } from './types.js';
-
-export { FileArtifactStore, createFileArtifactStore } from './store.js';

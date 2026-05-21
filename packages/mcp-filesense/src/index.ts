@@ -8,17 +8,17 @@
  * - Engine API for programmatic use in planner/executor
  */
 
-export * from './types.js';
 export * from './engine.js';
 export {
   allFilesenseSchemas,
-  filesenseInitSchema,
-  filesenseSyncSchema,
-  filesenseSummarizeSchema,
-  filesenseQuerySchema,
-  filesenseCheckSchema,
-  filesenseSyncAndSummarizeSchema,
-  filesenseNavigateSchema,
-  handleFilesenseTool,
   type FilesenseToolResult,
+  filesenseCheckSchema,
+  filesenseInitSchema,
+  filesenseNavigateSchema,
+  filesenseQuerySchema,
+  filesenseSummarizeSchema,
+  filesenseSyncAndSummarizeSchema,
+  filesenseSyncSchema,
+  handleFilesenseTool,
 } from './tools.js';
+export * from './types.js';

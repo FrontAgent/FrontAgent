@@ -15,11 +15,11 @@ import type {
 import { generateId, logger } from '@frontagent/shared';
 import { type GeneratedPlan, LLMService } from './llm.js';
 import {
+  createDefaultPlannerSkillRegistry,
   type PhaseInjectionSkill,
   type PlannerContextSnapshot,
   type PlannerSkillsLayerSnapshot,
   type TaskPlanningSkill,
-  createDefaultPlannerSkillRegistry,
 } from './skills/index.js';
 import type { ContextRequest, LLMConfig, Message, PlannerOutput } from './types.js';
 

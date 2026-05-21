@@ -3,23 +3,22 @@
  */
 
 export {
-  PlanQualityValidator,
-  createPlanQualityValidator,
-  NO_PLACEHOLDERS_RULE,
-  GRANULARITY_RULE,
-  SINGLE_ACTION_RULE,
-  HAS_CONCRETE_OUTPUT_RULE,
-  BUILT_IN_RULES,
-  type TaskStep,
-  type PlanQualityViolation,
-  type PlanQualityResult,
-  type PlanQualityRule,
-} from './plan-quality.js';
-
-export {
   ConsistencyAnalyzer,
-  createConsistencyAnalyzer,
   type ConsistencyCheckInput,
   type ConsistencyIssue,
   type ConsistencyResult,
+  createConsistencyAnalyzer,
 } from './consistency-analyzer.js';
+export {
+  BUILT_IN_RULES,
+  createPlanQualityValidator,
+  GRANULARITY_RULE,
+  HAS_CONCRETE_OUTPUT_RULE,
+  NO_PLACEHOLDERS_RULE,
+  type PlanQualityResult,
+  type PlanQualityRule,
+  PlanQualityValidator,
+  type PlanQualityViolation,
+  SINGLE_ACTION_RULE,
+  type TaskStep,
+} from './plan-quality.js';

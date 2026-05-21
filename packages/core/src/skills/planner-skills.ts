@@ -130,7 +130,8 @@ export function createDefaultPlannerSkillRegistry(
   const phaseSkills: PhaseInjectionSkill[] = [
     {
       name: 'phase.filesense-navigate',
-      shouldInject: ({ task, steps, filesense }) => filesense?.enabled !== false && decideFilesense(task, steps).enabled,
+      shouldInject: ({ task, steps, filesense }) =>
+        filesense?.enabled !== false && decideFilesense(task, steps).enabled,
       apply: ({ task, steps, stepFactory, filesense }) => {
         const decision = decideFilesense(task, steps);
         if (!decision.enabled) return steps;

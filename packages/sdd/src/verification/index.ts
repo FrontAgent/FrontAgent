@@ -2,22 +2,19 @@
  * Verification 模块
  */
 
+export {
+  createVerificationCollector,
+  type ExecutionStepResult,
+  VerificationCollector,
+} from './collector.js';
+export {
+  createVerificationEvaluator,
+  VerificationEvaluator,
+} from './evaluator.js';
 export type {
   EvidenceType,
   VerificationEvidence,
-  VerificationResult,
   VerificationPolicy,
+  VerificationResult,
 } from './types.js';
-
 export { DEFAULT_VERIFICATION_POLICY } from './types.js';
-
-export {
-  VerificationCollector,
-  createVerificationCollector,
-  type ExecutionStepResult,
-} from './collector.js';
-
-export {
-  VerificationEvaluator,
-  createVerificationEvaluator,
-} from './evaluator.js';

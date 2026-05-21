@@ -3,8 +3,7 @@
  * 应用最小化代码补丁
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { FilePatch, PatchResult } from '@frontagent/shared';
 import * as Diff from 'diff';
