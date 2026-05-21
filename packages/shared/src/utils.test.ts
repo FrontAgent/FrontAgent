@@ -4,6 +4,7 @@ import {
   DEFAULT_LLM_TEMPERATURE,
   deepMerge,
   delay,
+  escapeRegex,
   generateId,
   matchGlob,
   normalizePath,
@@ -130,6 +131,22 @@ describe('matchGlob', () => {
 
   it('handles backslash paths via normalization', () => {
     expect(matchGlob('src\\components\\App.tsx', 'src/components/*.tsx')).toBe(true);
+  });
+});
+
+describe('escapeRegex', () => {
+  it('escapes all regex metacharacters', () => {
+    expect(escapeRegex('.*+?^${}()|[]\\')).toBe('\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\');
+  });
+
+  it('leaves normal strings unchanged', () => {
+    expect(escapeRegex('hello world')).toBe('hello world');
+  });
+
+  it('escapes dots in file patterns', () => {
+    const escaped = escapeRegex('file.test.ts');
+    expect(new RegExp(escaped).test('file.test.ts')).toBe(true);
+    expect(new RegExp(escaped).test('filextest.ts')).toBe(false);
   });
 });
 
