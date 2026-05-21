@@ -22,7 +22,7 @@
     "@frontagent/shared": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "typescript": "^5.3.0"
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3"
   }
 }
