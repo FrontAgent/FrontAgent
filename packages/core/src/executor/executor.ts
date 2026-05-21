@@ -28,6 +28,8 @@ import type {
   SerializablePhaseExecutionGroup,
 } from './types.js';
 
+import { PhaseRunner } from './phase-runner.js';
+
 export class Executor {
   private config: ExecutorConfig;
   private mcpClients: Map<string, MCPClient> = new Map();
@@ -35,6 +37,7 @@ export class Executor {
   private actionSkills: ReturnType<typeof createDefaultExecutorSkillRegistry>;
   private securityManager: SecurityManager;
   private currentBrowserUrl?: string;
+  private phaseRunner: PhaseRunner;
 
   constructor(config: ExecutorConfig) {
     this.config = config;
@@ -49,6 +52,16 @@ export class Executor {
       onStreamToken: this.config.onStreamToken,
       buildContextString: (collectedContext) => this.buildContextString(collectedContext),
       detectLanguage: (path) => detectLanguage(path),
+    });
+    this.phaseRunner = new PhaseRunner({
+      executeStep: (step, ctx) => this.executeStep(step, ctx),
+      debugLog: (...args) => this.debugLog(...args),
+      debugWarn: (...args) => this.debugWarn(...args),
+      debugError: (...args) => this.debugError(...args),
+      throwIfAborted: (signal) => this.throwIfAborted(signal),
+      getMaxRecoveryAttempts: () => this.getMaxRecoveryAttempts(),
+      createRecoveryFingerprint: (errors) => this.createRecoveryFingerprint(errors),
+      parallelExecution: Boolean(config.parallelExecution),
     });
   }
 
@@ -855,385 +868,13 @@ export class Executor {
     ) => Promise<Array<{ step: ExecutionStep; error: string }>>,
     signal?: AbortSignal,
   ): Promise<void> {
-    const phase = phaseGroup.phase;
-    const phaseSteps = phaseGroup.steps;
-
-    this.debugLog('[Executor] ========================================');
-    this.debugLog(`[Executor] Starting phase: ${phase} (${phaseSteps.length} steps)`);
-
-    onPhaseStart?.(phase, phaseSteps.length);
-    this.debugLog(
-      `[Executor] 🔗 Phase dependencies: [${Array.from(phaseGroup.dependencies).join(', ') || 'none'}]`,
-    );
-    this.debugLog('[Executor] 📋 Steps in this phase:');
-    for (const s of phaseSteps) {
-      this.debugLog(
-        `[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`,
-      );
-    }
-    this.debugLog(
-      `[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`,
-    );
-    this.debugLog('[Executor] ----------------------------------------');
-
-    const phaseResults: ExecutorOutput[] = [];
-    const phaseErrors: Array<{ step: ExecutionStep; error: string }> = [];
-
-    if (this.config.parallelExecution) {
-      await this.executePhaseParallel(
-        phaseSteps,
-        context,
-        completedStepIds,
-        allResults,
-        phaseResults,
-        phaseErrors,
-        onStepStart,
-        onStepComplete,
-        signal,
-      );
-    } else {
-      await this.executePhaseSequential(
-        phaseSteps,
-        context,
-        completedStepIds,
-        allResults,
-        phaseResults,
-        phaseErrors,
-        onStepStart,
-        onStepComplete,
-        signal,
-      );
-    }
-
-    if (onPhaseComplete) {
-      try {
-        this.throwIfAborted(signal);
-        const additionalErrors = await onPhaseComplete(phase, phaseResults);
-        if (additionalErrors.length > 0) {
-          this.debugLog(
-            `[Executor] Phase ${phase} validation found ${additionalErrors.length} additional issues`,
-          );
-          phaseErrors.push(...additionalErrors);
-        }
-      } catch (error) {
-        this.debugError('[Executor] Phase complete validation failed:', error);
-      }
-    }
-
-    await this.runPhaseRecovery(
-      phase,
-      phaseSteps,
-      phaseErrors,
+    return this.phaseRunner.executeSinglePhaseWithRecovery(
+      phaseGroup,
       context,
       completedStepIds,
       allResults,
-      onStepStart,
-      onStepComplete,
-      onPhaseError,
-      onPhaseComplete,
-      signal,
+      { onStepStart, onStepComplete, onPhaseStart, onPhaseError, onPhaseComplete, signal },
     );
-
-    const phaseStats = {
-      total: phaseSteps.length,
-      completed: phaseSteps.filter((s) => s.status === 'completed').length,
-      failed: phaseSteps.filter((s) => s.status === 'failed').length,
-      skipped: phaseSteps.filter((s) => s.status === 'skipped').length,
-    };
-    this.debugLog('[Executor] ----------------------------------------');
-    this.debugLog(`[Executor] Phase ${phase} completed`);
-    this.debugLog(
-      `[Executor] 📊 Phase stats: ${phaseStats.completed}/${phaseStats.total} completed, ${phaseStats.failed} failed, ${phaseStats.skipped} skipped`,
-    );
-    this.debugLog('[Executor] ========================================');
-  }
-
-  private async executePhaseParallel(
-    phaseSteps: ExecutionStep[],
-    context: { task: AgentTask; collectedContext: ExecutorCollectedContext },
-    completedStepIds: Set<string>,
-    allResults: ExecutorOutput[],
-    phaseResults: ExecutorOutput[],
-    phaseErrors: Array<{ step: ExecutionStep; error: string }>,
-    onStepStart?: (step: ExecutionStep) => void,
-    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    const pending = [...phaseSteps];
-
-    while (pending.length > 0) {
-      this.throwIfAborted(signal);
-
-      const ready = pending.filter((step) =>
-        step.dependencies.every((dep) => completedStepIds.has(dep)),
-      );
-
-      if (ready.length === 0) {
-        const skippable = pending.filter((step) =>
-          step.dependencies.some((dep) => !completedStepIds.has(dep)),
-        );
-        for (const s of skippable) {
-          this.debugWarn(`[Executor] ⏭️  Skipping step ${s.stepId}: dependencies not met`);
-          s.status = 'skipped';
-          pending.splice(pending.indexOf(s), 1);
-        }
-        if (pending.length > 0 && skippable.length === 0) {
-          this.debugError(
-            `[Executor] Circular dependency detected within phase ${phaseSteps[0]?.phase}`,
-          );
-          break;
-        }
-        continue;
-      }
-
-      for (const s of ready) pending.splice(pending.indexOf(s), 1);
-
-      const results = await Promise.allSettled(
-        ready.map(async (step) => {
-          step.status = 'running';
-          onStepStart?.(step);
-          const output = await this.executeStep(step, context);
-          return { step, output };
-        }),
-      );
-
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          const { step, output } = result.value;
-          step.result = output.stepResult;
-          step.status = output.stepResult.success ? 'completed' : 'failed';
-          phaseResults.push(output);
-          allResults.push(output);
-          if (output.stepResult.success) {
-            completedStepIds.add(step.stepId);
-          } else {
-            phaseErrors.push({ step, error: output.stepResult.error || 'Unknown error' });
-          }
-          onStepComplete?.(step, output);
-        }
-      }
-    }
-  }
-
-  private async executePhaseSequential(
-    phaseSteps: ExecutionStep[],
-    context: { task: AgentTask; collectedContext: ExecutorCollectedContext },
-    completedStepIds: Set<string>,
-    allResults: ExecutorOutput[],
-    phaseResults: ExecutorOutput[],
-    phaseErrors: Array<{ step: ExecutionStep; error: string }>,
-    onStepStart?: (step: ExecutionStep) => void,
-    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    for (const step of phaseSteps) {
-      this.throwIfAborted(signal);
-      const dependenciesMet = step.dependencies.every((dep) => completedStepIds.has(dep));
-      if (!dependenciesMet) {
-        const missingDeps = step.dependencies.filter((dep) => !completedStepIds.has(dep));
-        this.debugWarn(`[Executor] ⏭️  Skipping step ${step.stepId}: dependencies not met`);
-        this.debugWarn(`[Executor]    Step description: ${step.description}`);
-        this.debugWarn(`[Executor]    Required dependencies: [${step.dependencies.join(', ')}]`);
-        this.debugWarn(`[Executor]    Missing dependencies: [${missingDeps.join(', ')}]`);
-        this.debugWarn(
-          `[Executor]    Completed steps: [${Array.from(completedStepIds).join(', ')}]`,
-        );
-        step.status = 'skipped';
-        continue;
-      }
-
-      step.status = 'running';
-      onStepStart?.(step);
-      const output = await this.executeStep(step, context);
-      step.result = output.stepResult;
-      step.status = output.stepResult.success ? 'completed' : 'failed';
-
-      phaseResults.push(output);
-      allResults.push(output);
-
-      if (output.stepResult.success) {
-        completedStepIds.add(step.stepId);
-      } else {
-        phaseErrors.push({
-          step,
-          error: output.stepResult.error || 'Unknown error',
-        });
-      }
-
-      if (onStepComplete) {
-        onStepComplete(step, output);
-      }
-    }
-  }
-
-  private async runPhaseRecovery(
-    phase: string,
-    phaseSteps: ExecutionStep[],
-    phaseErrors: Array<{ step: ExecutionStep; error: string }>,
-    context: { task: AgentTask; collectedContext: ExecutorCollectedContext },
-    completedStepIds: Set<string>,
-    allResults: ExecutorOutput[],
-    onStepStart?: (step: ExecutionStep) => void,
-    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
-    onPhaseError?: (
-      phase: string,
-      errors: Array<{ step: ExecutionStep; error: string }>,
-    ) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (
-      phase: string,
-      results: ExecutorOutput[],
-    ) => Promise<Array<{ step: ExecutionStep; error: string }>>,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    const maxRecoveryAttempts = this.getMaxRecoveryAttempts();
-    const seenRecoveryFingerprints = new Set<string>();
-    let recoveryAttempt = 0;
-
-    while (phaseErrors.length > 0 && onPhaseError && recoveryAttempt < maxRecoveryAttempts) {
-      this.throwIfAborted(signal);
-      const recoveryFingerprint = this.createRecoveryFingerprint(phaseErrors);
-      if (seenRecoveryFingerprints.has(recoveryFingerprint)) {
-        this.debugWarn(
-          '[Executor] Repeated recovery error fingerprint detected, stopping recovery attempts',
-        );
-        break;
-      }
-      seenRecoveryFingerprints.add(recoveryFingerprint);
-
-      recoveryAttempt++;
-      this.debugLog(
-        `[Executor] Phase ${phase} has ${phaseErrors.length} errors, recovery attempt ${recoveryAttempt}/${maxRecoveryAttempts}...`,
-      );
-
-      try {
-        const recoverySteps = await onPhaseError(phase, phaseErrors);
-        if (recoverySteps.length === 0) {
-          this.debugLog('[Executor] No recovery steps generated, stopping recovery attempts');
-          break;
-        }
-
-        this.debugLog(
-          `[Executor] Inserting ${recoverySteps.length} recovery steps for phase ${phase}`,
-        );
-
-        for (const recoveryStep of recoverySteps) {
-          recoveryStep.phase = phase;
-          phaseSteps.push(recoveryStep);
-        }
-
-        for (const recoveryStep of recoverySteps) {
-          this.throwIfAborted(signal);
-          recoveryStep.status = 'running';
-          onStepStart?.(recoveryStep);
-          const output = await this.executeStep(recoveryStep, context);
-          recoveryStep.result = output.stepResult;
-          recoveryStep.status = output.stepResult.success ? 'completed' : 'failed';
-
-          allResults.push(output);
-
-          if (output.stepResult.success) {
-            completedStepIds.add(recoveryStep.stepId);
-          }
-
-          if (onStepComplete) {
-            onStepComplete(recoveryStep, output);
-          }
-        }
-
-        if (onPhaseComplete) {
-          this.debugLog(
-            `[Executor] Re-running phase completion checks after recovery attempt ${recoveryAttempt}...`,
-          );
-          const previousPhaseErrors = phaseErrors;
-          phaseErrors = [];
-
-          try {
-            this.throwIfAborted(signal);
-            const verificationErrors = await onPhaseComplete(phase, allResults);
-            phaseErrors = verificationErrors;
-
-            if (phaseErrors.length === 0) {
-              this.debugLog('[Executor] ✅ Recovery successful! All errors fixed.');
-
-              for (const errorInfo of previousPhaseErrors) {
-                if (errorInfo.step.status === 'failed') {
-                  this.debugLog(
-                    `[Executor] Marking step ${errorInfo.step.stepId} as completed (fixed by recovery)`,
-                  );
-                  errorInfo.step.status = 'completed';
-                  completedStepIds.add(errorInfo.step.stepId);
-                }
-              }
-
-              const skippedSteps = phaseSteps.filter((s) => s.status === 'skipped');
-              if (skippedSteps.length > 0) {
-                this.debugLog(
-                  `[Executor] 🔄 Re-checking ${skippedSteps.length} skipped steps after recovery...`,
-                );
-
-                for (const skippedStep of skippedSteps) {
-                  this.throwIfAborted(signal);
-                  const dependenciesMet = skippedStep.dependencies.every((dep) =>
-                    completedStepIds.has(dep),
-                  );
-
-                  if (dependenciesMet) {
-                    this.debugLog(
-                      `[Executor] 🔄 Re-executing previously skipped step: ${skippedStep.stepId}`,
-                    );
-
-                    skippedStep.status = 'running';
-                    onStepStart?.(skippedStep);
-                    const output = await this.executeStep(skippedStep, context);
-                    skippedStep.result = output.stepResult;
-                    skippedStep.status = output.stepResult.success ? 'completed' : 'failed';
-
-                    allResults.push(output);
-
-                    if (output.stepResult.success) {
-                      completedStepIds.add(skippedStep.stepId);
-                    } else {
-                      phaseErrors.push({
-                        step: skippedStep,
-                        error: output.stepResult.error || 'Unknown error',
-                      });
-                    }
-
-                    if (onStepComplete) {
-                      onStepComplete(skippedStep, output);
-                    }
-                  }
-                }
-              }
-
-              if (phaseErrors.length === 0) {
-                break;
-              }
-              this.debugLog(
-                `[Executor] ⚠️  ${phaseErrors.length} error(s) after re-execution, continuing recovery...`,
-              );
-            } else {
-              this.debugLog(
-                `[Executor] ⚠️  Still have ${phaseErrors.length} error(s) after recovery attempt ${recoveryAttempt}`,
-              );
-              if (recoveryAttempt >= maxRecoveryAttempts) {
-                this.debugWarn(
-                  `[Executor] ❌ Max recovery attempts (${maxRecoveryAttempts}) reached. Stopping recovery.`,
-                );
-              }
-            }
-          } catch (error) {
-            this.debugError('[Executor] Verification check failed:', error);
-            break;
-          }
-        } else {
-          break;
-        }
-      } catch (error) {
-        this.debugError('[Executor] Failed to generate/execute recovery plan:', error);
-        break;
-      }
-    }
   }
 
   private async executeStepsWithErrorFeedbackViaLangGraph(
