@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { basename, join } from 'node:path';
 import { logger } from '@frontagent/shared';
 import type { ProjectFactsSnapshot } from '../types.js';
+import { OpenMemoryGatewayAdapter, type OpenMemoryGatewayRecord } from './open-memory-gateway.js';
 import type {
   MemoryConfig,
   MemoryEntry,
@@ -24,6 +25,8 @@ import {
   TOPICS_DIR_NAME,
 } from './types.js';
 
+const PRELOAD_HEADER = '## 项目记忆 (跨会话持久化)';
+
 /**
  * Durable memory store backed by human-readable Markdown files and JSON snapshots.
  * All writes funnel through this class (single-writer pattern).
@@ -35,6 +38,7 @@ export class MemoryStore {
   private readonly preloadBudget: number;
   private readonly recallBudget: number;
   private readonly maxTopicFiles: number;
+  private readonly gateway: OpenMemoryGatewayAdapter | null;
 
   private index: MemoryIndex | null = null;
   private topicCache: Map<string, MemoryTopic> = new Map();
@@ -49,6 +53,14 @@ export class MemoryStore {
     this.preloadBudget = config?.preloadBudgetChars ?? DEFAULT_PRELOAD_BUDGET_CHARS;
     this.recallBudget = config?.recallBudgetChars ?? DEFAULT_RECALL_BUDGET_CHARS;
     this.maxTopicFiles = config?.maxTopicFiles ?? DEFAULT_MAX_TOPIC_FILES;
+    this.gateway =
+      config?.gateway?.enabled === true
+        ? new OpenMemoryGatewayAdapter({
+            rootDir: config.gateway.rootDir ?? projectRoot,
+            captureSource: config.gateway.captureSource ?? 'frontagent',
+            autoApprove: config.gateway.autoApprove ?? false,
+          })
+        : null;
   }
 
   // ---------------------------------------------------------------------------
@@ -284,14 +296,20 @@ export class MemoryStore {
    * within the configured budget.
    */
   preload(): string | null {
+    const parts: string[] = [PRELOAD_HEADER];
+    let charCount = parts[0].length;
+
+    const gatewaySection = this.renderGatewayForPreload();
+    if (gatewaySection && charCount < this.preloadBudget) {
+      parts.push(gatewaySection);
+      charCount = measurePreloadParts(parts);
+    }
+
     const index = this.loadIndex();
     if (!index || index.topics.length === 0) {
-      return null;
+      return parts.length > 1 ? parts.join('\n\n') : null;
     }
     this.index = index;
-
-    const parts: string[] = ['## 项目记忆 (跨会话持久化)'];
-    let charCount = parts[0].length;
 
     // Load topic files within budget
     const sortedTopics = [...index.topics].sort(
@@ -307,22 +325,60 @@ export class MemoryStore {
       if (!topic || topic.entries.length === 0) continue;
 
       const section = this.renderTopicForPreload(topic);
-      if (charCount + section.length > this.preloadBudget) {
-        // Try to include a truncated version
-        const remaining = this.preloadBudget - charCount;
+      const sectionLength = section.length + sectionSeparatorLength(parts);
+      if (charCount + sectionLength > this.preloadBudget) {
+        const remaining = this.preloadBudget - charCount - sectionSeparatorLength(parts);
         if (remaining > 200) {
-          parts.push(`${section.slice(0, remaining)}\n...(truncated)`);
-          charCount = this.preloadBudget;
+          parts.push(truncatePreloadSection(section, remaining));
+          charCount = measurePreloadParts(parts);
         }
         break;
       }
 
       parts.push(section);
-      charCount += section.length;
+      charCount = measurePreloadParts(parts);
       loaded++;
     }
 
     return parts.length > 1 ? parts.join('\n\n') : null;
+  }
+
+  private renderGatewayForPreload(): string | null {
+    const memories = this.listGatewayActiveMemories();
+    if (memories.length === 0) return null;
+
+    const lines: string[] = [];
+    const title = '## Open Memory Gateway Active Memories';
+    const marker = '\n...(truncated)';
+    let charCount = 0;
+
+    if (title.length > this.remainingPreloadBudgetAfterHeader()) {
+      return null;
+    }
+
+    lines.push(title);
+    charCount = title.length;
+    for (const memory of memories) {
+      const line = `- **${memory.id}**: ${memory.content}`;
+      const lineLength = line.length + 1;
+      const remaining = this.remainingPreloadBudgetAfterHeader() - charCount - 1;
+
+      if (charCount + lineLength <= this.remainingPreloadBudgetAfterHeader()) {
+        lines.push(line);
+        charCount += lineLength;
+        continue;
+      }
+
+      if (remaining > marker.length) {
+        lines.push(truncatePreloadSection(line, remaining));
+      }
+      break;
+    }
+    return lines.join('\n');
+  }
+
+  private remainingPreloadBudgetAfterHeader(): number {
+    return this.preloadBudget - PRELOAD_HEADER.length - 2;
   }
 
   private renderTopicForPreload(topic: MemoryTopic): string {
@@ -343,28 +399,55 @@ export class MemoryStore {
    */
   recall(query: RecallQuery): RecalledMemory[] {
     const index = this.index ?? this.loadIndex();
-    if (!index || index.topics.length === 0) {
+    const gatewayMemories = this.listGatewayActiveMemories();
+    if ((!index || index.topics.length === 0) && gatewayMemories.length === 0) {
       return [];
     }
 
     const candidates: RecalledMemory[] = [];
 
-    for (const topicMeta of index.topics) {
-      const topic = this.loadTopic(topicMeta.id);
-      if (!topic) continue;
+    for (const memory of gatewayMemories) {
+      const dedupKey = `open-memory-gateway::${memory.id}`;
+      if (this.injectedKeys.has(dedupKey)) continue;
 
-      for (const entry of topic.entries) {
-        const dedupKey = `${topicMeta.id}::${entry.key}`;
-        if (this.injectedKeys.has(dedupKey)) continue;
+      const score = this.scoreEntry(
+        {
+          key: memory.id,
+          content: memory.content,
+          tags: memory.tags,
+          updatedAt: memory.updatedAt,
+        },
+        'open-memory-gateway',
+        query,
+      );
+      if (score > 0) {
+        candidates.push({
+          topicId: 'open-memory-gateway',
+          entryKey: memory.id,
+          content: memory.content,
+          score,
+        });
+      }
+    }
 
-        const score = this.scoreEntry(entry, topicMeta.id, query);
-        if (score > 0) {
-          candidates.push({
-            topicId: topicMeta.id,
-            entryKey: entry.key,
-            content: entry.content,
-            score,
-          });
+    if (index) {
+      for (const topicMeta of index.topics) {
+        const topic = this.loadTopic(topicMeta.id);
+        if (!topic) continue;
+
+        for (const entry of topic.entries) {
+          const dedupKey = `${topicMeta.id}::${entry.key}`;
+          if (this.injectedKeys.has(dedupKey)) continue;
+
+          const score = this.scoreEntry(entry, topicMeta.id, query);
+          if (score > 0) {
+            candidates.push({
+              topicId: topicMeta.id,
+              entryKey: entry.key,
+              content: entry.content,
+              score,
+            });
+          }
         }
       }
     }
@@ -490,6 +573,23 @@ export class MemoryStore {
       // Non-blocking: swallow errors to avoid disrupting the main task
       if (process.env.DEBUG) {
         logger.warn('[MemoryStore] Persistence failed:', error);
+      }
+    }
+
+    this.persistGateway(input);
+  }
+
+  private persistGateway(input: PersistenceInput): void {
+    if (!this.gateway) return;
+
+    try {
+      this.gateway.captureDraft({
+        content: renderGatewayCapture(input),
+        tags: ['frontagent', 'task-memory'],
+      });
+    } catch (error) {
+      if (process.env.DEBUG) {
+        logger.warn('[MemoryStore] Open Memory Gateway capture failed:', error);
       }
     }
   }
@@ -675,6 +775,64 @@ export class MemoryStore {
   /** Check whether any memory exists on disk */
   hasMemory(): boolean {
     const indexPath = join(this.memoryDir, INDEX_FILE_NAME);
-    return existsSync(indexPath);
+    return existsSync(indexPath) || this.hasGatewayMemory();
   }
+
+  private listGatewayActiveMemories(): OpenMemoryGatewayRecord[] {
+    if (!this.gateway) return [];
+    try {
+      return this.gateway.listActive();
+    } catch {
+      return [];
+    }
+  }
+
+  private hasGatewayMemory(): boolean {
+    if (!this.gateway) return false;
+    try {
+      return this.gateway.hasActiveMemories();
+    } catch {
+      return false;
+    }
+  }
+}
+
+function measurePreloadParts(parts: string[]): number {
+  return parts.join('\n\n').length;
+}
+
+function sectionSeparatorLength(parts: string[]): number {
+  return parts.length > 0 ? 2 : 0;
+}
+
+function truncatePreloadSection(section: string, budget: number): string {
+  const marker = '\n...(truncated)';
+  if (budget <= marker.length) {
+    return section.slice(0, Math.max(0, budget));
+  }
+  return `${section.slice(0, budget - marker.length)}${marker}`;
+}
+
+function renderGatewayCapture(input: PersistenceInput): string {
+  const lines = [`Task: ${input.taskDescription}`];
+
+  if (input.createdFiles.length > 0) {
+    lines.push(`Created files: ${input.createdFiles.join(', ')}`);
+  }
+  if (input.dependencyChanges.installed.length > 0) {
+    lines.push(`Installed dependencies: ${input.dependencyChanges.installed.join(', ')}`);
+  }
+  if (input.dependencyChanges.missing.length > 0) {
+    lines.push(`Missing dependencies: ${input.dependencyChanges.missing.join(', ')}`);
+  }
+  if (input.errorResolutions.length > 0) {
+    lines.push('Error resolutions:');
+    for (const resolution of input.errorResolutions) {
+      lines.push(
+        `- ${resolution.errorType}: ${resolution.errorMessage} -> ${resolution.resolution}`,
+      );
+    }
+  }
+
+  return lines.join('\n');
 }

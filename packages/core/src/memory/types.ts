@@ -5,12 +5,25 @@ export interface MemoryConfig {
   enabled?: boolean;
   /** Root directory for memory storage (default <projectRoot>/.frontagent/memory) */
   memoryDir?: string;
+  /** Optional Open Memory Gateway-compatible storage integration */
+  gateway?: OpenMemoryGatewayConfig;
   /** Max characters to inject from memory at startup (default 8000) */
   preloadBudgetChars?: number;
   /** Max characters of memory context per code-gen call (default 2000) */
   recallBudgetChars?: number;
   /** Max topic files to load at startup (default 10) */
   maxTopicFiles?: number;
+}
+
+export interface OpenMemoryGatewayConfig {
+  /** Whether to mirror FrontAgent memory into Open Memory Gateway storage (default false) */
+  enabled?: boolean;
+  /** Open Memory Gateway root directory containing the `memory/` folder (default project root) */
+  rootDir?: string;
+  /** Source label for captured FrontAgent memories (default frontagent) */
+  captureSource?: string;
+  /** Capture directly as active instead of draft/inbox (default false) */
+  autoApprove?: boolean;
 }
 
 export interface MemoryTopicMeta {
