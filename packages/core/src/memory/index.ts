@@ -1,3 +1,10 @@
+export type {
+  OpenMemoryGatewayAdapterOptions,
+  OpenMemoryGatewayCaptureInput,
+  OpenMemoryGatewayRecord,
+  OpenMemoryGatewayStatus,
+} from './open-memory-gateway.js';
+export { OpenMemoryGatewayAdapter } from './open-memory-gateway.js';
 export { MemoryStore } from './store.js';
 export type {
   MemoryConfig,
@@ -5,6 +12,7 @@ export type {
   MemoryIndex,
   MemoryTopic,
   MemoryTopicMeta,
+  OpenMemoryGatewayConfig,
   PersistenceInput,
   RecalledMemory,
   RecallQuery,
