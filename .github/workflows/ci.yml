@@ -26,3 +26,18 @@ jobs:
 
       - name: Quality
         run: pnpm quality:ci
+
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    needs: check
+    if: ${{ always() }}
+    steps:
+      - name: Verify Node matrix checks
+        run: |
+          if [ "${{ needs.check.result }}" != "success" ]; then
+            echo "One or more Node matrix checks failed."
+            exit 1
+          fi
+
+          echo "All Node matrix checks passed."
