@@ -4,6 +4,8 @@ FrontAgent uses a lightweight open-source maintenance workflow. The goal is to k
 
 ## Community Loop
 
+For the detailed operational playbook, see [`docs/oss-harness-engineering-workflow.md`](oss-harness-engineering-workflow.md).
+
 ```text
 Issue or Discussion
 -> maintainer triage
