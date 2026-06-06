@@ -1,0 +1,40 @@
+name: Maintenance Task
+description: Propose refactoring, documentation, CI, dependency, or Harness maintenance.
+title: "[Maintenance] "
+labels: ["maintenance"]
+body:
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Why is this maintenance useful now?
+    validations:
+      required: true
+  - type: input
+    id: affected-area
+    attributes:
+      label: Affected Area
+      description: For example CI, docs, Harness, package, dependency, test suite, security boundary.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed Change
+      description: Describe the intended change and any alternatives.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification Plan
+      description: Which commands, tests, or reviews should prove this task is safe?
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a PR for this maintenance task.
+          required: false

@@ -1,0 +1,57 @@
+name: Bug Report
+description: Report a reproducible problem in FrontAgent.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest steps, command, project shape, or config that reproduces the bug.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: affected-area
+    attributes:
+      label: Affected Area
+      description: For example CLI, VS Code extension, SDD, MCP file, MCP web, memory, planner, executor, docs.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node version, pnpm version, FrontAgent version or commit, and host app if relevant.
+      placeholder: |
+        - OS:
+        - Node:
+        - pnpm:
+        - FrontAgent:
+        - Host:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs Or Screenshots
+      description: Paste relevant logs, screenshots, or run-log paths. Remove secrets before posting.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a PR for this bug.
+          required: false
