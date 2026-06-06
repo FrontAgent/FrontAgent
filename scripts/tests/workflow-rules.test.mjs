@@ -251,7 +251,11 @@ test('CI and contract guard target develop and call named quality scripts', () =
   const contractGuard = readFileSync('.github/workflows/contract-guard.yml', 'utf8');
 
   assert.match(ci, /branches:\s*\[develop\]/u);
+  assert.match(ci, /node-version:\s*\[20,\s*22\]/u);
   assert.match(ci, /pnpm quality:ci/u);
+  assert.match(ci, /\n\s+ci:\n\s+name:\s+CI\n/u);
+  assert.match(ci, /\n\s+needs:\s+check\n/u);
+  assert.match(ci, /needs\.check\.result/u);
   assert.match(contractGuard, /branches:\s*\[develop\]/u);
   assert.match(contractGuard, /pnpm contract:gitnexus/u);
   assert.match(contractGuard, /GITNEXUS_IMPACT_SUMMARY/u);
