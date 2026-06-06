@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -141,18 +141,26 @@ function runGitNexusAnalyze(mode) {
   const timeoutMs = resolveGitNexusAnalyzeTimeoutMs(mode);
   const { command, args } = getGitNexusAnalyzeInvocation();
   console.log(`Running GitNexus analyze --force --index-only (${mode}, timeout ${timeoutMs}ms)...`);
-  try {
-    execFileSync(command, args, {
-      stdio: 'inherit',
-      timeout: timeoutMs,
-    });
-  } catch (err) {
-    if (isTimeoutError(err)) {
+  const result = spawnSync(command, args, {
+    stdio: 'inherit',
+    timeout: timeoutMs,
+  });
+
+  if (result.error) {
+    if (isTimeoutError(result.error)) {
       throw new Error(
         `GitNexus analyze timed out after ${timeoutMs}ms. Set GITNEXUS_ANALYZE_TIMEOUT_MS to a larger positive integer if this repo needs more time.`,
       );
     }
-    throw err;
+    throw new Error(`GitNexus analyze failed to start: ${result.error.message}`);
+  }
+
+  if (result.status !== 0 || result.signal) {
+    throw new Error(
+      `GitNexus analyze failed with exit code ${result.status ?? 'unknown'}${
+        result.signal ? ` and signal ${result.signal}` : ''
+      }.`,
+    );
   }
 }
 

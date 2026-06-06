@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
 import { getChangedFiles } from '../workflows/contract-check.mjs';
@@ -15,6 +16,14 @@ const validImpactSummary = [
   '- Verification: node --test scripts/tests/workflow-rules.test.mjs passed.',
 ].join('\n');
 
+function listPublicClaudeAssets() {
+  const tracked = execFileSync('git', ['ls-files', '.claude'], { encoding: 'utf8' });
+  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '.claude'], {
+    encoding: 'utf8',
+  });
+  return [...new Set(`${tracked}\n${untracked}`.split('\n').filter(Boolean))].sort();
+}
+
 test('classifyContractPaths separates critical and non-critical changes', () => {
   const result = classifyContractPaths([
     'scripts/workflows/contract-check.mjs',
@@ -29,6 +38,25 @@ test('classifyContractPaths separates critical and non-critical changes', () => 
     'scripts/tests/workflow-rules.test.mjs',
     'docs/README-CN.md',
   ]);
+});
+
+test('classifyContractPaths treats Claude reusable assets as repo harness', () => {
+  const result = classifyContractPaths([
+    '.claude/workflows/oss-harness-engineering-workflow.js',
+    '.claude/skills/gitnexus/gitnexus-cli/SKILL.md',
+  ]);
+
+  assert.deepEqual(result.critical, [
+    {
+      file: '.claude/workflows/oss-harness-engineering-workflow.js',
+      category: 'repo-harness',
+    },
+    {
+      file: '.claude/skills/gitnexus/gitnexus-cli/SKILL.md',
+      category: 'repo-harness',
+    },
+  ]);
+  assert.deepEqual(result.nonCritical, []);
 });
 
 test('critical changes require matching tests and structured GitNexus impact summary', () => {
@@ -83,6 +111,20 @@ test('local contract mode does not require a PR impact summary', () => {
 
   assert.equal(result.ok, true);
   assert.match(result.warnings.join('\n'), /not enforced locally/u);
+});
+
+test('GitNexus analyze streams output to avoid spawn buffer limits', () => {
+  const contractCheck = readFileSync('scripts/workflows/contract-check.mjs', 'utf8');
+  const analyzeFunction = contractCheck.slice(
+    contractCheck.indexOf('function runGitNexusAnalyze'),
+    contractCheck.indexOf('function getGitNexusAnalyzeInvocation'),
+  );
+
+  assert.match(
+    analyzeFunction,
+    /spawnSync\(command, args, \{\s*stdio: 'inherit',\s*timeout: timeoutMs,\s*\}\)/u,
+  );
+  assert.doesNotMatch(analyzeFunction, /encoding: 'utf8'/u);
 });
 
 test('non-critical changes keep GitNexus advisory', () => {
@@ -223,6 +265,63 @@ test('PR template contains enforced GitNexus summary fields', () => {
   assert.match(template, /Critical skeleton changes:/u);
   assert.match(template, /GitNexus impact:/u);
   assert.match(template, /Verification:/u);
+});
+
+test('workflow doc links the detailed OSS Harness workflow asset', () => {
+  const workflow = readFileSync('docs/workflow.md', 'utf8');
+  const detailedWorkflow = readFileSync('docs/oss-harness-engineering-workflow.md', 'utf8');
+
+  assert.match(workflow, /docs\/oss-harness-engineering-workflow\.md/u);
+  assert.match(detailedWorkflow, /# Open-Source Harness Engineering Workflow/u);
+  assert.match(detailedWorkflow, /## Saveable Workflow Prompt/u);
+  assert.match(detailedWorkflow, /open-source community workflow, not a training-camp workflow/u);
+  assert.match(detailedWorkflow, /Maintainers decide merge readiness/u);
+});
+
+test('local Claude state markdown remains ignored', () => {
+  assert.doesNotThrow(() =>
+    execFileSync('git', ['check-ignore', '-q', '.claude/repo-evolver.local.md']),
+  );
+  assert.doesNotThrow(() =>
+    execFileSync('git', ['check-ignore', '-q', '.claude/ralph-loop.local.md']),
+  );
+});
+
+test('Claude reusable assets are public while local state stays private', () => {
+  const publicClaudeAssets = listPublicClaudeAssets();
+
+  assert.ok(publicClaudeAssets.length > 0);
+  assert.ok(publicClaudeAssets.includes('.claude/workflows/oss-harness-engineering-workflow.js'));
+  assert.ok(publicClaudeAssets.includes('.claude/skills/gitnexus/gitnexus-cli/SKILL.md'));
+  assert.ok(
+    publicClaudeAssets.every(
+      (file) => file.startsWith('.claude/workflows/') || file.startsWith('.claude/skills/'),
+    ),
+  );
+});
+
+test('public Harness workflow assets are portable', () => {
+  const publicClaudeAssets = listPublicClaudeAssets();
+  const publicAssets = ['docs/oss-harness-engineering-workflow.md', ...publicClaudeAssets];
+  const secretEnvNamePattern = /\b[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET)\b/u;
+
+  for (const asset of publicAssets) {
+    const content = readFileSync(asset, 'utf8');
+
+    assert.doesNotMatch(content, /\/Users\//u, asset);
+    assert.doesNotMatch(content, /sankuai\.com/u, asset);
+    assert.doesNotMatch(content, secretEnvNamePattern, asset);
+  }
+});
+
+test('Claude Harness workflow has a single portable entrypoint', () => {
+  const workflowAssets = listPublicClaudeAssets().filter((file) =>
+    file.startsWith('.claude/workflows/'),
+  );
+  const workflow = readFileSync('.claude/workflows/oss-harness-engineering-workflow.js', 'utf8');
+
+  assert.deepEqual(workflowAssets, ['.claude/workflows/oss-harness-engineering-workflow.js']);
+  assert.match(workflow, /name:\s*'oss-harness-engineering-workflow'/u);
 });
 
 test('repo guard remains advisory and training-camp workflows are absent', () => {

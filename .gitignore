@@ -43,7 +43,10 @@ temp/
 /artifacts/
 
 # claude code
-.claude/
+.claude/*.local.md
+.claude/**/*.local.md
+.claude/settings.local.json
+.claude/**/settings.local.json
 
 .turbo/
 

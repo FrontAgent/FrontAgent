@@ -71,6 +71,8 @@ export const criticalContractRules = [
       file.startsWith('.github/ISSUE_TEMPLATE/') ||
       file === '.github/PULL_REQUEST_TEMPLATE.md' ||
       file === '.github/CODEOWNERS' ||
+      file.startsWith('.claude/workflows/') ||
+      file.startsWith('.claude/skills/') ||
       file.startsWith('.githooks/') ||
       file.startsWith('scripts/workflows/'),
   },
