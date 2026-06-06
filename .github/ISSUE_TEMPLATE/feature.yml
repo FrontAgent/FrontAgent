@@ -1,0 +1,47 @@
+name: Feature Request
+description: Propose a new capability or behavior change.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or maintainer problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Behavior
+      description: Describe the expected behavior and user-facing shape.
+    validations:
+      required: true
+  - type: input
+    id: affected-area
+    attributes:
+      label: Affected Area
+      description: For example CLI, VS Code extension, SDD, MCP file, MCP web, memory, planner, executor, docs.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches did you consider?
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: List concrete checks that would prove the feature is complete.
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a PR for this feature.
+          required: false

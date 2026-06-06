@@ -42,31 +42,23 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "experimentalScannerIgnores": [
-      "node_modules",
-      "dist",
-      "build",
-      "coverage",
-      ".turbo",
-      ".gitnexus",
-      ".frontagent",
-      "models",
-      "assets",
-      "reference",
-      "workspace",
-      "skills",
-      "docs",
-      "benchmarks"
-    ],
     "includes": [
-      "packages/**",
-      "apps/**",
-      "biome.json",
-      "package.json",
-      "turbo.json",
-      "tsconfig.json",
-      "build.mjs",
-      "scripts/**"
+      "**",
+      "!!**/node_modules",
+      "!!**/dist",
+      "!!**/build",
+      "!!**/coverage",
+      "!!**/.git",
+      "!!**/.turbo",
+      "!!**/.gitnexus",
+      "!!**/.frontagent",
+      "!!**/models",
+      "!!**/assets",
+      "!!**/reference",
+      "!!**/workspace",
+      "!!**/skills",
+      "!!**/docs",
+      "!!**/benchmarks"
     ]
   }
 }

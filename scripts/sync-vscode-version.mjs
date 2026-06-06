@@ -7,6 +7,6 @@ const vscode = JSON.parse(readFileSync(vscodePkgPath, 'utf8'));
 
 if (vscode.version !== root.version) {
   vscode.version = root.version;
-  writeFileSync(vscodePkgPath, JSON.stringify(vscode, null, 2) + '\n');
+  writeFileSync(vscodePkgPath, `${JSON.stringify(vscode, null, 2)}\n`);
   console.log(`[sync-version] apps/vscode/package.json → ${root.version}`);
 }
