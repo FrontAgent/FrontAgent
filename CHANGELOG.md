@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-08
+
+### Added
+
+- **core**: Added opt-in Open Memory Gateway integration for managed long-term memory. FrontAgent can now write Gateway-compatible Markdown memories, separate draft and active memory states, and recall active memories while preserving the existing `.frontagent/memory` fallback when Gateway mode is disabled or unavailable.
+- **workflow**: Added OSS Harness assets for open-source maintenance, including contribution guidance, workflow documentation, GitNexus knowledge contracts, CODEOWNERS, issue templates, PR template, local git hooks, and workflow rule tests.
+- **workflow**: Added local quality and contract scripts: `agent:bootstrap`, `quality:predev`, `quality:precommit`, `quality:ci`, `quality:local`, `contract:*`, and `test:workflows`.
+- **dx**: Added `.env.example` and Dependabot configuration for npm and GitHub Actions dependency maintenance.
+
+### Changed
+
+- **core**: Extracted `PhaseRunner` from `Executor` and step callback handling from `FrontAgent`, making execution flow and callback behavior easier to test and maintain.
+- **core**: Split Skill Lab behavior benchmarking, trigger benchmarking, improvement, reporting, and scaffolding into focused modules.
+- **shared/core**: Introduced a structured logger and migrated core debug logging to shared logging utilities.
+- **type-safety**: Tightened source type safety by enabling stricter `noExplicitAny` checks and replacing remaining loose source types with explicit interfaces.
+- **dependencies**: Upgraded the development toolchain and runtime dependencies, including Biome 2.x, TypeScript 6.x, Vitest 4.x, Playwright 1.60.x, Turbo 2.9.x, AI SDK, MCP SDK, and LangChain-related packages.
+- **vscode**: Raised the minimum VS Code engine requirement to `^1.120.0`.
+
+### Fixed
+
+- **security**: Patched high-severity dependency vulnerabilities through dependency upgrades and pnpm overrides for packages including `hono`, `path-to-regexp`, `fast-uri`, `ws`, `yaml`, and `ajv`.
+- **lint**: Fixed Biome formatting and `noExplicitAny` lint failures introduced by merged test and Skill Lab changes.
+- **ci**: Unified Node 20 and Node 22 matrix results under a single aggregate CI status check.
+
+### Tests
+
+- Added focused unit coverage for FrontAgent, answer generation, Executor, PhaseRunner, ContextManager, LLM service, planner behavior, memory store behavior, Open Memory Gateway integration, security rules, mcp-filesense engine behavior, shared logger behavior, SDD workflow rules, and OSS Harness workflow contracts.
+- Added workflow rule tests for OSS Harness automation and CI aggregate workflow behavior.
+
+### CI/CD
+
+- Updated GitHub Actions CI to run the full `quality:ci` gate across Node 20 and Node 22, including lint, typecheck, tests, workflow tests, and build.
+- Added Contract Guard for PRs targeting `develop`, enforcing GitNexus contract checks and impact-summary discipline for critical skeleton changes.
+- Added Repo Guard workflow support for PR, issue, and issue-comment review paths with fork and actor safeguards.
+- Upgraded GitHub Actions dependencies to `actions/checkout@v6`, `actions/setup-node@v6`, and `pnpm/action-setup@v6`.
+
+### Documentation
+
+- Added OSS Harness engineering workflow documentation, contributor guidance, GitNexus knowledge contract documentation, and superpowers implementation plans/specs for Repo Guard, OSS Harness, and Open Memory Gateway.
+- Added Claude/GitNexus skill assets and workflow automation assets for repository-native agent workflows.
+
+### Compatibility Notes
+
+- The published CLI package and VS Code extension are now versioned as `2.1.0`.
+- Node.js remains `>=20.0.0`.
+- The VS Code extension now requires VS Code `^1.120.0`.
+
 ## [2.0.0] - 2026-05-20
 
 ### Architecture Refactoring
