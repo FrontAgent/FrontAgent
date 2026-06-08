@@ -17,6 +17,7 @@ import {
 import type { ExecutorOutput } from '../types.js';
 import { buildOrderedPhaseGroups, detectLanguage } from './phase-ordering.js';
 import { PhaseRunner } from './phase-runner.js';
+import { executeStepsWithProgressEnforcement } from './progress-enforcement.js';
 import { executeStepsWithErrorFeedbackViaLangGraph } from './step-feedback-runner.js';
 import type {
   ExecutorCollectedContext,
@@ -765,43 +766,12 @@ export class Executor {
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
   ): Promise<ExecutorOutput[]> {
-    const results: ExecutorOutput[] = [];
-    const completedSteps = new Set<string>();
-
-    const pendingSteps = [...steps];
-
-    while (pendingSteps.length > 0) {
-      const executableIndex = pendingSteps.findIndex((step) =>
-        step.dependencies.every((dep) => completedSteps.has(dep)),
-      );
-
-      if (executableIndex === -1) {
-        throw new Error('Circular dependency detected or missing dependency');
-      }
-
-      const step = pendingSteps.splice(executableIndex, 1)[0];
-      step.status = 'running';
-
-      const output = await this.executeStep(step, context);
-      step.result = output.stepResult;
-      step.status = output.stepResult.success ? 'completed' : 'failed';
-
-      results.push(output);
-      completedSteps.add(step.stepId);
-
-      if (onStepComplete) {
-        onStepComplete(step, output);
-      }
-
-      if (!output.stepResult.success && output.needsRollback) {
-        for (const pending of pendingSteps) {
-          pending.status = 'skipped';
-        }
-        break;
-      }
-    }
-
-    return results;
+    return executeStepsWithProgressEnforcement(
+      steps,
+      context,
+      { executeStep: (step, executionContext) => this.executeStep(step, executionContext) },
+      onStepComplete,
+    );
   }
 
   private shouldUseLangGraphEngine(): boolean {
