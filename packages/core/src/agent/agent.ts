@@ -41,6 +41,7 @@ import { buildFinalOutput } from './answer-generation.js';
 import { gatherRequestedContext } from './context-gathering.js';
 import { detectDevServerPort } from './dev-server-detection.js';
 import { createExecutionCallbacks } from './execution-callbacks.js';
+import { FactsUpdateFlusher } from './facts-update-flush.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
 import { retrieveRagContext } from './rag-retrieval.js';
 
@@ -64,14 +65,17 @@ export class FrontAgent {
   private skillContentResolver?: SkillContentResolver;
   private memoryStore: MemoryStore;
   private workflowIntegration?: WorkflowIntegration;
-  private pendingFactsUpdates: ProjectFactsUpdate[] = [];
-  private factsUpdateFlushInProgress = false;
+  private factsUpdateFlusher: FactsUpdateFlusher;
   private lastAnswerGenerationError?: string;
   private lastLlmFailureError?: string;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.contextManager = new ContextManager();
+    this.factsUpdateFlusher = new FactsUpdateFlusher({
+      contextManager: this.contextManager,
+      debugLog: this.debugLog.bind(this),
+    });
     this.sddParser = new SDDParser();
 
     if (config.sddPath) {
@@ -378,8 +382,7 @@ export class FrontAgent {
     },
   ): Promise<AgentPlanResult> {
     const startTime = Date.now();
-    this.pendingFactsUpdates = [];
-    this.factsUpdateFlushInProgress = false;
+    this.factsUpdateFlusher.reset();
     this.lastAnswerGenerationError = undefined;
     this.lastLlmFailureError = undefined;
 
@@ -561,8 +564,7 @@ export class FrontAgent {
       };
     } finally {
       this.emitStatus('清理计划上下文', '清理计划上下文');
-      this.pendingFactsUpdates = [];
-      this.factsUpdateFlushInProgress = false;
+      this.factsUpdateFlusher.reset();
       this.currentTaskId = undefined;
       this.contextManager.clearContext(task.id);
     }
@@ -578,8 +580,7 @@ export class FrontAgent {
     },
   ): Promise<AgentExecutionResult> {
     const startTime = Date.now();
-    this.pendingFactsUpdates = [];
-    this.factsUpdateFlushInProgress = false;
+    this.factsUpdateFlusher.reset();
     this.lastAnswerGenerationError = undefined;
     this.lastLlmFailureError = undefined;
     const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
@@ -827,8 +828,7 @@ export class FrontAgent {
       persistMemory(this.memoryDeps, task.id, task.description);
 
       this.emitStatus('清理运行上下文', '清理运行上下文');
-      this.pendingFactsUpdates = [];
-      this.factsUpdateFlushInProgress = false;
+      this.factsUpdateFlusher.reset();
       this.currentTaskId = undefined;
       this.contextManager.clearContext(task.id);
     }
@@ -904,43 +904,7 @@ export class FrontAgent {
   }
 
   private async enqueueFactsUpdate(taskId: string, update: ProjectFactsUpdate): Promise<void> {
-    this.pendingFactsUpdates.push(update);
-    await this.flushFactsUpdates(taskId);
-  }
-
-  private async flushFactsUpdates(taskId: string): Promise<void> {
-    if (this.factsUpdateFlushInProgress) {
-      return;
-    }
-
-    this.factsUpdateFlushInProgress = true;
-    while (true) {
-      try {
-        while (this.pendingFactsUpdates.length > 0) {
-          const nextUpdate = this.pendingFactsUpdates.shift();
-          if (!nextUpdate) {
-            continue;
-          }
-
-          const mergeResult = this.contextManager.mergeFactsUpdate(taskId, nextUpdate);
-          const staleText = mergeResult.staleBaseRevision
-            ? ' (stale base revision, rebased in main reducer)'
-            : '';
-          this.debugLog(
-            `[Agent] Merged facts update from ${mergeResult.source}: ` +
-              `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`,
-          );
-        }
-      } finally {
-        this.factsUpdateFlushInProgress = false;
-      }
-
-      if (this.pendingFactsUpdates.length === 0) {
-        break;
-      }
-
-      this.factsUpdateFlushInProgress = true;
-    }
+    await this.factsUpdateFlusher.enqueue(taskId, update);
   }
 
   getSDDConfig(): SDDConfig | undefined {
