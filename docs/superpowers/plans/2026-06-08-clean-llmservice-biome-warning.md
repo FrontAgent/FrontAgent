@@ -21,7 +21,7 @@
 Run:
 
 ```bash
-npx gitnexus impact generateObject --direction upstream --file packages/core/src/llm/llm-service.ts --kind Method --include-tests --repo /Users/ceilf6/.config/superpowers/worktrees/FrontAgent-app/improve-clean-llmservice-biome-warning
+npx gitnexus impact generateObject --direction upstream --file packages/core/src/llm/llm-service.ts --kind Method --include-tests --repo <worktree>
 ```
 
 Expected: report the blast radius. This issue edits only the test's local schema double, so production call behavior should remain unchanged.
@@ -75,9 +75,9 @@ Run:
 ```bash
 pnpm lint
 pnpm quality:precommit
-npx gitnexus detect_changes --scope all -r /Users/ceilf6/.config/superpowers/worktrees/FrontAgent-app/improve-clean-llmservice-biome-warning
+npx gitnexus detect_changes --scope all -r <worktree>
 ```
 
 Expected: checks pass; changed files are limited to `packages/core/src/llm/llm-service.test.ts` and this plan, excluding generated `.gitnexus/*` drift.
 
-Actual: `pnpm lint` and `pnpm quality:precommit` passed. After correcting this isolated worktree's private `core.worktree` Git metadata and refreshing GitNexus, `npx gitnexus detect_changes --scope all -r /Users/ceilf6/.config/superpowers/worktrees/FrontAgent-app/improve-clean-llmservice-biome-warning` reported 2 changed files, 1 changed test-local `parse` symbol, 0 affected processes, low risk.
+Actual: `pnpm lint` and `pnpm quality:precommit` passed. After correcting this isolated worktree's private `core.worktree` Git metadata and refreshing GitNexus, `npx gitnexus detect_changes --scope all -r <worktree>` reported 2 changed files, 1 changed test-local `parse` symbol, 0 affected processes, low risk.
