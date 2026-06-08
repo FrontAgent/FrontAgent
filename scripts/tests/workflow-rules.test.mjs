@@ -145,6 +145,41 @@ test('Git workspace guard accepts matching toplevel and core.worktree', () => {
   );
 });
 
+test('Git workspace guard accepts matching toplevel when core.worktree is unset', () => {
+  const workspaceRoot = '/tmp/frontagent-workspace';
+
+  assert.doesNotThrow(() =>
+    assertGitWorkspaceRootMatchesCwd({
+      cwd: workspaceRoot,
+      gitText: (args) => {
+        const command = args.join(' ');
+        if (command === 'rev-parse --show-toplevel') return `${workspaceRoot}\n`;
+        if (command === 'config --get core.worktree') {
+          throw Object.assign(new Error('core.worktree unset'), { status: 1 });
+        }
+        throw new Error(`unexpected git command: ${command}`);
+      },
+    }),
+  );
+});
+
+test('Git workspace guard resolves relative core.worktree from git dir', () => {
+  const workspaceRoot = '/tmp/frontagent-workspace';
+
+  assert.doesNotThrow(() =>
+    assertGitWorkspaceRootMatchesCwd({
+      cwd: workspaceRoot,
+      gitText: (args) => {
+        const command = args.join(' ');
+        if (command === 'rev-parse --show-toplevel') return `${workspaceRoot}\n`;
+        if (command === 'rev-parse --git-dir') return `${workspaceRoot}/.git\n`;
+        if (command === 'config --get core.worktree') return '..\n';
+        throw new Error(`unexpected git command: ${command}`);
+      },
+    }),
+  );
+});
+
 test('Git workspace guard rejects mismatched toplevel and core.worktree with repair hint', () => {
   const workspaceRoot = '/tmp/frontagent-worktree';
   const gitRoot = '/tmp/frontagent-main';
