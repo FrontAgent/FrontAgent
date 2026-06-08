@@ -125,6 +125,8 @@ test('GitNexus analyze streams output to avoid spawn buffer limits', () => {
     /spawnSync\(command, args, \{\s*stdio: 'inherit',\s*timeout: timeoutMs,\s*\}\)/u,
   );
   assert.doesNotMatch(analyzeFunction, /encoding: 'utf8'/u);
+  assert.match(contractCheck, /'--wal-checkpoint-threshold'/u);
+  assert.match(contractCheck, /GITNEXUS_WAL_CHECKPOINT_THRESHOLD = '67108864'/u);
 });
 
 test('non-critical changes keep GitNexus advisory', () => {
@@ -176,6 +178,11 @@ test('extractImpactSummary reads only the PR template impact section', () => {
 test('package exposes required OSS Harness scripts', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 
+  assert.match(pkg.devDependencies.gitnexus, /^1\.6\.6-rc\./u);
+  assert.equal(
+    pkg.pnpm.patchedDependencies['gitnexus@1.6.6-rc.159'],
+    'patches/gitnexus@1.6.6-rc.159.patch',
+  );
   assert.equal(pkg.scripts.prepare, 'pnpm hooks:install');
   assert.equal(pkg.scripts['hooks:install'], 'node scripts/workflows/install-hooks.mjs');
   assert.equal(
