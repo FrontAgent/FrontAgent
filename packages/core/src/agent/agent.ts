@@ -39,6 +39,7 @@ import type {
 import { WorkflowIntegration } from '../workflow-integration.js';
 import { buildFinalOutput } from './answer-generation.js';
 import { detectDevServerPort } from './dev-server-detection.js';
+import { createExecutionCallbacks } from './execution-callbacks.js';
 import { mergeRetrievalQuery, normalizeSearchQuery } from './helpers.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
 import {
@@ -46,11 +47,6 @@ import {
   retrieveRagContext,
   rewriteRagQueryForRetrieval,
 } from './rag-retrieval.js';
-import {
-  createOnPhaseComplete,
-  createOnPhaseError,
-  createOnStepComplete,
-} from './step-callbacks.js';
 
 /**
  * FrontAgent 主类
@@ -861,6 +857,14 @@ export class FrontAgent {
       phaseCheckDeps: this.phaseCheckDeps,
       subAgentConfig: this.config.subAgents,
     };
+    const callbacks = createExecutionCallbacks({
+      deps: callbackDeps,
+      task,
+      executionPlan,
+      executionContext,
+      validations,
+      signal,
+    });
 
     await this.executor.executeStepsWithErrorFeedback(
       executionPlan.steps,
@@ -874,15 +878,11 @@ export class FrontAgent {
           filesenseContext: executionContext.collectedContext.filesenseContext,
         },
       },
-      (step) => {
-        this.emit({ type: 'step_started', step });
-      },
-      createOnStepComplete(callbackDeps, task, executionContext, validations),
-      (phase, stepCount) => {
-        this.emit({ type: 'phase_started', phase, stepCount });
-      },
-      createOnPhaseError(callbackDeps, task, signal),
-      createOnPhaseComplete(callbackDeps, task, executionPlan, executionContext, signal),
+      callbacks.onStepStarted,
+      callbacks.onStepComplete,
+      callbacks.onPhaseStarted,
+      callbacks.onPhaseError,
+      callbacks.onPhaseComplete,
       signal,
     );
   }
