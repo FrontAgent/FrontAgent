@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getWebviewHtml, nonce, renderWebviewStyleSection } from './webview-html.js';
+import {
+  getWebviewHtml,
+  nonce,
+  renderWebviewScriptSection,
+  renderWebviewStyleSection,
+} from './webview-html.js';
 
 describe('VS Code webview HTML nonce handling', () => {
   it('generates base64url nonces from cryptographic bytes', () => {
@@ -32,5 +37,14 @@ describe('VS Code webview HTML nonce handling', () => {
 
     expect(styleNonce).toBeDefined();
     expect(styleSection).toBe(renderWebviewStyleSection(styleNonce ?? ''));
+  });
+
+  it('renders the script bootstrapping section through a focused renderer', () => {
+    const html = getWebviewHtml({ cspSource: 'vscode-webview://frontagent.test' } as never);
+    const scriptNonce = html.match(/<script nonce="([^"]+)"/)?.[1];
+    const scriptSection = html.match(/ {2}<script nonce="[^"]+">[\s\S]*? {2}<\/script>/)?.[0];
+
+    expect(scriptNonce).toBeDefined();
+    expect(scriptSection).toBe(renderWebviewScriptSection(scriptNonce ?? ''));
   });
 });
