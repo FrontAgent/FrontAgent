@@ -178,11 +178,8 @@ test('extractImpactSummary reads only the PR template impact section', () => {
 test('package exposes required OSS Harness scripts', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 
-  assert.match(pkg.devDependencies.gitnexus, /^1\.6\.6-rc\./u);
-  assert.equal(
-    pkg.pnpm.patchedDependencies['gitnexus@1.6.6-rc.159'],
-    'patches/gitnexus@1.6.6-rc.159.patch',
-  );
+  assert.equal(pkg.devDependencies.gitnexus, '1.6.6');
+  assert.equal(pkg.pnpm.patchedDependencies, undefined);
   assert.equal(pkg.scripts.prepare, 'pnpm hooks:install');
   assert.equal(pkg.scripts['hooks:install'], 'node scripts/workflows/install-hooks.mjs');
   assert.equal(
