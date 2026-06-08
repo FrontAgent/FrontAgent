@@ -3,7 +3,13 @@ import {
   getWebviewHtml,
   nonce,
   renderWebviewBodySection,
+  renderWebviewConfigScript,
+  renderWebviewContextScript,
+  renderWebviewErrorScript,
+  renderWebviewEventScript,
+  renderWebviewMessageScript,
   renderWebviewScriptSection,
+  renderWebviewStateScript,
   renderWebviewStyleSection,
 } from './webview-html.js';
 
@@ -47,6 +53,39 @@ describe('VS Code webview HTML nonce handling', () => {
 
     expect(scriptNonce).toBeDefined();
     expect(scriptSection).toBe(renderWebviewScriptSection(scriptNonce ?? ''));
+  });
+
+  it('assembles the script section from focused template helpers', () => {
+    const scriptNonce = 'script-test-nonce';
+    const section = renderWebviewScriptSection(scriptNonce);
+    const helpers = [
+      renderWebviewStateScript(),
+      renderWebviewConfigScript(),
+      renderWebviewContextScript(),
+      renderWebviewMessageScript(),
+      renderWebviewEventScript(),
+      renderWebviewErrorScript(),
+    ];
+
+    expect(section).toBe(`  <script nonce="${scriptNonce}">
+${helpers.join('\n')}
+
+    vscode.postMessage({ type: 'ready' });
+  </script>`);
+    expect(section).toContain('acquireVsCodeApi()');
+    expect(section).toContain("vscode.postMessage({ type: 'ready' });");
+    expect(section).toContain("type: 'send'");
+    expect(section).toContain("type: 'saveConfig'");
+    expect(section).toContain("type: 'approve'");
+    expect(section).toContain("type: 'reject'");
+    expect(section).toContain("type: 'webviewError'");
+    expect(section).toContain("$('composer').addEventListener('submit'");
+    expect(section).toContain("$('contextFiles').addEventListener('click'");
+    expect(section).toContain("window.addEventListener('message'");
+    expect(section).toContain("window.addEventListener('error'");
+    expect(section).toContain("window.addEventListener('unhandledrejection'");
+    expect(section).toContain('data-remove-file');
+    expect(section).toContain(`replace(/[&<>"']/g`);
   });
 
   it('renders the body markup through a focused renderer', () => {
