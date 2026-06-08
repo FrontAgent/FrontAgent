@@ -492,9 +492,8 @@ export function renderWebviewStyleSection(styleNonce: string): string {
   </style>`;
 }
 
-export function renderWebviewScriptSection(scriptNonce: string): string {
-  return `  <script nonce="${scriptNonce}">
-    const vscode = acquireVsCodeApi();
+export function renderWebviewStateScript(): string {
+  return `    const vscode = acquireVsCodeApi();
     let state = null;
     let activeMode = 'query';
     let lastComposer = '';
@@ -504,11 +503,6 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
     const browserUrl = $('browserUrl');
     const modeSelect = $('modeSelect');
     const detailsPanel = $('detailsPanel');
-    const modeCopy = {
-      query: { label: 'Ask', description: 'Explain and answer' },
-      modify: { label: 'Agent Edit', description: 'Plan and change code' },
-      debug: { label: 'Debug', description: 'Trace and fix failures' }
-    };
 
     function render(next) {
       state = next;
@@ -529,7 +523,15 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
         browserUrl.value = next.browserUrl || '';
         lastBrowserUrl = next.browserUrl || '';
       }
-    }
+    }`;
+}
+
+export function renderWebviewConfigScript(): string {
+  return `    const modeCopy = {
+      query: { label: 'Ask', description: 'Explain and answer' },
+      modify: { label: 'Agent Edit', description: 'Plan and change code' },
+      debug: { label: 'Debug', description: 'Trace and fix failures' }
+    };
 
     function renderConfig(config) {
       const missing = config.missing || [];
@@ -551,9 +553,11 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
     function renderMode() {
       if (document.activeElement !== modeSelect) modeSelect.value = activeMode;
       $('modeDescription').textContent = modeCopy[activeMode]?.description || '';
-    }
+    }`;
+}
 
-    function renderContext(next) {
+export function renderWebviewContextScript(): string {
+  return `    function renderContext(next) {
       $('contextFiles').innerHTML = next.contextFiles.length
         ? next.contextFiles.map((file) => \`<span class="chip">\${escapeHtml(file)}<button type="button" data-remove-file="\${escapeHtml(file)}">x</button></span>\`).join('')
         : '<span class="context-empty">No files attached</span>';
@@ -561,7 +565,48 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
       $('selectionPreview').textContent = next.selectionPreview ? \`Selection context:\\n\${next.selectionPreview}\` : '';
     }
 
-    function renderMessages(next) {
+    function renderDetails(next) {
+      detailsPanel.open = !next.detailsCollapsed;
+      $('activityLabel').textContent = next.lastActivityLabel || '等待开始';
+      $('operation').textContent = next.currentOperation || '';
+      $('phaseCount').textContent = next.phases.length ? \`(\${next.phases.length})\` : '';
+      $('phases').innerHTML = next.phases.length ? next.phases.map((phase) => \`
+        <div class="phase">
+          <div class="phase-head">
+            <strong>\${escapeHtml(phase.name)}</strong>
+            <span class="badge \${escapeHtml(phase.status)}">\${escapeHtml(phase.status)}</span>
+          </div>
+          <div class="steps">
+            \${phase.steps.map((step) => \`
+              <div class="step">
+                <span class="badge \${escapeHtml(step.status)}">\${escapeHtml(step.status)}</span>
+                <div>
+                  <div>\${escapeHtml(step.description)}</div>
+                  <div class="muted mono">\${escapeHtml(step.tool)} · \${escapeHtml(step.action)}</div>
+                  \${step.error ? \`<div class="danger">\${escapeHtml(step.error)}</div>\` : ''}
+                </div>
+              </div>\`).join('')}
+          </div>
+        </div>\`).join('') : 'No plan yet.';
+      $('ragMeta').textContent = next.ragSearchMode ? \`\${next.ragSearchMode}\${next.ragReranked ? ' · reranked' : ''}\` : '';
+      $('rag').innerHTML = next.ragMatches.length
+        ? next.ragMatches.map((match) => \`<div><strong>\${escapeHtml(match.title)}</strong><div class="muted mono">\${escapeHtml(match.path || '')}</div></div>\`).join('')
+        : 'No matches yet.';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }`;
+}
+
+export function renderWebviewMessageScript(): string {
+  return `    function renderMessages(next) {
       const parts = [];
       if (!next.messages.length && !next.streamText && !next.approval) {
         parts.push('<div class="empty"><strong>Start with FrontAgent</strong><br>Ask a question, switch to Agent Edit for code changes, or attach a file, selection, and browser URL for richer context.</div>');
@@ -612,48 +657,11 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
       }
       $('messages').innerHTML = parts.join('');
       $('messages').scrollTop = $('messages').scrollHeight;
-    }
+    }`;
+}
 
-    function renderDetails(next) {
-      detailsPanel.open = !next.detailsCollapsed;
-      $('activityLabel').textContent = next.lastActivityLabel || '等待开始';
-      $('operation').textContent = next.currentOperation || '';
-      $('phaseCount').textContent = next.phases.length ? \`(\${next.phases.length})\` : '';
-      $('phases').innerHTML = next.phases.length ? next.phases.map((phase) => \`
-        <div class="phase">
-          <div class="phase-head">
-            <strong>\${escapeHtml(phase.name)}</strong>
-            <span class="badge \${escapeHtml(phase.status)}">\${escapeHtml(phase.status)}</span>
-          </div>
-          <div class="steps">
-            \${phase.steps.map((step) => \`
-              <div class="step">
-                <span class="badge \${escapeHtml(step.status)}">\${escapeHtml(step.status)}</span>
-                <div>
-                  <div>\${escapeHtml(step.description)}</div>
-                  <div class="muted mono">\${escapeHtml(step.tool)} · \${escapeHtml(step.action)}</div>
-                  \${step.error ? \`<div class="danger">\${escapeHtml(step.error)}</div>\` : ''}
-                </div>
-              </div>\`).join('')}
-          </div>
-        </div>\`).join('') : 'No plan yet.';
-      $('ragMeta').textContent = next.ragSearchMode ? \`\${next.ragSearchMode}\${next.ragReranked ? ' · reranked' : ''}\` : '';
-      $('rag').innerHTML = next.ragMatches.length
-        ? next.ragMatches.map((match) => \`<div><strong>\${escapeHtml(match.title)}</strong><div class="muted mono">\${escapeHtml(match.path || '')}</div></div>\`).join('')
-        : 'No matches yet.';
-    }
-
-    function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[char]));
-    }
-
-    $('composer').addEventListener('submit', (event) => {
+export function renderWebviewEventScript(): string {
+  return `    $('composer').addEventListener('submit', (event) => {
       event.preventDefault();
       const task = prompt.value.trim();
       if (!task) return;
@@ -706,8 +714,11 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
     window.addEventListener('message', (event) => {
       const message = event.data;
       if (message.type === 'state') render(message.state);
-    });
-    window.addEventListener('error', (event) => {
+    });`;
+}
+
+export function renderWebviewErrorScript(): string {
+  return `    window.addEventListener('error', (event) => {
       vscode.postMessage({
         type: 'webviewError',
         message: event.message || 'Unknown webview error',
@@ -721,7 +732,21 @@ export function renderWebviewScriptSection(scriptNonce: string): string {
         message: reason?.message || String(reason || 'Unhandled webview rejection'),
         stack: reason?.stack
       });
-    });
+    });`;
+}
+
+export function renderWebviewScriptSection(scriptNonce: string): string {
+  const scripts = [
+    renderWebviewStateScript(),
+    renderWebviewConfigScript(),
+    renderWebviewContextScript(),
+    renderWebviewMessageScript(),
+    renderWebviewEventScript(),
+    renderWebviewErrorScript(),
+  ];
+
+  return `  <script nonce="${scriptNonce}">
+${scripts.join('\n')}
 
     vscode.postMessage({ type: 'ready' });
   </script>`;
