@@ -69,7 +69,9 @@ describe('buildCodeQualityLlmReviewPrompt', () => {
     expect(result.userPrompt).toContain('missing-20');
     expect(result.userPrompt).not.toContain('missing-21');
     expect(result.userPrompt).toContain('moduleCount=2');
-    expect(result.userPrompt).toContain('recentErrors=[runtime] error-2 | [runtime] error-3 | [runtime] error-4 | [runtime] error-5 | [runtime] error-6');
+    expect(result.userPrompt).toContain(
+      'recentErrors=[runtime] error-2 | [runtime] error-3 | [runtime] error-4 | [runtime] error-5 | [runtime] error-6',
+    );
     expect(result.userPrompt).not.toContain('error-1');
   });
 });
