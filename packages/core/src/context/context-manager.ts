@@ -10,6 +10,7 @@ import type {
   ProjectFactsUpdate,
   RagContextMatch,
 } from '../types.js';
+import { serializeProjectFactsForLLM } from './fact-serializer.js';
 import {
   cloneStringArray,
   formatFilesenseNavigationContext,
@@ -983,116 +984,9 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return '';
 
-    const { facts } = context;
-    const parts: string[] = [];
-
-    parts.push(`## 事实版本: ${facts.revision}`);
-
-    // 文件系统事实
-    parts.push('## 文件系统状态');
-
-    if (facts.filesystem.existingFiles.size > 0) {
-      parts.push('\n### 已确认存在的文件:');
-      for (const file of facts.filesystem.existingFiles) {
-        parts.push(`- ${file}`);
-      }
-    }
-
-    if (facts.filesystem.existingDirectories.size > 0) {
-      parts.push('\n### 已确认存在的目录:');
-      for (const dir of facts.filesystem.existingDirectories) {
-        const contents = facts.filesystem.directoryContents.get(dir);
-        if (contents && contents.length > 0) {
-          parts.push(
-            `- ${dir}/ (包含: ${contents.slice(0, 5).join(', ')}${contents.length > 5 ? '...' : ''})`,
-          );
-        } else {
-          parts.push(`- ${dir}/`);
-        }
-      }
-    }
-
-    if (facts.filesystem.nonExistentPaths.size > 0) {
-      parts.push('\n### 已确认不存在的路径:');
-      for (const path of facts.filesystem.nonExistentPaths) {
-        parts.push(`- ${path}`);
-      }
-    }
-
-    // 依赖状态
-    if (
-      facts.dependencies.installedPackages.size > 0 ||
-      facts.dependencies.missingPackages.size > 0
-    ) {
-      parts.push('\n## 依赖状态');
-
-      if (facts.dependencies.installedPackages.size > 0) {
-        parts.push('\n### 已安装的包:');
-        parts.push(Array.from(facts.dependencies.installedPackages).join(', '));
-      }
-
-      if (facts.dependencies.missingPackages.size > 0) {
-        parts.push('\n### 缺失的包:');
-        parts.push(Array.from(facts.dependencies.missingPackages).join(', '));
-      }
-    }
-
-    // 项目状态
-    parts.push('\n## 项目状态');
-    parts.push(
-      `- 开发服务器: ${facts.project.devServerRunning ? `运行中${facts.project.runningPort ? ` (端口: ${facts.project.runningPort})` : ''}` : '未运行'}`,
-    );
-    if (facts.project.buildStatus && facts.project.buildStatus !== 'unknown') {
-      parts.push(`- 构建状态: ${facts.project.buildStatus === 'success' ? '成功' : '失败'}`);
-    }
-
-    // 模块依赖图
-    if (facts.moduleDependencyGraph.modules.size > 0) {
-      parts.push('\n## 已创建的模块');
-
-      // 按类型分组
-      const byType = new Map<string, ModuleInfo[]>();
-      for (const module of facts.moduleDependencyGraph.modules.values()) {
-        const list = byType.get(module.type) || [];
-        list.push(module);
-        byType.set(module.type, list);
-      }
-
-      for (const [type, modules] of byType) {
-        parts.push(`\n### ${type} (${modules.length}个):`);
-        for (const m of modules) {
-          const exportInfo = m.defaultExport
-            ? `默认导出: ${m.defaultExport}`
-            : m.exports.length > 0
-              ? `导出: ${m.exports.slice(0, 3).join(', ')}${m.exports.length > 3 ? '...' : ''}`
-              : '无导出';
-          parts.push(`- ${m.path} (${exportInfo})`);
-        }
-      }
-
-      // 检查缺失的依赖
-      const missingDeps = this.validateModuleDependencies(taskId);
-      if (missingDeps.length > 0) {
-        parts.push('\n### ⚠️ 缺失的模块引用:');
-        for (const { from, missing: _missing, importPath } of missingDeps.slice(0, 10)) {
-          parts.push(`- ${from} 引用了不存在的模块: ${importPath}`);
-        }
-        if (missingDeps.length > 10) {
-          parts.push(`... 还有 ${missingDeps.length - 10} 个缺失引用`);
-        }
-      }
-    }
-
-    // 最近错误
-    if (facts.errors.length > 0) {
-      parts.push('\n## 最近的错误 (最多显示5条)');
-      const recentErrors = facts.errors.slice(-5);
-      for (const error of recentErrors) {
-        parts.push(`- [${error.type}] ${error.message}`);
-      }
-    }
-
-    return parts.join('\n');
+    return serializeProjectFactsForLLM(context.facts, {
+      missingModuleReferences: this.validateModuleDependencies(taskId),
+    });
   }
 }
 
