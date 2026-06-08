@@ -15,6 +15,7 @@ export interface PersistDirectoryIndexOptions {
   nextComparable: ComparableIndex;
   forceFull: boolean;
   filesHashed: number;
+  stableStringify: (value: unknown) => string;
   writeJson: (targetPath: string, value: unknown) => Promise<void>;
   now?: () => string;
 }
@@ -34,26 +35,13 @@ function comparableIndex(index: IndexFile): ComparableIndex {
   };
 }
 
-function stableStringify(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
-}
-
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (typeof value !== 'object' || value === null) return value;
-  const output: Record<string, unknown> = {};
-  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    output[key] = sortKeys((value as Record<string, unknown>)[key]);
-  }
-  return output;
-}
-
 export async function persistDirectoryIndex({
   indexPath,
   previous,
   nextComparable,
   forceFull,
   filesHashed,
+  stableStringify,
   writeJson,
   now = () => new Date().toISOString(),
 }: PersistDirectoryIndexOptions): Promise<{ filesHashed: number; wroteIndex: boolean }> {
