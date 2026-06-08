@@ -19,11 +19,10 @@ import { buildOrderedPhaseGroups, detectLanguage } from './phase-ordering.js';
 import { PhaseRunner } from './phase-runner.js';
 import { executeStepsWithProgressEnforcement } from './progress-enforcement.js';
 import { executeStepsWithErrorFeedbackViaLangGraph } from './step-feedback-runner.js';
+import { createStepTraceRecorder } from './step-trace-recorder.js';
 import type {
   ExecutorCollectedContext,
   ExecutorConfig,
-  ExecutorSubStage,
-  ExecutorTraceStage,
   MCPClient,
   PhaseExecutionGroup,
 } from './types.js';
@@ -85,24 +84,6 @@ export class Executor {
     return Number(process.hrtime.bigint()) / 1_000_000;
   }
 
-  private isTraceEnabled(): boolean {
-    return Boolean(this.config.trace?.enabled || this.config.trace?.onStepTrace);
-  }
-
-  private createTraceStage(
-    name: ExecutorTraceStage['name'],
-    startedAtMs: number,
-    success: boolean,
-    error?: string,
-  ): ExecutorTraceStage {
-    return {
-      name,
-      durationMs: this.nowMs() - startedAtMs,
-      success,
-      error,
-    };
-  }
-
   registerMCPClient(name: string, client: MCPClient): void {
     this.mcpClients.set(name, client);
   }
@@ -127,69 +108,22 @@ export class Executor {
     },
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
-    const traceEnabled = this.isTraceEnabled();
-    const traceStartedAt = traceEnabled ? this.nowMs() : 0;
-    const traceStages: ExecutorTraceStage[] = [];
-    const subStages: ExecutorSubStage[] = [];
-
-    const finish = (output: ExecutorOutput): ExecutorOutput => {
-      if (traceEnabled) {
-        const stepResult = output.stepResult;
-        const toolResult = stepResult.output as Record<string, unknown> | undefined;
-        this.config.trace?.onStepTrace?.({
-          taskId: context.task.id,
-          stepId: step.stepId,
-          action: step.action,
-          tool: step.tool,
-          totalMs: this.nowMs() - traceStartedAt,
-          success: stepResult.success,
-          skipped:
-            typeof stepResult.output === 'object' &&
-            stepResult.output !== null &&
-            Boolean((stepResult.output as { skipped?: boolean }).skipped),
-          error: stepResult.error,
-          stages: traceStages,
-          toolDurationMs: toolResult?.__toolDurationMs as number | undefined,
-          subStages: subStages.length > 0 ? subStages : undefined,
-        });
-      }
-      return output;
-    };
-
-    const withStage = async <T>(
-      name: ExecutorTraceStage['name'],
-      fn: () => Promise<T> | T,
-    ): Promise<T> => {
-      if (!traceEnabled) {
-        return fn();
-      }
-      const stageStartedAt = this.nowMs();
-      try {
-        const result = await fn();
-        traceStages.push(this.createTraceStage(name, stageStartedAt, true));
-        return result;
-      } catch (error) {
-        traceStages.push(
-          this.createTraceStage(
-            name,
-            stageStartedAt,
-            false,
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
-        throw error;
-      }
-    };
+    const trace = createStepTraceRecorder({
+      trace: this.config.trace,
+      taskId: context.task.id,
+      step,
+      nowMs: () => this.nowMs(),
+    });
 
     try {
-      const paramValidation = await withStage('validate_params', () =>
+      const paramValidation = await trace.withStage('validate_params', () =>
         this.validateStepParams(step),
       );
       if (!paramValidation.valid) {
         if (this.config.debug) {
           console.log(`[Executor] Skipping step due to invalid params: ${paramValidation.reason}`);
         }
-        return finish({
+        return trace.finish({
           stepResult: {
             success: true,
             output: { skipped: true, reason: paramValidation.reason },
@@ -200,7 +134,7 @@ export class Executor {
         });
       }
 
-      const preValidation = await withStage('validate_before', () =>
+      const preValidation = await trace.withStage('validate_before', () =>
         this.validateBeforeExecution(step, context),
       );
       if (!preValidation.pass) {
@@ -213,7 +147,7 @@ export class Executor {
           if (this.config.debug) {
             console.log(`[Executor] Skipping step due to validation: ${errorMsg}`);
           }
-          return finish({
+          return trace.finish({
             stepResult: {
               success: true,
               output: { skipped: true, reason: errorMsg, exists: false },
@@ -224,7 +158,7 @@ export class Executor {
           });
         }
 
-        return finish({
+        return trace.finish({
           stepResult: {
             success: false,
             error: `Pre-execution validation failed: ${errorMsg}`,
@@ -245,18 +179,20 @@ export class Executor {
         console.log('[Executor] Step params:', toolParams);
       }
 
-      toolParams = await withStage('prepare_tool_params', () =>
+      toolParams = await trace.withStage('prepare_tool_params', () =>
         this.actionSkills.prepareToolParams({
           step,
           params: toolParams,
           context,
           onSubStageTiming: (name, durationMs) => {
-            subStages.push({ name, durationMs, success: true });
+            trace.addSubStage(name, durationMs);
           },
         }),
       );
 
-      const toolResult = await withStage('call_tool', () => this.callTool(step.tool, toolParams));
+      const toolResult = await trace.withStage('call_tool', () =>
+        this.callTool(step.tool, toolParams),
+      );
 
       if (typeof toolResult === 'object' && toolResult !== null) {
         const resultObj = toolResult as { success?: boolean; error?: string };
@@ -266,7 +202,7 @@ export class Executor {
             if (this.config.debug) {
               console.log(`[Executor] Skipping step due to tool error: ${resultObj.error}`);
             }
-            return finish({
+            return trace.finish({
               stepResult: {
                 success: true,
                 output: { skipped: true, reason: resultObj.error },
@@ -279,7 +215,7 @@ export class Executor {
         }
       }
 
-      const postValidation = await withStage('validate_after', () =>
+      const postValidation = await trace.withStage('validate_after', () =>
         this.validateAfterExecution(step, toolResult, toolParams),
       );
 
@@ -291,23 +227,14 @@ export class Executor {
         snapshotId: (toolResult as { snapshotId?: string })?.snapshotId,
       };
 
-      return finish({
+      return trace.finish({
         stepResult,
         validation: postValidation,
         needsRollback: !postValidation.pass && step.validation.some((v) => v.required),
       });
     } catch (error) {
-      if (traceEnabled && traceStages.length === 0) {
-        traceStages.push(
-          this.createTraceStage(
-            'catch',
-            traceStartedAt,
-            false,
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
-      }
-      return finish({
+      trace.markCatchIfEmpty(error);
+      return trace.finish({
         stepResult: {
           success: false,
           error: error instanceof Error ? error.message : String(error),
