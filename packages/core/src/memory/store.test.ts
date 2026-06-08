@@ -10,6 +10,12 @@ import {
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectFactsSnapshot } from '../types.js';
+import {
+  buildDependenciesTopic,
+  buildErrorsTopic,
+  buildProjectStructureTopic,
+  inferPersistenceTags,
+} from './persistence-writers.js';
 import { MemoryStore } from './store.js';
 import type { PersistenceInput } from './types.js';
 import {
@@ -118,6 +124,38 @@ describe('MemoryStore', () => {
   // -------------------------------------------------------------------------
   // CRUD Operations
   // -------------------------------------------------------------------------
+
+  describe('persistence writer helpers', () => {
+    it('builds topic outputs without filesystem dependencies', () => {
+      const input: PersistenceInput = {
+        factsSnapshot: createFactsSnapshot(),
+        createdFiles: ['src/components/Button.tsx', 'src/utils/format.ts'],
+        errorResolutions: [
+          {
+            errorType: 'TypeError',
+            errorMessage: 'Cannot read property x',
+            resolution: 'Add null check',
+          },
+        ],
+        dependencyChanges: { installed: ['react'], missing: ['zod'] },
+        taskDescription: 'Persist memory writer outputs',
+      };
+
+      const projectTopic = buildProjectStructureTopic(input, []);
+      const dependenciesTopic = buildDependenciesTopic(input, []);
+      const errorsTopic = buildErrorsTopic(input, []);
+
+      expect(projectTopic.entries.map((entry) => entry.key)).toEqual([
+        'src/components/Button.tsx',
+        'src/utils/format.ts',
+      ]);
+      expect(projectTopic.entries[0].tags).toEqual(['component']);
+      expect(projectTopic.entries[1].tags).toEqual(['util']);
+      expect(dependenciesTopic?.entries.map((entry) => entry.key)).toEqual(['react', 'zod']);
+      expect(errorsTopic?.entries[0].key).toBe('TypeError: Cannot read property x');
+      expect(inferPersistenceTags('src/App.test.ts')).toEqual(['test']);
+    });
+  });
 
   describe('CRUD operations', () => {
     it('loadIndex returns null when index file does not exist', () => {
