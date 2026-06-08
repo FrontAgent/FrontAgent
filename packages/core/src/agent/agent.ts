@@ -38,15 +38,11 @@ import type {
 } from '../types.js';
 import { WorkflowIntegration } from '../workflow-integration.js';
 import { buildFinalOutput } from './answer-generation.js';
+import { gatherRequestedContext } from './context-gathering.js';
 import { detectDevServerPort } from './dev-server-detection.js';
 import { createExecutionCallbacks } from './execution-callbacks.js';
-import { mergeRetrievalQuery, normalizeSearchQuery } from './helpers.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
-import {
-  formatRagResult,
-  retrieveRagContext,
-  rewriteRagQueryForRetrieval,
-} from './rag-retrieval.js';
+import { retrieveRagContext } from './rag-retrieval.js';
 
 /**
  * FrontAgent 主类
@@ -891,58 +887,14 @@ export class FrontAgent {
     taskId: string,
     requests: Array<{ type: string; params: Record<string, unknown> }>,
   ): Promise<void> {
-    for (const request of requests) {
-      try {
-        switch (request.type) {
-          case 'read_file': {
-            const path = request.params.path as string;
-            const result = await this.executor.callTool('read_file', { path });
-            if ((result as { success?: boolean }).success) {
-              this.contextManager.addFile(taskId, path, (result as { content: string }).content);
-            }
-            break;
-          }
-          case 'get_page': {
-            const url = request.params.url as string;
-            await this.executor.callTool('browser_navigate', { url });
-            const result = await this.executor.callTool('get_page_structure', {});
-            this.contextManager.setPageStructure(taskId, result);
-            break;
-          }
-          case 'rag_query': {
-            const query = request.params.query as string;
-            const maxResults = request.params.maxResults as number | undefined;
-            const rewrittenQuery = await rewriteRagQueryForRetrieval(this.ragDeps, query);
-            const retrievalQuery = rewrittenQuery
-              ? mergeRetrievalQuery(query, rewrittenQuery)
-              : normalizeSearchQuery(query);
-            const result = (await this.executor.callTool('rag_query', {
-              query: retrievalQuery,
-              maxResults,
-            })) as {
-              success?: boolean;
-              results?: Array<{
-                type: string;
-                title: string;
-                sourceUrl: string;
-                snippet: string;
-                path?: string;
-              }>;
-            };
-
-            if (result.success && result.results?.length) {
-              this.contextManager.addRagResults(
-                taskId,
-                result.results.map((item) => formatRagResult(item)),
-              );
-            }
-            break;
-          }
-        }
-      } catch (error) {
-        this.debugWarn(`Failed to gather context: ${request.type}`, error);
-      }
-    }
+    await gatherRequestedContext({
+      taskId,
+      requests,
+      executor: this.executor,
+      contextManager: this.contextManager,
+      ragDeps: this.ragDeps,
+      debugWarn: this.debugWarn.bind(this),
+    });
   }
 
   private rememberPlannerFallback(reason: string | undefined): void {
