@@ -7,6 +7,7 @@ import {
   mergeProjectFactsUpdate,
   projectFactsFromSnapshot,
 } from './facts-merge-helpers.js';
+import { updateFilesystemFactsFromToolResult } from './filesystem-facts-update.js';
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
@@ -310,6 +311,26 @@ describe('ContextManager', () => {
   });
 
   describe('updateFileSystemFacts', () => {
+    it('keeps filesystem helper mutations independent from revision bumping', () => {
+      const manager = new ContextManager();
+      const context = manager.createContext(makeTask({ id: 't1' }));
+
+      const changed = updateFilesystemFactsFromToolResult(
+        context.facts,
+        'search_code',
+        {},
+        {
+          success: true,
+          files: ['src/app.ts'],
+        },
+      );
+
+      expect(changed).toBe(true);
+      expect(context.facts.filesystem.existingFiles.has('src/app.ts')).toBe(true);
+      expect(context.facts.filesystem.existingDirectories.has('src')).toBe(true);
+      expect(context.facts.revision).toBe(0);
+    });
+
     it('records existing file on create_file success', () => {
       const manager = new ContextManager();
       manager.createContext(makeTask({ id: 't1' }));

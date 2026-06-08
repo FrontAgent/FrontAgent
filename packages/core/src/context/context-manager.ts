@@ -15,11 +15,8 @@ import {
   mergeProjectFactsUpdate,
   projectFactsFromSnapshot,
 } from './facts-merge-helpers.js';
-import {
-  formatFilesenseNavigationContext,
-  normalizeFilesenseNavigation,
-  parentDirectoriesForPath,
-} from './helpers.js';
+import { updateFilesystemFactsFromToolResult } from './filesystem-facts-update.js';
+import { formatFilesenseNavigationContext, normalizeFilesenseNavigation } from './helpers.js';
 import { updateModuleDependencyGraphFromToolResult } from './module-dependency-graph.js';
 
 /**
@@ -89,19 +86,6 @@ export class ContextManager {
 
   private removeFromSet(set: Set<string>, value: string): boolean {
     return set.delete(value);
-  }
-
-  private setStringArrayMap(map: Map<string, string[]>, key: string, value: string[]): boolean {
-    const previous = map.get(key);
-    if (
-      previous &&
-      previous.length === value.length &&
-      previous.every((item, idx) => item === value[idx])
-    ) {
-      return false;
-    }
-    map.set(key, value);
-    return true;
   }
 
   /**
@@ -326,169 +310,8 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return;
 
-    const { facts } = context;
-    let changed = false;
-
-    // Handle filesense navigation results - consume explicit factsDelta instead of guessing result shape.
-    if (toolName.startsWith('filesense_')) {
-      const data = result.data as
-        | { factsDelta?: { existingFiles?: string[]; existingDirectories?: string[] } }
-        | undefined;
-      const factsDelta = data?.factsDelta;
-      if (result.success && factsDelta) {
-        for (const file of factsDelta.existingFiles ?? []) {
-          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
-        }
-        for (const dir of factsDelta.existingDirectories ?? []) {
-          changed = this.addToSet(facts.filesystem.existingDirectories, dir) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, dir) || changed;
-        }
-      }
-    }
-
-    // Handle filesense tool results - enrich ProjectFacts from index data
-    if (
-      toolName === 'filesense_sync' ||
-      toolName === 'filesense_sync_and_summarize' ||
-      toolName === 'filesense_query'
-    ) {
-      if (result.success && result.data) {
-        const data = result.data as Record<string, unknown>;
-
-        // For query results, extract file/directory existence from the index
-        const index = (data.index ?? (data as { sync?: unknown }).sync) as
-          | { children?: Array<{ name: string; path: string; type: string }> }
-          | undefined;
-        if (index?.children) {
-          for (const child of index.children) {
-            if (child.type === 'file') {
-              changed = this.addToSet(facts.filesystem.existingFiles, child.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, child.path) || changed;
-            } else if (child.type === 'dir') {
-              changed = this.addToSet(facts.filesystem.existingDirectories, child.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, child.path) || changed;
-            }
-          }
-        }
-
-        // For sync results, mark the root as existing directory
-        const root = data.root as string | undefined;
-        if (root) {
-          changed = this.addToSet(facts.filesystem.existingDirectories, root) || changed;
-        }
-      }
-    }
-
-    switch (toolName) {
-      case 'create_file':
-      case 'apply_patch': {
-        const path = params.path as string;
-        if (result.success) {
-          changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-        } else if (result.error?.includes('not found')) {
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-        }
-        break;
-      }
-      case 'read_file': {
-        const path = params.path as string;
-        // 🔧 修复：检查 skipped 和 exists 字段，正确记录不存在的文件
-        if (result.success && !result.skipped) {
-          // 真正成功读取了文件
-          changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-        } else if (result.skipped && result.exists === false) {
-          // 步骤被跳过且文件不存在
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
-        } else if (
-          result.error?.includes('not found') ||
-          result.error?.includes('does not exist')
-        ) {
-          // 明确的文件不存在错误
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
-        }
-        break;
-      }
-      case 'list_directory': {
-        const path = params.path as string;
-        // 🔧 修复：同样检查 skipped 字段
-        if (result.success && !result.skipped && Array.isArray(result.entries)) {
-          changed = this.addToSet(facts.filesystem.existingDirectories, path) || changed;
-
-          // 🔧 关键修复：从目录内容推断文件存在性
-          // list_directory 返回的 entries 是 FileInfo[] 对象数组
-          // FileInfo = { name: string, path: string, type: 'file' | 'directory', size?, modifiedAt? }
-          const entries = result.entries as Array<{ name: string; path: string; type: string }>;
-
-          // 存储路径字符串用于 directoryContents
-          changed =
-            this.setStringArrayMap(
-              facts.filesystem.directoryContents,
-              path,
-              entries.map((e) => e.path),
-            ) || changed;
-
-          // 将目录中的文件/子目录添加到相应的集合
-          for (const entry of entries) {
-            if (entry.type === 'file') {
-              changed = this.addToSet(facts.filesystem.existingFiles, entry.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, entry.path) || changed;
-            } else if (entry.type === 'directory') {
-              changed = this.addToSet(facts.filesystem.existingDirectories, entry.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, entry.path) || changed;
-            }
-          }
-        } else if (result.skipped || result.error?.includes('not found')) {
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-        }
-        break;
-      }
-      case 'search_code': {
-        if (!result.success) {
-          break;
-        }
-
-        const files = new Set<string>();
-
-        if (Array.isArray(result.files)) {
-          for (const file of result.files) {
-            if (typeof file === 'string') {
-              files.add(file);
-            }
-          }
-        }
-
-        if (Array.isArray(result.matches)) {
-          for (const match of result.matches as Array<{ file?: unknown }>) {
-            if (typeof match.file === 'string') {
-              files.add(match.file);
-            }
-          }
-        }
-
-        for (const file of files) {
-          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
-
-          for (const parent of parentDirectoriesForPath(file)) {
-            changed = this.addToSet(facts.filesystem.existingDirectories, parent) || changed;
-            changed = this.removeFromSet(facts.filesystem.nonExistentPaths, parent) || changed;
-          }
-        }
-        break;
-      }
-    }
-
-    if (changed) {
-      this.bumpFactsRevision(facts);
+    if (updateFilesystemFactsFromToolResult(context.facts, toolName, params, result)) {
+      this.bumpFactsRevision(context.facts);
     }
   }
 
