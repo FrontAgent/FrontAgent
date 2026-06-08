@@ -309,6 +309,36 @@ function toRunOptions(input: {
   };
 }
 
+function createTaskInvocationContext(input: {
+  args: Record<string, unknown>;
+  defaults: FrontAgentMcpServerOptions;
+  projectRoot: string;
+  server: Server;
+}): {
+  runLogPathRef: { value: string | null };
+  runOptions: RunFrontAgentTaskOptions;
+  securityDecisions: SecurityDecision[];
+} {
+  const events: AgentEvent[] = [];
+  const securityDecisions: SecurityDecision[] = [];
+  const runLogPathRef = { value: null as string | null };
+  const runtimeInput = toRuntimeInput(input.args, input.defaults);
+  const llmBackend = createAutoBackend(input.server, runtimeInput, input.projectRoot);
+
+  return {
+    runLogPathRef,
+    runOptions: toRunOptions({
+      args: input.args,
+      defaults: input.defaults,
+      projectRoot: input.projectRoot,
+      llmBackend,
+      runLogPathRef,
+      onEvent: collectSecurityDecisions(events, securityDecisions),
+    }),
+    securityDecisions,
+  };
+}
+
 const sharedTaskProperties = {
   task: { type: 'string', description: 'Natural-language FrontAgent task.' },
   type: {
@@ -527,21 +557,13 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
         }
 
         case 'frontagent_run_task': {
-          const events: AgentEvent[] = [];
-          const securityDecisions: SecurityDecision[] = [];
-          const runLogPathRef = { value: null as string | null };
-          const runtimeInput = toRuntimeInput(args, options);
-          const llmBackend = createAutoBackend(server, runtimeInput, projectRoot);
-          const result = await runFrontAgentTask(
-            toRunOptions({
-              args,
-              defaults: options,
-              projectRoot,
-              llmBackend,
-              runLogPathRef,
-              onEvent: collectSecurityDecisions(events, securityDecisions),
-            }),
-          );
+          const invocation = createTaskInvocationContext({
+            args,
+            defaults: options,
+            projectRoot,
+            server,
+          });
+          const result = await runFrontAgentTask(invocation.runOptions);
           return textResult(
             {
               success: result.success,
@@ -549,30 +571,22 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
               output: result.output,
               error: result.error,
               duration: result.duration,
-              runLogPath: runLogPathRef.value,
+              runLogPath: invocation.runLogPathRef.value,
               executedStepsSummary: summarizeExecutedSteps(result),
-              securityDecisions,
+              securityDecisions: invocation.securityDecisions,
             },
             !result.success,
           );
         }
 
         case 'frontagent_plan_task': {
-          const events: AgentEvent[] = [];
-          const securityDecisions: SecurityDecision[] = [];
-          const runLogPathRef = { value: null as string | null };
-          const runtimeInput = toRuntimeInput(args, options);
-          const llmBackend = createAutoBackend(server, runtimeInput, projectRoot);
-          const result = await planFrontAgentTask(
-            toRunOptions({
-              args,
-              defaults: options,
-              projectRoot,
-              llmBackend,
-              runLogPathRef,
-              onEvent: collectSecurityDecisions(events, securityDecisions),
-            }),
-          );
+          const invocation = createTaskInvocationContext({
+            args,
+            defaults: options,
+            projectRoot,
+            server,
+          });
+          const result = await planFrontAgentTask(invocation.runOptions);
           return textResult(
             {
               success: result.success,
@@ -580,8 +594,8 @@ export function createFrontAgentMcpServer(options: FrontAgentMcpServerOptions = 
               plan: result.plan,
               error: result.error,
               duration: result.duration,
-              runLogPath: runLogPathRef.value,
-              securityDecisions,
+              runLogPath: invocation.runLogPathRef.value,
+              securityDecisions: invocation.securityDecisions,
             },
             !result.success,
           );
