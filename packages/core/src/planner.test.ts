@@ -589,6 +589,42 @@ describe('Planner edge cases', () => {
     expect(repoSteps.length).toBeGreaterThan(0);
   });
 
+  it('keeps injected repository management steps dependent on acceptance output', async () => {
+    const planner = createPlanner({ useLLM: true });
+    mockLLMGeneratePlan(planner, async () => ({
+      summary: '创建并验证',
+      steps: [
+        {
+          description: '创建文件',
+          action: 'create_file',
+          tool: 'create_file',
+          phase: '阶段2-创建',
+          params: defaultParams({ path: 'src/new.ts', codeDescription: '新文件' }),
+          reasoning: '创建',
+          needsCodeGeneration: true,
+        },
+        {
+          description: '运行类型检查',
+          action: 'run_command',
+          tool: 'run_command',
+          phase: '阶段4-验证',
+          params: defaultParams({ command: 'pnpm typecheck' }),
+          reasoning: '验证类型',
+          needsCodeGeneration: false,
+        },
+      ],
+      risks: [],
+      alternatives: [],
+    }));
+
+    const result = await planner.plan(createTask({ type: 'create' }), emptyContext(), []);
+
+    const typecheckStep = result.plan!.steps.find((s) => s.params.command === 'pnpm typecheck');
+    const repoSteps = result.plan!.steps.filter((s) => s.phase === '阶段7-仓库管理');
+    expect(repoSteps).toHaveLength(5);
+    expect(repoSteps[0].dependencies).toEqual([typecheckStep!.stepId]);
+  });
+
   it('does not duplicate repository management phase if LLM already included it', async () => {
     const planner = createPlanner({ useLLM: true });
     mockLLMGeneratePlan(planner, async () => ({
