@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { A2AAgent, A2ARequest, A2AResponse } from '../a2a.js';
 import type { LLMService } from '../llm.js';
 import type { ProjectFactsSnapshot, ProjectFactsUpdate } from '../types.js';
+import { buildCodeQualityLlmReviewPrompt } from './code-quality-prompt.js';
 
 export interface CodeQualityReviewFile {
   path: string;
@@ -58,7 +59,7 @@ export class CodeQualitySubAgent
   readonly capabilities = ['code_quality.review_generated_files'];
 
   // === 配置区
-  // TODO: 等未来token便宜之后取消规则函数与无关配置
+  // First split extracts LLM prompt policy; rule fallback policy remains local.
   private readonly llmService?: LLMService; // 启动LLM评估
   private readonly enableRuleFallback: boolean; // 规则函数检查
   private readonly maxFilesForLLM: number; // LLM评估最多文件数
@@ -164,38 +165,14 @@ export class CodeQualitySubAgent
       ),
     });
 
-    const filesForLLM = payload.files.slice(0, this.maxFilesForLLM).map((file) => ({
-      path: file.path,
-      content: this.truncateFileContent(file.content),
-    }));
-
-    const sddSummary = this.buildSddSummary(payload.sddConfig);
-    const sharedFactsSummary = this.summarizeSharedFacts(payload.sharedFacts);
-
-    const userPrompt = [
-      `Task ID: ${payload.taskId}`,
-      `Phase: ${payload.phase}`,
-      '',
-      'SDD constraints summary:',
-      sddSummary,
-      '',
-      'Shared project facts snapshot:',
-      sharedFactsSummary,
-      '',
-      'Files to review:',
-      JSON.stringify(filesForLLM, null, 2),
-      '',
-      'Return concrete issues with filePath/line/rule/message.',
-    ].join('\n');
+    const prompt = buildCodeQualityLlmReviewPrompt(payload, {
+      maxFilesForLLM: this.maxFilesForLLM,
+      maxCharsPerFileForLLM: this.maxCharsPerFileForLLM,
+    });
 
     const llmResult = await this.llmService.generateObject({
-      system: [
-        'You are a strict code quality review sub-agent.',
-        'Evaluate generated code against SDD constraints and maintainability.',
-        'Output only actionable issues.',
-        'Set severity=error only for clear correctness or hard-constraint violations.',
-      ].join(' '),
-      messages: [{ role: 'user', content: userPrompt }],
+      system: prompt.system,
+      messages: [{ role: 'user', content: prompt.userPrompt }],
       schema: reviewSchema,
       temperature: 0.1,
       maxTokens: 3000,
@@ -283,40 +260,6 @@ export class CodeQualitySubAgent
     }
 
     return issues;
-  }
-
-  private buildSddSummary(sddConfig?: SDDConfig): string {
-    if (!sddConfig) {
-      return 'No SDD config provided.';
-    }
-
-    return [
-      `maxFileLines=${sddConfig.codeQuality.maxFileLines}`,
-      `maxFunctionLines=${sddConfig.codeQuality.maxFunctionLines}`,
-      `maxParameters=${sddConfig.codeQuality.maxParameters}`,
-      `forbiddenPatterns=${sddConfig.codeQuality.forbiddenPatterns.join(', ') || '(none)'}`,
-      `forbiddenPackages=${sddConfig.techStack.forbiddenPackages.join(', ') || '(none)'}`,
-    ].join('\n');
-  }
-
-  private summarizeSharedFacts(sharedFacts?: ProjectFactsSnapshot): string {
-    if (!sharedFacts) {
-      return 'No shared facts provided.';
-    }
-
-    const existingFiles = sharedFacts.filesystem.existingFiles.slice(0, 20);
-    const missingPackages = sharedFacts.dependencies.missingPackages.slice(0, 20);
-    const installedPackages = sharedFacts.dependencies.installedPackages.slice(0, 30);
-    const recentErrors = sharedFacts.errors.slice(-5);
-
-    return [
-      `revision=${sharedFacts.revision}`,
-      `existingFiles(${sharedFacts.filesystem.existingFiles.length})=${existingFiles.join(', ') || '(none)'}`,
-      `installedPackages(${sharedFacts.dependencies.installedPackages.length})=${installedPackages.join(', ') || '(none)'}`,
-      `missingPackages(${sharedFacts.dependencies.missingPackages.length})=${missingPackages.join(', ') || '(none)'}`,
-      `moduleCount=${Object.keys(sharedFacts.moduleDependencyGraph.modules).length}`,
-      `recentErrors=${recentErrors.map((err) => `[${err.type}] ${err.message}`).join(' | ') || '(none)'}`,
-    ].join('\n');
   }
 
   private buildFactUpdates(
@@ -414,13 +357,6 @@ export class CodeQualitySubAgent
     }
 
     return specifier.split('/')[0];
-  }
-
-  private truncateFileContent(content: string): string {
-    if (content.length <= this.maxCharsPerFileForLLM) {
-      return content;
-    }
-    return `${content.slice(0, this.maxCharsPerFileForLLM)}\n/* truncated */`;
   }
 
   private mergeIssues(
