@@ -9,7 +9,6 @@ import {
   createEmbeddingBatches,
   estimateEmbeddingTokens,
   fetchEmbeddings,
-  isCompatibleEmbeddingStore,
   normalizeVector,
 } from './embedding.js';
 import {
@@ -20,7 +19,7 @@ import {
   getSubmodulePaths,
 } from './repository.js';
 import { fuseDocumentCandidates, rerankDocumentCandidates } from './reranker.js';
-import { searchSemantic } from './semantic.js';
+import { runSemanticSearchOrchestration } from './semantic-orchestration.js';
 import type {
   DocumentCandidate,
   EmbeddingStore,
@@ -46,7 +45,6 @@ import {
   deleteWeaviateCollection,
   ensureWeaviateCollection,
   getWeaviateCollectionName,
-  searchSemanticWithWeaviate,
   upsertWeaviateObjects,
 } from './weaviate.js';
 
@@ -125,94 +123,19 @@ export class HybridRepositoryKnowledgeBase {
       if (this.config.embedding.enabled) {
         const semanticStartedAt = performance.now();
         try {
-          if (this.config.embedding.apiKey) {
-            if (this.config.vectorStore.provider === 'weaviate') {
-              if (!this.config.vectorStore.weaviate.baseURL) {
-                warnings.push('Weaviate base URL is not configured; keyword-only search was used.');
-              } else {
-                try {
-                  await this.ensureWeaviateSemanticIndex(index);
-                  const semanticChunkCandidates = await searchSemanticWithWeaviate(
-                    queryText,
-                    index,
-                    this.config.embedding,
-                    this.config.vectorStore.weaviate,
-                    getWeaviateCollectionName(this.config),
-                    this.config.semanticCandidateCount,
-                  );
-                  semanticDocumentCandidates = aggregateChunkCandidates(
-                    semanticChunkCandidates,
-                    index,
-                    filters,
-                  );
-                  if (semanticDocumentCandidates.length > 0) {
-                    searchMode = 'hybrid';
-                  } else {
-                    warnings.push(
-                      'Semantic search returned no candidates; keyword results were used.',
-                    );
-                  }
-                } catch (error) {
-                  warnings.push(
-                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`,
-                  );
-                }
-              }
-            } else {
-              let embeddingStore: EmbeddingStore | null = null;
-              let usedPartialEmbeddingCache = false;
-
-              try {
-                embeddingStore = await this.ensureEmbeddings(index);
-              } catch (error) {
-                const cachedStore = await this.readEmbeddingStore();
-                if (cachedStore && isCompatibleEmbeddingStore(cachedStore, this.config.embedding)) {
-                  embeddingStore = cachedStore;
-                  usedPartialEmbeddingCache = Object.keys(cachedStore.vectors).length > 0;
-                }
-
-                if (!embeddingStore || !usedPartialEmbeddingCache) {
-                  warnings.push(
-                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`,
-                  );
-                } else {
-                  warnings.push(
-                    `Semantic index build interrupted: ${error instanceof Error ? error.message : String(error)} Using cached semantic vectors built so far.`,
-                  );
-                }
-              }
-
-              if (embeddingStore) {
-                try {
-                  const semanticChunkCandidates = await searchSemantic(
-                    queryText,
-                    index,
-                    embeddingStore,
-                    this.config.embedding,
-                    this.config.semanticCandidateCount,
-                  );
-                  semanticDocumentCandidates = aggregateChunkCandidates(
-                    semanticChunkCandidates,
-                    index,
-                    filters,
-                  );
-                  if (semanticDocumentCandidates.length > 0) {
-                    searchMode = 'hybrid';
-                  } else {
-                    warnings.push(
-                      'Semantic search returned no candidates; keyword results were used.',
-                    );
-                  }
-                } catch (error) {
-                  warnings.push(
-                    `Semantic search unavailable: ${error instanceof Error ? error.message : String(error)}`,
-                  );
-                }
-              }
-            }
-          } else {
-            warnings.push('Embedding API key is not configured; keyword-only search was used.');
-          }
+          const semanticResult = await runSemanticSearchOrchestration({
+            queryText,
+            index,
+            filters,
+            config: this.config,
+            ensureEmbeddings: (index) => this.ensureEmbeddings(index),
+            readEmbeddingStore: () => this.readEmbeddingStore(),
+            ensureWeaviateSemanticIndex: (index) => this.ensureWeaviateSemanticIndex(index),
+            weaviateCollectionName: getWeaviateCollectionName(this.config),
+          });
+          semanticDocumentCandidates = semanticResult.semanticDocumentCandidates;
+          searchMode = semanticResult.searchMode;
+          warnings.push(...semanticResult.warnings);
         } finally {
           timing.semanticMs = performance.now() - semanticStartedAt;
         }
