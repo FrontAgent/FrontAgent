@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { inferDirectoryPurpose, inferImportance, scoreCandidate } from './engine-helpers.js';
+import { type ComparableIndex, persistDirectoryIndex } from './engine-indexing.js';
 import type {
   CheckSummary,
   ChildEntry,
@@ -457,30 +458,6 @@ function buildNotesFile(
 
 // ─── Core Operations ───────────────────────────────────────────────────────────
 
-interface ComparableIndex {
-  $schema?: string;
-  schema_version: string;
-  root_relative_path: string;
-  directory: { name: string; path: string };
-  children: ChildEntry[];
-  sync: { child_count: number; file_count: number; dir_count: number };
-}
-
-function comparableIndex(index: IndexFile): ComparableIndex {
-  return {
-    $schema: index.$schema,
-    schema_version: index.schema_version,
-    root_relative_path: index.root_relative_path,
-    directory: index.directory,
-    children: index.children,
-    sync: {
-      child_count: index.sync.child_count,
-      file_count: index.sync.file_count,
-      dir_count: index.sync.dir_count,
-    },
-  };
-}
-
 async function writeDirectoryIndex(
   root: string,
   dirPath: string,
@@ -544,7 +521,6 @@ async function writeDirectoryIndex(
   children.sort((a, b) => a.name.localeCompare(b.name));
   const relativePath = relativeToRoot(root, dirPath);
   const nextSchema = relativeSchemaRef(dirPath, schemaPathsForRoot(root, config).indexSchemaPath);
-  const previousComparable = previous ? comparableIndex(previous) : null;
   const nextComparable: ComparableIndex = {
     $schema: nextSchema,
     schema_version: config.schemaVersion,
@@ -558,30 +534,14 @@ async function writeDirectoryIndex(
     },
   };
 
-  if (
-    previousComparable &&
-    stableStringify(previousComparable) === stableStringify(nextComparable)
-  ) {
-    return { filesHashed, wroteIndex: false };
-  }
-
-  const timestamp = new Date().toISOString();
-  const nextIndex: IndexFile = {
-    $schema: nextSchema,
-    schema_version: config.schemaVersion,
-    generated_at: timestamp,
-    root_relative_path: relativePath,
-    directory: { name: path.basename(dirPath), path: relativePath },
-    children,
-    sync: {
-      ...nextComparable.sync,
-      last_full_sync: forceFull ? timestamp : (previous?.sync.last_full_sync ?? null),
-      last_incremental_sync: timestamp,
-    },
-  };
-
-  await writeJson(indexPath, nextIndex);
-  return { filesHashed, wroteIndex: true };
+  return persistDirectoryIndex({
+    indexPath,
+    previous,
+    nextComparable,
+    forceFull,
+    filesHashed,
+    writeJson,
+  });
 }
 
 // ─── Public API ────────────────────────────────────────────────────────────────
