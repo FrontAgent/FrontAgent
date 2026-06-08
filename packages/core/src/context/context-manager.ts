@@ -14,15 +14,12 @@ import { serializeProjectFactsForLLM } from './fact-serializer.js';
 import {
   cloneStringArray,
   formatFilesenseNavigationContext,
-  inferModuleType,
   mapToRecord,
   normalizeFilesenseNavigation,
   parentDirectoriesForPath,
-  parseExports,
-  parseImports,
   recordToClonedStringArrayMap,
-  resolveImportPath,
 } from './helpers.js';
+import { updateModuleDependencyGraphFromToolResult } from './module-dependency-graph.js';
 
 /**
  * 上下文管理器
@@ -606,65 +603,16 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return;
 
-    const { moduleDependencyGraph } = context.facts;
-
-    // 只处理成功的 create_file 和 apply_patch 操作
-    if (!result.success) return;
-    if (toolName !== 'create_file' && toolName !== 'apply_patch') return;
-
-    const path = params.path as string;
-    const content = (params.content as string) || (result.content as string) || '';
-
-    // 只处理 TS/JS 文件
-    if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) return;
-
-    // 解析导入和导出
-    const imports = parseImports(content);
-    const { exports: exportedSymbols, defaultExport } = parseExports(content);
-
-    // 创建模块信息
-    const moduleInfo: ModuleInfo = {
-      path,
-      type: inferModuleType(path),
-      exports: exportedSymbols,
-      defaultExport,
-      imports,
-      createdAt: Date.now(),
-    };
-
-    // 更新模块映射
-    moduleDependencyGraph.modules.set(path, moduleInfo);
-
-    // 更新依赖关系
-    const resolvedDeps: string[] = [];
-    for (const importPath of imports) {
-      const resolved = resolveImportPath(importPath, path, '');
-      if (resolved) {
-        resolvedDeps.push(resolved);
-      }
+    if (
+      updateModuleDependencyGraphFromToolResult(
+        context.facts.moduleDependencyGraph,
+        toolName,
+        params,
+        result,
+      )
+    ) {
+      this.bumpFactsRevision(context.facts);
     }
-    moduleDependencyGraph.dependencies.set(path, resolvedDeps);
-
-    // 清理旧的反向依赖（如果模块被重复更新）
-    for (const [depPath, reverseDeps] of moduleDependencyGraph.reverseDependencies.entries()) {
-      const nextReverseDeps = reverseDeps.filter((reversePath) => reversePath !== path);
-      if (nextReverseDeps.length > 0) {
-        moduleDependencyGraph.reverseDependencies.set(depPath, nextReverseDeps);
-      } else {
-        moduleDependencyGraph.reverseDependencies.delete(depPath);
-      }
-    }
-
-    // 更新反向依赖
-    for (const dep of resolvedDeps) {
-      const reverseDeps = moduleDependencyGraph.reverseDependencies.get(dep) || [];
-      if (!reverseDeps.includes(path)) {
-        reverseDeps.push(path);
-        moduleDependencyGraph.reverseDependencies.set(dep, reverseDeps);
-      }
-    }
-
-    this.bumpFactsRevision(context.facts);
   }
 
   /**
