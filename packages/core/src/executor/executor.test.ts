@@ -1,7 +1,8 @@
-import type { ExecutionStep } from '@frontagent/shared';
+import type { AgentTask, ExecutionStep } from '@frontagent/shared';
 import { describe, expect, it, vi } from 'vitest';
+import type { ExecutorActionSkill } from '../skills/index.js';
 import { createExecutor, Executor } from './executor.js';
-import type { ExecutorConfig } from './types.js';
+import type { ExecutorCollectedContext, ExecutorConfig } from './types.js';
 
 function makeStep(overrides: Partial<ExecutionStep> = {}): ExecutionStep {
   return {
@@ -21,9 +22,49 @@ function makeStep(overrides: Partial<ExecutionStep> = {}): ExecutionStep {
 function makeConfig(overrides: Partial<ExecutorConfig> = {}): ExecutorConfig {
   return {
     projectRoot: '/test',
-    hallucinationGuard: { enabled: false } as any,
-    llmService: { name: 'test', generateText: vi.fn(), generateObject: vi.fn() } as any,
+    hallucinationGuard: {
+      validateFilePath: vi.fn(),
+      validateCode: vi.fn(),
+    } as unknown as ExecutorConfig['hallucinationGuard'],
+    llmService: {
+      name: 'test',
+      generateText: vi.fn(),
+      generateObject: vi.fn(),
+    } as unknown as ExecutorConfig['llmService'],
     ...overrides,
+  };
+}
+
+function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
+  return {
+    id: 't1',
+    type: 'create',
+    description: 'test',
+    ...overrides,
+  };
+}
+
+function makeCollectedContext(
+  overrides: Partial<ExecutorCollectedContext> = {},
+): ExecutorCollectedContext {
+  return {
+    files: new Map(),
+    ...overrides,
+  };
+}
+
+function makeExecutionContext(
+  overrides: {
+    task?: Partial<AgentTask>;
+    collectedContext?: Partial<ExecutorCollectedContext>;
+  } = {},
+): {
+  task: AgentTask;
+  collectedContext: ExecutorCollectedContext;
+} {
+  return {
+    task: makeTask(overrides.task),
+    collectedContext: makeCollectedContext(overrides.collectedContext),
   };
 }
 
@@ -73,10 +114,9 @@ describe('Executor', () => {
       const executor = new Executor(makeConfig());
       const skill = {
         name: 'test-skill',
-        match: vi.fn().mockReturnValue(true),
-        execute: vi.fn().mockResolvedValue({ success: true, output: 'ok', duration: 10 }),
-      };
-      executor.registerActionSkill(skill as any);
+        action: 'read_file',
+      } satisfies ExecutorActionSkill;
+      executor.registerActionSkill(skill);
       const snapshot = executor.getActionSkillSnapshot();
       expect(snapshot.actionSkills.length).toBeGreaterThan(0);
     });
@@ -101,10 +141,7 @@ describe('Executor', () => {
         params: {},
       });
 
-      const result = await executor.executeStep(step, {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      const result = await executor.executeStep(step, makeExecutionContext());
 
       expect(result.stepResult.success).toBe(true);
       expect(result.stepResult.output).toEqual(expect.objectContaining({ skipped: true }));
@@ -118,10 +155,7 @@ describe('Executor', () => {
         params: { path: '' },
       });
 
-      const result = await executor.executeStep(step, {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      const result = await executor.executeStep(step, makeExecutionContext());
 
       expect(result.stepResult.success).toBe(true);
       expect(result.stepResult.output).toEqual(expect.objectContaining({ skipped: true }));
@@ -135,10 +169,7 @@ describe('Executor', () => {
         params: {},
       });
 
-      const result = await executor.executeStep(step, {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      const result = await executor.executeStep(step, makeExecutionContext());
 
       expect(result).toHaveProperty('stepResult');
       expect(result).toHaveProperty('validation');
@@ -149,10 +180,7 @@ describe('Executor', () => {
   describe('executeSteps', () => {
     it('returns empty results for empty steps', async () => {
       const executor = new Executor(makeConfig());
-      const results = await executor.executeSteps([], {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      const results = await executor.executeSteps([], makeExecutionContext());
       expect(results).toEqual([]);
     });
 
@@ -166,12 +194,9 @@ describe('Executor', () => {
         params: { path: 'a.ts' },
       });
 
-      await expect(
-        executor.executeSteps([step], {
-          task: { id: 't1', type: 'create', description: 'test' } as any,
-          collectedContext: { files: new Map(), metadata: {} } as any,
-        }),
-      ).rejects.toThrow('Circular dependency detected or missing dependency');
+      await expect(executor.executeSteps([step], makeExecutionContext())).rejects.toThrow(
+        'Circular dependency detected or missing dependency',
+      );
     });
 
     it('calls onStepComplete callback', async () => {
@@ -184,14 +209,7 @@ describe('Executor', () => {
 
       const onStepComplete = vi.fn();
 
-      await executor.executeSteps(
-        [step],
-        {
-          task: { id: 't1', type: 'create', description: 'test' } as any,
-          collectedContext: { files: new Map(), metadata: {} } as any,
-        },
-        onStepComplete,
-      );
+      await executor.executeSteps([step], makeExecutionContext(), onStepComplete);
 
       expect(onStepComplete).toHaveBeenCalledWith(step, expect.any(Object));
     });
@@ -200,10 +218,7 @@ describe('Executor', () => {
   describe('executeStepsWithErrorFeedback', () => {
     it('returns empty results for empty steps', async () => {
       const executor = new Executor(makeConfig());
-      const results = await executor.executeStepsWithErrorFeedback([], {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      const results = await executor.executeStepsWithErrorFeedback([], makeExecutionContext());
       expect(results).toEqual([]);
     });
 
@@ -220,10 +235,7 @@ describe('Executor', () => {
 
       await executor.executeStepsWithErrorFeedback(
         [step],
-        {
-          task: { id: 't1', type: 'create', description: 'test' } as any,
-          collectedContext: { files: new Map(), metadata: {} } as any,
-        },
+        makeExecutionContext(),
         onStepStart,
         onStepComplete,
       );
@@ -246,10 +258,7 @@ describe('Executor', () => {
       await expect(
         executor.executeStepsWithErrorFeedback(
           [step],
-          {
-            task: { id: 't1', type: 'create', description: 'test' } as any,
-            collectedContext: { files: new Map(), metadata: {} } as any,
-          },
+          makeExecutionContext(),
           undefined,
           undefined,
           undefined,
@@ -270,10 +279,7 @@ describe('Executor', () => {
         params: { path: 'a.ts' },
       });
 
-      await executor.executeStepsWithErrorFeedback([step], {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      await executor.executeStepsWithErrorFeedback([step], makeExecutionContext());
 
       expect(step.status).toBe('skipped');
     });
@@ -293,10 +299,7 @@ describe('Executor', () => {
         params: {},
       });
 
-      await executor.executeStepsWithErrorFeedback([step], {
-        task: { id: 't1', type: 'create', description: 'test' } as any,
-        collectedContext: { files: new Map(), metadata: {} } as any,
-      });
+      await executor.executeStepsWithErrorFeedback([step], makeExecutionContext());
 
       expect(onStepTrace).toHaveBeenCalledWith(
         expect.objectContaining({

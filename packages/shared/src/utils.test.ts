@@ -136,7 +136,10 @@ describe('matchGlob', () => {
 
 describe('escapeRegex', () => {
   it('escapes all regex metacharacters', () => {
-    expect(escapeRegex('.*+?^${}()|[]\\')).toBe('\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\');
+    const templatePlaceholderChars = '$' + '{}';
+    expect(escapeRegex(`.*+?^${templatePlaceholderChars}()|[]\\`)).toBe(
+      '\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\',
+    );
   });
 
   it('leaves normal strings unchanged', () => {
