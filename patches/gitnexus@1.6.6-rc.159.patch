@@ -1,0 +1,118 @@
+diff --git a/dist/core/ingestion/languages/dart/query.js b/dist/core/ingestion/languages/dart/query.js
+index 24c0c7fc18d4dd4d7146582183ea01a75068bbec..97e9d6b29f9df07d16d2f0ac824a9aef684441db 100644
+--- a/dist/core/ingestion/languages/dart/query.js
++++ b/dist/core/ingestion/languages/dart/query.js
+@@ -22,7 +22,8 @@
+  *   - Parameter / return / receiver type bindings and arity metadata.
+  */
+ import Parser from 'tree-sitter';
+-import Dart from 'tree-sitter-dart';
++import { createRequire } from 'node:module';
++const require = createRequire(import.meta.url);
+ const DART_SCOPE_QUERY = `
+ ; ── Scopes ───────────────────────────────────────────────────────────────────
+ (program) @scope.module
+@@ -127,16 +128,23 @@ const DART_SCOPE_QUERY = `
+ `;
+ let _parser = null;
+ let _query = null;
++let _language = null;
++function getDartLanguage() {
++    if (_language === null) {
++        _language = require('tree-sitter-dart');
++    }
++    return _language;
++}
+ export function getDartParser() {
+     if (_parser === null) {
+         _parser = new Parser();
+-        _parser.setLanguage(Dart);
++        _parser.setLanguage(getDartLanguage());
+     }
+     return _parser;
+ }
+ export function getDartScopeQuery() {
+     if (_query === null) {
+-        _query = new Parser.Query(Dart, DART_SCOPE_QUERY);
++        _query = new Parser.Query(getDartLanguage(), DART_SCOPE_QUERY);
+     }
+     return _query;
+ }
+diff --git a/dist/core/ingestion/languages/kotlin/query.js b/dist/core/ingestion/languages/kotlin/query.js
+index 2e65b54dec6036caa9cdba54dd741fe08eeba196..913aaa21152ebc5c2d59ee2ec137dbdac7551850 100644
+--- a/dist/core/ingestion/languages/kotlin/query.js
++++ b/dist/core/ingestion/languages/kotlin/query.js
+@@ -1,5 +1,6 @@
+ import Parser from 'tree-sitter';
+-import Kotlin from 'tree-sitter-kotlin';
++import { createRequire } from 'node:module';
++const require = createRequire(import.meta.url);
+ const KOTLIN_SCOPE_QUERY = `
+ ;; Scopes
+ (source_file) @scope.module
+@@ -173,16 +174,23 @@ const KOTLIN_SCOPE_QUERY = `
+ `;
+ let parser = null;
+ let query = null;
++let language = null;
++function getKotlinLanguage() {
++    if (language === null) {
++        language = require('tree-sitter-kotlin');
++    }
++    return language;
++}
+ export function getKotlinParser() {
+     if (parser === null) {
+         parser = new Parser();
+-        parser.setLanguage(Kotlin);
++        parser.setLanguage(getKotlinLanguage());
+     }
+     return parser;
+ }
+ export function getKotlinScopeQuery() {
+     if (query === null) {
+-        query = new Parser.Query(Kotlin, KOTLIN_SCOPE_QUERY);
++        query = new Parser.Query(getKotlinLanguage(), KOTLIN_SCOPE_QUERY);
+     }
+     return query;
+ }
+diff --git a/dist/core/ingestion/languages/swift/query.js b/dist/core/ingestion/languages/swift/query.js
+index 5d7a3062c6ff51b637357ed6b8ff15d0adf65d04..cb17fdb6cdffe90a1f363ae4bfc7aa64a22de340 100644
+--- a/dist/core/ingestion/languages/swift/query.js
++++ b/dist/core/ingestion/languages/swift/query.js
+@@ -42,7 +42,8 @@
+  * tree-sitter init cost per file.
+  */
+ import Parser from 'tree-sitter';
+-import Swift from 'tree-sitter-swift';
++import { createRequire } from 'node:module';
++const require = createRequire(import.meta.url);
+ const SWIFT_SCOPE_QUERY = `
+ ;; ── Scopes ──────────────────────────────────────────────────────────
+ (source_file) @scope.module
+@@ -179,16 +180,23 @@ const SWIFT_SCOPE_QUERY = `
+ `;
+ let _parser = null;
+ let _query = null;
++let _language = null;
++function getSwiftLanguage() {
++    if (_language === null) {
++        _language = require('tree-sitter-swift');
++    }
++    return _language;
++}
+ export function getSwiftParser() {
+     if (_parser === null) {
+         _parser = new Parser();
+-        _parser.setLanguage(Swift);
++        _parser.setLanguage(getSwiftLanguage());
+     }
+     return _parser;
+ }
+ export function getSwiftScopeQuery() {
+     if (_query === null) {
+-        _query = new Parser.Query(Swift, SWIFT_SCOPE_QUERY);
++        _query = new Parser.Query(getSwiftLanguage(), SWIFT_SCOPE_QUERY);
+     }
+     return _query;
+ }

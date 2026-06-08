@@ -11,6 +11,7 @@ import {
 const DEFAULT_LOCAL_ANALYZE_TIMEOUT_MS = 60_000;
 const DEFAULT_CI_ANALYZE_TIMEOUT_MS = 180_000;
 const DEFAULT_LOCAL_BASE_BRANCH = 'develop';
+const GITNEXUS_WAL_CHECKPOINT_THRESHOLD = '67108864';
 
 if (isMainModule()) {
   const command = process.argv[2] ?? 'check';
@@ -165,7 +166,16 @@ function runGitNexusAnalyze(mode) {
 }
 
 function getGitNexusAnalyzeInvocation() {
-  const args = ['--yes', '--prefer-offline', 'gitnexus', 'analyze', '--force', '--index-only'];
+  const args = [
+    '--yes',
+    '--prefer-offline',
+    'gitnexus',
+    'analyze',
+    '--force',
+    '--index-only',
+    '--wal-checkpoint-threshold',
+    GITNEXUS_WAL_CHECKPOINT_THRESHOLD,
+  ];
   if (process.platform === 'win32') {
     return { command: 'cmd.exe', args: ['/d', '/s', '/c', 'npx.cmd', ...args] };
   }
