@@ -147,6 +147,29 @@ describe('Executor', () => {
       expect(result.stepResult.output).toEqual(expect.objectContaining({ skipped: true }));
     });
 
+    it('returns the skipped output shape for invalid params', async () => {
+      const executor = new Executor(makeConfig({ debug: false }));
+      const step = makeStep({
+        action: 'read_file',
+        tool: 'read_file',
+        params: {},
+      });
+
+      const result = await executor.executeStep(step, makeExecutionContext());
+
+      expect(result.stepResult).toEqual(
+        expect.objectContaining({
+          success: true,
+          output: {
+            skipped: true,
+            reason: 'read_file requires non-empty path parameter',
+          },
+        }),
+      );
+      expect(result.validation).toEqual({ pass: true, results: [] });
+      expect(result.needsRollback).toBe(false);
+    });
+
     it('skips step with empty path', async () => {
       const executor = new Executor(makeConfig({ debug: false }));
       const step = makeStep({
@@ -159,6 +182,83 @@ describe('Executor', () => {
 
       expect(result.stepResult.success).toBe(true);
       expect(result.stepResult.output).toEqual(expect.objectContaining({ skipped: true }));
+    });
+
+    it('returns exists false when pre-validation skips a missing read file', async () => {
+      const executor = new Executor(
+        makeConfig({
+          debug: false,
+          hallucinationGuard: {
+            validateFilePath: vi.fn().mockResolvedValue({
+              pass: false,
+              type: 'file_not_found',
+              severity: 'block',
+              message: 'File src/missing.ts does not exist',
+            }),
+            validateCode: vi.fn(),
+          } as unknown as ExecutorConfig['hallucinationGuard'],
+        }),
+      );
+      const step = makeStep({
+        action: 'read_file',
+        tool: 'read_file',
+        params: { path: 'src/missing.ts' },
+      });
+
+      const result = await executor.executeStep(step, makeExecutionContext());
+
+      expect(result.stepResult).toEqual(
+        expect.objectContaining({
+          success: true,
+          output: {
+            skipped: true,
+            reason: 'File src/missing.ts does not exist',
+            exists: false,
+          },
+        }),
+      );
+      expect(result.validation).toEqual({ pass: true, results: [] });
+      expect(result.needsRollback).toBe(false);
+    });
+
+    it('returns the skipped output shape for skippable tool errors', async () => {
+      const executor = new Executor(
+        makeConfig({
+          debug: false,
+          hallucinationGuard: {
+            validateFilePath: vi.fn().mockResolvedValue({
+              pass: true,
+              type: 'file_exists',
+              severity: 'info',
+            }),
+            validateCode: vi.fn(),
+          } as unknown as ExecutorConfig['hallucinationGuard'],
+        }),
+      );
+      executor.registerMCPClient('test-client', {
+        callTool: vi.fn().mockResolvedValue({ success: false, error: 'Not a directory' }),
+        listTools: vi.fn().mockResolvedValue([]),
+      });
+      executor.registerToolMapping('read_file', 'test-client');
+      const step = makeStep({
+        action: 'read_file',
+        tool: 'read_file',
+        params: { path: 'src/a.ts' },
+      });
+
+      const result = await executor.executeStep(step, makeExecutionContext());
+
+      expect(result.stepResult).toEqual(
+        expect.objectContaining({
+          success: true,
+          output: {
+            skipped: true,
+            reason: 'Not a directory',
+          },
+        }),
+      );
+      expect(result.validation).toEqual({ pass: true, results: [] });
+      expect(result.needsRollback).toBe(false);
     });
 
     it('returns validation result structure', async () => {

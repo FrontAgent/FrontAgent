@@ -123,41 +123,24 @@ export class Executor {
         if (this.config.debug) {
           console.log(`[Executor] Skipping step due to invalid params: ${paramValidation.reason}`);
         }
-        return trace.finish({
-          stepResult: {
-            success: true,
-            output: { skipped: true, reason: paramValidation.reason },
-            duration: Date.now() - startTime,
-          },
-          validation: { pass: true, results: [] },
-          needsRollback: false,
-        });
+        return trace.finish(this.buildSkippedStepOutput(paramValidation.reason, startTime));
       }
 
       const preValidation = await trace.withStage('validate_before', () =>
         this.validateBeforeExecution(step, context),
       );
       if (!preValidation.pass) {
-        const errorMsg = preValidation.blockedBy?.join('; ') || '';
-        const isDirectoryError =
-          errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
-        const isFileNotExist = errorMsg.includes('does not exist') && step.action === 'read_file';
-
-        if (isDirectoryError || isFileNotExist) {
+        const skip = this.getPreValidationSkip(step, preValidation);
+        if (skip) {
           if (this.config.debug) {
-            console.log(`[Executor] Skipping step due to validation: ${errorMsg}`);
+            console.log(`[Executor] Skipping step due to validation: ${skip.reason}`);
           }
-          return trace.finish({
-            stepResult: {
-              success: true,
-              output: { skipped: true, reason: errorMsg, exists: false },
-              duration: Date.now() - startTime,
-            },
-            validation: { pass: true, results: [] },
-            needsRollback: false,
-          });
+          return trace.finish(
+            this.buildSkippedStepOutput(skip.reason, startTime, { exists: false }),
+          );
         }
 
+        const errorMsg = preValidation.blockedBy?.join('; ') || '';
         return trace.finish({
           stepResult: {
             success: false,
@@ -202,15 +185,7 @@ export class Executor {
             if (this.config.debug) {
               console.log(`[Executor] Skipping step due to tool error: ${resultObj.error}`);
             }
-            return trace.finish({
-              stepResult: {
-                success: true,
-                output: { skipped: true, reason: resultObj.error },
-                duration: Date.now() - startTime,
-              },
-              validation: { pass: true, results: [] },
-              needsRollback: false,
-            });
+            return trace.finish(this.buildSkippedStepOutput(resultObj.error, startTime));
           }
         }
       }
@@ -248,6 +223,37 @@ export class Executor {
         needsRollback: true,
       });
     }
+  }
+
+  private buildSkippedStepOutput(
+    reason: string | undefined,
+    startTime: number,
+    output: { exists?: false } = {},
+  ): ExecutorOutput {
+    return {
+      stepResult: {
+        success: true,
+        output: { skipped: true, reason, ...output },
+        duration: Date.now() - startTime,
+      },
+      validation: { pass: true, results: [] },
+      needsRollback: false,
+    };
+  }
+
+  private getPreValidationSkip(
+    step: ExecutionStep,
+    validation: ValidationResult,
+  ): { reason: string } | undefined {
+    const reason = validation.blockedBy?.join('; ') || '';
+    const isDirectoryError = reason.includes('is not a file') || reason.includes('Not a file');
+    const isFileNotExist = reason.includes('does not exist') && step.action === 'read_file';
+
+    if (isDirectoryError || isFileNotExist) {
+      return { reason };
+    }
+
+    return undefined;
   }
 
   private validateStepParams(step: ExecutionStep): { valid: boolean; reason?: string } {
