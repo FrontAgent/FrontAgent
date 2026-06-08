@@ -8,6 +8,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_LLM_MAX_TOKENS, DEFAULT_LLM_TEMPERATURE } from '@frontagent/shared';
 
 const currentModuleDir = dirname(fileURLToPath(import.meta.url));
 
@@ -63,16 +64,15 @@ export function resolveProviderBaseURL(
     return normalized.replace(/\/chat\/completions$/, '');
   }
   if (provider === 'anthropic') {
-    return normalized.replace(/\/messages$/, '');
+    const anthropicBaseURL = normalized.replace(/\/messages$/, '');
+    return anthropicBaseURL.endsWith('/v1') ? anthropicBaseURL : `${anthropicBaseURL}/v1`;
   }
   return normalized;
 }
 
 export function resolveEmbeddingBaseURL(baseURL?: string): string | undefined {
   if (!baseURL) return undefined;
-  const normalized = baseURL
-    .replace(/\/+$/, '')
-    .replace(/\/chat\/completions$/, '');
+  const normalized = baseURL.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
   return normalized.endsWith('/embeddings') ? normalized : `${normalized}/embeddings`;
 }
 
@@ -86,7 +86,9 @@ export function resolveLLMConfigFromOptions(options: {
   topP?: string;
   topK?: string;
 }) {
-  const provider = (options.provider || process.env.PROVIDER || 'anthropic').toLowerCase() as 'openai' | 'anthropic';
+  const provider = (options.provider || process.env.PROVIDER || 'anthropic').toLowerCase() as
+    | 'openai'
+    | 'anthropic';
   const model = options.model || process.env.MODEL || getDefaultModel(provider);
 
   return {
@@ -94,14 +96,17 @@ export function resolveLLMConfigFromOptions(options: {
     model,
     baseURL: resolveProviderBaseURL(provider, options.baseUrl),
     apiKey: resolveProviderApiKey(provider, options.apiKey),
-    maxTokens: parseOptionalInt(options.maxTokens) ?? 4096,
-    temperature: parseOptionalFloat(options.temperature) ?? 0.2,
+    maxTokens: parseOptionalInt(options.maxTokens) ?? DEFAULT_LLM_MAX_TOKENS,
+    temperature: parseOptionalFloat(options.temperature) ?? DEFAULT_LLM_TEMPERATURE,
     topP: parseOptionalFloat(options.topP) ?? parseOptionalFloat(process.env.TOP_P),
     topK: parseOptionalInt(options.topK) ?? parseOptionalInt(process.env.TOP_K),
   } as const;
 }
 
-export function parsePathList(values: string[] | undefined, fallback?: string): string[] | undefined {
+export function parsePathList(
+  values: string[] | undefined,
+  fallback?: string,
+): string[] | undefined {
   if (values && values.length > 0) {
     return values.map((value) => value.trim()).filter(Boolean);
   }

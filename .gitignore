@@ -1,5 +1,5 @@
 # LLM 等工具配置
-CONFIG*
+/CONFIG*
 
 # Dependencies
 node_modules/
@@ -40,10 +40,13 @@ temp/
 
 # FrontAgent specific
 .frontagent/
-artifacts/
+/artifacts/
 
 # claude code
-.claude/
+.claude/*.local.md
+.claude/**/*.local.md
+.claude/settings.local.json
+.claude/**/settings.local.json
 
 .turbo/
 
@@ -63,5 +66,15 @@ reference/
 
 # 向量数据库相关
 data/
+!models/frontagent-planner/data/
+models/frontagent-planner/data/*
+!models/frontagent-planner/data/generate_data.py
+!models/frontagent-planner/data/train_v2.json
+!models/frontagent-planner/data/eval_v2.json
 
 *.tgz
+
+# FrontAgent planner training outputs
+models/frontagent-planner/output*/
+.gitnexus
+.codegraphcontext/

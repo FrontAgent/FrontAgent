@@ -1,4 +1,5 @@
 import type { AgentTask, ExecutionStep } from '@frontagent/shared';
+import { decideFilesense } from '../filesense/trigger-policy.js';
 import type {
   PhaseInjectionSkill,
   PlannerContextSnapshot,
@@ -52,11 +53,12 @@ export class PlannerSkillRegistry {
     task: AgentTask,
     steps: ExecutionStep[],
     stepFactory: PlannerStepFactory,
+    filesense?: import('../types.js').FilesenseConfig,
   ): ExecutionStep[] {
     let nextSteps = [...steps];
 
     for (const skill of this.phaseSkills) {
-      if (!skill.shouldInject({ task, steps: nextSteps })) {
+      if (!skill.shouldInject({ task, steps: nextSteps, filesense })) {
         continue;
       }
 
@@ -64,6 +66,7 @@ export class PlannerSkillRegistry {
         task,
         steps: nextSteps,
         stepFactory,
+        filesense,
       });
     }
 
@@ -125,6 +128,33 @@ export function createDefaultPlannerSkillRegistry(
   ];
 
   const phaseSkills: PhaseInjectionSkill[] = [
+    {
+      name: 'phase.filesense-navigate',
+      shouldInject: ({ task, steps, filesense }) =>
+        filesense?.enabled !== false && decideFilesense(task, steps).enabled,
+      apply: ({ task, steps, stepFactory, filesense }) => {
+        const decision = decideFilesense(task, steps);
+        if (!decision.enabled) return steps;
+
+        const navigateStep = stepFactory.createStep({
+          description: `按需构建目录导航上下文：${decision.reason}`,
+          action: 'filesense_navigate' as ExecutionStep['action'],
+          tool: 'filesense_navigate',
+          params: {
+            intent: decision.intent,
+            paths: decision.paths,
+            depth: decision.depth,
+            maxEntries: filesense?.maxEntries ?? decision.maxEntries,
+            maxBytes: filesense?.maxBytes ?? decision.maxBytes,
+            timeoutMs: filesense?.timeoutMs ?? decision.timeoutMs,
+            output: filesense?.output ?? 'summary',
+            writeMode: filesense?.writeMode ?? 'cache',
+          },
+          phase: 'preparation',
+        });
+        return [navigateStep, ...steps];
+      },
+    },
     {
       name: 'phase.repository-management',
       shouldInject: ({ task, steps }) => {

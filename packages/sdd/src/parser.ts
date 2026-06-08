@@ -3,11 +3,11 @@
  * 负责解析和验证 SDD 配置文件
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { parse as parseYaml } from 'yaml';
-import AjvModule from 'ajv';
-import { SDDSchema, defaultSDDConfig } from './schema.js';
+import { existsSync, readFileSync } from 'node:fs';
 import { deepMerge, type SDDConfig } from '@frontagent/shared';
+import AjvModule from 'ajv';
+import { parse as parseYaml } from 'yaml';
+import { defaultSDDConfig, SDDSchema } from './schema.js';
 
 export interface ParseResult {
   success: boolean;
@@ -25,9 +25,10 @@ type ValidateFn = {
   errors?: Array<{ instancePath?: string; message?: string }>;
 };
 
-// 兼容 ESM 和 CJS 的 Ajv 构造函数
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const Ajv = (AjvModule as any).default ?? AjvModule;
+// 兼容 ESM 和 CJS 的 Ajv 构造函数 — ESM/CJS interop requires unsafe cast
+const Ajv = ((AjvModule as unknown as { default?: unknown }).default ?? AjvModule) as unknown as {
+  new (opts?: Record<string, unknown>): AjvInstance;
+};
 
 /**
  * SDD 解析器类
@@ -48,7 +49,7 @@ export class SDDParser {
     if (!existsSync(filePath)) {
       return {
         success: false,
-        errors: [`SDD file not found: ${filePath}`]
+        errors: [`SDD file not found: ${filePath}`],
       };
     }
 
@@ -58,7 +59,9 @@ export class SDDParser {
     } catch (error) {
       return {
         success: false,
-        errors: [`Failed to read SDD file: ${error instanceof Error ? error.message : String(error)}`]
+        errors: [
+          `Failed to read SDD file: ${error instanceof Error ? error.message : String(error)}`,
+        ],
       };
     }
   }
@@ -66,20 +69,20 @@ export class SDDParser {
   /**
    * 解析 SDD 内容字符串
    */
-  parseContent(content: string, source: string = 'inline'): ParseResult {
+  parseContent(content: string, source = 'inline'): ParseResult {
     let rawConfig: unknown;
 
     // 尝试解析 YAML
     try {
       rawConfig = parseYaml(content);
-    } catch (yamlError) {
+    } catch (_yamlError) {
       // 尝试解析 JSON
       try {
         rawConfig = JSON.parse(content);
-      } catch (jsonError) {
+      } catch (_jsonError) {
         return {
           success: false,
-          errors: [`Failed to parse SDD content from ${source}: Invalid YAML/JSON format`]
+          errors: [`Failed to parse SDD content from ${source}: Invalid YAML/JSON format`],
         };
       }
     }
@@ -90,25 +93,25 @@ export class SDDParser {
     // 与默认配置合并
     const mergedConfig = deepMerge(
       defaultSDDConfig as unknown as Record<string, unknown>,
-      normalizedConfig
+      normalizedConfig,
     ) as unknown as SDDConfig;
 
     // 验证配置
     const isValid = this.validateFn(mergedConfig);
     if (!isValid) {
-      const errors = this.validateFn.errors?.map(err => {
+      const errors = this.validateFn.errors?.map((err) => {
         return `${err.instancePath || 'root'}: ${err.message}`;
       }) ?? ['Unknown validation error'];
 
       return {
         success: false,
-        errors
+        errors,
       };
     }
 
     return {
       success: true,
-      config: mergedConfig
+      config: mergedConfig,
     };
   }
 
@@ -117,42 +120,42 @@ export class SDDParser {
    */
   private normalizeConfig(obj: Record<string, unknown>): Record<string, unknown> {
     const keyMap: Record<string, string> = {
-      'tech_stack': 'techStack',
-      'directory_structure': 'directoryStructure',
-      'module_boundaries': 'moduleBoundaries',
-      'naming_conventions': 'namingConventions',
-      'code_quality': 'codeQuality',
-      'modification_rules': 'modificationRules',
-      'forbidden_packages': 'forbiddenPackages',
-      'required_packages': 'requiredPackages',
-      'ui_library': 'uiLibrary',
-      'ui_library_version': 'uiLibraryVersion',
-      'build_tool': 'buildTool',
-      'state_management': 'stateManagement',
-      'max_lines': 'maxLines',
-      'required_exports': 'requiredExports',
-      'must_be_pure': 'mustBePure',
-      'can_import': 'canImport',
-      'cannot_import': 'cannotImport',
-      'max_function_lines': 'maxFunctionLines',
-      'max_file_lines': 'maxFileLines',
-      'max_parameters': 'maxParameters',
-      'require_jsdoc': 'requireJsdoc',
-      'forbidden_patterns': 'forbiddenPatterns',
-      'protected_files': 'protectedFiles',
-      'protected_directories': 'protectedDirectories',
-      'require_approval': 'requireApproval'
+      tech_stack: 'techStack',
+      directory_structure: 'directoryStructure',
+      module_boundaries: 'moduleBoundaries',
+      naming_conventions: 'namingConventions',
+      code_quality: 'codeQuality',
+      modification_rules: 'modificationRules',
+      forbidden_packages: 'forbiddenPackages',
+      required_packages: 'requiredPackages',
+      ui_library: 'uiLibrary',
+      ui_library_version: 'uiLibraryVersion',
+      build_tool: 'buildTool',
+      state_management: 'stateManagement',
+      max_lines: 'maxLines',
+      required_exports: 'requiredExports',
+      must_be_pure: 'mustBePure',
+      can_import: 'canImport',
+      cannot_import: 'cannotImport',
+      max_function_lines: 'maxFunctionLines',
+      max_file_lines: 'maxFileLines',
+      max_parameters: 'maxParameters',
+      require_jsdoc: 'requireJsdoc',
+      forbidden_patterns: 'forbiddenPatterns',
+      protected_files: 'protectedFiles',
+      protected_directories: 'protectedDirectories',
+      require_approval: 'requireApproval',
     };
 
     const result: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {
       const normalizedKey = keyMap[key] ?? key;
-      
+
       if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
         result[normalizedKey] = this.normalizeConfig(value as Record<string, unknown>);
       } else if (Array.isArray(value)) {
-        result[normalizedKey] = value.map(item => {
+        result[normalizedKey] = value.map((item) => {
           if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
             return this.normalizeConfig(item as Record<string, unknown>);
           }
@@ -180,4 +183,3 @@ export class SDDParser {
 export function createSDDParser(): SDDParser {
   return new SDDParser();
 }
-

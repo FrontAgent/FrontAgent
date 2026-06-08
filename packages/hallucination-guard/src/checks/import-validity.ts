@@ -4,7 +4,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { HallucinationCheckResult } from '@frontagent/shared';
 
 export interface ImportValidityCheckInput {
@@ -17,7 +17,7 @@ export interface ImportValidityCheckInput {
  * 检查导入是否有效
  */
 export async function checkImportValidity(
-  input: ImportValidityCheckInput
+  input: ImportValidityCheckInput,
 ): Promise<HallucinationCheckResult> {
   const { importPath, sourceFilePath, projectRoot } = input;
 
@@ -27,7 +27,7 @@ export async function checkImportValidity(
       pass: true,
       type: 'import_validity',
       severity: 'info',
-      message: `Node.js built-in module: ${importPath}`
+      message: `Node.js built-in module: ${importPath}`,
     };
   }
 
@@ -40,14 +40,14 @@ export async function checkImportValidity(
         type: 'import_validity',
         severity: 'block',
         message: `Hallucination detected: Package "${importPath}" is not installed`,
-        details: { importPath, type: 'external_package' }
+        details: { importPath, type: 'external_package' },
       };
     }
     return {
       pass: true,
       type: 'import_validity',
       severity: 'info',
-      message: `External package: ${importPath}`
+      message: `External package: ${importPath}`,
     };
   }
 
@@ -61,7 +61,7 @@ export async function checkImportValidity(
         pass: true,
         type: 'import_validity',
         severity: 'info',
-        message: `Local import resolved: ${importPath}`
+        message: `Local import resolved: ${importPath}`,
       };
     }
   }
@@ -71,7 +71,7 @@ export async function checkImportValidity(
     type: 'import_validity',
     severity: 'block',
     message: `Hallucination detected: Cannot resolve import "${importPath}" from "${sourceFilePath}"`,
-    details: { importPath, sourceFilePath, triedPaths: possiblePaths }
+    details: { importPath, sourceFilePath, triedPaths: possiblePaths },
   };
 }
 
@@ -85,7 +85,7 @@ async function checkPackageExists(packageName: string, projectRoot: string): Pro
     : packageName.split('/')[0];
 
   const nodeModulesPath = join(projectRoot, 'node_modules', packageRoot);
-  
+
   if (existsSync(nodeModulesPath)) {
     return true;
   }
@@ -94,11 +94,11 @@ async function checkPackageExists(packageName: string, projectRoot: string): Pro
   const packageJsonPath = join(projectRoot, 'package.json');
   if (existsSync(packageJsonPath)) {
     try {
-      const packageJson = await import(packageJsonPath, { assert: { type: 'json' } });
+      const packageJson = await import(packageJsonPath, { with: { type: 'json' } });
       const deps = {
         ...packageJson.default?.dependencies,
         ...packageJson.default?.devDependencies,
-        ...packageJson.default?.peerDependencies
+        ...packageJson.default?.peerDependencies,
       };
       return packageRoot in deps;
     } catch {
@@ -116,17 +116,17 @@ async function checkPackageExists(packageName: string, projectRoot: string): Pro
 function generatePossiblePaths(importPath: string, sourceDir: string): string[] {
   const basePath = resolve(sourceDir, importPath);
   const extensions = ['.ts', '.tsx', '.js', '.jsx', '.json', '.mjs', '.cjs'];
-  
+
   const paths: string[] = [];
 
   // 直接路径
   paths.push(basePath);
-  
+
   // 添加扩展名
   for (const ext of extensions) {
     paths.push(basePath + ext);
   }
-  
+
   // index 文件
   for (const ext of extensions) {
     paths.push(join(basePath, `index${ext}`));
@@ -140,7 +140,7 @@ function generatePossiblePaths(importPath: string, sourceDir: string): string[] 
  */
 export function extractImports(code: string): string[] {
   const imports: string[] = [];
-  
+
   // ES6 import
   const importRegex = /import\s+(?:[\w\s{},*]+\s+from\s+)?['"]([^'"]+)['"]/g;
   let match;
@@ -169,14 +169,11 @@ export function extractImports(code: string): string[] {
 export async function checkAllImports(
   code: string,
   sourceFilePath: string,
-  projectRoot: string
+  projectRoot: string,
 ): Promise<HallucinationCheckResult[]> {
   const imports = extractImports(code);
-  
+
   return Promise.all(
-    imports.map(importPath =>
-      checkImportValidity({ importPath, sourceFilePath, projectRoot })
-    )
+    imports.map((importPath) => checkImportValidity({ importPath, sourceFilePath, projectRoot })),
   );
 }
-

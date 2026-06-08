@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -24,7 +24,10 @@ describe('CLI version discovery', () => {
     const sourceDir = join(root, 'apps/cli/src');
 
     mkdirSync(sourceDir, { recursive: true });
-    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'frontagent', version: '9.9.9' }));
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'frontagent', version: '9.9.9' }),
+    );
     writeFileSync(
       join(root, 'apps/cli/package.json'),
       JSON.stringify({ name: '@frontagent/cli', version: '0.1.0' }),

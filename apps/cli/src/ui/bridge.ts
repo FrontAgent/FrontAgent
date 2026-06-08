@@ -64,7 +64,10 @@ export function createEventBridge(store: Store) {
       case 'step_started':
         store.upsertStep(event.step, 'running');
         store.setState({ currentStepId: event.step.stepId });
-        store.recordActivity(`工具开始：${event.step.tool}`, `${event.step.tool} ${event.step.description}`);
+        store.recordActivity(
+          `工具开始：${event.step.tool}`,
+          `${event.step.tool} ${event.step.description}`,
+        );
         break;
 
       case 'step_completed':

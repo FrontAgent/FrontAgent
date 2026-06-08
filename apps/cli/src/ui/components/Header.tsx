@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import type { Store, AgentUIState } from '../store.js';
-import { isRunPossiblyStalled } from '../store.js';
+import { useEffect, useState } from 'react';
 import { useStoreSelector } from '../hooks.js';
+import type { AgentUIState, Store } from '../store.js';
+import { isRunPossiblyStalled } from '../store.js';
 
 interface HeaderProps {
   store: Store;
@@ -49,7 +49,9 @@ export function Header({ store }: HeaderProps) {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box>
-        <Text bold color="cyan">状态摘要</Text>
+        <Text bold color="cyan">
+          状态摘要
+        </Text>
       </Box>
       <Box paddingLeft={2}>
         {isActive ? (
@@ -57,9 +59,7 @@ export function Header({ store }: HeaderProps) {
             <Spinner type="dots" /> {statusLabel[status]} · 已运行 {formatElapsed(now - startTime)}
           </Text>
         ) : (
-          <Text color={status === 'error' ? 'red' : 'green'}>
-            {statusLabel[status]}
-          </Text>
+          <Text color={status === 'error' ? 'red' : 'green'}>{statusLabel[status]}</Text>
         )}
       </Box>
       {isActive && currentOperation ? (

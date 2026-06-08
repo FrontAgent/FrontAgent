@@ -32,7 +32,8 @@ export function resolveConfigStatusFromSources(values: ConfigSourceValues): Conf
   const provider = normalizeProvider(values.settings.provider ?? values.env.PROVIDER);
   const providerBaseUrlEnv = providerEnvName(provider, 'BASE_URL');
   const providerApiKeyEnv = providerEnvName(provider, 'API_KEY');
-  const model = emptyToUndefined(values.settings.model) ?? emptyToUndefined(values.env.MODEL) ?? null;
+  const model =
+    emptyToUndefined(values.settings.model) ?? emptyToUndefined(values.env.MODEL) ?? null;
   const baseUrl =
     emptyToUndefined(values.settings.baseUrl) ??
     (providerBaseUrlEnv ? emptyToUndefined(values.env[providerBaseUrlEnv]) : undefined) ??

@@ -143,7 +143,11 @@ export function isSensitiveWritePath(relativePath: string): boolean {
   if (segments[0] === '.frontagent' && segments[1] === 'snapshots') return true;
   if (basename === '.env' || basename.startsWith('.env.')) return true;
   if (/\.(pem|key|p12|pfx)$/i.test(basename)) return true;
-  if (/(^|[-_.])(secret|secrets|credential|credentials|private-key|id_rsa|id_ed25519)([-_.]|$)/i.test(basename)) {
+  if (
+    /(^|[-_.])(secret|secrets|credential|credentials|private-key|id_rsa|id_ed25519)([-_.]|$)/i.test(
+      basename,
+    )
+  ) {
     return true;
   }
 
@@ -176,11 +180,13 @@ export function assertWritableByPolicy(input: {
 }
 
 export function isRegularFile(path: string): boolean {
-  return statSync(path).isFile();
+  const stat = statSync(path, { throwIfNoEntry: false });
+  return stat?.isFile() ?? false;
 }
 
 export function isDirectory(path: string): boolean {
-  return statSync(path).isDirectory();
+  const stat = statSync(path, { throwIfNoEntry: false });
+  return stat?.isDirectory() ?? false;
 }
 
 export function isUnsafeGlobPattern(pattern: string): boolean {

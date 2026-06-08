@@ -6,17 +6,14 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 import { BrowserManager } from './browser.js';
 
 // 创建浏览器管理器
 const browserManager = new BrowserManager({
   headless: process.env.HEADLESS !== 'false',
-  slowMo: parseInt(process.env.SLOW_MO ?? '0', 10)
+  slowMo: Number.parseInt(process.env.SLOW_MO ?? '0', 10),
 });
 const enableEvaluate = process.env.FRONTAGENT_ENABLE_WEB_EVALUATE === '1';
 
@@ -30,7 +27,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
-  }
+  },
 );
 
 // 工具定义
@@ -43,11 +40,11 @@ const tools = [
       properties: {
         url: {
           type: 'string',
-          description: '要导航到的 URL'
-        }
+          description: '要导航到的 URL',
+        },
       },
-      required: ['url']
-    }
+      required: ['url'],
+    },
   },
   {
     name: 'get_page_structure',
@@ -57,11 +54,11 @@ const tools = [
       properties: {
         selector: {
           type: 'string',
-          description: '可选，限定范围的 CSS 选择器'
-        }
+          description: '可选，限定范围的 CSS 选择器',
+        },
       },
-      required: []
-    }
+      required: [],
+    },
   },
   {
     name: 'get_accessibility_tree',
@@ -69,8 +66,8 @@ const tools = [
     inputSchema: {
       type: 'object' as const,
       properties: {},
-      required: []
-    }
+      required: [],
+    },
   },
   {
     name: 'get_interactive_elements',
@@ -81,11 +78,11 @@ const tools = [
         filter: {
           type: 'string',
           enum: ['all', 'buttons', 'inputs', 'links'],
-          description: '过滤类型，默认 all'
-        }
+          description: '过滤类型，默认 all',
+        },
       },
-      required: []
-    }
+      required: [],
+    },
   },
   {
     name: 'click',
@@ -95,11 +92,11 @@ const tools = [
       properties: {
         selector: {
           type: 'string',
-          description: 'CSS 选择器'
-        }
+          description: 'CSS 选择器',
+        },
       },
-      required: ['selector']
-    }
+      required: ['selector'],
+    },
   },
   {
     name: 'type',
@@ -109,15 +106,15 @@ const tools = [
       properties: {
         selector: {
           type: 'string',
-          description: 'CSS 选择器'
+          description: 'CSS 选择器',
         },
         text: {
           type: 'string',
-          description: '要输入的文本'
-        }
+          description: '要输入的文本',
+        },
       },
-      required: ['selector', 'text']
-    }
+      required: ['selector', 'text'],
+    },
   },
   {
     name: 'scroll',
@@ -128,15 +125,15 @@ const tools = [
         direction: {
           type: 'string',
           enum: ['up', 'down', 'left', 'right'],
-          description: '滚动方向'
+          description: '滚动方向',
         },
         amount: {
           type: 'number',
-          description: '滚动距离（像素），默认 500'
-        }
+          description: '滚动距离（像素），默认 500',
+        },
       },
-      required: ['direction']
-    }
+      required: ['direction'],
+    },
   },
   {
     name: 'screenshot',
@@ -146,15 +143,15 @@ const tools = [
       properties: {
         fullPage: {
           type: 'boolean',
-          description: '是否截取整个页面，默认 false'
+          description: '是否截取整个页面，默认 false',
         },
         selector: {
           type: 'string',
-          description: '可选，只截取特定元素'
-        }
+          description: '可选，只截取特定元素',
+        },
       },
-      required: []
-    }
+      required: [],
+    },
   },
   {
     name: 'wait_for_selector',
@@ -164,39 +161,43 @@ const tools = [
       properties: {
         selector: {
           type: 'string',
-          description: 'CSS 选择器'
+          description: 'CSS 选择器',
         },
         timeout: {
           type: 'number',
-          description: '超时时间（毫秒），默认 30000'
-        }
+          description: '超时时间（毫秒），默认 30000',
+        },
       },
-      required: ['selector']
-    }
+      required: ['selector'],
+    },
   },
-  ...(enableEvaluate ? [{
-    name: 'evaluate',
-    description: '在页面中执行 JavaScript 代码',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        script: {
-          type: 'string',
-          description: 'JavaScript 代码'
-        }
-      },
-      required: ['script']
-    }
-  }] : []),
+  ...(enableEvaluate
+    ? [
+        {
+          name: 'evaluate',
+          description: '在页面中执行 JavaScript 代码',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              script: {
+                type: 'string',
+                description: 'JavaScript 代码',
+              },
+            },
+            required: ['script'],
+          },
+        },
+      ]
+    : []),
   {
     name: 'close_browser',
     description: '关闭浏览器',
     inputSchema: {
       type: 'object' as const,
       properties: {},
-      required: []
-    }
-  }
+      required: [],
+    },
+  },
 ];
 
 // 注册工具列表
@@ -258,7 +259,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scroll': {
-        const { direction, amount } = args as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number };
+        const { direction, amount } = args as {
+          direction: 'up' | 'down' | 'left' | 'right';
+          amount?: number;
+        };
         const result = await browserManager.scroll(direction, amount);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -271,8 +275,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (result.success && result.base64) {
           return {
             content: [
-              { type: 'text', text: JSON.stringify({ success: true, message: 'Screenshot captured' }, null, 2) },
-              { type: 'image', data: result.base64, mimeType: 'image/png' }
+              {
+                type: 'text',
+                text: JSON.stringify({ success: true, message: 'Screenshot captured' }, null, 2),
+              },
+              { type: 'image', data: result.base64, mimeType: 'image/png' },
             ],
           };
         }
@@ -292,7 +299,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'evaluate': {
         if (!enableEvaluate) {
           return {
-            content: [{ type: 'text', text: 'evaluate is disabled by default. Set FRONTAGENT_ENABLE_WEB_EVALUATE=1 to enable it.' }],
+            content: [
+              {
+                type: 'text',
+                text: 'evaluate is disabled by default. Set FRONTAGENT_ENABLE_WEB_EVALUATE=1 to enable it.',
+              },
+            ],
             isError: true,
           };
         }

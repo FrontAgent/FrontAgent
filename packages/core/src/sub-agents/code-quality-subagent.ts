@@ -4,15 +4,12 @@
  * LLM review first, rule-based checks as fallback
  */
 
-import type { SDDConfig } from "@frontagent/shared";
-import { generateId } from "@frontagent/shared";
-import type { A2AAgent, A2ARequest, A2AResponse } from "../a2a.js";
-import type { LLMService } from "../llm.js";
-import type {
-  ProjectFactsSnapshot,
-  ProjectFactsUpdate,
-} from "../types.js";
-import { z } from "zod";
+import type { SDDConfig } from '@frontagent/shared';
+import { generateId } from '@frontagent/shared';
+import { z } from 'zod';
+import type { A2AAgent, A2ARequest, A2AResponse } from '../a2a.js';
+import type { LLMService } from '../llm.js';
+import type { ProjectFactsSnapshot, ProjectFactsUpdate } from '../types.js';
 
 export interface CodeQualityReviewFile {
   path: string;
@@ -20,7 +17,7 @@ export interface CodeQualityReviewFile {
 }
 
 export interface CodeQualityIssue {
-  severity: "error" | "warning";
+  severity: 'error' | 'warning';
   filePath: string;
   line?: number;
   rule: string;
@@ -52,14 +49,13 @@ export interface CodeQualitySubAgentOptions {
   debug?: boolean;
 }
 
-export class CodeQualitySubAgent implements A2AAgent<
-  CodeQualityReviewRequest,
-  CodeQualityReviewResponse
-> {
+export class CodeQualitySubAgent
+  implements A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>
+{
   // a2a 协议中 Id
-  readonly agentId = "subagent.code-quality";
+  readonly agentId = 'subagent.code-quality';
   // 角色扮演
-  readonly capabilities = ["code_quality.review_generated_files"];
+  readonly capabilities = ['code_quality.review_generated_files'];
 
   // === 配置区
   // TODO: 等未来token便宜之后取消规则函数与无关配置
@@ -80,19 +76,13 @@ export class CodeQualitySubAgent implements A2AAgent<
   async handleRequest(
     request: A2ARequest<CodeQualityReviewRequest>,
   ): Promise<A2AResponse<CodeQualityReviewResponse>> {
-    if (request.intent !== "code_quality.review_generated_files") {
-      return this.errorResponse(
-        request,
-        `Unsupported intent: ${request.intent}`,
-      );
+    if (request.intent !== 'code_quality.review_generated_files') {
+      return this.errorResponse(request, `Unsupported intent: ${request.intent}`);
     }
 
     const payload = request.payload;
     if (!payload || !Array.isArray(payload.files)) {
-      return this.errorResponse(
-        request,
-        "Invalid request payload: files is required",
-      );
+      return this.errorResponse(request, 'Invalid request payload: files is required');
     }
 
     const ruleIssues: CodeQualityIssue[] = [];
@@ -113,7 +103,7 @@ export class CodeQualitySubAgent implements A2AAgent<
       } catch (error) {
         if (this.debug) {
           console.warn(
-            "[CodeQualitySubAgent] LLM review failed, fallback to rule-based issues:",
+            '[CodeQualitySubAgent] LLM review failed, fallback to rule-based issues:',
             error,
           );
         }
@@ -122,12 +112,8 @@ export class CodeQualitySubAgent implements A2AAgent<
 
     const issues = this.mergeIssues(llmIssues, ruleIssues);
 
-    const errorCount = issues.filter(
-      (issue) => issue.severity === "error",
-    ).length;
-    const warningCount = issues.filter(
-      (issue) => issue.severity === "warning",
-    ).length;
+    const errorCount = issues.filter((issue) => issue.severity === 'error').length;
+    const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
     const score = Math.max(0, 100 - errorCount * 20 - warningCount * 5);
 
     const summary = llmSummary
@@ -143,10 +129,10 @@ export class CodeQualitySubAgent implements A2AAgent<
     };
 
     return {
-      protocol: "A2A",
-      version: "1.0",
-      kind: "response",
-      messageId: generateId("a2a-res"),
+      protocol: 'A2A',
+      version: '1.0',
+      kind: 'response',
+      messageId: generateId('a2a-res'),
       inReplyTo: request.messageId,
       timestamp: Date.now(),
       from: this.agentId,
@@ -161,14 +147,14 @@ export class CodeQualitySubAgent implements A2AAgent<
     payload: CodeQualityReviewRequest,
   ): Promise<{ summary: string; issues: CodeQualityIssue[] }> {
     if (!this.llmService) {
-      return { summary: "LLM review disabled.", issues: [] };
+      return { summary: 'LLM review disabled.', issues: [] };
     }
 
     const reviewSchema = z.object({
       summary: z.string(),
       issues: z.array(
         z.object({
-          severity: z.enum(["error", "warning"]),
+          severity: z.enum(['error', 'warning']),
           filePath: z.string(),
           line: z.number().int().positive().optional(),
           rule: z.string(),
@@ -178,12 +164,10 @@ export class CodeQualitySubAgent implements A2AAgent<
       ),
     });
 
-    const filesForLLM = payload.files
-      .slice(0, this.maxFilesForLLM)
-      .map((file) => ({
-        path: file.path,
-        content: this.truncateFileContent(file.content),
-      }));
+    const filesForLLM = payload.files.slice(0, this.maxFilesForLLM).map((file) => ({
+      path: file.path,
+      content: this.truncateFileContent(file.content),
+    }));
 
     const sddSummary = this.buildSddSummary(payload.sddConfig);
     const sharedFactsSummary = this.summarizeSharedFacts(payload.sharedFacts);
@@ -191,27 +175,27 @@ export class CodeQualitySubAgent implements A2AAgent<
     const userPrompt = [
       `Task ID: ${payload.taskId}`,
       `Phase: ${payload.phase}`,
-      "",
-      "SDD constraints summary:",
+      '',
+      'SDD constraints summary:',
       sddSummary,
-      "",
-      "Shared project facts snapshot:",
+      '',
+      'Shared project facts snapshot:',
       sharedFactsSummary,
-      "",
-      "Files to review:",
+      '',
+      'Files to review:',
       JSON.stringify(filesForLLM, null, 2),
-      "",
-      "Return concrete issues with filePath/line/rule/message.",
-    ].join("\n");
+      '',
+      'Return concrete issues with filePath/line/rule/message.',
+    ].join('\n');
 
     const llmResult = await this.llmService.generateObject({
       system: [
-        "You are a strict code quality review sub-agent.",
-        "Evaluate generated code against SDD constraints and maintainability.",
-        "Output only actionable issues.",
-        "Set severity=error only for clear correctness or hard-constraint violations.",
-      ].join(" "),
-      messages: [{ role: "user", content: userPrompt }],
+        'You are a strict code quality review sub-agent.',
+        'Evaluate generated code against SDD constraints and maintainability.',
+        'Output only actionable issues.',
+        'Set severity=error only for clear correctness or hard-constraint violations.',
+      ].join(' '),
+      messages: [{ role: 'user', content: userPrompt }],
       schema: reviewSchema,
       temperature: 0.1,
       maxTokens: 3000,
@@ -230,12 +214,9 @@ export class CodeQualitySubAgent implements A2AAgent<
     };
   }
 
-  private evaluateFile(
-    file: CodeQualityReviewFile,
-    sddConfig?: SDDConfig,
-  ): CodeQualityIssue[] {
+  private evaluateFile(file: CodeQualityReviewFile, sddConfig?: SDDConfig): CodeQualityIssue[] {
     const issues: CodeQualityIssue[] = [];
-    const lines = file.content.split("\n");
+    const lines = file.content.split('\n');
 
     const maxFileLines = sddConfig?.codeQuality.maxFileLines ?? 400;
     const maxFunctionLines = sddConfig?.codeQuality.maxFunctionLines ?? 80;
@@ -244,11 +225,11 @@ export class CodeQualitySubAgent implements A2AAgent<
 
     if (lines.length > maxFileLines) {
       issues.push({
-        severity: "warning",
+        severity: 'warning',
         filePath: file.path,
-        rule: "max_file_lines",
+        rule: 'max_file_lines',
         message: `File has ${lines.length} lines, exceeds limit ${maxFileLines}.`,
-        suggestion: "Split file into smaller modules.",
+        suggestion: 'Split file into smaller modules.',
       });
     }
 
@@ -263,12 +244,12 @@ export class CodeQualitySubAgent implements A2AAgent<
       for (let i = 0; i < lines.length; i++) {
         if (regex.test(lines[i])) {
           issues.push({
-            severity: "error",
+            severity: 'error',
             filePath: file.path,
             line: i + 1,
-            rule: "forbidden_pattern",
+            rule: 'forbidden_pattern',
             message: `Forbidden pattern "${pattern}" found.`,
-            suggestion: "Remove or replace this pattern.",
+            suggestion: 'Remove or replace this pattern.',
           });
         }
         regex.lastIndex = 0;
@@ -279,24 +260,24 @@ export class CodeQualitySubAgent implements A2AAgent<
     for (const fn of candidates) {
       if (fn.parameterCount > maxParameters) {
         issues.push({
-          severity: "warning",
+          severity: 'warning',
           filePath: file.path,
           line: fn.line,
-          rule: "max_parameters",
+          rule: 'max_parameters',
           message: `Function "${fn.name}" has ${fn.parameterCount} parameters, exceeds limit ${maxParameters}.`,
-          suggestion: "Use an options object or split responsibilities.",
+          suggestion: 'Use an options object or split responsibilities.',
         });
       }
 
       const estimatedLines = this.estimateFunctionBodyLines(lines, fn.line);
       if (estimatedLines !== null && estimatedLines > maxFunctionLines) {
         issues.push({
-          severity: "warning",
+          severity: 'warning',
           filePath: file.path,
           line: fn.line,
-          rule: "max_function_lines",
+          rule: 'max_function_lines',
           message: `Function "${fn.name}" has ${estimatedLines} lines, exceeds limit ${maxFunctionLines}.`,
-          suggestion: "Extract helper functions to reduce complexity.",
+          suggestion: 'Extract helper functions to reduce complexity.',
         });
       }
     }
@@ -306,21 +287,21 @@ export class CodeQualitySubAgent implements A2AAgent<
 
   private buildSddSummary(sddConfig?: SDDConfig): string {
     if (!sddConfig) {
-      return "No SDD config provided.";
+      return 'No SDD config provided.';
     }
 
     return [
       `maxFileLines=${sddConfig.codeQuality.maxFileLines}`,
       `maxFunctionLines=${sddConfig.codeQuality.maxFunctionLines}`,
       `maxParameters=${sddConfig.codeQuality.maxParameters}`,
-      `forbiddenPatterns=${sddConfig.codeQuality.forbiddenPatterns.join(", ") || "(none)"}`,
-      `forbiddenPackages=${sddConfig.techStack.forbiddenPackages.join(", ") || "(none)"}`,
-    ].join("\n");
+      `forbiddenPatterns=${sddConfig.codeQuality.forbiddenPatterns.join(', ') || '(none)'}`,
+      `forbiddenPackages=${sddConfig.techStack.forbiddenPackages.join(', ') || '(none)'}`,
+    ].join('\n');
   }
 
   private summarizeSharedFacts(sharedFacts?: ProjectFactsSnapshot): string {
     if (!sharedFacts) {
-      return "No shared facts provided.";
+      return 'No shared facts provided.';
     }
 
     const existingFiles = sharedFacts.filesystem.existingFiles.slice(0, 20);
@@ -330,12 +311,12 @@ export class CodeQualitySubAgent implements A2AAgent<
 
     return [
       `revision=${sharedFacts.revision}`,
-      `existingFiles(${sharedFacts.filesystem.existingFiles.length})=${existingFiles.join(", ") || "(none)"}`,
-      `installedPackages(${sharedFacts.dependencies.installedPackages.length})=${installedPackages.join(", ") || "(none)"}`,
-      `missingPackages(${sharedFacts.dependencies.missingPackages.length})=${missingPackages.join(", ") || "(none)"}`,
+      `existingFiles(${sharedFacts.filesystem.existingFiles.length})=${existingFiles.join(', ') || '(none)'}`,
+      `installedPackages(${sharedFacts.dependencies.installedPackages.length})=${installedPackages.join(', ') || '(none)'}`,
+      `missingPackages(${sharedFacts.dependencies.missingPackages.length})=${missingPackages.join(', ') || '(none)'}`,
       `moduleCount=${Object.keys(sharedFacts.moduleDependencyGraph.modules).length}`,
-      `recentErrors=${recentErrors.map(err => `[${err.type}] ${err.message}`).join(" | ") || "(none)"}`,
-    ].join("\n");
+      `recentErrors=${recentErrors.map((err) => `[${err.type}] ${err.message}`).join(' | ') || '(none)'}`,
+    ].join('\n');
   }
 
   private buildFactUpdates(
@@ -360,18 +341,16 @@ export class CodeQualitySubAgent implements A2AAgent<
     }
 
     const blockingIssues = issues
-      .filter(issue => issue.severity === "error")
+      .filter((issue) => issue.severity === 'error')
       .slice(0, 10)
-      .map(issue => ({
+      .map((issue) => ({
         stepId: `subagent-code-quality:${payload.phase}`,
-        type: "code_quality",
-        message: `${issue.filePath}${issue.line ? `:${issue.line}` : ""} [${issue.rule}] ${issue.message}`,
+        type: 'code_quality',
+        message: `${issue.filePath}${issue.line ? `:${issue.line}` : ''} [${issue.rule}] ${issue.message}`,
         timestamp: Date.now(),
       }));
 
-    const hasChanges =
-      detectedMissingPackages.length > 0 ||
-      blockingIssues.length > 0;
+    const hasChanges = detectedMissingPackages.length > 0 || blockingIssues.length > 0;
 
     if (!hasChanges) {
       return undefined;
@@ -419,22 +398,22 @@ export class CodeQualitySubAgent implements A2AAgent<
   private normalizeExternalPackageName(specifier: string): string | null {
     if (
       !specifier ||
-      specifier.startsWith(".") ||
-      specifier.startsWith("/") ||
-      specifier.startsWith("@/")
+      specifier.startsWith('.') ||
+      specifier.startsWith('/') ||
+      specifier.startsWith('@/')
     ) {
       return null;
     }
 
-    if (specifier.startsWith("@")) {
-      const parts = specifier.split("/");
+    if (specifier.startsWith('@')) {
+      const parts = specifier.split('/');
       if (parts.length >= 2) {
         return `${parts[0]}/${parts[1]}`;
       }
       return specifier;
     }
 
-    return specifier.split("/")[0];
+    return specifier.split('/')[0];
   }
 
   private truncateFileContent(content: string): string {
@@ -481,20 +460,20 @@ export class CodeQualitySubAgent implements A2AAgent<
 
     let match: RegExpExecArray | null;
     while ((match = functionDeclarationRegex.exec(content)) !== null) {
-      const line = content.slice(0, match.index).split("\n").length;
+      const line = content.slice(0, match.index).split('\n').length;
       candidates.push({
-        name: match[1] || "anonymous",
+        name: match[1] || 'anonymous',
         line,
-        parameterCount: this.countParameters(match[2] || ""),
+        parameterCount: this.countParameters(match[2] || ''),
       });
     }
 
     while ((match = arrowFunctionRegex.exec(content)) !== null) {
-      const line = content.slice(0, match.index).split("\n").length;
+      const line = content.slice(0, match.index).split('\n').length;
       candidates.push({
-        name: match[1] || "anonymous",
+        name: match[1] || 'anonymous',
         line,
-        parameterCount: this.countParameters(match[2] || match[3] || ""),
+        parameterCount: this.countParameters(match[2] || match[3] || ''),
       });
     }
 
@@ -502,21 +481,18 @@ export class CodeQualitySubAgent implements A2AAgent<
   }
 
   private countParameters(paramText: string): number {
-    const cleaned = paramText.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    const cleaned = paramText.replace(/\/\*[\s\S]*?\*\//g, '').trim();
     if (!cleaned) {
       return 0;
     }
 
     return cleaned
-      .split(",")
+      .split(',')
       .map((item) => item.trim())
       .filter(Boolean).length;
   }
 
-  private estimateFunctionBodyLines(
-    lines: string[],
-    startLine: number,
-  ): number | null {
+  private estimateFunctionBodyLines(lines: string[], startLine: number): number | null {
     const startIndex = startLine - 1;
     if (startIndex < 0 || startIndex >= lines.length) {
       return null;
@@ -529,10 +505,10 @@ export class CodeQualitySubAgent implements A2AAgent<
       const line = lines[i];
       for (let j = 0; j < line.length; j++) {
         const ch = line[j];
-        if (ch === "{") {
+        if (ch === '{') {
           depth++;
           started = true;
-        } else if (ch === "}") {
+        } else if (ch === '}') {
           depth--;
           if (started && depth === 0) {
             return i + 1 - startLine + 1;
@@ -549,10 +525,10 @@ export class CodeQualitySubAgent implements A2AAgent<
     message: string,
   ): A2AResponse<CodeQualityReviewResponse> {
     return {
-      protocol: "A2A",
-      version: "1.0",
-      kind: "response",
-      messageId: generateId("a2a-res"),
+      protocol: 'A2A',
+      version: '1.0',
+      kind: 'response',
+      messageId: generateId('a2a-res'),
       inReplyTo: request.messageId,
       timestamp: Date.now(),
       from: this.agentId,

@@ -1,15 +1,26 @@
 import type { MCPClient } from '@frontagent/core';
 import {
-  readFile,
+  type ApplyPatchParams,
   applyPatch,
+  type CreateFileParams,
   createFile,
-  searchCode,
-  listDirectory,
+  type GetASTParams,
   getAST,
+  type ListDirectoryParams,
+  listDirectory,
+  type ReadFileParams,
+  readFile,
+  type SearchCodeParams,
   SnapshotManager,
+  searchCode,
 } from '@frontagent/mcp-file';
-import { ragQuery, type KnowledgeBaseConfig } from '@frontagent/mcp-memory';
-import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
+import { handleFilesenseTool } from '@frontagent/mcp-filesense';
+import {
+  createKnowledgeBase,
+  type KnowledgeBaseConfig,
+  type RagQueryParams,
+} from '@frontagent/mcp-memory';
+import { type BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 export class FileMCPClient implements MCPClient {
   private readonly snapshotManager: SnapshotManager;
@@ -21,26 +32,42 @@ export class FileMCPClient implements MCPClient {
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'read_file':
-        return readFile(args as any, this.projectRoot);
+        return readFile(args as unknown as ReadFileParams, this.projectRoot);
       case 'apply_patch':
-        return applyPatch(args as any, this.projectRoot, this.snapshotManager);
+        return applyPatch(
+          args as unknown as ApplyPatchParams,
+          this.projectRoot,
+          this.snapshotManager,
+        );
       case 'create_file':
-        return createFile(args as any, this.projectRoot, this.snapshotManager);
+        return createFile(
+          args as unknown as CreateFileParams,
+          this.projectRoot,
+          this.snapshotManager,
+        );
       case 'search_code':
-        return searchCode(args as any, this.projectRoot);
+        return searchCode(args as unknown as SearchCodeParams, this.projectRoot);
       case 'list_directory':
-        return listDirectory(args as any, this.projectRoot);
+        return listDirectory(args as unknown as ListDirectoryParams, this.projectRoot);
       case 'get_ast':
-        return getAST(args as any, this.projectRoot);
+        return getAST(args as unknown as GetASTParams, this.projectRoot);
       case 'rollback':
-        return this.snapshotManager.rollback((args as any).snapshotId);
+        return this.snapshotManager.rollback(args.snapshotId as string);
       case 'get_snapshots': {
-        const filePath = (args as any).filePath;
+        const filePath = args.filePath as string | undefined;
         if (filePath) {
           return { snapshots: this.snapshotManager.getFileSnapshots(filePath) };
         }
         return { snapshots: [] };
       }
+      case 'filesense_init':
+      case 'filesense_sync':
+      case 'filesense_summarize':
+      case 'filesense_query':
+      case 'filesense_check':
+      case 'filesense_navigate':
+      case 'filesense_sync_and_summarize':
+        return handleFilesenseTool(name, args, this.projectRoot);
       default:
         throw new Error(`Unknown file tool: ${name}`);
     }
@@ -56,6 +83,13 @@ export class FileMCPClient implements MCPClient {
       { name: 'get_ast', description: '获取 AST 分析' },
       { name: 'rollback', description: '回滚修改' },
       { name: 'get_snapshots', description: '获取快照列表' },
+      { name: 'filesense_init', description: '初始化 Filesense 索引' },
+      { name: 'filesense_sync', description: '同步 Filesense 索引' },
+      { name: 'filesense_summarize', description: '生成 Filesense 摘要' },
+      { name: 'filesense_query', description: '查询 Filesense 索引' },
+      { name: 'filesense_check', description: '检查 Filesense 索引' },
+      { name: 'filesense_navigate', description: '轻量按需导航项目结构' },
+      { name: 'filesense_sync_and_summarize', description: '同步并摘要 Filesense 索引' },
     ];
   }
 }
@@ -134,20 +168,22 @@ export class WebMCPClient implements MCPClient {
 }
 
 export class MemoryMCPClient implements MCPClient {
-  constructor(private readonly knowledgeBaseConfig: KnowledgeBaseConfig) {}
+  private readonly knowledgeBase: ReturnType<typeof createKnowledgeBase>;
+
+  constructor(knowledgeBaseConfig: KnowledgeBaseConfig) {
+    this.knowledgeBase = createKnowledgeBase(knowledgeBaseConfig);
+  }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'rag_query':
-        return ragQuery(args as any, this.knowledgeBaseConfig);
+        return this.knowledgeBase.query(args as unknown as RagQueryParams);
       default:
         throw new Error(`Unknown memory tool: ${name}`);
     }
   }
 
   async listTools() {
-    return [
-      { name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' },
-    ];
+    return [{ name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' }];
   }
 }

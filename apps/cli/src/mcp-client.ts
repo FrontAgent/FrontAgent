@@ -5,19 +5,22 @@
 
 import type { MCPClient } from '@frontagent/core';
 import {
-  readFile,
+  type ApplyPatchParams,
   applyPatch,
+  type CreateFileParams,
   createFile,
-  searchCode,
-  listDirectory,
+  type GetASTParams,
   getAST,
+  type ListDirectoryParams,
+  listDirectory,
+  type ReadFileParams,
+  readFile,
+  type SearchCodeParams,
   SnapshotManager,
+  searchCode,
 } from '@frontagent/mcp-file';
-import {
-  ragQuery,
-  type KnowledgeBaseConfig,
-} from '@frontagent/mcp-memory';
-import { BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
+import { type KnowledgeBaseConfig, type RagQueryParams, ragQuery } from '@frontagent/mcp-memory';
+import { type BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
 
 /**
  * 文件操作 MCP 客户端
@@ -34,28 +37,36 @@ export class FileMCPClient implements MCPClient {
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'read_file':
-        return readFile(args as any, this.projectRoot);
+        return readFile(args as unknown as ReadFileParams, this.projectRoot);
 
       case 'apply_patch':
-        return applyPatch(args as any, this.projectRoot, this.snapshotManager);
+        return applyPatch(
+          args as unknown as ApplyPatchParams,
+          this.projectRoot,
+          this.snapshotManager,
+        );
 
       case 'create_file':
-        return createFile(args as any, this.projectRoot, this.snapshotManager);
+        return createFile(
+          args as unknown as CreateFileParams,
+          this.projectRoot,
+          this.snapshotManager,
+        );
 
       case 'search_code':
-        return searchCode(args as any, this.projectRoot);
+        return searchCode(args as unknown as SearchCodeParams, this.projectRoot);
 
       case 'list_directory':
-        return listDirectory(args as any, this.projectRoot);
+        return listDirectory(args as unknown as ListDirectoryParams, this.projectRoot);
 
       case 'get_ast':
-        return getAST(args as any, this.projectRoot);
+        return getAST(args as unknown as GetASTParams, this.projectRoot);
 
       case 'rollback':
-        return this.snapshotManager.rollback((args as any).snapshotId);
+        return this.snapshotManager.rollback((args as { snapshotId: string }).snapshotId);
 
       case 'get_snapshots': {
-        const filePath = (args as any).filePath;
+        const filePath = (args as { filePath?: string }).filePath;
         if (filePath) {
           return { snapshots: this.snapshotManager.getFileSnapshots(filePath) };
         }
@@ -90,7 +101,7 @@ export class WebMCPClient implements MCPClient {
   constructor() {
     this.browserManager = createBrowserManager({
       headless: true,
-      timeout: 30000
+      timeout: 30000,
     });
   }
 
@@ -136,7 +147,10 @@ export class WebMCPClient implements MCPClient {
 
       case 'browser_scroll':
       case 'scroll': {
-        const { direction, amount } = args as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number };
+        const { direction, amount } = args as {
+          direction: 'up' | 'down' | 'left' | 'right';
+          amount?: number;
+        };
         return await this.browserManager.scroll(direction, amount);
       }
 
@@ -161,7 +175,7 @@ export class WebMCPClient implements MCPClient {
       { name: 'browser_type', description: '在输入框中输入文本' },
       { name: 'browser_scroll', description: '滚动页面' },
       { name: 'browser_screenshot', description: '截取页面截图' },
-      { name: 'browser_wait_for_selector', description: '等待元素出现' }
+      { name: 'browser_wait_for_selector', description: '等待元素出现' },
     ];
   }
 
@@ -186,15 +200,13 @@ export class MemoryMCPClient implements MCPClient {
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     switch (name) {
       case 'rag_query':
-        return ragQuery(args as any, this.knowledgeBaseConfig);
+        return ragQuery(args as unknown as RagQueryParams, this.knowledgeBaseConfig);
       default:
         throw new Error(`Unknown memory tool: ${name}`);
     }
   }
 
   async listTools() {
-    return [
-      { name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' },
-    ];
+    return [{ name: 'rag_query', description: '查询远程知识库索引（BM25 + embedding 混合检索）' }];
   }
 }

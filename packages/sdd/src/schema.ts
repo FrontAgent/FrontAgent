@@ -18,10 +18,10 @@ export const SDDSchema: Record<string, unknown> = {
       properties: {
         name: { type: 'string' },
         type: { type: 'string' },
-        description: { type: 'string', nullable: true }
+        description: { type: 'string', nullable: true },
       },
       required: ['name', 'type'],
-      additionalProperties: false
+      additionalProperties: false,
     },
     techStack: {
       type: 'object',
@@ -33,11 +33,11 @@ export const SDDSchema: Record<string, unknown> = {
         stateManagement: { type: 'string', nullable: true },
         forbiddenPackages: {
           type: 'array',
-          items: { type: 'string' }
-        }
+          items: { type: 'string' },
+        },
       },
       required: ['framework', 'version', 'language', 'forbiddenPackages'],
-      additionalProperties: false
+      additionalProperties: false,
     },
     directoryStructure: {
       type: 'object',
@@ -49,17 +49,17 @@ export const SDDSchema: Record<string, unknown> = {
           requiredExports: {
             type: 'array',
             items: { type: 'string' },
-            nullable: true
+            nullable: true,
           },
           forbidden: {
             type: 'array',
             items: { type: 'string' },
-            nullable: true
+            nullable: true,
           },
-          mustBePure: { type: 'boolean', nullable: true }
+          mustBePure: { type: 'boolean', nullable: true },
         },
-        additionalProperties: false
-      }
+        additionalProperties: false,
+      },
     },
     moduleBoundaries: {
       type: 'array',
@@ -69,16 +69,16 @@ export const SDDSchema: Record<string, unknown> = {
           from: { type: 'string' },
           canImport: {
             type: 'array',
-            items: { type: 'string' }
+            items: { type: 'string' },
           },
           cannotImport: {
             type: 'array',
-            items: { type: 'string' }
-          }
+            items: { type: 'string' },
+          },
         },
         required: ['from', 'canImport', 'cannotImport'],
-        additionalProperties: false
-      }
+        additionalProperties: false,
+      },
     },
     namingConventions: {
       type: 'object',
@@ -87,10 +87,10 @@ export const SDDSchema: Record<string, unknown> = {
         hooks: { type: 'string' },
         utils: { type: 'string' },
         constants: { type: 'string' },
-        types: { type: 'string' }
+        types: { type: 'string' },
       },
       required: ['components', 'hooks', 'utils', 'constants', 'types'],
-      additionalProperties: false
+      additionalProperties: false,
     },
     codeQuality: {
       type: 'object',
@@ -101,22 +101,28 @@ export const SDDSchema: Record<string, unknown> = {
         requireJsdoc: { type: 'boolean' },
         forbiddenPatterns: {
           type: 'array',
-          items: { type: 'string' }
-        }
+          items: { type: 'string' },
+        },
       },
-      required: ['maxFunctionLines', 'maxFileLines', 'maxParameters', 'requireJsdoc', 'forbiddenPatterns'],
-      additionalProperties: false
+      required: [
+        'maxFunctionLines',
+        'maxFileLines',
+        'maxParameters',
+        'requireJsdoc',
+        'forbiddenPatterns',
+      ],
+      additionalProperties: false,
     },
     modificationRules: {
       type: 'object',
       properties: {
         protectedFiles: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         protectedDirectories: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         requireApproval: {
           type: 'array',
@@ -124,16 +130,16 @@ export const SDDSchema: Record<string, unknown> = {
             type: 'object',
             properties: {
               pattern: { type: 'string' },
-              reason: { type: 'string' }
+              reason: { type: 'string' },
             },
             required: ['pattern', 'reason'],
-            additionalProperties: false
-          }
-        }
+            additionalProperties: false,
+          },
+        },
       },
       required: ['protectedFiles', 'protectedDirectories', 'requireApproval'],
-      additionalProperties: false
-    }
+      additionalProperties: false,
+    },
   },
   required: [
     'version',
@@ -143,9 +149,9 @@ export const SDDSchema: Record<string, unknown> = {
     'moduleBoundaries',
     'namingConventions',
     'codeQuality',
-    'modificationRules'
+    'modificationRules',
   ],
-  additionalProperties: false
+  additionalProperties: false,
 };
 
 /**
@@ -155,13 +161,13 @@ export const defaultSDDConfig: SDDConfig = {
   version: '1.0',
   project: {
     name: 'unnamed-project',
-    type: 'generic'
+    type: 'generic',
   },
   techStack: {
     framework: 'react',
     version: '^18.0.0',
     language: 'typescript',
-    forbiddenPackages: []
+    forbiddenPackages: [],
   },
   directoryStructure: {},
   moduleBoundaries: [],
@@ -170,19 +176,18 @@ export const defaultSDDConfig: SDDConfig = {
     hooks: 'camelCase with use prefix',
     utils: 'camelCase',
     constants: 'SCREAMING_SNAKE_CASE',
-    types: 'PascalCase'
+    types: 'PascalCase',
   },
   codeQuality: {
     maxFunctionLines: 50,
     maxFileLines: 300,
     maxParameters: 4,
     requireJsdoc: false,
-    forbiddenPatterns: []
+    forbiddenPatterns: [],
   },
   modificationRules: {
     protectedFiles: [],
     protectedDirectories: ['node_modules', '.git'],
-    requireApproval: []
-  }
+    requireApproval: [],
+  },
 };
-

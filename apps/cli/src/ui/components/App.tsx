@@ -1,13 +1,13 @@
-import { useCallback, useRef } from 'react';
 import { Box } from 'ink';
-import type { Store } from '../store.js';
+import { useCallback, useRef } from 'react';
 import { useStoreSelector } from '../hooks.js';
+import type { Store } from '../store.js';
+import { ApprovalPrompt } from './ApprovalPrompt.js';
 import { Header } from './Header.js';
 import { PhaseTree } from './PhaseTree.js';
-import { StreamView } from './StreamView.js';
-import { ApprovalPrompt } from './ApprovalPrompt.js';
-import { ResultSummary } from './ResultSummary.js';
 import { RagInfo } from './RagInfo.js';
+import { ResultSummary } from './ResultSummary.js';
+import { StreamView } from './StreamView.js';
 
 export interface AppProps {
   store: Store;

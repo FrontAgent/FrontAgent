@@ -1,5 +1,5 @@
-import type { LLMConfig, SkillContentConfig } from '../types.js';
 import type { SkillSource } from '../skill-content/types.js';
+import type { LLMConfig, SkillContentConfig } from '../types.js';
 
 export interface SkillLabConfig {
   projectRoot: string;

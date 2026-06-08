@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/runtime-node",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "description": "Node runtime adapter for FrontAgent CLI and VSCode extension",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,19 +20,20 @@
   },
   "dependencies": {
     "@frontagent/core": "workspace:*",
-    "@frontagent/shared": "workspace:*",
-    "@frontagent/sdd": "workspace:*",
     "@frontagent/mcp-file": "workspace:*",
+    "@frontagent/mcp-filesense": "workspace:*",
     "@frontagent/mcp-memory": "workspace:*",
-    "@frontagent/mcp-web": "workspace:*",
     "@frontagent/mcp-shell": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "zod": "^3.23.0",
-    "zod-to-json-schema": "^3.25.0"
+    "@frontagent/mcp-web": "workspace:*",
+    "@frontagent/sdd": "workspace:*",
+    "@frontagent/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "typescript": "^5.3.0",
-    "vitest": "^3.1.4"
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }

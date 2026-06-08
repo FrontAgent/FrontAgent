@@ -1,14 +1,14 @@
 export {
   createKnowledgeBase,
-  ragQuery,
-  ragQuerySchema,
-  type KnowledgeBaseConfig,
   type EmbeddingConfig,
-  type RerankerConfig,
-  type VectorStoreConfig,
-  type WeaviateVectorStoreConfig,
+  type KnowledgeBaseConfig,
   type RagMetadataFilter,
+  type RagQueryMatch,
   type RagQueryParams,
   type RagQueryResult,
-  type RagQueryMatch,
-} from './rag.js';
+  type RerankerConfig,
+  ragQuery,
+  ragQuerySchema,
+  type VectorStoreConfig,
+  type WeaviateVectorStoreConfig,
+} from './rag/index.js';

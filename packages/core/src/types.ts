@@ -2,18 +2,19 @@
  * Agent Core 类型定义
  */
 
-import type { z } from 'zod';
+import type { VerificationPolicy, WorkflowConfig } from '@frontagent/sdd';
 import type {
-  ApprovalRequest,
   AgentTask,
+  ApprovalRequest,
   ExecutionPlan,
   ExecutionStep,
-  StepResult,
   SDDConfig,
   SecurityConfig,
   SecurityDecision,
-  ValidationResult
+  StepResult,
+  ValidationResult,
 } from '@frontagent/shared';
+import type { z } from 'zod';
 import type { MemoryConfig } from './memory/types.js';
 
 /**
@@ -24,6 +25,10 @@ export interface AgentConfig {
   projectRoot: string;
   /** SDD 配置文件路径 */
   sddPath?: string;
+  /** Constitution 配置文件路径 */
+  constitutionPath?: string;
+  /** SDD 工作流配置 */
+  sddWorkflow?: SDDWorkflowConfig;
   /** LLM 配置 */
   llm: LLMConfig;
   /** 执行引擎配置 */
@@ -36,6 +41,8 @@ export interface AgentConfig {
   subAgents?: SubAgentConfig;
   /** RAG 配置 */
   rag?: RagConfig;
+  /** Filesense 轻量目录导航配置 */
+  filesense?: FilesenseConfig;
   /** 内容层 skill 配置 */
   skillContent?: SkillContentConfig;
   /** 跨会话记忆配置 */
@@ -44,6 +51,8 @@ export interface AgentConfig {
   security?: AgentSecurityConfig;
   /** 调试模式 */
   debug?: boolean;
+  /** 可选的执行器 trace 钩子，用于性能分析 */
+  trace?: import('./executor.js').ExecutorTraceConfig;
 }
 
 export interface AgentPlanResult {
@@ -57,6 +66,20 @@ export interface AgentPlanResult {
 export interface AgentSecurityConfig extends SecurityConfig {
   /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
   approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+}
+
+/**
+ * SDD 规格驱动工作流配置
+ */
+export interface SDDWorkflowConfig {
+  /** 是否启用工作流引擎（默认 false） */
+  enabled: boolean;
+  /** 工作流配置覆盖 */
+  workflow?: Partial<WorkflowConfig>;
+  /** 验证策略覆盖 */
+  verification?: Partial<VerificationPolicy>;
+  /** 产物存储根目录（默认 .frontagent/specs） */
+  artifactRoot?: string;
 }
 
 export interface SkillContentConfig {
@@ -76,12 +99,75 @@ export interface SkillContentConfig {
   maxCharsPerFile?: number;
 }
 
+export type FilesenseNavigationIntent =
+  | 'locate'
+  | 'understand_structure'
+  | 'find_conventions'
+  | 'prepare_refactor'
+  | 'prepare_create'
+  | 'validate_freshness';
+
+export interface FilesenseConfig {
+  /** 是否启用 Filesense 轻量导航（默认 true） */
+  enabled?: boolean;
+  /** 默认返回形式（默认 summary） */
+  output?: 'summary' | 'candidates' | 'verbose';
+  /** 写入模式；navigate 默认不写业务目录（默认 cache） */
+  writeMode?: 'cache' | 'workspace' | 'none';
+  /** 默认最大扫描条目数 */
+  maxEntries?: number;
+  /** 默认返回字节预算 */
+  maxBytes?: number;
+  /** 默认扫描超时毫秒 */
+  timeoutMs?: number;
+}
+
+export interface FilesenseNavigationCandidate {
+  path: string;
+  type: 'file' | 'dir';
+  reason: string;
+  score: number;
+}
+
+export interface FilesenseNavigationContext {
+  intent?: FilesenseNavigationIntent;
+  paths: string[];
+  scanned: {
+    entries: number;
+    elapsedMs: number;
+    truncated: boolean;
+  };
+  summary?: {
+    projectType?: string;
+    packageManager?: string;
+    mainEntrypoints: string[];
+    importantDirs: Array<{ path: string; purpose: string; confidence: number }>;
+    conventions: string[];
+    risks: string[];
+  };
+  candidates: FilesenseNavigationCandidate[];
+  warnings: string[];
+}
+
 /**
  * RAG 配置
  */
 export interface RagConfig {
   /** 是否启用（默认 true） */
   enabled?: boolean;
+  /** 知识库来源（默认 git；配置 OpenViking 时默认 composite） */
+  source?: 'git' | 'openviking' | 'composite';
+  /** OpenViking 知识库配置 */
+  openViking?: {
+    enabled?: boolean;
+    endpoint?: string;
+    apiKey?: string;
+    corpus?: string;
+    namespace?: string;
+    l1Entry?: string;
+    timeoutMs?: number;
+    fallbackToGit?: boolean;
+  };
   /** 远程知识库 Git 仓库地址 */
   repoUrl: string;
   /** 分支名 */
@@ -112,6 +198,8 @@ export interface RagConfig {
   queryRewrite?: {
     /** 是否在检索前用主 LLM 优化用户查询（默认 true） */
     enabled?: boolean;
+    /** 查询改写模式：auto 会跳过路径、符号等明确技术查询 */
+    mode?: 'always' | 'auto' | 'never';
     /** 查询改写最大输出 token */
     maxTokens?: number;
     /** 查询改写温度 */
@@ -247,6 +335,8 @@ export interface MCPConfig {
 export interface AgentExecutionConfig {
   /** 执行引擎（默认 native） */
   engine?: 'native' | 'langgraph';
+  /** 阶段错误恢复最大重试次数（默认 2） */
+  maxRecoveryAttempts?: number;
   /** LangGraph 专用配置 */
   langGraph?: {
     /** 是否启用 checkpoint（默认 false） */
@@ -486,7 +576,7 @@ export interface ContextInfo {
   /** 结构化 RAG 命中 */
   ragMatches?: RagContextMatch[];
   /** RAG 检索模式 */
-  ragSearchMode?: 'hybrid' | 'keyword_only';
+  ragSearchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
   /** RAG 告警 */
   ragWarnings?: string[];
   /** 命中的内容层 skill prompt 上下文 */
@@ -495,8 +585,22 @@ export interface ContextInfo {
   matchedSkillNames?: string[];
   /** 跨会话记忆内容（Phase 1 preload） */
   memoryContext?: string;
+  /** 结构化 Filesense 目录导航上下文 */
+  filesenseNavigation?: FilesenseNavigationContext;
+  /** Filesense 目录索引上下文 */
+  filesenseContext?: string;
   /** 其他元数据 */
   metadata: Record<string, unknown>;
+}
+
+export interface RagQueryTiming {
+  ensureIndexMs: number;
+  bm25Ms: number;
+  semanticMs: number;
+  fusionMs: number;
+  rerankMs: number;
+  totalMs: number;
+  cacheHit: boolean;
 }
 
 export interface RagContextMatch {
@@ -605,10 +709,21 @@ export type AgentEvent =
   | { type: 'planning_started' }
   | {
       type: 'rag_retrieved';
-      searchMode?: 'hybrid' | 'keyword_only';
+      searchMode?: 'hybrid' | 'keyword_only' | 'openviking' | 'composite';
       reranked?: boolean;
       warnings?: string[];
+      timing?: RagQueryTiming;
       matches: RagContextMatch[];
+    }
+  | {
+      type: 'filesense_navigated';
+      intent?: FilesenseNavigationIntent;
+      paths: string[];
+      entries: number;
+      elapsedMs: number;
+      truncated: boolean;
+      candidateCount: number;
+      warnings?: string[];
     }
   | { type: 'planning_completed'; plan: ExecutionPlan }
   | { type: 'phase_started'; phase: string; stepCount: number }

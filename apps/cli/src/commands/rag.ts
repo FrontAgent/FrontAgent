@@ -1,19 +1,19 @@
-import chalk from 'chalk';
-import ora from 'ora';
+import { execFile } from 'node:child_process';
 import {
   cpSync,
   existsSync,
-  mkdtempSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import chalk from 'chalk';
 import type { Command } from 'commander';
+import ora from 'ora';
 import { getDefaultRagCacheDir } from '../bootstrap.js';
 
 const execFileAsync = promisify(execFile);
@@ -40,35 +40,42 @@ type RagCacheBundleManifest = {
   indexVersion?: number;
 };
 
-function readJsonFile(path: string): any {
+function readJsonFile(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
 function createRagCacheManifest(cacheDir: string, includesRepo: boolean): RagCacheBundleManifest {
   const indexPath = join(cacheDir, 'index.json');
   const embeddingPath = join(cacheDir, 'embeddings.json');
-  const index = existsSync(indexPath) ? readJsonFile(indexPath) : undefined;
-  const embeddingStore = existsSync(embeddingPath) ? readJsonFile(embeddingPath) : undefined;
+  const index = existsSync(indexPath)
+    ? (readJsonFile(indexPath) as Record<string, unknown>)
+    : undefined;
+  const embeddingStore = existsSync(embeddingPath)
+    ? (readJsonFile(embeddingPath) as Record<string, unknown>)
+    : undefined;
+
+  const indexSource = (index?.source ?? {}) as Record<string, unknown>;
+  const vectors = embeddingStore?.vectors as Record<string, unknown> | undefined;
 
   return {
     version: RAG_BUNDLE_VERSION,
     generatedAt: new Date().toISOString(),
     includesRepo,
     source: {
-      repoUrl: index?.source?.repoUrl,
-      branch: index?.source?.branch,
-      revision: index?.source?.revision,
-      indexedFiles: index?.source?.indexedFiles,
-      indexedChunks: index?.source?.indexedChunks,
+      repoUrl: indexSource.repoUrl as string | undefined,
+      branch: indexSource.branch as string | undefined,
+      revision: indexSource.revision as string | undefined,
+      indexedFiles: indexSource.indexedFiles as number | undefined,
+      indexedChunks: indexSource.indexedChunks as number | undefined,
     },
     embedding: {
-      model: embeddingStore?.model,
-      baseURL: embeddingStore?.baseURL,
-      dimensions: embeddingStore?.dimensions,
-      vectorCount: embeddingStore?.vectors ? Object.keys(embeddingStore.vectors).length : undefined,
-      storeVersion: embeddingStore?.version,
+      model: embeddingStore?.model as string | undefined,
+      baseURL: embeddingStore?.baseURL as string | undefined,
+      dimensions: embeddingStore?.dimensions as number | undefined,
+      vectorCount: vectors ? Object.keys(vectors).length : undefined,
+      storeVersion: embeddingStore?.version as number | undefined,
     },
-    indexVersion: index?.version,
+    indexVersion: index?.version as number | undefined,
   };
 }
 
@@ -126,7 +133,9 @@ async function createRagCacheBundle(input: {
   }
 }
 
-async function downloadRagBundle(sourceUrl: string): Promise<{ archivePath: string; cleanupPath: string }> {
+async function downloadRagBundle(
+  sourceUrl: string,
+): Promise<{ archivePath: string; cleanupPath: string }> {
   const response = await fetch(sourceUrl);
   if (!response.ok) {
     throw new Error(`Failed to download bundle: ${response.status} ${response.statusText}`);
@@ -178,7 +187,9 @@ async function importRagCacheBundle(input: {
 
     if (existsSync(input.cacheDir)) {
       if (!input.force) {
-        throw new Error(`RAG cache already exists at ${input.cacheDir}; rerun with --force to replace it`);
+        throw new Error(
+          `RAG cache already exists at ${input.cacheDir}; rerun with --force to replace it`,
+        );
       }
       rmSync(input.cacheDir, { recursive: true, force: true });
     }
@@ -210,9 +221,7 @@ function printManifest(manifest: RagCacheBundleManifest) {
 }
 
 export function registerRagCommand(parent: Command) {
-  const ragCommand = parent
-    .command('rag')
-    .description('管理预构建 RAG 缓存包');
+  const ragCommand = parent.command('rag').description('管理预构建 RAG 缓存包');
 
   ragCommand
     .command('export')

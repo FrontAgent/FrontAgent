@@ -3,13 +3,12 @@
  * 应用最小化代码补丁
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import * as Diff from 'diff';
 import type { FilePatch, PatchResult } from '@frontagent/shared';
-import type { SnapshotManager } from '../snapshot.js';
+import * as Diff from 'diff';
 import { assertWritableByPolicy, resolveWritePath } from '../path-safety.js';
+import type { SnapshotManager } from '../snapshot.js';
 
 export interface ApplyPatchParams {
   path: string;
@@ -24,14 +23,9 @@ export interface ApplyPatchParams {
 export function applyPatch(
   params: ApplyPatchParams,
   projectRoot: string,
-  snapshotManager: SnapshotManager
+  snapshotManager: SnapshotManager,
 ): PatchResult {
-  const {
-    path: filePath,
-    patches,
-    dryRun = false,
-    __frontagentSecurityApproved = false,
-  } = params;
+  const { path: filePath, patches, dryRun = false, __frontagentSecurityApproved = false } = params;
 
   const safePath = resolveWritePath(filePath, projectRoot);
   if (!safePath.ok) {
@@ -79,7 +73,7 @@ export function applyPatch(
   // 按行号倒序排列补丁，从后往前应用以保持行号正确
   const sortedPatches = [...patches].sort((a, b) => b.startLine - a.startLine);
 
-  let newLines = [...lines];
+  const newLines = [...lines];
 
   for (const patch of sortedPatches) {
     const startIdx = patch.startLine - 1; // 转为 0-based
@@ -128,19 +122,34 @@ export function applyPatch(
     success: true,
     diff,
     validation,
-    snapshotId
+    snapshotId,
   };
 }
 
 /**
  * 基础语法验证
  */
-function validateSyntax(content: string, _filePath: string): {
+function validateSyntax(
+  content: string,
+  _filePath: string,
+): {
   syntaxValid: boolean;
-  lintErrors: Array<{ line: number; column: number; message: string; rule: string; severity: 'error' | 'warning' }>;
+  lintErrors: Array<{
+    line: number;
+    column: number;
+    message: string;
+    rule: string;
+    severity: 'error' | 'warning';
+  }>;
   typeErrors: Array<{ line: number; column: number; message: string; code: number }>;
 } {
-  const lintErrors: Array<{ line: number; column: number; message: string; rule: string; severity: 'error' | 'warning' }> = [];
+  const lintErrors: Array<{
+    line: number;
+    column: number;
+    message: string;
+    rule: string;
+    severity: 'error' | 'warning';
+  }> = [];
   const typeErrors: Array<{ line: number; column: number; message: string; code: number }> = [];
 
   // 基础括号匹配检查
@@ -202,7 +211,7 @@ function validateSyntax(content: string, _filePath: string): {
             column: colIdx + 1,
             message: `Unmatched bracket: ${char}`,
             rule: 'syntax/brackets',
-            severity: 'error'
+            severity: 'error',
           });
         }
       }
@@ -217,14 +226,14 @@ function validateSyntax(content: string, _filePath: string): {
       column: bracket.column,
       message: `Unclosed bracket: ${bracket.char}`,
       rule: 'syntax/brackets',
-      severity: 'error'
+      severity: 'error',
     });
   }
 
   return {
-    syntaxValid: lintErrors.filter(e => e.severity === 'error').length === 0,
+    syntaxValid: lintErrors.filter((e) => e.severity === 'error').length === 0,
     lintErrors,
-    typeErrors
+    typeErrors,
   };
 }
 
@@ -239,7 +248,7 @@ export const applyPatchSchema = {
     properties: {
       path: {
         type: 'string',
-        description: '相对于项目根目录的文件路径'
+        description: '相对于项目根目录的文件路径',
       },
       patches: {
         type: 'array',
@@ -250,30 +259,30 @@ export const applyPatchSchema = {
             operation: {
               type: 'string',
               enum: ['replace', 'insert', 'delete'],
-              description: '操作类型：replace-替换, insert-插入, delete-删除'
+              description: '操作类型：replace-替换, insert-插入, delete-删除',
             },
             startLine: {
               type: 'number',
-              description: '起始行号（1-based）'
+              description: '起始行号（1-based）',
             },
             endLine: {
               type: 'number',
-              description: '结束行号（1-based，包含）。对于 replace 和 delete 有效'
+              description: '结束行号（1-based，包含）。对于 replace 和 delete 有效',
             },
             content: {
               type: 'string',
-              description: '新内容。对于 replace 和 insert 必须提供'
-            }
+              description: '新内容。对于 replace 和 insert 必须提供',
+            },
           },
-          required: ['operation', 'startLine']
-        }
+          required: ['operation', 'startLine'],
+        },
       },
       dryRun: {
         type: 'boolean',
         description: '是否仅预览不实际修改，默认 false',
-        default: false
-      }
+        default: false,
+      },
     },
-    required: ['path', 'patches']
-  }
+    required: ['path', 'patches'],
+  },
 };

@@ -147,9 +147,12 @@ export function applyPrefill(
     ...state,
     composer: request.task ?? state.composer,
     mode: request.mode ?? state.mode,
-    contextFiles: files.length ? [...new Set([...state.contextFiles, ...files])] : state.contextFiles,
+    contextFiles: files.length
+      ? [...new Set([...state.contextFiles, ...files])]
+      : state.contextFiles,
     browserUrl: request.url ?? state.browserUrl,
-    selectionPreview: request.selectionPreview !== undefined ? request.selectionPreview : state.selectionPreview,
+    selectionPreview:
+      request.selectionPreview !== undefined ? request.selectionPreview : state.selectionPreview,
   };
 }
 
@@ -228,7 +231,9 @@ function appendIfNotLast(state: ViewState, role: ChatRole, text: string): ViewSt
   return appendChatMessage(state, role, trimmed);
 }
 
-function buildPhasesFromPlan(plan: Extract<AgentEvent, { type: 'planning_completed' }>['plan']): ViewPhase[] {
+function buildPhasesFromPlan(
+  plan: Extract<AgentEvent, { type: 'planning_completed' }>['plan'],
+): ViewPhase[] {
   const phaseMap = new Map<string, ViewPhase>();
   for (const step of plan.steps) {
     const phaseName = step.phase || '未分组';
@@ -248,7 +253,12 @@ function buildPhasesFromPlan(plan: Extract<AgentEvent, { type: 'planning_complet
   return Array.from(phaseMap.values());
 }
 
-function upsertStep(state: ViewState, step: ViewStep, status: StepStatus, error?: string): ViewPhase[] {
+function upsertStep(
+  state: ViewState,
+  step: ViewStep,
+  status: StepStatus,
+  error?: string,
+): ViewPhase[] {
   const phaseName = state.currentPhase || '未分组';
   let found = false;
   let phaseFound = false;
@@ -278,7 +288,9 @@ function upsertStep(state: ViewState, step: ViewStep, status: StepStatus, error?
   ];
 }
 
-function eventStepToViewStep(event: Extract<AgentEvent, { type: 'step_started' | 'step_completed' | 'step_failed' }>['step']): ViewStep {
+function eventStepToViewStep(
+  event: Extract<AgentEvent, { type: 'step_started' | 'step_completed' | 'step_failed' }>['step'],
+): ViewStep {
   return {
     stepId: event.stepId,
     description: event.description,
@@ -311,7 +323,10 @@ export function reduceAgentEvent(state: ViewState, event: AgentEvent): ViewState
     case 'rag_retrieved':
       return {
         ...state,
-        ragMatches: event.matches.map((match) => ({ title: match.title, path: match.path })),
+        ragMatches: event.matches.map((match) => ({
+          title: match.title,
+          path: match.path,
+        })),
         ragSearchMode: event.searchMode ?? null,
         ragReranked: event.reranked ?? false,
         ragWarnings: event.warnings ?? [],
@@ -319,7 +334,12 @@ export function reduceAgentEvent(state: ViewState, event: AgentEvent): ViewState
         currentOperation: '规划准备',
       };
     case 'planning_started':
-      return { ...state, status: 'planning', lastActivityLabel: '开始规划', currentOperation: '生成执行计划' };
+      return {
+        ...state,
+        status: 'planning',
+        lastActivityLabel: '开始规划',
+        currentOperation: '生成执行计划',
+      };
     case 'planning_completed':
       return {
         ...state,
@@ -334,7 +354,12 @@ export function reduceAgentEvent(state: ViewState, event: AgentEvent): ViewState
         currentPhase: event.phase,
         phases: state.phases.map((phase) => ({
           ...phase,
-          status: phase.name === event.phase ? 'active' : phase.status === 'active' ? 'done' : phase.status,
+          status:
+            phase.name === event.phase
+              ? 'active'
+              : phase.status === 'active'
+                ? 'done'
+                : phase.status,
         })),
         lastActivityLabel: `阶段开始：${event.phase}`,
         currentOperation: `执行阶段：${event.phase}`,
@@ -346,7 +371,9 @@ export function reduceAgentEvent(state: ViewState, event: AgentEvent): ViewState
           ...phase,
           status: phase.name === event.phase ? 'done' : phase.status,
         })),
-        currentPhase: state.phases.find((phase) => phase.name !== event.phase && phase.status !== 'done')?.name ?? null,
+        currentPhase:
+          state.phases.find((phase) => phase.name !== event.phase && phase.status !== 'done')
+            ?.name ?? null,
         lastActivityLabel: `阶段完成：${event.phase}`,
         currentOperation: '阶段收尾',
       };

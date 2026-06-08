@@ -1,8 +1,8 @@
-import chalk from 'chalk';
-import ora from 'ora';
 import { resolve } from 'node:path';
-import type { Command } from 'commander';
 import { SkillLab, type SkillLabConfig } from '@frontagent/core';
+import chalk from 'chalk';
+import type { Command } from 'commander';
+import ora from 'ora';
 import { resolveBuiltInSkillRoots, resolveLLMConfigFromOptions } from '../bootstrap.js';
 
 function createSkillLabFromCli(
@@ -38,9 +38,7 @@ function createSkillLabFromCli(
 }
 
 export function registerSkillCommand(parent: Command) {
-  const skillCommand = parent
-    .command('skill')
-    .description('管理内容技能与 Skill Lab 自我迭代流程');
+  const skillCommand = parent.command('skill').description('管理内容技能与 Skill Lab 自我迭代流程');
 
   skillCommand
     .command('list')
@@ -75,7 +73,11 @@ export function registerSkillCommand(parent: Command) {
 
       try {
         const skillLab = createSkillLabFromCli(process.cwd(), options, false);
-        const result = skillLab.scaffoldSkill(skillName, options.description, Boolean(options.force));
+        const result = skillLab.scaffoldSkill(
+          skillName,
+          options.description,
+          Boolean(options.force),
+        );
         spinner.succeed(`已创建 skill 骨架: ${result.skillDir}`);
         console.log(chalk.gray(`   SKILL.md: ${result.skillFilePath}`));
         console.log(chalk.gray(`   agents/openai.yaml: ${result.agentConfigPath}`));
@@ -101,7 +103,9 @@ export function registerSkillCommand(parent: Command) {
         const result = skillLab.initTriggerEvals(skillName, options.output, Boolean(options.force));
         spinner.succeed(`已生成 trigger evals: ${result.evalSuitePath}`);
         console.log(chalk.gray(`   Cases: ${result.suite.cases.length}`));
-        console.log(chalk.gray('   这是 starter suite，建议先按真实业务 prompt 编辑后再 benchmark。'));
+        console.log(
+          chalk.gray('   这是 starter suite，建议先按真实业务 prompt 编辑后再 benchmark。'),
+        );
       } catch (error) {
         spinner.fail('初始化失败');
         console.log(chalk.red(`\n❌ ${error instanceof Error ? error.message : String(error)}`));
@@ -120,10 +124,16 @@ export function registerSkillCommand(parent: Command) {
 
       try {
         const skillLab = createSkillLabFromCli(process.cwd(), options, false);
-        const result = skillLab.initBehaviorEvals(skillName, options.output, Boolean(options.force));
+        const result = skillLab.initBehaviorEvals(
+          skillName,
+          options.output,
+          Boolean(options.force),
+        );
         spinner.succeed(`已生成 behavior evals: ${result.evalSuitePath}`);
         console.log(chalk.gray(`   Cases: ${result.suite.cases.length}`));
-        console.log(chalk.gray('   这是 starter suite，建议按真实任务补齐 checks 后再用于 improve。'));
+        console.log(
+          chalk.gray('   这是 starter suite，建议按真实任务补齐 checks 后再用于 improve。'),
+        );
       } catch (error) {
         spinner.fail('初始化失败');
         console.log(chalk.red(`\n❌ ${error instanceof Error ? error.message : String(error)}`));
@@ -147,7 +157,11 @@ export function registerSkillCommand(parent: Command) {
       .description('运行指定 skill 的 benchmark（trigger，可选 behavior）')
       .argument('<skill-name>', 'skill 名称')
       .option('-e, --eval <path>', 'trigger eval JSON 路径')
-      .option('-b, --behavior', '同时运行 behavior eval（默认读取 skill-lab 内 behavior-evals.json）', false)
+      .option(
+        '-b, --behavior',
+        '同时运行 behavior eval（默认读取 skill-lab 内 behavior-evals.json）',
+        false,
+      )
       .option('--behavior-eval <path>', 'behavior eval JSON 路径')
       .option('-r, --output-root <path>', 'Skill Lab 输出目录')
       .option('--debug', '启用调试模式', false),
@@ -169,10 +183,24 @@ export function registerSkillCommand(parent: Command) {
       console.log(chalk.gray(`   False Negatives: ${result.benchmark.summary.falseNegatives}`));
       if (result.behaviorBenchmark) {
         console.log(chalk.cyan('\n🧪 Behavior Benchmark'));
-        console.log(chalk.gray(`   Behavior Cases: ${result.behaviorBenchmark.summary.totalCases}`));
-        console.log(chalk.gray(`   Behavior Pass Rate: ${(result.behaviorBenchmark.summary.passRate * 100).toFixed(1)}%`));
-        console.log(chalk.gray(`   Check Pass Rate: ${(result.behaviorBenchmark.summary.checkPassRate * 100).toFixed(1)}%`));
-        console.log(chalk.gray(`   Score Rate: ${(result.behaviorBenchmark.summary.scoreRate * 100).toFixed(1)}%`));
+        console.log(
+          chalk.gray(`   Behavior Cases: ${result.behaviorBenchmark.summary.totalCases}`),
+        );
+        console.log(
+          chalk.gray(
+            `   Behavior Pass Rate: ${(result.behaviorBenchmark.summary.passRate * 100).toFixed(1)}%`,
+          ),
+        );
+        console.log(
+          chalk.gray(
+            `   Check Pass Rate: ${(result.behaviorBenchmark.summary.checkPassRate * 100).toFixed(1)}%`,
+          ),
+        );
+        console.log(
+          chalk.gray(
+            `   Score Rate: ${(result.behaviorBenchmark.summary.scoreRate * 100).toFixed(1)}%`,
+          ),
+        );
         if (result.behaviorOutputPath) {
           console.log(chalk.gray(`   Behavior JSON: ${result.behaviorOutputPath}`));
         }
@@ -211,18 +239,46 @@ export function registerSkillCommand(parent: Command) {
       spinner.succeed(`候选 skill 已生成: ${result.candidateId}`);
       console.log(chalk.gray(`   Candidate Root: ${result.candidateRoot}`));
       console.log(chalk.gray(`   Candidate Skill: ${result.candidateSkillDir}`));
-      console.log(chalk.gray(`   Baseline Pass Rate: ${(result.baseline.summary.passRate * 100).toFixed(1)}%`));
-      console.log(chalk.gray(`   Candidate Pass Rate: ${(result.candidate.summary.passRate * 100).toFixed(1)}%`));
+      console.log(
+        chalk.gray(
+          `   Baseline Pass Rate: ${(result.baseline.summary.passRate * 100).toFixed(1)}%`,
+        ),
+      );
+      console.log(
+        chalk.gray(
+          `   Candidate Pass Rate: ${(result.candidate.summary.passRate * 100).toFixed(1)}%`,
+        ),
+      );
       console.log(chalk.gray(`   Improved: ${result.comparison.improved ? 'yes' : 'no'}`));
       console.log(chalk.gray(`   Benchmark JSON: ${result.benchmarkPath}`));
       console.log(chalk.gray(`   Summary MD: ${result.summaryPath}`));
       if (result.baselineBehavior && result.candidateBehavior) {
         console.log(chalk.cyan('\n🧪 Behavior Comparison'));
-        console.log(chalk.gray(`   Baseline Score Rate: ${(result.baselineBehavior.summary.scoreRate * 100).toFixed(1)}%`));
-        console.log(chalk.gray(`   Candidate Score Rate: ${(result.candidateBehavior.summary.scoreRate * 100).toFixed(1)}%`));
-        console.log(chalk.gray(`   Baseline Check Pass: ${(result.baselineBehavior.summary.checkPassRate * 100).toFixed(1)}%`));
-        console.log(chalk.gray(`   Candidate Check Pass: ${(result.candidateBehavior.summary.checkPassRate * 100).toFixed(1)}%`));
-        console.log(chalk.gray(`   Behavior Improved: ${result.comparison.behavior?.improved ? 'yes' : 'no'}`));
+        console.log(
+          chalk.gray(
+            `   Baseline Score Rate: ${(result.baselineBehavior.summary.scoreRate * 100).toFixed(1)}%`,
+          ),
+        );
+        console.log(
+          chalk.gray(
+            `   Candidate Score Rate: ${(result.candidateBehavior.summary.scoreRate * 100).toFixed(1)}%`,
+          ),
+        );
+        console.log(
+          chalk.gray(
+            `   Baseline Check Pass: ${(result.baselineBehavior.summary.checkPassRate * 100).toFixed(1)}%`,
+          ),
+        );
+        console.log(
+          chalk.gray(
+            `   Candidate Check Pass: ${(result.candidateBehavior.summary.checkPassRate * 100).toFixed(1)}%`,
+          ),
+        );
+        console.log(
+          chalk.gray(
+            `   Behavior Improved: ${result.comparison.behavior?.improved ? 'yes' : 'no'}`,
+          ),
+        );
       }
 
       if (result.changes.length > 0) {

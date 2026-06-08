@@ -2,7 +2,7 @@
   "name": "frontagent",
   "displayName": "FrontAgent",
   "description": "Chat with FrontAgent from a VS Code sidebar.",
-  "version": "1.0.6",
+  "version": "2.1.0",
   "publisher": "ceilf6",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -20,7 +20,7 @@
   "type": "module",
   "main": "./dist/extension.cjs",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.120.0"
   },
   "categories": [
     "AI",
@@ -205,6 +205,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit && node build.mjs",
+    "package": "pnpm dlx @vscode/vsce package --no-dependencies",
     "dev": "tsc --watch --noEmit",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -212,11 +213,11 @@
   },
   "devDependencies": {
     "@frontagent/runtime-node": "workspace:*",
-    "@types/node": "^20.10.0",
-    "@types/vscode": "^1.95.0",
+    "@types/node": "^25.9.1",
+    "@types/vscode": "^1.120.0",
     "@vscode/test-electron": "^2.5.2",
-    "esbuild": "^0.27.2",
-    "typescript": "^5.3.0",
-    "vitest": "^3.1.4"
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }

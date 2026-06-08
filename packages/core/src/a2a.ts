@@ -3,10 +3,10 @@
  * 用于主 Agent 与 SubAgent 的结构化通信
  */
 
-import { generateId } from "@frontagent/shared";
+import { generateId } from '@frontagent/shared';
 
-export const A2A_PROTOCOL_NAME = "A2A" as const;
-export const A2A_PROTOCOL_VERSION = "1.0" as const;
+export const A2A_PROTOCOL_NAME = 'A2A' as const;
+export const A2A_PROTOCOL_VERSION = '1.0' as const;
 
 // 所有消息公共头
 export interface A2AEnvelope {
@@ -21,13 +21,13 @@ export interface A2AEnvelope {
 
 // 请求消息
 export interface A2ARequest<TPayload = unknown> extends A2AEnvelope {
-  kind: "request";
+  kind: 'request';
   payload: TPayload;
 }
 
 // 响应消息
 export interface A2AResponse<TPayload = unknown> extends A2AEnvelope {
-  kind: "response";
+  kind: 'response';
   inReplyTo: string;
   success: boolean;
   payload?: TPayload;
@@ -68,8 +68,8 @@ export class InMemoryA2ABus {
     const request: A2ARequest<TRequest> = {
       protocol: A2A_PROTOCOL_NAME,
       version: A2A_PROTOCOL_VERSION,
-      kind: "request",
-      messageId: generateId("a2a-req"),
+      kind: 'request',
+      messageId: generateId('a2a-req'),
       timestamp: Date.now(),
       from,
       to,
@@ -82,8 +82,8 @@ export class InMemoryA2ABus {
       return {
         protocol: A2A_PROTOCOL_NAME,
         version: A2A_PROTOCOL_VERSION,
-        kind: "response",
-        messageId: generateId("a2a-res"),
+        kind: 'response',
+        messageId: generateId('a2a-res'),
         inReplyTo: request.messageId,
         timestamp: Date.now(),
         from: to,
@@ -98,8 +98,8 @@ export class InMemoryA2ABus {
       return {
         protocol: A2A_PROTOCOL_NAME,
         version: A2A_PROTOCOL_VERSION,
-        kind: "response",
-        messageId: generateId("a2a-res"),
+        kind: 'response',
+        messageId: generateId('a2a-res'),
         inReplyTo: request.messageId,
         timestamp: Date.now(),
         from: to,
@@ -111,14 +111,12 @@ export class InMemoryA2ABus {
     }
 
     try {
-      const response = await target.handleRequest(
-        request as A2ARequest<unknown>,
-      );
+      const response = await target.handleRequest(request as A2ARequest<unknown>);
       return {
         ...response,
         protocol: A2A_PROTOCOL_NAME,
         version: A2A_PROTOCOL_VERSION,
-        kind: "response",
+        kind: 'response',
         inReplyTo: request.messageId,
         intent,
         from: response.from || to,
@@ -128,8 +126,8 @@ export class InMemoryA2ABus {
       return {
         protocol: A2A_PROTOCOL_NAME,
         version: A2A_PROTOCOL_VERSION,
-        kind: "response",
-        messageId: generateId("a2a-res"),
+        kind: 'response',
+        messageId: generateId('a2a-res'),
         inReplyTo: request.messageId,
         timestamp: Date.now(),
         from: to,

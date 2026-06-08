@@ -24,9 +24,9 @@ describe('ShellMCPClient security boundary', () => {
     const root = makeRoot();
     const client = createShellMCPClient(root);
 
-    const result = await client.callTool('run_command', {
+    const result = (await client.callTool('run_command', {
       command: 'node -e "process.exit(0)"',
-    }) as { success: boolean; exitCode?: number };
+    })) as { success: boolean; exitCode?: number };
 
     expect(result.success).toBe(true);
     expect(result.exitCode).toBe(0);
@@ -36,9 +36,9 @@ describe('ShellMCPClient security boundary', () => {
     const root = makeRoot();
     const client = createShellMCPClient(root);
 
-    const result = await client.callTool('run_command', {
+    const result = (await client.callTool('run_command', {
       command: 'echo hi >> output.txt',
-    }) as { success: boolean; error?: string };
+    })) as { success: boolean; error?: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/requires security approval/i);
@@ -49,14 +49,14 @@ describe('ShellMCPClient security boundary', () => {
     const root = makeRoot();
     const client = createShellMCPClient(root);
 
-    const approved = await client.callTool('run_command', {
+    const approved = (await client.callTool('run_command', {
       command: 'echo hi >> output.txt',
       __frontagentSecurityApproved: true,
-    }) as { success: boolean };
-    const denied = await client.callTool('run_command', {
+    })) as { success: boolean };
+    const denied = (await client.callTool('run_command', {
       command: 'rm -rf output.txt',
       __frontagentSecurityApproved: true,
-    }) as { success: boolean; error?: string };
+    })) as { success: boolean; error?: string };
 
     expect(approved.success).toBe(true);
     expect(readFileSync(join(root, 'output.txt'), 'utf-8').trim()).toBe('hi');
@@ -68,10 +68,10 @@ describe('ShellMCPClient security boundary', () => {
     const root = makeRoot();
     const client = createShellMCPClient(root);
 
-    const result = await client.callTool('run_command', {
+    const result = (await client.callTool('run_command', {
       command: 'pwd',
       workingDirectory: '..',
-    }) as { success: boolean; error?: string };
+    })) as { success: boolean; error?: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/outside project root/i);

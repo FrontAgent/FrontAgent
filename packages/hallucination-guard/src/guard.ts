@@ -3,17 +3,17 @@
  * 整合所有检查，验证 Agent 输出
  */
 
-import type {
-  SDDConfig,
-  HallucinationCheckResult,
-  ValidationResult,
-  ActionType
-} from '@frontagent/shared';
 import type { AgentAction } from '@frontagent/sdd';
+import type {
+  ActionType,
+  HallucinationCheckResult,
+  SDDConfig,
+  ValidationResult,
+} from '@frontagent/shared';
 import { checkFileExistence } from './checks/file-existence.js';
 import { checkAllImports, extractImports } from './checks/import-validity.js';
-import { checkSyntaxValidity } from './checks/syntax-validity.js';
 import { checkSDDCompliance } from './checks/sdd-compliance.js';
+import { checkSyntaxValidity } from './checks/syntax-validity.js';
 
 /**
  * Agent 输出描述
@@ -65,7 +65,7 @@ export class HallucinationGuard {
       fileExistence: config.enabledChecks?.fileExistence ?? true,
       importValidity: config.enabledChecks?.importValidity ?? true,
       syntaxValidity: config.enabledChecks?.syntaxValidity ?? true,
-      sddCompliance: config.enabledChecks?.sddCompliance ?? true
+      sddCompliance: config.enabledChecks?.sddCompliance ?? true,
     };
   }
 
@@ -81,7 +81,7 @@ export class HallucinationGuard {
       const fileCheck = await checkFileExistence({
         path: output.targetPath,
         projectRoot: this.config.projectRoot,
-        shouldExist
+        shouldExist,
       });
       results.push(fileCheck);
     }
@@ -93,7 +93,7 @@ export class HallucinationGuard {
         const importChecks = await checkAllImports(
           output.content,
           output.targetPath,
-          this.config.projectRoot
+          this.config.projectRoot,
         );
         results.push(...importChecks);
       }
@@ -104,7 +104,7 @@ export class HallucinationGuard {
       const syntaxCheck = await checkSyntaxValidity({
         code: output.content,
         language: output.language,
-        filePath: output.targetPath
+        filePath: output.targetPath,
       });
       results.push(syntaxCheck);
     }
@@ -117,41 +117,39 @@ export class HallucinationGuard {
         sourcePath: output.sourcePath,
         content: output.content,
         imports: output.imports,
-        dependencies: output.dependencies
+        dependencies: output.dependencies,
       };
 
       const sddCheck = await checkSDDCompliance({
         action: agentAction,
-        sddConfig: this.config.sddConfig
+        sddConfig: this.config.sddConfig,
       });
       results.push(sddCheck);
     }
 
     // 汇总结果
     const blockedBy = results
-      .filter(r => !r.pass && r.severity === 'block')
-      .map(r => r.message ?? r.type);
+      .filter((r) => !r.pass && r.severity === 'block')
+      .map((r) => r.message ?? r.type);
 
-    const warnings = results
-      .filter(r => r.severity === 'warn')
-      .map(r => r.message ?? r.type);
+    const warnings = results.filter((r) => r.severity === 'warn').map((r) => r.message ?? r.type);
 
     return {
       pass: blockedBy.length === 0,
       results,
       blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
-      warnings: warnings.length > 0 ? warnings : undefined
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   }
 
   /**
    * 快速验证文件路径
    */
-  async validateFilePath(path: string, shouldExist: boolean = true): Promise<HallucinationCheckResult> {
+  async validateFilePath(path: string, shouldExist = true): Promise<HallucinationCheckResult> {
     return checkFileExistence({
       path,
       projectRoot: this.config.projectRoot,
-      shouldExist
+      shouldExist,
     });
   }
 
@@ -161,7 +159,7 @@ export class HallucinationGuard {
   async validateCode(
     code: string,
     language: 'typescript' | 'javascript' | 'json' | 'yaml',
-    filePath?: string
+    filePath?: string,
   ): Promise<ValidationResult> {
     const results: HallucinationCheckResult[] = [];
 
@@ -176,13 +174,13 @@ export class HallucinationGuard {
     }
 
     const blockedBy = results
-      .filter(r => !r.pass && r.severity === 'block')
-      .map(r => r.message ?? r.type);
+      .filter((r) => !r.pass && r.severity === 'block')
+      .map((r) => r.message ?? r.type);
 
     return {
       pass: blockedBy.length === 0,
       results,
-      blockedBy: blockedBy.length > 0 ? blockedBy : undefined
+      blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
     };
   }
 
@@ -207,4 +205,3 @@ export class HallucinationGuard {
 export function createHallucinationGuard(config: GuardConfig): HallucinationGuard {
   return new HallucinationGuard(config);
 }
-

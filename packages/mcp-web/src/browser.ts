@@ -3,8 +3,8 @@
  * 封装 Playwright 提供浏览器操作能力
  */
 
-import type { Browser, Page, BrowserContext } from 'playwright';
-import type { DOMNode, AXNode, InteractiveElement } from '@frontagent/shared';
+import type { AXNode, DOMNode, InteractiveElement } from '@frontagent/shared';
+import type { Browser, BrowserContext, Page } from 'playwright';
 
 type PlaywrightModule = typeof import('playwright');
 
@@ -28,7 +28,7 @@ export class BrowserManager {
     this.config = {
       headless: config.headless ?? true,
       slowMo: config.slowMo ?? 0,
-      timeout: config.timeout ?? 30000
+      timeout: config.timeout ?? 30000,
     };
   }
 
@@ -43,11 +43,11 @@ export class BrowserManager {
     const { chromium } = await this.loadPlaywright();
     this.browser = await chromium.launch({
       headless: this.config.headless,
-      slowMo: this.config.slowMo
+      slowMo: this.config.slowMo,
     });
 
     this.context = await this.browser.newContext({
-      viewport: { width: 1920, height: 1080 }
+      viewport: { width: 1920, height: 1080 },
     });
 
     this.page = await this.context.newPage();
@@ -79,7 +79,7 @@ export class BrowserManager {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -102,10 +102,20 @@ export class BrowserManager {
 
     // 获取 DOM 树
     const domTree = await page.evaluate((sel) => {
-      function parseNode(node: Element, depth: number = 0): any {
-        if (depth > 10) return null; // 限制深度
+      interface ParsedNode {
+        tag: string;
+        id?: string;
+        className?: string;
+        text?: string;
+        attributes: Record<string, string>;
+        children: ParsedNode[];
+        boundingBox: { x: number; y: number; width: number; height: number };
+      }
 
-        const children: any[] = [];
+      function parseNode(node: Element, depth = 0): ParsedNode | null {
+        if (depth > 10) return null;
+
+        const children: ParsedNode[] = [];
         for (const child of node.children) {
           const parsed = parseNode(child, depth + 1);
           if (parsed) {
@@ -142,15 +152,16 @@ export class BrowserManager {
             x: rect.x,
             y: rect.y,
             width: rect.width,
-            height: rect.height
-          }
+            height: rect.height,
+          },
         };
       }
 
       const root = sel ? document.querySelector(sel) : document.body;
       if (!root) return [];
 
-      return [parseNode(root as Element)];
+      const parsed = parseNode(root as Element);
+      return parsed ? [parsed] : [];
     }, selector);
 
     return { title, url, viewport, domTree };
@@ -162,12 +173,24 @@ export class BrowserManager {
   async getAccessibilityTree(): Promise<AXNode[]> {
     await this.ensurePage();
 
-    const snapshot = await (this.page as any).accessibility?.snapshot();
+    const snapshot = await (
+      this.page as unknown as { accessibility?: { snapshot(): Promise<unknown> } }
+    ).accessibility?.snapshot();
     if (!snapshot) {
       return [];
     }
 
-    function transformNode(node: any): AXNode {
+    interface RawAXNode {
+      role: string;
+      name?: string;
+      value?: string;
+      description?: string;
+      focused?: boolean;
+      disabled?: boolean;
+      children?: RawAXNode[];
+    }
+
+    function transformNode(node: RawAXNode): AXNode {
       return {
         role: node.role,
         name: node.name,
@@ -175,30 +198,33 @@ export class BrowserManager {
         description: node.description,
         focused: node.focused,
         disabled: node.disabled,
-        children: node.children?.map(transformNode)
+        children: node.children?.map(transformNode),
       };
     }
 
-    return [transformNode(snapshot)];
+    return [transformNode(snapshot as RawAXNode)];
   }
 
   /**
    * 获取可交互元素
    */
-  async getInteractiveElements(filter?: 'all' | 'buttons' | 'inputs' | 'links'): Promise<InteractiveElement[]> {
+  async getInteractiveElements(
+    filter?: 'all' | 'buttons' | 'inputs' | 'links',
+  ): Promise<InteractiveElement[]> {
     await this.ensurePage();
 
     const selectorMap: Record<string, string> = {
       all: 'button, a, input, select, textarea, [role="button"], [role="link"], [tabindex]',
       buttons: 'button, [role="button"], input[type="submit"], input[type="button"]',
       inputs: 'input, textarea, select',
-      links: 'a, [role="link"]'
+      links: 'a, [role="link"]',
     };
 
     const selector = selectorMap[filter ?? 'all'];
 
     return await this.page!.evaluate((sel) => {
       const elements = document.querySelectorAll(sel);
+      // biome-ignore lint/suspicious/noExplicitAny: page.evaluate runs in browser context
       const result: any[] = [];
 
       elements.forEach((el: Element, index: number) => {
@@ -206,16 +232,15 @@ export class BrowserManager {
         if (rect.width === 0 && rect.height === 0) return;
 
         const tagName = el.tagName.toLowerCase();
-        let type: string = 'button';
-        
+        let type = 'button';
+
         if (tagName === 'a') type = 'link';
         else if (tagName === 'input') {
           const inputType = (el as HTMLInputElement).type;
           if (inputType === 'checkbox') type = 'checkbox';
           else if (inputType === 'radio') type = 'radio';
           else type = 'input';
-        }
-        else if (tagName === 'select') type = 'select';
+        } else if (tagName === 'select') type = 'select';
         else if (tagName === 'textarea') type = 'textarea';
 
         result.push({
@@ -227,9 +252,9 @@ export class BrowserManager {
             x: rect.x,
             y: rect.y,
             width: rect.width,
-            height: rect.height
+            height: rect.height,
           },
-          enabled: !(el as HTMLButtonElement).disabled
+          enabled: !(el as HTMLButtonElement).disabled,
         });
 
         // 添加临时 ID 用于选择
@@ -252,7 +277,7 @@ export class BrowserManager {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -269,7 +294,7 @@ export class BrowserManager {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -277,7 +302,10 @@ export class BrowserManager {
   /**
    * 滚动页面
    */
-  async scroll(direction: 'up' | 'down' | 'left' | 'right', amount?: number): Promise<{ success: boolean }> {
+  async scroll(
+    direction: 'up' | 'down' | 'left' | 'right',
+    amount?: number,
+  ): Promise<{ success: boolean }> {
     await this.ensurePage();
 
     const scrollAmount = amount ?? 500;
@@ -285,13 +313,16 @@ export class BrowserManager {
       up: { x: 0, y: -scrollAmount },
       down: { x: 0, y: scrollAmount },
       left: { x: -scrollAmount, y: 0 },
-      right: { x: scrollAmount, y: 0 }
+      right: { x: scrollAmount, y: 0 },
     };
 
     const { x, y } = scrollMap[direction];
-    await this.page!.evaluate(({ x, y }) => {
-      window.scrollBy(x, y);
-    }, { x, y });
+    await this.page!.evaluate(
+      ({ x, y }) => {
+        window.scrollBy(x, y);
+      },
+      { x, y },
+    );
 
     return { success: true };
   }
@@ -320,12 +351,12 @@ export class BrowserManager {
 
       return {
         success: true,
-        base64: buffer.toString('base64')
+        base64: buffer.toString('base64'),
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -333,7 +364,10 @@ export class BrowserManager {
   /**
    * 等待元素出现
    */
-  async waitForSelector(selector: string, timeout?: number): Promise<{ success: boolean; error?: string }> {
+  async waitForSelector(
+    selector: string,
+    timeout?: number,
+  ): Promise<{ success: boolean; error?: string }> {
     await this.ensurePage();
 
     try {
@@ -342,7 +376,7 @@ export class BrowserManager {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -354,12 +388,12 @@ export class BrowserManager {
     await this.ensurePage();
 
     try {
-      const result = await this.page!.evaluate(script) as T;
+      const result = (await this.page!.evaluate(script)) as T;
       return { success: true, result };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

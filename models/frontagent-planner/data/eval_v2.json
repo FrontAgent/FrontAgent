@@ -1,0 +1,1202 @@
+[
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的安全漏洞，找出路由结构混乱问题\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的安全漏洞，找出路由结构混乱问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100000
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有any 类型的使用情况，并总结风险\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有any 类型的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100001
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加可访问性测试到数据表格组件，覆盖主要交互路径\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“添加可访问性测试到数据表格组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100002
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查utils.ts文件中的类型安全，输出主要风险和改进建议\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“审查utils.ts文件中的类型安全，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100003
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将下拉选择组件从CSS 文件迁移到CSS-in-JS，保持现有功能不变\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“将下拉选择组件从CSS 文件迁移到CSS-in-JS，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将下拉选择组件从CSS 文件迁移到CSS-in-JS，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100004
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个导航栏组件，包含分页加载和无限滚动功能\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“创建一个导航栏组件，包含分页加载和无限滚动功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个导航栏组件，包含分页加载和无限滚动功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100005
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个商品详情页面，使用列表式布局，包含导航菜单、内容面板、保存按钮\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“创建一个商品详情页面，使用列表式布局，包含导航菜单、内容面板、保存按钮”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个商品详情页面，使用列表式布局，包含导航菜单、内容面板、保存按钮 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100006
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个运营数据管理面板，包含图表、统计卡片、数据表格等模块，并支持虚拟列表\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“创建一个运营数据管理面板，包含图表、统计卡片、数据表格等模块，并支持虚拟列表”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个运营数据管理面板，包含图表、统计卡片、数据表格等模块，并支持虚拟列表 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100007
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为文件上传添加拖拽排序功能，确保不影响现有功能\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“为文件上传添加拖拽排序功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为文件上传添加拖拽排序功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100008
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为系统配置页面添加流式布局响应式支持\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“为系统配置页面添加流式布局响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为系统配置页面添加流式布局响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100009
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：更新面包屑的间距系统样式，使其符合Material Design设计规范\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“更新面包屑的间距系统样式，使其符合Material Design设计规范”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 更新面包屑的间距系统样式，使其符合Material Design设计规范\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100010
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：重构App.tsx文件，将内联样式改为统一 request hook\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“重构App.tsx文件，将内联样式改为统一 request hook”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 重构App.tsx文件，将内联样式改为统一 request hook\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100011
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将导航栏拆分为Header、Body、Footer子组件，并保持外部 API 不变\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“将导航栏拆分为Header、Body、Footer子组件，并保持外部 API 不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将导航栏拆分为Header、Body、Footer子组件，并保持外部 API 不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100012
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：修复日期选择器中的路由跳转错误问题\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“修复日期选择器中的路由跳转错误问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100013
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：排查消息中心页面白屏问题，定位可能的路由、依赖或运行时异常\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“排查消息中心页面白屏问题，定位可能的路由、依赖或运行时异常”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100014
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的SEO 优化，找出缺少错误处理问题\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的SEO 优化，找出缺少错误处理问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100015
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有硬编码 URL的使用情况，并总结风险\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有硬编码 URL的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100016
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加单元测试到图片轮播组件，覆盖主要交互路径\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“添加单元测试到图片轮播组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100017
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查api.ts文件中的类型安全，输出主要风险和改进建议\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“审查api.ts文件中的类型安全，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100018
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将侧边栏组件从Redux Toolkit迁移到Function Component，保持现有功能不变\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“将侧边栏组件从Redux Toolkit迁移到Function Component，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将侧边栏组件从Redux Toolkit迁移到Function Component，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100019
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个侧边栏组件，包含国际化和分页加载功能\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“创建一个侧边栏组件，包含国际化和分页加载功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个侧边栏组件，包含国际化和分页加载功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100020
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个用户登录页面，使用瀑布流布局，包含导航菜单、内容面板、保存按钮\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“创建一个用户登录页面，使用瀑布流布局，包含导航菜单、内容面板、保存按钮”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个用户登录页面，使用瀑布流布局，包含导航菜单、内容面板、保存按钮 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100021
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个用户分析管理面板，包含实时监控、告警列表等模块，并支持分页加载\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“创建一个用户分析管理面板，包含实时监控、告警列表等模块，并支持分页加载”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个用户分析管理面板，包含实时监控、告警列表等模块，并支持分页加载 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100022
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为数据表格添加虚拟列表功能，确保不影响现有功能\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“为数据表格添加虚拟列表功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为数据表格添加虚拟列表功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100023
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为消息中心页面添加弹性盒布局响应式支持\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“为消息中心页面添加弹性盒布局响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为消息中心页面添加弹性盒布局响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100024
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：更新分页器的间距系统样式，使其符合Ant Design 规范设计规范\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“更新分页器的间距系统样式，使其符合Ant Design 规范设计规范”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 更新分页器的间距系统样式，使其符合Ant Design 规范设计规范\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100025
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：重构api.ts文件，将重复请求逻辑改为CSS 变量\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“重构api.ts文件，将重复请求逻辑改为CSS 变量”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 重构api.ts文件，将重复请求逻辑改为CSS 变量\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100026
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将日期选择器拆分为List、Item、Empty子组件，并保持外部 API 不变\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“将日期选择器拆分为List、Item、Empty子组件，并保持外部 API 不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将日期选择器拆分为List、Item、Empty子组件，并保持外部 API 不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100027
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：修复日期选择器中的内存泄漏问题\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“修复日期选择器中的内存泄漏问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100028
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：排查操作日志页面白屏问题，定位可能的路由、依赖或运行时异常\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“排查操作日志页面白屏问题，定位可能的路由、依赖或运行时异常”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100029
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的代码结构，找出路由结构混乱问题\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的代码结构，找出路由结构混乱问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100030
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有TODO 注释的使用情况，并总结风险\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有TODO 注释的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100031
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加单元测试到分页器组件，覆盖主要交互路径\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“添加单元测试到分页器组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100032
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查utils.ts文件中的潜在 bug，输出主要风险和改进建议\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“审查utils.ts文件中的潜在 bug，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100033
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将虚拟列表组件从Redux Toolkit迁移到Function Component，保持现有功能不变\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“将虚拟列表组件从Redux Toolkit迁移到Function Component，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将虚拟列表组件从Redux Toolkit迁移到Function Component，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100034
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个图片轮播组件，包含实时搜索和无限滚动功能\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“创建一个图片轮播组件，包含实时搜索和无限滚动功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个图片轮播组件，包含实时搜索和无限滚动功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100035
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个系统配置页面，使用时间线布局，包含统计卡片、趋势图、操作日志\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“创建一个系统配置页面，使用时间线布局，包含统计卡片、趋势图、操作日志”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个系统配置页面，使用时间线布局，包含统计卡片、趋势图、操作日志 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100036
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个系统监控管理面板，包含图表、统计卡片、数据表格等模块，并支持分页加载\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“创建一个系统监控管理面板，包含图表、统计卡片、数据表格等模块，并支持分页加载”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个系统监控管理面板，包含图表、统计卡片、数据表格等模块，并支持分页加载 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100037
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为文件上传添加虚拟列表功能，确保不影响现有功能\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“为文件上传添加虚拟列表功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为文件上传添加虚拟列表功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100038
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为商品详情页面添加弹性盒布局响应式支持\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“为商品详情页面添加弹性盒布局响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为商品详情页面添加弹性盒布局响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100039
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：更新文件上传的阴影效果样式，使其符合Apple HIG设计规范\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“更新文件上传的阴影效果样式，使其符合Apple HIG设计规范”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 更新文件上传的阴影效果样式，使其符合Apple HIG设计规范\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100040
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：重构utils.ts文件，将useState改为泛型类型\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“重构utils.ts文件，将useState改为泛型类型”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 重构utils.ts文件，将useState改为泛型类型\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100041
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将下拉选择拆分为List、Item、Empty子组件，并保持外部 API 不变\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“将下拉选择拆分为List、Item、Empty子组件，并保持外部 API 不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将下拉选择拆分为List、Item、Empty子组件，并保持外部 API 不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100042
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：修复图片轮播中的事件处理异常问题\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“修复图片轮播中的事件处理异常问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100043
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：排查购物车页面白屏问题，定位可能的路由、依赖或运行时异常\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“排查购物车页面白屏问题，定位可能的路由、依赖或运行时异常”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100044
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的测试覆盖，找出无效依赖问题\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的测试覆盖，找出无效依赖问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100045
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有any 类型的使用情况，并总结风险\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有any 类型的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100046
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加单元测试到数据表格组件，覆盖主要交互路径\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“添加单元测试到数据表格组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100047
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查utils.ts文件中的代码规范，输出主要风险和改进建议\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“审查utils.ts文件中的代码规范，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100048
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将图片轮播组件从Options API迁移到Composition API，保持现有功能不变\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“将图片轮播组件从Options API迁移到Composition API，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将图片轮播组件从Options API迁移到Composition API，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100049
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个标签页组件，包含批量操作和主题切换功能\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“创建一个标签页组件，包含批量操作和主题切换功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个标签页组件，包含批量操作和主题切换功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100050
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个数据看板页面，使用时间线布局，包含筛选区、数据表格、详情抽屉\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“创建一个数据看板页面，使用时间线布局，包含筛选区、数据表格、详情抽屉”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个数据看板页面，使用时间线布局，包含筛选区、数据表格、详情抽屉 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100051
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个用户分析管理面板，包含图表、统计卡片、数据表格等模块，并支持分页加载\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“创建一个用户分析管理面板，包含图表、统计卡片、数据表格等模块，并支持分页加载”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个用户分析管理面板，包含图表、统计卡片、数据表格等模块，并支持分页加载 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100052
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为标签页添加无限滚动功能，确保不影响现有功能\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“为标签页添加无限滚动功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为标签页添加无限滚动功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100053
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为系统配置页面添加流式布局响应式支持\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“为系统配置页面添加流式布局响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为系统配置页面添加流式布局响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100054
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：更新树形控件的间距系统样式，使其符合Ant Design 规范设计规范\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“更新树形控件的间距系统样式，使其符合Ant Design 规范设计规范”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 更新树形控件的间距系统样式，使其符合Ant Design 规范设计规范\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100055
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：重构utils.ts文件，将useState改为统一 request hook\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“重构utils.ts文件，将useState改为统一 request hook”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 重构utils.ts文件，将useState改为统一 request hook\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100056
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将分页器拆分为Header、Body、Footer子组件，并保持外部 API 不变\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“将分页器拆分为Header、Body、Footer子组件，并保持外部 API 不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将分页器拆分为Header、Body、Footer子组件，并保持外部 API 不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100057
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：修复数据表格中的路由跳转错误问题\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“修复数据表格中的路由跳转错误问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100058
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：排查订单列表页面白屏问题，定位可能的路由、依赖或运行时异常\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“排查订单列表页面白屏问题，定位可能的路由、依赖或运行时异常”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100059
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的安全漏洞，找出路由结构混乱问题\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的安全漏洞，找出路由结构混乱问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100060
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有硬编码 URL的使用情况，并总结风险\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有硬编码 URL的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100061
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加E2E 测试到搜索框组件，覆盖主要交互路径\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“添加E2E 测试到搜索框组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100062
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查App.tsx文件中的潜在 bug，输出主要风险和改进建议\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“审查App.tsx文件中的潜在 bug，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100063
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将模态对话框组件从JavaScript迁移到TypeScript，保持现有功能不变\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“将模态对话框组件从JavaScript迁移到TypeScript，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将模态对话框组件从JavaScript迁移到TypeScript，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100064
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个步骤条组件，包含键盘快捷键和国际化功能\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“创建一个步骤条组件，包含键盘快捷键和国际化功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个步骤条组件，包含键盘快捷键和国际化功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100065
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个消息中心页面，使用瀑布流布局，包含导航菜单、内容面板、保存按钮\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“创建一个消息中心页面，使用瀑布流布局，包含导航菜单、内容面板、保存按钮”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个消息中心页面，使用瀑布流布局，包含导航菜单、内容面板、保存按钮 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100066
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个系统监控管理面板，包含日历、待办事项、公告等模块，并支持批量操作\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“创建一个系统监控管理面板，包含日历、待办事项、公告等模块，并支持批量操作”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个系统监控管理面板，包含日历、待办事项、公告等模块，并支持批量操作 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100067
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为下拉选择添加排序筛选功能，确保不影响现有功能\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“为下拉选择添加排序筛选功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为下拉选择添加排序筛选功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100068
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为购物车页面添加弹性盒布局响应式支持\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“为购物车页面添加弹性盒布局响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为购物车页面添加弹性盒布局响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100069
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：更新虚拟列表的颜色方案样式，使其符合企业设计系统设计规范\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“更新虚拟列表的颜色方案样式，使其符合企业设计系统设计规范”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 更新虚拟列表的颜色方案样式，使其符合企业设计系统设计规范\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100070
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：重构store.ts文件，将hardcoded 字符串改为泛型类型\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“重构store.ts文件，将hardcoded 字符串改为泛型类型”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 重构store.ts文件，将hardcoded 字符串改为泛型类型\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100071
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将下拉选择拆分为Header、Body、Footer子组件，并保持外部 API 不变\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“将下拉选择拆分为Header、Body、Footer子组件，并保持外部 API 不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将下拉选择拆分为Header、Body、Footer子组件，并保持外部 API 不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100072
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：修复树形控件中的内存泄漏问题\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“修复树形控件中的内存泄漏问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100073
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：排查个人设置页面白屏问题，定位可能的路由、依赖或运行时异常\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“排查个人设置页面白屏问题，定位可能的路由、依赖或运行时异常”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100074
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的性能瓶颈，找出类型不安全问题\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的性能瓶颈，找出类型不安全问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100075
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有硬编码 URL的使用情况，并总结风险\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有硬编码 URL的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100076
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加可访问性测试到搜索框组件，覆盖主要交互路径\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“添加可访问性测试到搜索框组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100077
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查routes.tsx文件中的代码规范，输出主要风险和改进建议\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“审查routes.tsx文件中的代码规范，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100078
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将模态对话框组件从JavaScript迁移到Composition API，保持现有功能不变\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“将模态对话框组件从JavaScript迁移到Composition API，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将模态对话框组件从JavaScript迁移到Composition API，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100079
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个树形控件组件，包含分页加载和国际化功能\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“创建一个树形控件组件，包含分页加载和国际化功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个树形控件组件，包含分页加载和国际化功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100080
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个个人设置页面，使用列表式布局，包含筛选区、数据表格、详情抽屉\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“创建一个个人设置页面，使用列表式布局，包含筛选区、数据表格、详情抽屉”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个个人设置页面，使用列表式布局，包含筛选区、数据表格、详情抽屉 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100081
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个运营数据管理面板，包含日历、待办事项、公告等模块，并支持批量操作\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“创建一个运营数据管理面板，包含日历、待办事项、公告等模块，并支持批量操作”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个运营数据管理面板，包含日历、待办事项、公告等模块，并支持批量操作 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100082
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为侧边栏添加分页加载功能，确保不影响现有功能\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“为侧边栏添加分页加载功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为侧边栏添加分页加载功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100083
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为数据看板页面添加断点适配响应式支持\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“为数据看板页面添加断点适配响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为数据看板页面添加断点适配响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100084
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：更新搜索框的字体排版样式，使其符合Apple HIG设计规范\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“更新搜索框的字体排版样式，使其符合Apple HIG设计规范”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 更新搜索框的字体排版样式，使其符合Apple HIG设计规范\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100085
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：重构api.ts文件，将hardcoded 字符串改为i18n 国际化\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“重构api.ts文件，将hardcoded 字符串改为i18n 国际化”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 重构api.ts文件，将hardcoded 字符串改为i18n 国际化\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100086
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将导航栏拆分为Form、Field、Submit子组件，并保持外部 API 不变\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“将导航栏拆分为Form、Field、Submit子组件，并保持外部 API 不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将导航栏拆分为Form、Field、Submit子组件，并保持外部 API 不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "refactor",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100087
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：修复数据表格中的路由跳转错误问题\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“修复数据表格中的路由跳转错误问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100088
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：排查购物车页面白屏问题，定位可能的路由、依赖或运行时异常\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“排查购物车页面白屏问题，定位可能的路由、依赖或运行时异常”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"运行现有复现或检查命令，确认错误信号\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"修复定位到的根因，避免无关重构\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"重新运行复现、测试或构建命令确认问题消失\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "debug",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100089
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：分析项目的测试覆盖，找出缺少错误处理问题\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“分析项目的测试覆盖，找出缺少错误处理问题”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100090
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：列出项目中所有console.log的使用情况，并总结风险\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“列出项目中所有console.log的使用情况，并总结风险”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，定位与问题相关的模块\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关代码和配置，收集回答所需证据\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"汇总结构化结论并引用关键文件证据\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "query",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100091
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：添加单元测试到搜索框组件，覆盖主要交互路径\n\n项目上下文：\npnpm workspace monorepo，包含 apps/web、apps/admin 和 packages/ui 共享组件库。",
+    "output": "{\n  \"summary\": \"为任务“添加单元测试到搜索框组件，覆盖主要交互路径”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建或更新测试文件覆盖主路径和边界状态\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行对应测试命令并记录结果\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "test",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100092
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：审查store.ts文件中的代码规范，输出主要风险和改进建议\n\n项目上下文：\nNuxt 3 + TypeScript 项目，使用 Tailwind CSS，已有 SSR 配置和 API 路由层。",
+    "output": "{\n  \"summary\": \"为任务“审查store.ts文件中的代码规范，输出主要风险和改进建议”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"输出审查发现、风险等级和建议，不修改文件\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    }\n  ],\n  \"risks\": [\n    \"只读任务不应生成 create_file、apply_patch、git 或浏览器启动步骤\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若证据不足，继续读取相关文件而不是直接给结论\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "review",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100093
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：将侧边栏组件从Options API迁移到CSS-in-JS，保持现有功能不变\n\n项目上下文：\n企业后台项目，React + TypeScript + Ant Design 5，路由、权限和请求封装已经存在。",
+    "output": "{\n  \"summary\": \"为任务“将侧边栏组件从Options API迁移到CSS-in-JS，保持现有功能不变”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 将侧边栏组件从Options API迁移到CSS-in-JS，保持现有功能不变\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"对受影响页面做一次浏览器级回归验证\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "migration",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100094
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个树形控件组件，包含批量操作和数据导出功能\n\n项目上下文：\n组件库项目，React + TypeScript + Storybook，包管理使用 pnpm，组件位于 packages/ui/src。",
+    "output": "{\n  \"summary\": \"为任务“创建一个树形控件组件，包含批量操作和数据导出功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个树形控件组件，包含批量操作和数据导出功能 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100095
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个操作日志页面，使用分栏式布局，包含导航菜单、内容面板、保存按钮\n\n项目上下文：\nReact + TypeScript + Vite 项目，使用 Tailwind CSS。src/components 存放通用组件，src/pages 存放页面组件。",
+    "output": "{\n  \"summary\": \"为任务“创建一个操作日志页面，使用分栏式布局，包含导航菜单、内容面板、保存按钮”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个操作日志页面，使用分栏式布局，包含导航菜单、内容面板、保存按钮 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100096
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：创建一个用户分析管理面板，包含日历、待办事项、公告等模块，并支持实时搜索\n\n项目上下文：\nNext.js 14 App Router 项目，使用 TypeScript 和 shadcn/ui，已有用户认证模块和基础布局。",
+    "output": "{\n  \"summary\": \"为任务“创建一个用户分析管理面板，包含日历、待办事项、公告等模块，并支持实时搜索”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"用 shell 精确确认目标目录存在且目标文件不会覆盖已有实现\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"创建实现 创建一个用户分析管理面板，包含日历、待办事项、公告等模块，并支持实时搜索 所需的组件或页面文件\",\n      \"action\": \"create_file\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"按需补充导出、路由或示例入口\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查或构建命令验证新增代码\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    },\n    {\n      \"description\": \"启动开发服务器用于页面级验证\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段5-启动\"\n    },\n    {\n      \"description\": \"打开本地页面检查关键交互和布局\",\n      \"action\": \"browser_navigate\",\n      \"phase\": \"阶段6-浏览器验证\"\n    },\n    {\n      \"description\": \"截取页面截图作为验收证据\",\n      \"action\": \"browser_screenshot\",\n      \"phase\": \"阶段6-浏览器验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "create",
+      "difficulty": "complex",
+      "split": "eval",
+      "seed": 100097
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为分页器添加主题切换功能，确保不影响现有功能\n\n项目上下文：\nVue 3 + TypeScript 项目，使用 Pinia 和 Vue Router，Element Plus 作为 UI 库。",
+    "output": "{\n  \"summary\": \"为任务“为分页器添加主题切换功能，确保不影响现有功能”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为分页器添加主题切换功能，确保不影响现有功能\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "simple",
+      "split": "eval",
+      "seed": 100098
+    }
+  },
+  {
+    "instruction": "你是一个资深前端工程师和项目规划专家。请根据以下任务描述和项目上下文，生成一个结构化的执行计划。计划应按阶段组织（阶段1-分析、阶段2-创建、阶段3-安装、阶段4-验证、阶段5-启动、阶段6-浏览器验证、阶段7-仓库管理），每个步骤包含 description（描述）、action（动作类型）、phase（所属阶段）。同时提供 risks（潜在风险）和 alternatives（备选方案）。\n\n可用的动作类型: read_file, list_directory, create_file, apply_patch, search_code, get_ast, run_command, browser_navigate, browser_screenshot, get_page_structure, browser_click, browser_type\n\n质量要求: action 必须只输出枚举值，不要把工具说明写进 action；新增或修改文件前必须先安排探索步骤；不要为查询任务生成写文件、git 或启动服务步骤。",
+    "input": "任务：为商品详情页面添加断点适配响应式支持\n\n项目上下文：\nReact Native Web 项目，使用 Expo 和 React Navigation，已有底部 Tab 导航结构。",
+    "output": "{\n  \"summary\": \"为任务“为商品详情页面添加断点适配响应式支持”生成 FrontAgent Planner 执行计划。\",\n  \"stepOutlines\": [\n    {\n      \"description\": \"观察项目目录结构，确认技术栈、入口和目标目录\",\n      \"action\": \"list_directory\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"搜索相关组件、路由、状态和样式实现，避免凭空选择路径\",\n      \"action\": \"search_code\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"读取候选文件内容，确认现有实现和约束\",\n      \"action\": \"read_file\",\n      \"phase\": \"阶段1-分析\"\n    },\n    {\n      \"description\": \"按最小改动原则实现 为商品详情页面添加断点适配响应式支持\",\n      \"action\": \"apply_patch\",\n      \"phase\": \"阶段2-创建\"\n    },\n    {\n      \"description\": \"运行类型检查、测试或构建验证兼容性\",\n      \"action\": \"run_command\",\n      \"phase\": \"阶段4-验证\"\n    }\n  ],\n  \"risks\": [\n    \"路径或入口判断错误会导致计划不可执行，需要先观察再写入\",\n    \"依赖、路由或构建脚本可能与上下文描述不一致，需要以仓库实际文件为准\"\n  ],\n  \"alternatives\": [\n    \"若目标目录不明确，先扩大 search_code/list_directory 范围再生成写入步骤\",\n    \"若验证命令不存在，改用 package.json 中已有的最接近脚本\"\n  ]\n}",
+    "metadata": {
+      "source": "offline-template",
+      "category": "modify",
+      "difficulty": "medium",
+      "split": "eval",
+      "seed": 100099
+    }
+  }
+]

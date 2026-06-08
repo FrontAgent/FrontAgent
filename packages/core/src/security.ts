@@ -1,12 +1,12 @@
 import { isAbsolute, relative, resolve } from 'node:path';
 import { SDDValidator } from '@frontagent/sdd';
 import {
+  type ApprovalRequest,
   analyzeShellCommand,
   detectDangerousShellCommand,
   generateId,
   isCommonValidationCommand,
   isInstallCommand,
-  type ApprovalRequest,
   type SDDConfig,
   type SecurityConfig,
   type SecurityDecision,
@@ -42,6 +42,8 @@ const READ_TOOLS = new Set([
   'browser_screenshot',
   'screenshot',
   'rag_query',
+  'filesense_navigate',
+  'filesense_query',
 ]);
 
 const WRITE_TOOLS = new Set(['create_file', 'apply_patch']);
@@ -85,7 +87,9 @@ function summarizeArgs(toolName: string, args: Record<string, unknown>): string 
     url ??
     path ??
     selector ??
-    JSON.stringify(args, (_key, value) => (typeof value === 'string' && value.length > 160 ? `${value.slice(0, 160)}...` : value));
+    JSON.stringify(args, (_key, value) =>
+      typeof value === 'string' && value.length > 160 ? `${value.slice(0, 160)}...` : value,
+    );
 
   const summary = `${toolName}: ${raw}`;
   return summary.length > 220 ? `${summary.slice(0, 220)}...` : summary;
@@ -122,7 +126,10 @@ function normalizeRelativePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+/, '');
 }
 
-function resolveToolPath(projectRoot: string, path: string): { ok: boolean; absolutePath: string; relativePath: string; error?: string } {
+function resolveToolPath(
+  projectRoot: string,
+  path: string,
+): { ok: boolean; absolutePath: string; relativePath: string; error?: string } {
   const absoluteProjectRoot = resolve(projectRoot);
   const absolutePath = resolve(absoluteProjectRoot, path);
   if (!isInsidePath(absolutePath, absoluteProjectRoot)) {
@@ -150,7 +157,11 @@ function isSensitiveWritePath(relativePath: string): boolean {
   if (segments[0] === '.frontagent' && segments[1] === 'snapshots') return true;
   if (basename === '.env' || basename.startsWith('.env.')) return true;
   if (/\.(pem|key|p12|pfx)$/i.test(basename)) return true;
-  if (/(^|[-_.])(secret|secrets|credential|credentials|private-key|id_rsa|id_ed25519)([-_.]|$)/i.test(basename)) {
+  if (
+    /(^|[-_.])(secret|secrets|credential|credentials|private-key|id_rsa|id_ed25519)([-_.]|$)/i.test(
+      basename,
+    )
+  ) {
     return true;
   }
 
@@ -174,7 +185,14 @@ function isLocalBrowserUrl(url: string): boolean {
 }
 
 function isBrowserMutationTool(toolName: string): boolean {
-  return ['browser_navigate', 'navigate', 'browser_click', 'click', 'browser_type', 'type'].includes(toolName);
+  return [
+    'browser_navigate',
+    'navigate',
+    'browser_click',
+    'click',
+    'browser_type',
+    'type',
+  ].includes(toolName);
 }
 
 function askDecision(
@@ -250,15 +268,25 @@ export class SecurityManager {
           provenance: [builtin('rag.runtime-config-only')],
         });
       }
-      return this.allow(toolName, args, 'low', 'rag_runtime_query_allowed', 'RAG query uses runtime configuration.', [
-        runtime('rag.runtime-config'),
-      ]);
+      return this.allow(
+        toolName,
+        args,
+        'low',
+        'rag_runtime_query_allowed',
+        'RAG query uses runtime configuration.',
+        [runtime('rag.runtime-config')],
+      );
     }
 
     if (READ_TOOLS.has(toolName)) {
-      return this.allow(toolName, args, 'low', 'read_tool_allowed', 'Read-only tool request allowed.', [
-        builtin('tool.read.allow'),
-      ]);
+      return this.allow(
+        toolName,
+        args,
+        'low',
+        'read_tool_allowed',
+        'Read-only tool request allowed.',
+        [builtin('tool.read.allow')],
+      );
     }
 
     return askDecision(
@@ -444,9 +472,14 @@ export class SecurityManager {
         );
       }
 
-      return this.allow(toolName, args, 'medium', 'validation_command_allowed', 'Common validation command allowed.', [
-        builtin('shell.validation.allow'),
-      ]);
+      return this.allow(
+        toolName,
+        args,
+        'medium',
+        'validation_command_allowed',
+        'Common validation command allowed.',
+        [builtin('shell.validation.allow')],
+      );
     }
 
     return askDecision(

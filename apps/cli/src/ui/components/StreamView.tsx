@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
+import { useEffect, useRef, useState } from 'react';
 
 interface StreamViewProps {
   /** Subscribe to streaming tokens; returns unsubscribe. */
@@ -45,13 +45,13 @@ export function StreamView({ subscribe, active }: StreamViewProps) {
   if (!active || !displayText) return null;
 
   const lines = displayText.split('\n');
-  const visible = lines.length > MAX_DISPLAY_LINES
-    ? lines.slice(-MAX_DISPLAY_LINES)
-    : lines;
+  const visible = lines.length > MAX_DISPLAY_LINES ? lines.slice(-MAX_DISPLAY_LINES) : lines;
 
   return (
     <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-      <Text dimColor bold>{'</>'} Code Generation</Text>
+      <Text dimColor bold>
+        {'</>'} Code Generation
+      </Text>
       {visible.map((line, i) => (
         <Text key={i} color="gray" wrap="truncate-end">
           {line}

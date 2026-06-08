@@ -1,18 +1,26 @@
+export type {
+  OpenMemoryGatewayAdapterOptions,
+  OpenMemoryGatewayCaptureInput,
+  OpenMemoryGatewayRecord,
+  OpenMemoryGatewayStatus,
+} from './open-memory-gateway.js';
+export { OpenMemoryGatewayAdapter } from './open-memory-gateway.js';
 export { MemoryStore } from './store.js';
 export type {
   MemoryConfig,
-  MemoryIndex,
-  MemoryTopicMeta,
-  MemoryTopic,
   MemoryEntry,
+  MemoryIndex,
+  MemoryTopic,
+  MemoryTopicMeta,
+  OpenMemoryGatewayConfig,
   PersistenceInput,
-  RecallQuery,
   RecalledMemory,
+  RecallQuery,
 } from './types.js';
 export {
-  MEMORY_INDEX_VERSION,
+  DEFAULT_MAX_TOPIC_FILES,
   DEFAULT_PRELOAD_BUDGET_CHARS,
   DEFAULT_RECALL_BUDGET_CHARS,
-  DEFAULT_MAX_TOPIC_FILES,
   MEMORY_DIR_NAME,
+  MEMORY_INDEX_VERSION,
 } from './types.js';

@@ -14,7 +14,7 @@
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
-> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs.
+> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs. The training workflow, prompts, evaluation scripts, and Hugging Face release metadata live in [models/frontagent-planner](models/frontagent-planner).
 
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
@@ -32,6 +32,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Remote Hybrid RAG** - Full-repository indexing with submodule exclusion, combining BM25 keyword search and embedding-based semantic search
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
+- ✅ **Distilled Planner Assets** - Repository-native training, evaluation, and release assets for the Planner LoRA model
 - ✅ **Skill Lab** - Benchmark, improve, and promote content skills with local eval suites
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
 - ✅ **Cross-Session Memory** - Four-phase memory system (preload, runtime recall, post-task persistence, structured storage) that persists project facts, error resolutions, and dependency state across runs
@@ -275,6 +276,7 @@ FrontAgent now supports a full remote repository knowledge base flow for plannin
 Default knowledge source:
 
 - Repository: `https://github.com/ceilf6/Lab.git`
+- Source mode: `git` by default; when `FRONTAGENT_OPENVIKING_ENDPOINT` is configured FrontAgent defaults to `composite` (`OpenViking` first, Git RAG fallback)
 
 CLI options:
 
@@ -307,6 +309,20 @@ fa run "Explain React setState behavior" \
   --rag-vector-store-provider weaviate \
   --rag-weaviate-url http://127.0.0.1:8080 \
   --rag-weaviate-collection-prefix FrontAgentRagChunk
+
+# Use OpenViking Wiki as the primary knowledge provider, with Git RAG fallback
+fa run "Where is FrontAgent RAG implemented?" \
+  --rag-source composite \
+  --open-viking-endpoint https://openviking.example.com/query \
+  --open-viking-corpus wiki \
+  --open-viking-namespace docs/openviking \
+  --open-viking-l1-entry docs/openviking/frontagent-l1.md
+
+# Require OpenViking only and disable Git fallback
+fa run "Where is FrontAgent RAG implemented?" \
+  --rag-source openviking \
+  --open-viking-endpoint https://openviking.example.com/query \
+  --disable-open-viking-fallback
 
 # Disable LLM query rewrite before retrieval
 fa run "How to build a custom selector" \
@@ -378,6 +394,13 @@ You can run trigger-only (default) or trigger + behavior (`--behavior`) in bench
 Environment variables:
 
 ```bash
+export FRONTAGENT_RAG_SOURCE="composite" # git | openviking | composite
+export FRONTAGENT_OPENVIKING_ENDPOINT="https://openviking.example.com/query"
+export FRONTAGENT_OPENVIKING_API_KEY=""
+export FRONTAGENT_OPENVIKING_CORPUS="wiki"
+export FRONTAGENT_OPENVIKING_NAMESPACE="docs/openviking"
+export FRONTAGENT_OPENVIKING_L1_ENTRY="docs/openviking/frontagent-l1.md"
+export FRONTAGENT_OPENVIKING_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_REPO="https://github.com/ceilf6/Lab.git"
 export FRONTAGENT_RAG_BRANCH="main"
 export FRONTAGENT_RAG_SYNC_ON_QUERY="false"
@@ -400,6 +423,14 @@ export FRONTAGENT_RAG_VECTOR_STORE_PROVIDER="weaviate"
 export FRONTAGENT_RAG_WEAVIATE_URL="http://127.0.0.1:8080"
 export FRONTAGENT_RAG_WEAVIATE_API_KEY=""
 export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
+
+# Filesense lightweight repository navigation
+export FRONTAGENT_FILESENSE_ENABLED="true"
+export FRONTAGENT_FILESENSE_OUTPUT="summary"       # summary | candidates | verbose
+export FRONTAGENT_FILESENSE_WRITE_MODE="cache"     # cache | workspace | none
+export FRONTAGENT_FILESENSE_MAX_ENTRIES="300"
+export FRONTAGENT_FILESENSE_MAX_BYTES="131072"
+export FRONTAGENT_FILESENSE_TIMEOUT_MS="3000"
 ```
 
 If `provider=openai`, and `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY` are not set, FrontAgent will reuse the LLM `base-url` and `api-key` automatically.
@@ -422,6 +453,8 @@ Before retrieval, FrontAgent now sends the user's original request through a sep
 After BM25 + embedding recall, FrontAgent will by default send the top candidate chunks to a reranker endpoint (`/rerank`, Jina/Cohere-compatible) for cross-encoder-style final ordering when reranker model/base-url/api-key are available. Use `--disable-rag-reranker` to turn it off for a run.
 
 When `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate`, FrontAgent keeps BM25 in the local `index.json`, but semantic vectors are written to and queried from Weaviate instead of `embeddings.json`.
+
+Filesense is used as a current-repository navigation provider. FrontAgent prefers `filesense_navigate` for structure/location/create/refactor preparation because it is budgeted and avoids full-repo persistent sync. `filesense_sync_and_summarize` remains available for explicit index maintenance, but is not the normal planning path.
 
 Prebuilt cache bundle workflow:
 
@@ -1180,7 +1213,7 @@ pnpm clean
 - [x] **LangGraph execution engine (optional)** (NEW!)
 - [x] **Repository management phase (git/gh automation)** (NEW!)
 - [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
-- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
+- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora), with training and release assets in [models/frontagent-planner](models/frontagent-planner) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)

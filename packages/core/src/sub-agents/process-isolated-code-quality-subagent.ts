@@ -3,23 +3,23 @@
  * Executes code-quality evaluation in a separate Node.js process.
  */
 
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { generateId } from "@frontagent/shared";
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { generateId } from '@frontagent/shared';
 import {
   A2A_PROTOCOL_NAME,
   A2A_PROTOCOL_VERSION,
   type A2AAgent,
   type A2ARequest,
   type A2AResponse,
-} from "../a2a.js";
-import type { LLMConfig } from "../types.js";
+} from '../a2a.js';
+import type { LLMConfig } from '../types.js';
 import type {
   CodeQualityReviewRequest,
   CodeQualityReviewResponse,
-} from "./code-quality-subagent.js";
+} from './code-quality-subagent.js';
 
 interface WorkerInput {
   request: A2ARequest<CodeQualityReviewRequest>;
@@ -35,8 +35,8 @@ interface WorkerInput {
 
 function resolveDefaultWorkerPath(): string {
   // When the CLI is bundled to dist/index.cjs, the worker is emitted next to it.
-  if (typeof __dirname !== "undefined") {
-    const bundledCandidate = join(__dirname, "code-quality-subagent-worker.cjs");
+  if (typeof __dirname !== 'undefined') {
+    const bundledCandidate = join(__dirname, 'code-quality-subagent-worker.cjs');
     if (existsSync(bundledCandidate)) {
       return bundledCandidate;
     }
@@ -44,13 +44,13 @@ function resolveDefaultWorkerPath(): string {
 
   const moduleUrl = import.meta.url;
   const moduleDir = dirname(fileURLToPath(moduleUrl));
-  const esmCandidate = join(moduleDir, "code-quality-subagent-worker.js");
+  const esmCandidate = join(moduleDir, 'code-quality-subagent-worker.js');
   if (existsSync(esmCandidate)) {
     return esmCandidate;
   }
 
-  if (typeof __dirname !== "undefined") {
-    return join(__dirname, "code-quality-subagent-worker.cjs");
+  if (typeof __dirname !== 'undefined') {
+    return join(__dirname, 'code-quality-subagent-worker.cjs');
   }
 
   return esmCandidate;
@@ -70,8 +70,8 @@ export interface ProcessIsolatedCodeQualitySubAgentOptions {
 export class ProcessIsolatedCodeQualitySubAgent
   implements A2AAgent<CodeQualityReviewRequest, CodeQualityReviewResponse>
 {
-  readonly agentId = "subagent.code-quality";
-  readonly capabilities = ["code_quality.review_generated_files"];
+  readonly agentId = 'subagent.code-quality';
+  readonly capabilities = ['code_quality.review_generated_files'];
 
   private readonly llmConfig: LLMConfig;
   private readonly enableLLMReview: boolean;
@@ -96,11 +96,8 @@ export class ProcessIsolatedCodeQualitySubAgent
   async handleRequest(
     request: A2ARequest<CodeQualityReviewRequest>,
   ): Promise<A2AResponse<CodeQualityReviewResponse>> {
-    if (request.intent !== "code_quality.review_generated_files") {
-      return this.errorResponse(
-        request,
-        `Unsupported intent: ${request.intent}`,
-      );
+    if (request.intent !== 'code_quality.review_generated_files') {
+      return this.errorResponse(request, `Unsupported intent: ${request.intent}`);
     }
 
     const payload: WorkerInput = {
@@ -117,12 +114,12 @@ export class ProcessIsolatedCodeQualitySubAgent
 
     return new Promise((resolve) => {
       const child = spawn(process.execPath, [this.workerPath], {
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: ['pipe', 'pipe', 'pipe'],
         env: process.env,
       });
 
-      let stdout = "";
-      let stderr = "";
+      let stdout = '';
+      let stderr = '';
       let settled = false;
 
       const complete = (result: A2AResponse<CodeQualityReviewResponse>) => {
@@ -133,7 +130,7 @@ export class ProcessIsolatedCodeQualitySubAgent
       };
 
       const timer = setTimeout(() => {
-        child.kill("SIGKILL");
+        child.kill('SIGKILL');
         complete(
           this.errorResponse(
             request,
@@ -142,24 +139,21 @@ export class ProcessIsolatedCodeQualitySubAgent
         );
       }, this.timeoutMs);
 
-      child.stdout.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString("utf-8");
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf-8');
       });
 
-      child.stderr.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString("utf-8");
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf-8');
       });
 
-      child.on("error", (error) => {
+      child.on('error', (error) => {
         complete(
-          this.errorResponse(
-            request,
-            `Failed to start code-quality worker: ${error.message}`,
-          ),
+          this.errorResponse(request, `Failed to start code-quality worker: ${error.message}`),
         );
       });
 
-      child.on("close", (code) => {
+      child.on('close', (code) => {
         if (settled) return;
 
         // Worker may still emit a structured error response even with non-zero exit code.
@@ -170,23 +164,18 @@ export class ProcessIsolatedCodeQualitySubAgent
         }
 
         if (code !== 0) {
-          const details = stderr.trim() || stdout.trim() || "Unknown worker error";
+          const details = stderr.trim() || stdout.trim() || 'Unknown worker error';
           complete(
-            this.errorResponse(
-              request,
-              `Code-quality worker exited with code ${code}: ${details}`,
-            ),
+            this.errorResponse(request, `Code-quality worker exited with code ${code}: ${details}`),
           );
           return;
         }
 
-        const debugDetails = [stderr.trim(), stdout.trim()]
-          .filter(Boolean)
-          .join("\n");
+        const debugDetails = [stderr.trim(), stdout.trim()].filter(Boolean).join('\n');
         complete(
           this.errorResponse(
             request,
-            `Failed to parse code-quality worker response.${debugDetails ? ` Details: ${debugDetails}` : ""}`,
+            `Failed to parse code-quality worker response.${debugDetails ? ` Details: ${debugDetails}` : ''}`,
           ),
         );
       });
@@ -196,9 +185,7 @@ export class ProcessIsolatedCodeQualitySubAgent
     });
   }
 
-  private parseWorkerResponse(
-    stdout: string,
-  ): A2AResponse<CodeQualityReviewResponse> | null {
+  private parseWorkerResponse(stdout: string): A2AResponse<CodeQualityReviewResponse> | null {
     const direct = this.tryParseResponse(stdout.trim());
     if (direct) return direct;
 
@@ -215,9 +202,7 @@ export class ProcessIsolatedCodeQualitySubAgent
     return null;
   }
 
-  private tryParseResponse(
-    raw: string,
-  ): A2AResponse<CodeQualityReviewResponse> | null {
+  private tryParseResponse(raw: string): A2AResponse<CodeQualityReviewResponse> | null {
     if (!raw) return null;
 
     try {
@@ -234,8 +219,8 @@ export class ProcessIsolatedCodeQualitySubAgent
     return {
       protocol: A2A_PROTOCOL_NAME,
       version: A2A_PROTOCOL_VERSION,
-      kind: "response",
-      messageId: generateId("a2a-res"),
+      kind: 'response',
+      messageId: generateId('a2a-res'),
       inReplyTo: request.messageId,
       timestamp: Date.now(),
       from: this.agentId,

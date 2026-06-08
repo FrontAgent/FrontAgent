@@ -2,14 +2,14 @@
  * `fa run` command — Ink TUI shell over the shared Node runtime.
  */
 
-import { render } from 'ink';
-import chalk from 'chalk';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runFrontAgentTask } from '@frontagent/runtime-node';
-import { createStore } from '../ui/store.js';
+import chalk from 'chalk';
+import { render } from 'ink';
 import { createEventBridge } from '../ui/bridge.js';
 import { App } from '../ui/components/App.js';
+import { createStore } from '../ui/store.js';
 
 type TokenListener = (token: string) => void;
 
@@ -21,7 +21,9 @@ function createStreamTokenEmitter() {
     },
     subscribe(cb: TokenListener) {
       listeners.add(cb);
-      return () => { listeners.delete(cb); };
+      return () => {
+        listeners.delete(cb);
+      };
     },
   };
 }
@@ -30,19 +32,14 @@ function isDebugEnabled(value: unknown): boolean {
   return value === true || value === 'true' || value === '1';
 }
 
-export default async function runCommand(
-  task: string,
-  options: Record<string, any>,
-) {
+export default async function runCommand(task: string, options: Record<string, unknown>) {
   const projectRoot = process.cwd();
-  const sddPath = resolve(projectRoot, options.sdd);
+  const sddPath = resolve(projectRoot, options.sdd as string);
   const debug = isDebugEnabled(options.debug);
   const canPromptForApproval = process.stdin.isTTY !== false;
 
   if (!existsSync(sddPath) && debug) {
-    console.log(
-      chalk.yellow(`⚠️ SDD 配置文件不存在: ${sddPath}`),
-    );
+    console.log(chalk.yellow(`⚠️ SDD 配置文件不存在: ${sddPath}`));
     console.log(chalk.gray('   运行 fa init 创建配置文件'));
     console.log(chalk.gray('   将在无约束模式下运行\n'));
   }
@@ -52,20 +49,18 @@ export default async function runCommand(
 
   const streamTokenEmitter = createStreamTokenEmitter();
   const eventBridge = createEventBridge(store);
-  const inkInstance = render(
-    <App store={store} streamTokenEmitter={streamTokenEmitter} />,
-  );
+  const inkInstance = render(<App store={store} streamTokenEmitter={streamTokenEmitter} />);
 
   try {
     const result = await runFrontAgentTask({
       ...options,
       projectRoot,
       task,
-      sddPath: options.sdd,
-      type: options.type,
-      files: options.files,
-      url: options.url,
-      runLog: options.runLog,
+      sddPath: options.sdd as string | undefined,
+      type: options.type as string | undefined,
+      files: options.files as string[] | undefined,
+      url: options.url as string | undefined,
+      runLog: options.runLog as boolean | undefined,
       filterConsole: true,
       debug,
       onRunLogPath: (runLogPath) => {
@@ -114,7 +109,9 @@ export default async function runCommand(
         taskId: '',
         executedSteps: [],
         error: errorMessage,
-      } as any,
+        duration: 0,
+        validations: [],
+      },
     });
   } finally {
     store.recordActivity('收尾完成', null);

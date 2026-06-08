@@ -1,0 +1,74 @@
+{
+  "PlanOutlineSchema": {
+    "type": "object",
+    "properties": {
+      "summary": { "type": "string", "description": "计划的简要描述" },
+      "stepOutlines": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "description": "步骤简要描述" },
+            "action": {
+              "type": "string",
+              "enum": ["read_file", "list_directory", "create_file", "apply_patch", "search_code", "get_ast", "run_command", "browser_navigate", "get_page_structure", "browser_click", "browser_type", "browser_screenshot"],
+              "description": "执行动作类型"
+            },
+            "phase": { "type": "string", "description": "所属阶段名称" }
+          },
+          "required": ["description", "action", "phase"]
+        }
+      },
+      "risks": { "type": "array", "items": { "type": "string" } },
+      "alternatives": { "type": "array", "items": { "type": "string" } }
+    },
+    "required": ["summary", "stepOutlines", "risks", "alternatives"]
+  },
+  "GeneratedPlanSchema": {
+    "type": "object",
+    "properties": {
+      "summary": { "type": "string", "description": "计划的简要描述" },
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "action": {
+              "type": "string",
+              "enum": ["read_file", "list_directory", "create_file", "apply_patch", "search_code", "get_ast", "run_command", "browser_navigate", "get_page_structure", "browser_click", "browser_type", "browser_screenshot"]
+            },
+            "tool": { "type": "string" },
+            "phase": { "type": "string" },
+            "params": {
+              "type": "object",
+              "properties": {
+                "path": { "type": "string" },
+                "recursive": { "type": "boolean" },
+                "query": { "type": "string" },
+                "pattern": { "type": "string" },
+                "filePattern": { "type": "string" },
+                "globOnly": { "type": "boolean" },
+                "maxResults": { "type": "number" },
+                "directory": { "type": "string" },
+                "command": { "type": "string" },
+                "url": { "type": "string" },
+                "selector": { "type": "string" },
+                "text": { "type": "string" },
+                "fullPage": { "type": "boolean" },
+                "codeDescription": { "type": "string" },
+                "changeDescription": { "type": "string" }
+              }
+            },
+            "reasoning": { "type": "string" },
+            "needsCodeGeneration": { "type": "boolean" }
+          },
+          "required": ["description", "action", "tool", "phase", "params", "reasoning", "needsCodeGeneration"]
+        }
+      },
+      "risks": { "type": "array", "items": { "type": "string" } },
+      "alternatives": { "type": "array", "items": { "type": "string" } }
+    },
+    "required": ["summary", "steps", "risks", "alternatives"]
+  }
+}

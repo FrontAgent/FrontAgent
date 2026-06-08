@@ -1,21 +1,22 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  createAgent,
   type AgentConfig,
   type AgentEvent,
   type AgentExecutionResult,
   type AgentPlanResult,
+  createAgent,
+  type ExecutorStepTrace,
   type LLMBackend,
 } from '@frontagent/core';
-import type { ApprovalRequest, TaskType } from '@frontagent/shared';
 import { createShellMCPClient } from '@frontagent/mcp-shell';
+import type { ApprovalRequest, TaskType } from '@frontagent/shared';
 import {
-  parseTaskType,
   getDefaultRagCacheDir,
+  parseTaskType,
+  type RuntimeConfigInput,
   resolveBuiltInSkillRoots,
   resolveRuntimeConfig,
-  type RuntimeConfigInput,
 } from './config.js';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-clients.js';
 import { createRunLogger, installRunConsoleFilter } from './run-logger.js';
@@ -39,6 +40,8 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   onRunLogPath?: (path: string | null) => void;
   onEvent?: (event: AgentEvent) => void;
   onApprovalRequest?: (request: ApprovalRequest) => Promise<boolean>;
+  /** 可选的 executor step trace 回调，用于性能分析 */
+  onStepTrace?: (trace: ExecutorStepTrace) => void;
 }
 
 function isDebugEnabled(value: unknown): boolean {
@@ -60,7 +63,9 @@ export function formatRunError(
     return [
       'LLM 请求失败：404 Not Found。',
       `请检查 provider/model/base-url：provider=${input.provider}, model=${input.model}, baseURL=${input.baseURL ?? '(default)'}`,
-      '如 baseURL 包含 /chat/completions，CLI 会自动裁剪；仍失败时请确认供应商的 OpenAI-compatible 地址。',
+      input.provider === 'anthropic'
+        ? 'Anthropic provider 会请求 baseURL + /messages；请确认供应商支持 Anthropic Messages API。'
+        : '如 baseURL 包含 /chat/completions，CLI 会自动裁剪；仍失败时请确认供应商的 OpenAI-compatible 地址。',
     ].join('\n');
   }
 
@@ -89,6 +94,7 @@ export async function runFrontAgentTask(
     options: {
       ...options,
       apiKey: options.apiKey ? '[REDACTED]' : undefined,
+      openVikingApiKey: options.openVikingApiKey ? '[REDACTED]' : undefined,
       ragEmbeddingApiKey: options.ragEmbeddingApiKey ? '[REDACTED]' : undefined,
       ragRerankerApiKey: options.ragRerankerApiKey ? '[REDACTED]' : undefined,
       ragWeaviateApiKey: options.ragWeaviateApiKey ? '[REDACTED]' : undefined,
@@ -115,6 +121,7 @@ export async function runFrontAgentTask(
     },
     execution: resolved.execution,
     rag: resolved.rag,
+    filesense: resolved.filesense,
     skillContent: {
       builtInSkillRoots: resolveBuiltInSkillRoots(options.builtInSkillRoots),
     },
@@ -132,6 +139,7 @@ export async function runFrontAgentTask(
         }
       : undefined,
     debug,
+    trace: options.onStepTrace ? { enabled: true, onStepTrace: options.onStepTrace } : undefined,
   };
 
   const agent = createAgent(config);
@@ -142,6 +150,8 @@ export async function runFrontAgentTask(
 
   if (resolved.rag.enabled !== false) {
     const memoryClient = new MemoryMCPClient({
+      source: resolved.rag.source,
+      openViking: resolved.rag.openViking,
       repoUrl: resolved.rag.repoUrl,
       branch: resolved.rag.branch ?? 'main',
       cacheDir: resolved.rag.cacheDir ?? getDefaultRagCacheDir(projectRoot),
@@ -213,8 +223,16 @@ export async function runFrontAgentTask(
     };
   } finally {
     try {
-      options.onEvent?.({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
-      runLogger?.event({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      options.onEvent?.({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
+      runLogger?.event({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
       await webClient.close();
     } catch (error) {
       runLogger?.error(error);
@@ -247,6 +265,7 @@ export async function planFrontAgentTask(
     options: {
       ...options,
       apiKey: options.apiKey ? '[REDACTED]' : undefined,
+      openVikingApiKey: options.openVikingApiKey ? '[REDACTED]' : undefined,
       ragEmbeddingApiKey: options.ragEmbeddingApiKey ? '[REDACTED]' : undefined,
       ragRerankerApiKey: options.ragRerankerApiKey ? '[REDACTED]' : undefined,
       ragWeaviateApiKey: options.ragWeaviateApiKey ? '[REDACTED]' : undefined,
@@ -273,6 +292,7 @@ export async function planFrontAgentTask(
     },
     execution: resolved.execution,
     rag: resolved.rag,
+    filesense: resolved.filesense,
     skillContent: {
       builtInSkillRoots: resolveBuiltInSkillRoots(options.builtInSkillRoots),
     },
@@ -290,6 +310,7 @@ export async function planFrontAgentTask(
         }
       : undefined,
     debug,
+    trace: options.onStepTrace ? { enabled: true, onStepTrace: options.onStepTrace } : undefined,
   };
 
   const agent = createAgent(config);
@@ -300,6 +321,8 @@ export async function planFrontAgentTask(
 
   if (resolved.rag.enabled !== false) {
     const memoryClient = new MemoryMCPClient({
+      source: resolved.rag.source,
+      openViking: resolved.rag.openViking,
       repoUrl: resolved.rag.repoUrl,
       branch: resolved.rag.branch ?? 'main',
       cacheDir: resolved.rag.cacheDir ?? getDefaultRagCacheDir(projectRoot),
@@ -368,8 +391,16 @@ export async function planFrontAgentTask(
     };
   } finally {
     try {
-      options.onEvent?.({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
-      runLogger?.event({ type: 'status_update', label: '关闭浏览器资源', operation: '关闭浏览器资源' });
+      options.onEvent?.({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
+      runLogger?.event({
+        type: 'status_update',
+        label: '关闭浏览器资源',
+        operation: '关闭浏览器资源',
+      });
       await webClient.close();
     } catch (error) {
       runLogger?.error(error);

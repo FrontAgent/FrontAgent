@@ -38,6 +38,7 @@ export interface ExecutorActionSkill {
     step: ExecutionStep;
     params: Record<string, unknown>;
     context: ExecutorStepContextSnapshot;
+    onSubStageTiming?: (stageName: string, durationMs: number) => void;
   }) => Promise<Record<string, unknown>>;
   shouldSkipToolError?: (input: {
     errorMsg: string;
@@ -93,6 +94,7 @@ export class ExecutorSkillRegistry {
     step: ExecutionStep;
     params: Record<string, unknown>;
     context: ExecutorStepContextSnapshot;
+    onSubStageTiming?: (stageName: string, durationMs: number) => void;
   }): Promise<Record<string, unknown>> {
     const skill = this.resolveActionSkill(input.step.action);
     if (!skill?.prepareToolParams) {
@@ -130,9 +132,29 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     name: 'action.create-file.codegen',
     action: 'create_file',
     requiredParams: ['path'],
-    prepareToolParams: async ({ step, params, context }) => {
+    validateParams: ({ step, params }) => {
       const stepAny = step as { needsCodeGeneration?: boolean };
-      const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || !params.content);
+      const hasContent = typeof params.content === 'string' && params.content.length > 0;
+      const hasDescription =
+        typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
+
+      if (!hasContent && !stepAny.needsCodeGeneration && !hasDescription) {
+        return {
+          valid: false,
+          reason: 'create_file requires content, codeDescription, or needsCodeGeneration=true',
+        };
+      }
+
+      return { valid: true };
+    },
+    prepareToolParams: async ({ step, params, context, onSubStageTiming }) => {
+      const stepAny = step as { needsCodeGeneration?: boolean };
+      const hasContent = typeof params.content === 'string' && params.content.length > 0;
+      const hasDescription =
+        typeof params.codeDescription === 'string' && params.codeDescription.trim().length > 0;
+      const shouldGenerateCode = Boolean(
+        stepAny.needsCodeGeneration || (!hasContent && hasDescription),
+      );
       if (!shouldGenerateCode) {
         return params;
       }
@@ -140,26 +162,38 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       const filePath = params.path as string;
       const language = runtime.detectLanguage(filePath);
       const codeDescription = (params.codeDescription as string) || step.description;
+
+      let t0 = performance.now();
       let contextStr = runtime.buildContextString(context.collectedContext);
+      onSubStageTiming?.('build_context', performance.now() - t0);
 
       // Phase 2: inject recalled memories for this file
+      t0 = performance.now();
       const memoryRecall = runtime.getMemoryRecall?.(filePath, step.action);
       if (memoryRecall) {
         contextStr = `${contextStr}\n\n${memoryRecall}`;
         if (runtime.debug) {
-          console.log(`[Executor] [Skill:create_file] Injected ${memoryRecall.length} chars of recalled memory`);
+          console.log(
+            `[Executor] [Skill:create_file] Injected ${memoryRecall.length} chars of recalled memory`,
+          );
         }
       }
+      onSubStageTiming?.('memory_recall', performance.now() - t0);
 
+      t0 = performance.now();
       const existingModules =
         runtime.getCreatedModules?.() ??
-        Array.from(context.collectedContext.files.keys()).filter((path) => /\.(tsx?|jsx?|mjs|cjs)$/.test(path));
+        Array.from(context.collectedContext.files.keys()).filter((path) =>
+          /\.(tsx?|jsx?|mjs|cjs)$/.test(path),
+        );
+      onSubStageTiming?.('resolve_modules', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(`[Executor] [Skill:create_file] Generating code for new file: ${filePath}`);
         console.log(`[Executor] [Skill:create_file] Existing modules: ${existingModules.length}`);
       }
 
+      t0 = performance.now();
       const code = await runtime.llmService.generateCodeForFile({
         task: context.task.description,
         filePath,
@@ -170,6 +204,7 @@ function createCreateFileSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         sddConstraints: runtime.getSddConstraints?.(),
         skillContext: runtime.getSkillContext?.(),
       });
+      onSubStageTiming?.('llm_code_generation', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(`[Executor] [Skill:create_file] Generated code length: ${code.length} chars`);
@@ -188,9 +223,9 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     name: 'action.apply-patch.codegen',
     action: 'apply_patch',
     requiredParams: ['path'],
-    prepareToolParams: async ({ step, params, context }) => {
-      const stepAny = step as { needsCodeGeneration?: boolean };
-      const shouldGenerateCode = Boolean(stepAny.needsCodeGeneration || !params.patches);
+    prepareToolParams: async ({ step, params, context, onSubStageTiming }) => {
+      const hasPatches = Array.isArray(params.patches) && params.patches.length > 0;
+      const shouldGenerateCode = !hasPatches;
       if (!shouldGenerateCode) {
         return params;
       }
@@ -198,25 +233,33 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       const filePath = params.path as string;
       const language = runtime.detectLanguage(filePath);
       let changeDescription = (params.changeDescription as string) || step.description;
+
+      let t0 = performance.now();
       const originalCode = context.collectedContext.files.get(filePath) || '';
+      onSubStageTiming?.('build_context', performance.now() - t0);
 
       if (!originalCode) {
         throw new Error(`Cannot apply patch: file not found in context: ${filePath}`);
       }
 
       // Phase 2: inject recalled memories for this file
+      t0 = performance.now();
       const memoryRecall = runtime.getMemoryRecall?.(filePath, step.action);
       if (memoryRecall) {
         changeDescription = `${changeDescription}\n\n参考记忆:\n${memoryRecall}`;
         if (runtime.debug) {
-          console.log(`[Executor] [Skill:apply_patch] Injected ${memoryRecall.length} chars of recalled memory`);
+          console.log(
+            `[Executor] [Skill:apply_patch] Injected ${memoryRecall.length} chars of recalled memory`,
+          );
         }
       }
+      onSubStageTiming?.('memory_recall', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(`[Executor] [Skill:apply_patch] Generating modified code for: ${filePath}`);
       }
 
+      t0 = performance.now();
       const modifiedCode = await runtime.llmService.generateModifiedCode({
         originalCode,
         changeDescription,
@@ -224,6 +267,7 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         language: language || 'typescript',
         skillContext: runtime.getSkillContext?.(),
       });
+      onSubStageTiming?.('llm_code_generation', performance.now() - t0);
 
       if (runtime.debug) {
         console.log(
@@ -245,7 +289,10 @@ function createApplyPatchSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
       };
     },
     shouldSkipToolError: ({ errorMsg }) => {
-      if (errorMsg.includes('file not found in context') || errorMsg.includes('Cannot apply patch')) {
+      if (
+        errorMsg.includes('file not found in context') ||
+        errorMsg.includes('Cannot apply patch')
+      ) {
         return true;
       }
       return undefined;
@@ -300,6 +347,34 @@ function createRunCommandSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
 
 function createDefaultActionSkills(runtime: ExecutorSkillRuntime): ExecutorActionSkill[] {
   return [
+    {
+      name: 'action.filesense-navigate',
+      action: 'filesense_navigate' as ExecutionStep['action'],
+      shouldSkipToolError: ({ errorMsg }) => {
+        // Filesense is an acceleration/navigation layer. Never block the main task on it.
+        if (runtime.debug) {
+          console.log(`[Executor] [Skill:filesense:navigate] Non-fatal error: ${errorMsg}`);
+        }
+        return true;
+      },
+    },
+    {
+      name: 'action.filesense-sync-and-summarize',
+      action: 'filesense_sync_and_summarize' as ExecutionStep['action'],
+      shouldSkipToolError: ({ errorMsg }) => {
+        // Filesense errors are non-fatal - the agent can still work without indexes
+        if (runtime.debug) {
+          console.log(`[Executor] [Skill:filesense] Non-fatal error: ${errorMsg}`);
+        }
+        return true;
+      },
+    },
+    {
+      name: 'action.filesense-query',
+      action: 'filesense_query' as ExecutionStep['action'],
+      requiredParams: ['path'],
+      shouldSkipToolError: () => true, // Non-fatal
+    },
     {
       name: 'action.read-file',
       action: 'read_file',
