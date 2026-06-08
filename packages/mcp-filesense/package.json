@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/mcp-filesense",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "MCP Filesense Adapter - Agent-friendly directory indexing for FrontAgent",
   "type": "module",
   "main": "./dist/index.js",

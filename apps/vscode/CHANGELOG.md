@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.0
+
+- Added release alignment with the FrontAgent `2.1.0` CLI and runtime packages.
+- Added the Open Memory Gateway-backed runtime capabilities exposed through the shared `@frontagent/runtime-node` integration.
+- Updated the extension package for the OSS Harness release train and current runtime dependency set.
+- Raised the minimum VS Code engine requirement to `^1.120.0`.
+- Build output now packages the `frontagent-2.1.0.vsix` artifact through the root `pnpm build` script.
+
+## 2.0.0
+
+- Shipped the major FrontAgent 2.0 architecture refactor with focused runtime, agent, executor, LLM, context, memory, and VS Code modules.
+- Kept the VS Code extension version aligned with the root `frontagent` package.
+
 ## 1.0.4
 
 - Deferred Playwright loading until browser tools are actually used, so the FrontAgent runtime can load in the VS Code extension without a local Playwright install.
