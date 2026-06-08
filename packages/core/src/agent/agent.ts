@@ -43,6 +43,7 @@ import { createExecutionCallbacks } from './execution-callbacks.js';
 import { FactsUpdateFlusher } from './facts-update-flush.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
 import { prepareProjectPlanningContext } from './project-prescan-preparation.js';
+import { prepareTaskExecutionSetup } from './task-execution-setup.js';
 
 /**
  * FrontAgent 主类
@@ -570,49 +571,31 @@ export class FrontAgent {
       this.throwIfAborted(options?.signal);
       this.currentTaskId = task.id;
 
-      const context = this.contextManager.createContext(task, this.sddConfig);
-      context.collectedContext.skillContext = skillContext;
-      context.collectedContext.matchedSkillNames = matchedSkillNames;
-      context.collectedContext.metadata.originalTaskDescription = taskDescription;
-
-      this.emitStatus('加载跨会话记忆', '加载跨会话记忆');
-      this.memoryStore.resetSession();
-      preloadMemory(this.memoryDeps, task.id, context);
-
-      if (this.promptGenerator) {
-        const constitutionPrompt = this.workflowIntegration?.getConstitutionPrompt();
-        if (constitutionPrompt) {
-          this.contextManager.addMessage(task.id, { role: 'system', content: constitutionPrompt });
-        }
-        const sddPrompt = this.promptGenerator.generate();
-        this.contextManager.addMessage(task.id, {
-          role: 'system',
-          content: sddPrompt,
-        });
-      }
-
-      const planningPreparation = await prepareProjectPlanningContext({
+      const setup = await prepareTaskExecutionSetup({
+        task,
+        originalTaskDescription: taskDescription,
+        skillContext,
+        matchedSkillNames,
         deps: {
-          executor: this.executor,
-          ragDeps: this.ragDeps,
+          config: this.config,
+          sddConfig: this.sddConfig,
+          contextManager: this.contextManager,
+          memoryStore: this.memoryStore,
+          memoryDeps: this.memoryDeps,
+          promptGenerator: this.promptGenerator,
+          workflowIntegration: this.workflowIntegration,
+          planningDeps: {
+            executor: this.executor,
+            ragDeps: this.ragDeps,
+            emitStatus: this.emitStatus.bind(this),
+            debugLog: this.debugLog.bind(this),
+            debugWarn: this.debugWarn.bind(this),
+          },
+          emit: this.emit.bind(this),
           emitStatus: this.emitStatus.bind(this),
-          debugLog: this.debugLog.bind(this),
-          debugWarn: this.debugWarn.bind(this),
         },
-        taskId: task.id,
-        taskDescription: task.description,
-        projectRoot: this.config.projectRoot,
-        ragEnabled: this.config.rag?.enabled !== false,
-        preScanFailureLabel: '[Agent] Failed to pre-scan project structure:',
-        logProjectStructure: true,
       });
-
-      if (this.config.rag?.enabled !== false) {
-        this.emit({
-          type: 'rag_retrieved',
-          ...planningPreparation.ragEvent,
-        });
-      }
+      const { context, planningPreparation } = setup;
 
       this.emit({ type: 'planning_started' });
       this.emitStatus('生成执行计划', 'LLM 规划');
