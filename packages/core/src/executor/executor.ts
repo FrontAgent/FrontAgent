@@ -1,14 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type {
-  AgentTask,
-  ExecutionStep,
-  SecurityDecision,
-  StepResult,
-  ValidationResult,
-} from '@frontagent/shared';
+import type { AgentTask, ExecutionStep, StepResult, ValidationResult } from '@frontagent/shared';
 import { logger } from '@frontagent/shared';
-import { SecurityManager, toApprovalRequest } from '../security.js';
 import {
   createDefaultExecutorSkillRegistry,
   type ExecutorActionSkill,
@@ -20,6 +13,7 @@ import { PhaseRunner } from './phase-runner.js';
 import { executeStepsWithProgressEnforcement } from './progress-enforcement.js';
 import { executeStepsWithErrorFeedbackViaLangGraph } from './step-feedback-runner.js';
 import { createStepTraceRecorder } from './step-trace-recorder.js';
+import { ExecutorToolCallHandler } from './tool-call-handler.js';
 import type {
   ExecutorCollectedContext,
   ExecutorConfig,
@@ -32,13 +26,19 @@ export class Executor {
   private mcpClients: Map<string, MCPClient> = new Map();
   private toolToClient: Map<string, string> = new Map();
   private actionSkills: ReturnType<typeof createDefaultExecutorSkillRegistry>;
-  private securityManager: SecurityManager;
   private currentBrowserUrl?: string;
   private phaseRunner: PhaseRunner;
+  private toolCallHandler: ExecutorToolCallHandler;
 
   constructor(config: ExecutorConfig) {
     this.config = config;
-    this.securityManager = new SecurityManager();
+    this.toolCallHandler = new ExecutorToolCallHandler({
+      config: this.config,
+      mcpClients: this.mcpClients,
+      toolToClient: this.toolToClient,
+      nowMs: () => this.nowMs(),
+      getCurrentBrowserUrl: () => this.currentBrowserUrl,
+    });
     this.actionSkills = createDefaultExecutorSkillRegistry({
       llmService: this.config.llmService,
       debug: this.config.debug,
@@ -564,131 +564,15 @@ export class Executor {
   }
 
   async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const clientName = this.toolToClient.get(toolName);
-    if (!clientName) {
-      throw new Error(`No MCP client registered for tool: ${toolName}`);
-    }
-
-    const client = this.mcpClients.get(clientName);
-    if (!client) {
-      throw new Error(`MCP client not found: ${clientName}`);
-    }
-
-    if (this.config.debug) {
-      console.log(`[Executor] Calling tool: ${toolName}`, args);
-    }
-
-    const security = await this.enforceSecurity(toolName, args);
-    if (!security.allowed) {
-      return {
-        success: false,
-        error: security.error,
-      };
-    }
-
-    const mcpStart = this.nowMs();
-    const result = await client.callTool(toolName, security.args);
-    const mcpDurationMs = this.nowMs() - mcpStart;
-    if (typeof result === 'object' && result !== null) {
-      (result as Record<string, unknown>).__toolDurationMs = mcpDurationMs;
-    }
+    const toolCall = await this.toolCallHandler.callTool(toolName, args);
 
     if (toolName === 'browser_navigate' || toolName === 'navigate') {
-      if (typeof args.url === 'string' && this.isSuccessfulToolResult(result)) {
+      if (typeof args.url === 'string' && toolCall.successful) {
         this.currentBrowserUrl = args.url;
       }
     }
 
-    if (this.config.debug) {
-      console.log('[Executor] Tool result:', result);
-    }
-
-    return result;
-  }
-
-  private async enforceSecurity(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<{ allowed: true; args: Record<string, unknown> } | { allowed: false; error: string }> {
-    const decision = this.securityManager.evaluate({
-      toolName,
-      args,
-      projectRoot: this.config.projectRoot,
-      sddConfig: this.config.sddConfig,
-      security: this.config.security,
-      currentBrowserUrl: this.currentBrowserUrl,
-    });
-
-    this.emitSecurityDecision(decision);
-
-    if (decision.decision === 'deny') {
-      return { allowed: false, error: `Security policy denied ${toolName}: ${decision.message}` };
-    }
-
-    if (decision.decision === 'allow') {
-      return { allowed: true, args };
-    }
-
-    const approvalRequest = toApprovalRequest(decision);
-    const interactive = this.config.security?.interactive ?? false;
-    if (!interactive || !this.config.approvalHandler) {
-      const deniedDecision: SecurityDecision = {
-        ...decision,
-        decision: 'deny',
-        reasonCode: 'security_approval_unavailable',
-        message: 'Approval is required but no interactive approval channel is available.',
-      };
-      this.emitSecurityDecision(deniedDecision);
-      return { allowed: false, error: deniedDecision.message };
-    }
-
-    const approved = await this.config.approvalHandler(approvalRequest);
-    const finalDecision: SecurityDecision = approved
-      ? {
-          ...decision,
-          decision: 'allow',
-          reasonCode: 'approved_by_user',
-          message: `User approved: ${decision.message}`,
-          approvalId: approvalRequest.approvalId,
-        }
-      : {
-          ...decision,
-          decision: 'deny',
-          reasonCode: 'rejected_by_user',
-          message: `User rejected: ${decision.message}`,
-          approvalId: approvalRequest.approvalId,
-        };
-    this.emitSecurityDecision(finalDecision);
-
-    if (!approved) {
-      return {
-        allowed: false,
-        error: `Security approval rejected for ${toolName}: ${decision.message}`,
-      };
-    }
-
-    return {
-      allowed: true,
-      args: {
-        ...args,
-        __frontagentSecurityApproved: true,
-      },
-    };
-  }
-
-  private emitSecurityDecision(decision: SecurityDecision): void {
-    if (this.config.security?.auditEnabled === false) {
-      return;
-    }
-    this.config.onSecurityDecision?.(decision);
-  }
-
-  private isSuccessfulToolResult(result: unknown): boolean {
-    if (typeof result !== 'object' || result === null) {
-      return true;
-    }
-    const resultObj = result as { success?: boolean };
-    return resultObj.success !== false;
+    return toolCall.result;
   }
 
   async executeSteps(
