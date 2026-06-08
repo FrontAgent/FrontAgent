@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getWebviewHtml,
   nonce,
+  renderWebviewBodySection,
   renderWebviewScriptSection,
   renderWebviewStyleSection,
 } from './webview-html.js';
@@ -46,5 +47,12 @@ describe('VS Code webview HTML nonce handling', () => {
 
     expect(scriptNonce).toBeDefined();
     expect(scriptSection).toBe(renderWebviewScriptSection(scriptNonce ?? ''));
+  });
+
+  it('renders the body markup through a focused renderer', () => {
+    const html = getWebviewHtml({ cspSource: 'vscode-webview://frontagent.test' } as never);
+    const bodySection = html.match(/<body>\n([\s\S]*?)\n\n {2}<script nonce="/)?.[1];
+
+    expect(bodySection).toBe(renderWebviewBodySection());
   });
 });
