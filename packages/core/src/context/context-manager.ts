@@ -3,7 +3,6 @@ import type {
   AgentContext,
   FilesenseNavigationIntent,
   Message,
-  ModuleInfo,
   ProjectFacts,
   ProjectFactsMergeResult,
   ProjectFactsSnapshot,
@@ -12,12 +11,14 @@ import type {
 } from '../types.js';
 import { serializeProjectFactsForLLM } from './fact-serializer.js';
 import {
-  cloneStringArray,
+  exportProjectFactsSnapshot,
+  mergeProjectFactsUpdate,
+  projectFactsFromSnapshot,
+} from './facts-merge-helpers.js';
+import {
   formatFilesenseNavigationContext,
-  mapToRecord,
   normalizeFilesenseNavigation,
   parentDirectoriesForPath,
-  recordToClonedStringArrayMap,
 } from './helpers.js';
 import { updateModuleDependencyGraphFromToolResult } from './module-dependency-graph.js';
 
@@ -710,44 +711,7 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return undefined;
 
-    const { facts } = context;
-
-    const modulesRecord: Record<string, ModuleInfo> = {};
-    for (const [path, moduleInfo] of facts.moduleDependencyGraph.modules.entries()) {
-      modulesRecord[path] = {
-        ...moduleInfo,
-        exports: cloneStringArray(moduleInfo.exports),
-        imports: cloneStringArray(moduleInfo.imports),
-      };
-    }
-
-    return {
-      revision: facts.revision,
-      filesystem: {
-        existingFiles: Array.from(facts.filesystem.existingFiles),
-        existingDirectories: Array.from(facts.filesystem.existingDirectories),
-        nonExistentPaths: Array.from(facts.filesystem.nonExistentPaths),
-        directoryContents: mapToRecord(facts.filesystem.directoryContents, cloneStringArray),
-      },
-      dependencies: {
-        installedPackages: Array.from(facts.dependencies.installedPackages),
-        missingPackages: Array.from(facts.dependencies.missingPackages),
-      },
-      project: {
-        devServerRunning: facts.project.devServerRunning,
-        runningPort: facts.project.runningPort,
-        buildStatus: facts.project.buildStatus,
-      },
-      moduleDependencyGraph: {
-        modules: modulesRecord,
-        dependencies: mapToRecord(facts.moduleDependencyGraph.dependencies, cloneStringArray),
-        reverseDependencies: mapToRecord(
-          facts.moduleDependencyGraph.reverseDependencies,
-          cloneStringArray,
-        ),
-      },
-      errors: facts.errors.map((error) => ({ ...error })),
-    };
+    return exportProjectFactsSnapshot(context.facts);
   }
 
   /**
@@ -765,120 +729,7 @@ export class ContextManager {
       };
     }
 
-    const { facts } = context;
-    const previousRevision = facts.revision;
-    const staleBaseRevision = update.baseRevision !== previousRevision;
-    let changed = false;
-    const { changes } = update;
-
-    for (const path of changes.addExistingFiles ?? []) {
-      changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
-      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-    }
-
-    for (const path of changes.addExistingDirectories ?? []) {
-      changed = this.addToSet(facts.filesystem.existingDirectories, path) || changed;
-      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-    }
-
-    for (const path of changes.addNonExistentPaths ?? []) {
-      changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-      changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
-    }
-
-    for (const path of changes.removeNonExistentPaths ?? []) {
-      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-    }
-
-    for (const entry of changes.setDirectoryContents ?? []) {
-      changed =
-        this.setStringArrayMap(
-          facts.filesystem.directoryContents,
-          entry.path,
-          cloneStringArray(entry.entries),
-        ) || changed;
-    }
-
-    for (const pkg of changes.addInstalledPackages ?? []) {
-      changed = this.addToSet(facts.dependencies.installedPackages, pkg) || changed;
-      changed = this.removeFromSet(facts.dependencies.missingPackages, pkg) || changed;
-    }
-
-    for (const pkg of changes.addMissingPackages ?? []) {
-      changed = this.addToSet(facts.dependencies.missingPackages, pkg) || changed;
-    }
-
-    for (const pkg of changes.removeMissingPackages ?? []) {
-      changed = this.removeFromSet(facts.dependencies.missingPackages, pkg) || changed;
-    }
-
-    if (changes.project) {
-      const nextProject = changes.project;
-      if (
-        nextProject.devServerRunning !== undefined &&
-        facts.project.devServerRunning !== nextProject.devServerRunning
-      ) {
-        facts.project.devServerRunning = nextProject.devServerRunning;
-        changed = true;
-      }
-      if (
-        nextProject.runningPort !== undefined &&
-        facts.project.runningPort !== nextProject.runningPort
-      ) {
-        facts.project.runningPort = nextProject.runningPort;
-        changed = true;
-      }
-      if (
-        nextProject.buildStatus !== undefined &&
-        facts.project.buildStatus !== nextProject.buildStatus
-      ) {
-        facts.project.buildStatus = nextProject.buildStatus;
-        changed = true;
-      }
-    }
-
-    for (const moduleInfo of changes.upsertModules ?? []) {
-      const normalized: ModuleInfo = {
-        ...moduleInfo,
-        exports: cloneStringArray(moduleInfo.exports),
-        imports: cloneStringArray(moduleInfo.imports),
-      };
-      facts.moduleDependencyGraph.modules.set(moduleInfo.path, normalized);
-      changed = true;
-    }
-
-    for (const depEntry of changes.setDependencies ?? []) {
-      facts.moduleDependencyGraph.dependencies.set(
-        depEntry.path,
-        cloneStringArray(depEntry.dependencies),
-      );
-      changed = true;
-    }
-
-    for (const reverseDepEntry of changes.setReverseDependencies ?? []) {
-      facts.moduleDependencyGraph.reverseDependencies.set(
-        reverseDepEntry.path,
-        cloneStringArray(reverseDepEntry.reverseDependencies),
-      );
-      changed = true;
-    }
-
-    for (const error of changes.addErrors ?? []) {
-      facts.errors.push({ ...error });
-      changed = true;
-    }
-
-    if (changed) {
-      this.bumpFactsRevision(facts);
-    }
-
-    return {
-      applied: changed,
-      staleBaseRevision,
-      previousRevision,
-      nextRevision: facts.revision,
-      source: update.source,
-    };
+    return mergeProjectFactsUpdate(context.facts, update);
   }
 
   /**
@@ -888,41 +739,7 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return;
 
-    const modulesMap = new Map<string, ModuleInfo>();
-    for (const [path, moduleInfo] of Object.entries(snapshot.moduleDependencyGraph.modules)) {
-      modulesMap.set(path, {
-        ...moduleInfo,
-        exports: cloneStringArray(moduleInfo.exports),
-        imports: cloneStringArray(moduleInfo.imports),
-      });
-    }
-
-    context.facts = {
-      revision: snapshot.revision,
-      filesystem: {
-        existingFiles: new Set(snapshot.filesystem.existingFiles),
-        existingDirectories: new Set(snapshot.filesystem.existingDirectories),
-        nonExistentPaths: new Set(snapshot.filesystem.nonExistentPaths),
-        directoryContents: recordToClonedStringArrayMap(snapshot.filesystem.directoryContents),
-      },
-      dependencies: {
-        installedPackages: new Set(snapshot.dependencies.installedPackages),
-        missingPackages: new Set(snapshot.dependencies.missingPackages),
-      },
-      project: {
-        devServerRunning: snapshot.project.devServerRunning,
-        runningPort: snapshot.project.runningPort,
-        buildStatus: snapshot.project.buildStatus ?? 'unknown',
-      },
-      moduleDependencyGraph: {
-        modules: modulesMap,
-        dependencies: recordToClonedStringArrayMap(snapshot.moduleDependencyGraph.dependencies),
-        reverseDependencies: recordToClonedStringArrayMap(
-          snapshot.moduleDependencyGraph.reverseDependencies,
-        ),
-      },
-      errors: snapshot.errors.map((error) => ({ ...error })),
-    };
+    context.facts = projectFactsFromSnapshot(snapshot);
   }
 
   /**
