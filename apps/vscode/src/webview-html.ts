@@ -9,22 +9,8 @@ export function nonce(): string {
     .replace(/=+$/, '');
 }
 
-export function getWebviewHtml(webview: vscode.Webview): string {
-  const scriptNonce = nonce();
-  const styleNonce = nonce();
-  const csp = [
-    `default-src 'none'`,
-    `style-src ${webview.cspSource} 'nonce-${styleNonce}'`,
-    `script-src 'nonce-${scriptNonce}'`,
-  ].join('; ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style nonce="${styleNonce}">
+export function renderWebviewStyleSection(styleNonce: string): string {
+  return `  <style nonce="${styleNonce}">
     :root {
       color-scheme: light dark;
       --gap: 10px;
@@ -503,7 +489,25 @@ export function getWebviewHtml(webview: vscode.Webview): string {
         46%, 100% { opacity: 0; }
       }
     }
-  </style>
+  </style>`;
+}
+
+export function getWebviewHtml(webview: vscode.Webview): string {
+  const scriptNonce = nonce();
+  const styleNonce = nonce();
+  const csp = [
+    `default-src 'none'`,
+    `style-src ${webview.cspSource} 'nonce-${styleNonce}'`,
+    `script-src 'nonce-${scriptNonce}'`,
+  ].join('; ');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="${csp}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+${renderWebviewStyleSection(styleNonce)}
 </head>
 <body>
   <div class="shell">
