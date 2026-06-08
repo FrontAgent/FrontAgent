@@ -1,4 +1,7 @@
+import type { ExecutionStep } from '@frontagent/shared';
 import { describe, expect, it } from 'vitest';
+import type { ExecutorOutput } from '../types.js';
+import { createStepTraceRecorder } from './step-trace-recorder.js';
 import { createTraceCollector } from './trace.js';
 import type { ExecutorStepTrace } from './types.js';
 
@@ -11,6 +14,34 @@ function makeTrace(overrides: Partial<ExecutorStepTrace> = {}): ExecutorStepTrac
     success: true,
     stages: [{ name: 'call_tool', durationMs: 80, success: true }],
     toolDurationMs: 80,
+    ...overrides,
+  };
+}
+
+function makeStep(overrides: Partial<ExecutionStep> = {}): ExecutionStep {
+  return {
+    stepId: 'step-1',
+    description: 'Read a file',
+    action: 'read_file',
+    tool: 'read_file',
+    params: { path: 'src/a.ts' },
+    dependencies: [],
+    validation: [],
+    status: 'pending',
+    phase: 'build',
+    ...overrides,
+  };
+}
+
+function makeOutput(overrides: Partial<ExecutorOutput> = {}): ExecutorOutput {
+  return {
+    stepResult: {
+      success: true,
+      output: { success: true },
+      duration: 10,
+    },
+    validation: { pass: true, results: [] },
+    needsRollback: false,
     ...overrides,
   };
 }
@@ -119,5 +150,92 @@ describe('createTraceCollector', () => {
 
     const summary = collector.summary();
     expect(summary.write_file.toolDurationMs).toEqual({ avg: 0, min: 0, median: 0, max: 0 });
+  });
+});
+
+describe('createStepTraceRecorder', () => {
+  it('emits the executeStep trace payload when finishing skipped output', () => {
+    const traces: ExecutorStepTrace[] = [];
+    let now = 100;
+    const output = makeOutput({
+      stepResult: {
+        success: true,
+        output: { skipped: true, reason: 'missing path', __toolDurationMs: 12 },
+        duration: 20,
+      },
+    });
+    const recorder = createStepTraceRecorder({
+      trace: {
+        enabled: true,
+        onStepTrace: (trace) => traces.push(trace),
+      },
+      taskId: 'task-1',
+      step: makeStep(),
+      nowMs: () => now,
+    });
+
+    now = 117;
+    recorder.addSubStage('hallucination_check', 7);
+    now = 140;
+    const returned = recorder.finish(output);
+
+    expect(returned).toBe(output);
+    expect(traces).toEqual([
+      expect.objectContaining({
+        taskId: 'task-1',
+        stepId: 'step-1',
+        action: 'read_file',
+        tool: 'read_file',
+        totalMs: 40,
+        success: true,
+        skipped: true,
+        toolDurationMs: 12,
+        stages: [],
+        subStages: [{ name: 'hallucination_check', durationMs: 7, success: true }],
+      }),
+    ]);
+  });
+
+  it('records failed stage timing and error before finish emits the trace', async () => {
+    const traces: ExecutorStepTrace[] = [];
+    let now = 0;
+    const recorder = createStepTraceRecorder({
+      trace: {
+        enabled: true,
+        onStepTrace: (trace) => traces.push(trace),
+      },
+      taskId: 'task-1',
+      step: makeStep(),
+      nowMs: () => now,
+    });
+
+    await expect(
+      recorder.withStage('call_tool', async () => {
+        now = 5;
+        throw new Error('tool exploded');
+      }),
+    ).rejects.toThrow('tool exploded');
+
+    now = 9;
+    recorder.finish(
+      makeOutput({
+        stepResult: {
+          success: false,
+          error: 'tool exploded',
+          duration: 9,
+        },
+        validation: { pass: false, results: [], blockedBy: ['tool exploded'] },
+        needsRollback: true,
+      }),
+    );
+
+    expect(traces[0]).toEqual(
+      expect.objectContaining({
+        totalMs: 9,
+        success: false,
+        error: 'tool exploded',
+        stages: [{ name: 'call_tool', durationMs: 5, success: false, error: 'tool exploded' }],
+      }),
+    );
   });
 });
