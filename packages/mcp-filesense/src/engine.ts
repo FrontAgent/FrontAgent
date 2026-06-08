@@ -564,7 +564,13 @@ export async function summarize(targetPath: string, force = false): Promise<Summ
       const previous = (await exists(notesPath))
         ? ((await readJson(notesPath)) as NotesFile)
         : null;
-      const next = buildNotesFile(root, dirPath, config, index, previous, force);
+      const next = buildNotesFile(
+        dirPath,
+        schemaPathsForRoot(root, config).notesSchemaPath,
+        index,
+        previous,
+        force,
+      );
 
       if (previous && stableStringify(previous) === stableStringify(next)) {
         summary.notesSkipped += 1;

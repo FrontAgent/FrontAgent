@@ -1,19 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildNotesFile, inferConventions, inferKeyEntrypoints } from './engine-notes.js';
-import type { FilesenseConfig, IndexFile, NotesFile } from './types.js';
-
-const config: FilesenseConfig = {
-  schemaVersion: '1.0',
-  root: '.',
-  recursive: true,
-  indexFile: 'FILES.json',
-  notesFile: 'FILES.notes.json',
-  ignoreFile: '.filesignore',
-  schemaDir: 'schemas',
-  exclude: ['.git', 'node_modules'],
-  hashAlgorithm: 'sha1',
-};
+import type { IndexFile, NotesFile } from './types.js';
 
 function createIndex(children: IndexFile['children']): IndexFile {
   return {
@@ -39,6 +27,7 @@ describe('engine notes helpers', () => {
   it('builds the same notes shape used by summarize', () => {
     const root = path.join('/workspace', 'project');
     const dirPath = path.join(root, 'components');
+    const notesSchemaPath = path.join(root, 'schemas', 'FILES.notes.schema.json');
     const index = createIndex([
       {
         name: 'Button.tsx',
@@ -66,7 +55,7 @@ describe('engine notes helpers', () => {
       },
     ]);
 
-    const notes = buildNotesFile(root, dirPath, config, index, null, false);
+    const notes = buildNotesFile(dirPath, notesSchemaPath, index, null, false);
 
     expect(notes).toEqual({
       $schema: '../schemas/FILES.notes.schema.json',
@@ -83,6 +72,7 @@ describe('engine notes helpers', () => {
   it('preserves populated previous fields unless forced', () => {
     const root = path.join('/workspace', 'project');
     const dirPath = path.join(root, 'components');
+    const notesSchemaPath = path.join(root, 'schemas', 'FILES.notes.schema.json');
     const index = createIndex([]);
     const previous: NotesFile = {
       $schema: 'old-schema',
@@ -92,7 +82,7 @@ describe('engine notes helpers', () => {
       key_entrypoints: ['Human.ts'],
     };
 
-    expect(buildNotesFile(root, dirPath, config, index, previous, false)).toEqual({
+    expect(buildNotesFile(dirPath, notesSchemaPath, index, previous, false)).toEqual({
       $schema: '../schemas/FILES.notes.schema.json',
       directory_purpose: 'Human-authored purpose.',
       agent_hints: ['Human hint.'],
@@ -100,7 +90,7 @@ describe('engine notes helpers', () => {
       key_entrypoints: ['Human.ts'],
     });
 
-    expect(buildNotesFile(root, dirPath, config, index, previous, true)).toEqual({
+    expect(buildNotesFile(dirPath, notesSchemaPath, index, previous, true)).toEqual({
       $schema: '../schemas/FILES.notes.schema.json',
       directory_purpose: 'Reusable component directory.',
       agent_hints: [
@@ -109,6 +99,17 @@ describe('engine notes helpers', () => {
       conventions: ['Preserve the local naming and file-placement patterns already present here.'],
       key_entrypoints: [],
     });
+  });
+
+  it('uses the canonical notes schema path supplied by the engine boundary', () => {
+    const root = path.join('/workspace', 'project');
+    const dirPath = path.join(root, 'components');
+    const index = createIndex([]);
+    const notesSchemaPath = path.join(root, 'custom-schemas', 'FILES.notes.schema.json');
+
+    const notes = buildNotesFile(dirPath, notesSchemaPath, index, null, false);
+
+    expect(notes.$schema).toBe('../custom-schemas/FILES.notes.schema.json');
   });
 
   it('exposes convention and entrypoint inference for navigate reuse', () => {

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { inferDirectoryPurpose } from './engine-helpers.js';
-import type { FilesenseConfig, IndexFile, NotesFile } from './types.js';
+import type { IndexFile, NotesFile } from './types.js';
 
 function relativeSchemaRef(dirPath: string, schemaPath: string): string {
   return path.relative(dirPath, schemaPath).replace(/\\/g, '/');
@@ -70,14 +70,12 @@ export function inferKeyEntrypoints(index: IndexFile): string[] {
 }
 
 export function buildNotesFile(
-  root: string,
   dirPath: string,
-  config: FilesenseConfig,
+  notesSchemaPath: string,
   index: IndexFile,
   previous: NotesFile | null,
   force: boolean,
 ): NotesFile {
-  const notesSchemaPath = path.join(root, config.schemaDir, 'FILES.notes.schema.json');
   const inferred: NotesFile = {
     $schema: relativeSchemaRef(dirPath, notesSchemaPath),
     directory_purpose: inferDirectoryPurpose(index),
