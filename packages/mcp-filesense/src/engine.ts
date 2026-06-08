@@ -540,6 +540,7 @@ async function writeDirectoryIndex(
     nextComparable,
     forceFull,
     filesHashed,
+    stableStringify,
     writeJson,
   });
 }

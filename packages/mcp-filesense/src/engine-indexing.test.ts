@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { persistDirectoryIndex } from './engine-indexing.js';
 import type { IndexFile } from './types.js';
 
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value);
+}
+
 describe('persistDirectoryIndex', () => {
   const previous: IndexFile = {
     $schema: '../schemas/FILES.schema.json',
@@ -39,6 +43,7 @@ describe('persistDirectoryIndex', () => {
       },
       forceFull: false,
       filesHashed: 0,
+      stableStringify,
       writeJson: async (targetPath, value) => {
         writes.push({ targetPath, value });
       },
@@ -82,6 +87,7 @@ describe('persistDirectoryIndex', () => {
       },
       forceFull: false,
       filesHashed: 1,
+      stableStringify,
       writeJson: async (targetPath, value) => {
         writes.push({ targetPath, value: value as IndexFile });
       },
@@ -143,6 +149,7 @@ describe('persistDirectoryIndex', () => {
       },
       forceFull: true,
       filesHashed: 0,
+      stableStringify,
       writeJson: async (_targetPath, value) => {
         writes.push(value as IndexFile);
       },
