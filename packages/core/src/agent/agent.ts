@@ -39,11 +39,10 @@ import type {
 import { WorkflowIntegration } from '../workflow-integration.js';
 import { buildFinalOutput } from './answer-generation.js';
 import { gatherRequestedContext } from './context-gathering.js';
-import { detectDevServerPort } from './dev-server-detection.js';
 import { createExecutionCallbacks } from './execution-callbacks.js';
 import { FactsUpdateFlusher } from './facts-update-flush.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
-import { retrieveRagContext } from './rag-retrieval.js';
+import { prepareProjectPlanningContext } from './project-prescan-preparation.js';
 
 /**
  * FrontAgent 主类
@@ -430,65 +429,25 @@ export class FrontAgent {
         });
       }
 
-      let projectStructure: string | undefined;
-      const preScannedFiles = new Map<string, string>();
-      try {
-        this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
-        const listResult = (await this.executor.callTool('list_directory', {
-          path: this.config.projectRoot,
-          recursive: true,
-        })) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
-
-        if (listResult.success && listResult.entries) {
-          const files = listResult.entries
-            .filter(
-              (e) =>
-                e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'),
-            )
-            .map((e) => e.path);
-
-          if (files.length > 0) {
-            projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
-          }
-
-          const configFiles = files.filter(
-            (f) => f.endsWith('package.json') || f.includes('vite.config'),
-          );
-          for (const configFile of configFiles) {
-            try {
-              const readResult = (await this.executor.callTool('read_file', {
-                path: configFile,
-              })) as { success: boolean; content?: string };
-              if (readResult.success && readResult.content) {
-                preScannedFiles.set(configFile, readResult.content);
-              }
-            } catch {
-              // Ignore optional pre-scan read failures.
-            }
-          }
-        }
-      } catch (error) {
-        this.debugWarn('[Agent] Failed to pre-scan project structure for plan-only:', error);
-      }
-
-      this.emitStatus('检测开发服务器端口', '检测开发服务器端口');
-      const devServerPort = detectDevServerPort(
-        { debugLog: this.debugLog.bind(this), debugWarn: this.debugWarn.bind(this) },
-        preScannedFiles,
-      );
-
-      this.emitStatus('检索知识库', 'RAG 检索');
-      const ragContext = await retrieveRagContext(this.ragDeps, task.id, task.description);
-      const ragResults = ragContext?.formattedResults;
+      const planningPreparation = await prepareProjectPlanningContext({
+        deps: {
+          executor: this.executor,
+          ragDeps: this.ragDeps,
+          emitStatus: this.emitStatus.bind(this),
+          debugLog: this.debugLog.bind(this),
+          debugWarn: this.debugWarn.bind(this),
+        },
+        taskId: task.id,
+        taskDescription: task.description,
+        projectRoot: this.config.projectRoot,
+        ragEnabled: this.config.rag?.enabled !== false,
+        preScanFailureLabel: '[Agent] Failed to pre-scan project structure for plan-only:',
+      });
 
       if (this.config.rag?.enabled !== false) {
         this.emit({
           type: 'rag_retrieved',
-          searchMode: ragContext?.searchMode,
-          reranked: ragContext?.reranked,
-          warnings: ragContext?.warnings,
-          timing: ragContext?.timing,
-          matches: ragContext?.matches ?? [],
+          ...planningPreparation.ragEvent,
         });
       }
 
@@ -500,9 +459,9 @@ export class FrontAgent {
         {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
-          ragResults,
-          projectStructure,
-          devServerPort,
+          ragResults: planningPreparation.ragResults,
+          projectStructure: planningPreparation.projectStructure,
+          devServerPort: planningPreparation.devServerPort,
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
@@ -632,66 +591,26 @@ export class FrontAgent {
         });
       }
 
-      let projectStructure: string | undefined;
-      const preScannedFiles = new Map<string, string>();
-      try {
-        this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
-        const listResult = (await this.executor.callTool('list_directory', {
-          path: this.config.projectRoot,
-          recursive: true,
-        })) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
-
-        if (listResult.success && listResult.entries) {
-          const files = listResult.entries
-            .filter(
-              (e) =>
-                e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'),
-            )
-            .map((e) => e.path);
-
-          if (files.length > 0) {
-            projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
-            this.debugLog(`[Agent] 📂 Pre-scanned project structure: ${files.length} files`);
-          }
-
-          const configFiles = files.filter(
-            (f) => f.endsWith('package.json') || f.includes('vite.config'),
-          );
-          for (const configFile of configFiles) {
-            try {
-              const readResult = (await this.executor.callTool('read_file', {
-                path: configFile,
-              })) as { success: boolean; content?: string };
-              if (readResult.success && readResult.content) {
-                preScannedFiles.set(configFile, readResult.content);
-              }
-            } catch (_error) {
-              // Ignore read failures
-            }
-          }
-        }
-      } catch (error) {
-        this.debugWarn('[Agent] Failed to pre-scan project structure:', error);
-      }
-
-      this.emitStatus('检测开发服务器端口', '检测开发服务器端口');
-      const devServerPort = detectDevServerPort(
-        { debugLog: this.debugLog.bind(this), debugWarn: this.debugWarn.bind(this) },
-        preScannedFiles,
-      );
-
-      this.emitStatus('检索知识库', 'RAG 检索');
-      const ragContext = await retrieveRagContext(this.ragDeps, task.id, task.description);
-      const ragResults = ragContext?.formattedResults;
+      const planningPreparation = await prepareProjectPlanningContext({
+        deps: {
+          executor: this.executor,
+          ragDeps: this.ragDeps,
+          emitStatus: this.emitStatus.bind(this),
+          debugLog: this.debugLog.bind(this),
+          debugWarn: this.debugWarn.bind(this),
+        },
+        taskId: task.id,
+        taskDescription: task.description,
+        projectRoot: this.config.projectRoot,
+        ragEnabled: this.config.rag?.enabled !== false,
+        preScanFailureLabel: '[Agent] Failed to pre-scan project structure:',
+        logProjectStructure: true,
+      });
 
       if (this.config.rag?.enabled !== false) {
         this.emit({
           type: 'rag_retrieved',
-          searchMode: ragContext?.searchMode,
-          reranked: ragContext?.reranked,
-          warnings: ragContext?.warnings,
-          timing: ragContext?.timing,
-          matches: ragContext?.matches ?? [],
+          ...planningPreparation.ragEvent,
         });
       }
 
@@ -703,9 +622,9 @@ export class FrontAgent {
         {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
-          ragResults,
-          projectStructure,
-          devServerPort,
+          ragResults: planningPreparation.ragResults,
+          projectStructure: planningPreparation.projectStructure,
+          devServerPort: planningPreparation.devServerPort,
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
