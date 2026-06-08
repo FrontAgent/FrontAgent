@@ -3,6 +3,7 @@ import { basename, join } from 'node:path';
 import { logger } from '@frontagent/shared';
 import type { ProjectFactsSnapshot } from '../types.js';
 import { OpenMemoryGatewayAdapter, type OpenMemoryGatewayRecord } from './open-memory-gateway.js';
+import { buildPreload, selectRecallResultsWithinBudget } from './preload-recall-helpers.js';
 import type {
   MemoryConfig,
   MemoryEntry,
@@ -24,8 +25,6 @@ import {
   SNAPSHOTS_DIR_NAME,
   TOPICS_DIR_NAME,
 } from './types.js';
-
-const PRELOAD_HEADER = '## 项目记忆 (跨会话持久化)';
 
 /**
  * Durable memory store backed by human-readable Markdown files and JSON snapshots.
@@ -296,97 +295,28 @@ export class MemoryStore {
    * within the configured budget.
    */
   preload(): string | null {
-    const parts: string[] = [PRELOAD_HEADER];
-    let charCount = parts[0].length;
-
-    const gatewaySection = this.renderGatewayForPreload();
-    if (gatewaySection && charCount < this.preloadBudget) {
-      parts.push(gatewaySection);
-      charCount = measurePreloadParts(parts);
-    }
-
     const index = this.loadIndex();
     if (!index || index.topics.length === 0) {
-      return parts.length > 1 ? parts.join('\n\n') : null;
+      return buildPreload({
+        budget: this.preloadBudget,
+        maxTopicFiles: this.maxTopicFiles,
+        gatewayMemories: this.listGatewayActiveMemories(),
+        topics: [],
+      });
     }
     this.index = index;
 
-    // Load topic files within budget
     const sortedTopics = [...index.topics].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
+    const topics = this.iterPreloadTopics(sortedTopics);
 
-    let loaded = 0;
-    for (const topicMeta of sortedTopics) {
-      if (loaded >= this.maxTopicFiles) break;
-      if (charCount >= this.preloadBudget) break;
-
-      const topic = this.loadTopic(topicMeta.id);
-      if (!topic || topic.entries.length === 0) continue;
-
-      const section = this.renderTopicForPreload(topic);
-      const sectionLength = section.length + sectionSeparatorLength(parts);
-      if (charCount + sectionLength > this.preloadBudget) {
-        const remaining = this.preloadBudget - charCount - sectionSeparatorLength(parts);
-        if (remaining > 200) {
-          parts.push(truncatePreloadSection(section, remaining));
-          charCount = measurePreloadParts(parts);
-        }
-        break;
-      }
-
-      parts.push(section);
-      charCount = measurePreloadParts(parts);
-      loaded++;
-    }
-
-    return parts.length > 1 ? parts.join('\n\n') : null;
-  }
-
-  private renderGatewayForPreload(): string | null {
-    const memories = this.listGatewayActiveMemories();
-    if (memories.length === 0) return null;
-
-    const lines: string[] = [];
-    const title = '## Open Memory Gateway Active Memories';
-    const marker = '\n...(truncated)';
-    let charCount = 0;
-
-    if (title.length > this.remainingPreloadBudgetAfterHeader()) {
-      return null;
-    }
-
-    lines.push(title);
-    charCount = title.length;
-    for (const memory of memories) {
-      const line = `- **${memory.id}**: ${memory.content}`;
-      const lineLength = line.length + 1;
-      const remaining = this.remainingPreloadBudgetAfterHeader() - charCount - 1;
-
-      if (charCount + lineLength <= this.remainingPreloadBudgetAfterHeader()) {
-        lines.push(line);
-        charCount += lineLength;
-        continue;
-      }
-
-      if (remaining > marker.length) {
-        lines.push(truncatePreloadSection(line, remaining));
-      }
-      break;
-    }
-    return lines.join('\n');
-  }
-
-  private remainingPreloadBudgetAfterHeader(): number {
-    return this.preloadBudget - PRELOAD_HEADER.length - 2;
-  }
-
-  private renderTopicForPreload(topic: MemoryTopic): string {
-    const lines: string[] = [`### ${topic.meta.title}`];
-    for (const entry of topic.entries) {
-      lines.push(`- **${entry.key}**: ${entry.content}`);
-    }
-    return lines.join('\n');
+    return buildPreload({
+      budget: this.preloadBudget,
+      maxTopicFiles: this.maxTopicFiles,
+      gatewayMemories: this.listGatewayActiveMemories(),
+      topics,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -454,21 +384,21 @@ export class MemoryStore {
 
     candidates.sort((a, b) => b.score - a.score);
 
-    const results: RecalledMemory[] = [];
-    let budget = this.recallBudget;
-
-    for (const candidate of candidates) {
-      if (budget <= 0) break;
-      if (candidate.content.length > budget) continue;
-
-      results.push(candidate);
-      budget -= candidate.content.length;
-
-      const dedupKey = `${candidate.topicId}::${candidate.entryKey}`;
+    const selected = selectRecallResultsWithinBudget(candidates, this.recallBudget);
+    for (const dedupKey of selected.injectedKeys) {
       this.injectedKeys.add(dedupKey);
     }
 
-    return results;
+    return selected.results;
+  }
+
+  private *iterPreloadTopics(topicMetas: MemoryTopicMeta[]): Iterable<MemoryTopic> {
+    for (const topicMeta of topicMetas) {
+      const topic = this.loadTopic(topicMeta.id);
+      if (topic) {
+        yield topic;
+      }
+    }
   }
 
   /**
@@ -795,22 +725,6 @@ export class MemoryStore {
       return false;
     }
   }
-}
-
-function measurePreloadParts(parts: string[]): number {
-  return parts.join('\n\n').length;
-}
-
-function sectionSeparatorLength(parts: string[]): number {
-  return parts.length > 0 ? 2 : 0;
-}
-
-function truncatePreloadSection(section: string, budget: number): string {
-  const marker = '\n...(truncated)';
-  if (budget <= marker.length) {
-    return section.slice(0, Math.max(0, budget));
-  }
-  return `${section.slice(0, budget - marker.length)}${marker}`;
 }
 
 function renderGatewayCapture(input: PersistenceInput): string {
