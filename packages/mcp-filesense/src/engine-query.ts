@@ -14,7 +14,7 @@ export function buildQueryResult({
   index,
   notes,
 }: BuildQueryResultOptions): QueryResult {
-  const relative = path.relative(root, target).replace(/\\/g, '/');
+  const relative = path.relative(root, target);
   return {
     root,
     target,

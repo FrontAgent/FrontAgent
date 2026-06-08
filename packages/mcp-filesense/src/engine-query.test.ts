@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildQueryResult } from './engine-query.js';
 import type { IndexFile, NotesFile } from './types.js';
@@ -39,15 +40,15 @@ describe('engine query helpers', () => {
     });
   });
 
-  it('builds nested query results with slash-normalized rootRelativePath', () => {
+  it('builds nested query results with native path.relative semantics', () => {
     const result = buildQueryResult({
       root: '/repo',
-      target: '/repo/src/components',
+      target: '/repo/src\\components',
       index,
       notes: null,
     });
 
-    expect(result.rootRelativePath).toBe('src/components');
+    expect(result.rootRelativePath).toBe(path.relative('/repo', '/repo/src\\components'));
     expect(result.notes).toBeNull();
   });
 });
