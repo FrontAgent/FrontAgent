@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CONTRACT_DIFF_FILTER,
@@ -75,7 +75,7 @@ export function assertGitWorkspaceRootMatchesCwd(options = {}) {
   const gitText = options.gitText ?? ((args) => execFileSync('git', args, { encoding: 'utf8' }));
   const gitTopLevel = normalizeWorkspacePath(gitText(['rev-parse', '--show-toplevel']).trim());
   const coreWorktree = readOptionalGitText(gitText, ['config', '--get', 'core.worktree']);
-  const normalizedCoreWorktree = coreWorktree ? normalizeWorkspacePath(coreWorktree) : '';
+  const normalizedCoreWorktree = coreWorktree ? resolveCoreWorktreePath(coreWorktree, gitText) : '';
 
   if (gitTopLevel === cwd && (!normalizedCoreWorktree || normalizedCoreWorktree === cwd)) return;
 
@@ -259,6 +259,13 @@ function fetchBaseRef(baseBranch) {
 function normalizeWorkspacePath(value) {
   const path = resolve(value);
   return existsSync(path) ? realpathSync(path) : path;
+}
+
+function resolveCoreWorktreePath(coreWorktree, gitText) {
+  if (isAbsolute(coreWorktree)) return normalizeWorkspacePath(coreWorktree);
+
+  const gitDir = normalizeWorkspacePath(gitText(['rev-parse', '--git-dir']).trim());
+  return normalizeWorkspacePath(resolve(gitDir, coreWorktree));
 }
 
 function isMainModule() {
