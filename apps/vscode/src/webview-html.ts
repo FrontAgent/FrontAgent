@@ -492,116 +492,8 @@ export function renderWebviewStyleSection(styleNonce: string): string {
   </style>`;
 }
 
-export function getWebviewHtml(webview: vscode.Webview): string {
-  const scriptNonce = nonce();
-  const styleNonce = nonce();
-  const csp = [
-    `default-src 'none'`,
-    `style-src ${webview.cspSource} 'nonce-${styleNonce}'`,
-    `script-src 'nonce-${scriptNonce}'`,
-  ].join('; ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-${renderWebviewStyleSection(styleNonce)}
-</head>
-<body>
-  <div class="shell">
-    <header class="top">
-      <div class="bar">
-        <div class="identity">
-          <div class="title">FrontAgent</div>
-          <div id="configText" class="subtitle">Checking configuration...</div>
-        </div>
-        <div class="header-actions">
-          <div id="status" class="status">Idle</div>
-          <button id="toggleConfig" class="ghost" type="button">Configure</button>
-        </div>
-      </div>
-      <div id="configBanner" class="config-banner">
-        <div class="config-copy">
-          <span id="configPrimary" class="config-primary">Model setup</span>
-          <span id="configSecondary" class="config-secondary">Configure provider, model, base URL, and key when needed.</span>
-        </div>
-        <button id="openCommandConfig" class="secondary" type="button">Command</button>
-      </div>
-      <form id="configForm" class="config-form">
-        <label>Provider
-          <select id="configProvider">
-            <option value="">Select provider</option>
-            <option value="openai">OpenAI-compatible</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
-        </label>
-        <label>Model
-          <input id="configModel" placeholder="zai-org/GLM-4.6">
-        </label>
-        <label>Base URL
-          <input id="configBaseUrl" placeholder="https://api.siliconflow.cn/v1">
-        </label>
-        <label>API Key
-          <input id="configApiKey" type="password" placeholder="Stored in SecretStorage">
-        </label>
-        <div class="config-actions">
-          <button id="saveConfig" type="submit">Save</button>
-          <button id="closeConfig" class="secondary" type="button">Close</button>
-        </div>
-      </form>
-    </header>
-
-    <main id="messages" class="messages"></main>
-
-    <form id="composer" class="composer">
-      <div class="composer-card">
-        <textarea id="prompt" placeholder="Ask FrontAgent to explain, edit, or debug this workspace..."></textarea>
-        <div id="contextFiles" class="context-row"></div>
-        <div id="selectionPreview" class="selection hidden"></div>
-        <label class="url-field">
-          <span>Browser</span>
-          <input id="browserUrl" placeholder="http://localhost:5173">
-        </label>
-        <div class="composer-toolbar">
-          <div class="mode-control">
-            <span class="toolbar-label">Mode</span>
-            <select id="modeSelect" class="mode-select">
-              <option value="query">Ask</option>
-              <option value="modify">Agent Edit</option>
-              <option value="debug">Debug</option>
-            </select>
-            <span id="modeDescription" class="mode-description">Explain and answer</span>
-          </div>
-          <div class="composer-actions">
-            <button id="stopButton" class="ghost icon" type="button" title="Stop">Stop</button>
-            <button id="sendButton" class="icon" type="submit" title="Send">Send</button>
-          </div>
-        </div>
-      </div>
-      <details id="detailsPanel">
-        <summary>Run details</summary>
-        <div class="details-grid">
-          <div class="activity">
-            <div id="activityLabel">等待开始</div>
-            <div id="operation" class="muted"></div>
-          </div>
-          <button id="logButton" class="secondary" type="button">Open log</button>
-          <div>
-            <div class="muted">Plan <span id="phaseCount"></span></div>
-            <div id="phases" class="muted">No plan yet.</div>
-          </div>
-          <div>
-            <div class="muted">Knowledge <span id="ragMeta"></span></div>
-            <div id="rag" class="muted">No matches yet.</div>
-          </div>
-        </div>
-      </details>
-    </form>
-  </div>
-
-  <script nonce="${scriptNonce}">
+export function renderWebviewScriptSection(scriptNonce: string): string {
+  return `  <script nonce="${scriptNonce}">
     const vscode = acquireVsCodeApi();
     let state = null;
     let activeMode = 'query';
@@ -832,7 +724,119 @@ ${renderWebviewStyleSection(styleNonce)}
     });
 
     vscode.postMessage({ type: 'ready' });
-  </script>
+  </script>`;
+}
+
+export function getWebviewHtml(webview: vscode.Webview): string {
+  const scriptNonce = nonce();
+  const styleNonce = nonce();
+  const csp = [
+    `default-src 'none'`,
+    `style-src ${webview.cspSource} 'nonce-${styleNonce}'`,
+    `script-src 'nonce-${scriptNonce}'`,
+  ].join('; ');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="${csp}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+${renderWebviewStyleSection(styleNonce)}
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <div class="bar">
+        <div class="identity">
+          <div class="title">FrontAgent</div>
+          <div id="configText" class="subtitle">Checking configuration...</div>
+        </div>
+        <div class="header-actions">
+          <div id="status" class="status">Idle</div>
+          <button id="toggleConfig" class="ghost" type="button">Configure</button>
+        </div>
+      </div>
+      <div id="configBanner" class="config-banner">
+        <div class="config-copy">
+          <span id="configPrimary" class="config-primary">Model setup</span>
+          <span id="configSecondary" class="config-secondary">Configure provider, model, base URL, and key when needed.</span>
+        </div>
+        <button id="openCommandConfig" class="secondary" type="button">Command</button>
+      </div>
+      <form id="configForm" class="config-form">
+        <label>Provider
+          <select id="configProvider">
+            <option value="">Select provider</option>
+            <option value="openai">OpenAI-compatible</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+        </label>
+        <label>Model
+          <input id="configModel" placeholder="zai-org/GLM-4.6">
+        </label>
+        <label>Base URL
+          <input id="configBaseUrl" placeholder="https://api.siliconflow.cn/v1">
+        </label>
+        <label>API Key
+          <input id="configApiKey" type="password" placeholder="Stored in SecretStorage">
+        </label>
+        <div class="config-actions">
+          <button id="saveConfig" type="submit">Save</button>
+          <button id="closeConfig" class="secondary" type="button">Close</button>
+        </div>
+      </form>
+    </header>
+
+    <main id="messages" class="messages"></main>
+
+    <form id="composer" class="composer">
+      <div class="composer-card">
+        <textarea id="prompt" placeholder="Ask FrontAgent to explain, edit, or debug this workspace..."></textarea>
+        <div id="contextFiles" class="context-row"></div>
+        <div id="selectionPreview" class="selection hidden"></div>
+        <label class="url-field">
+          <span>Browser</span>
+          <input id="browserUrl" placeholder="http://localhost:5173">
+        </label>
+        <div class="composer-toolbar">
+          <div class="mode-control">
+            <span class="toolbar-label">Mode</span>
+            <select id="modeSelect" class="mode-select">
+              <option value="query">Ask</option>
+              <option value="modify">Agent Edit</option>
+              <option value="debug">Debug</option>
+            </select>
+            <span id="modeDescription" class="mode-description">Explain and answer</span>
+          </div>
+          <div class="composer-actions">
+            <button id="stopButton" class="ghost icon" type="button" title="Stop">Stop</button>
+            <button id="sendButton" class="icon" type="submit" title="Send">Send</button>
+          </div>
+        </div>
+      </div>
+      <details id="detailsPanel">
+        <summary>Run details</summary>
+        <div class="details-grid">
+          <div class="activity">
+            <div id="activityLabel">等待开始</div>
+            <div id="operation" class="muted"></div>
+          </div>
+          <button id="logButton" class="secondary" type="button">Open log</button>
+          <div>
+            <div class="muted">Plan <span id="phaseCount"></span></div>
+            <div id="phases" class="muted">No plan yet.</div>
+          </div>
+          <div>
+            <div class="muted">Knowledge <span id="ragMeta"></span></div>
+            <div id="rag" class="muted">No matches yet.</div>
+          </div>
+        </div>
+      </details>
+    </form>
+  </div>
+
+${renderWebviewScriptSection(scriptNonce)}
 </body>
 </html>`;
 }
