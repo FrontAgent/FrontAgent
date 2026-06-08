@@ -8,6 +8,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { inferDirectoryPurpose, inferImportance, scoreCandidate } from './engine-helpers.js';
 import { type ComparableIndex, persistDirectoryIndex } from './engine-indexing.js';
+import { buildQueryResult } from './engine-query.js';
 import type {
   CheckSummary,
   ChildEntry,
@@ -734,7 +735,6 @@ export async function check(targetPath: string): Promise<CheckSummary> {
 export async function query(targetPath: string): Promise<QueryResult> {
   const target = path.resolve(targetPath);
   const { root, config } = await resolveRootAndConfig(target);
-  const relative = path.relative(root, target);
   const indexPath = path.join(target, config.indexFile);
   if (!(await exists(indexPath)))
     throw new Error(`No ${config.indexFile} found in ${target}. Run sync first.`);
@@ -743,7 +743,7 @@ export async function query(targetPath: string): Promise<QueryResult> {
   const notesPath = path.join(target, config.notesFile);
   const notes = (await exists(notesPath)) ? ((await readJson(notesPath)) as NotesFile) : null;
 
-  return { root, target, rootRelativePath: relative === '' ? '.' : relative, index, notes };
+  return buildQueryResult({ root, target, index, notes });
 }
 
 function detectPackageManager(indexes: IndexFile[]): string | undefined {
