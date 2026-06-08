@@ -1,7 +1,12 @@
 import type { AgentTask, ExecutionPlan, ExecutionStep, SDDConfig } from '@frontagent/shared';
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../types.js';
+import type { Message, ModuleInfo, ProjectFactsUpdate } from '../types.js';
 import { ContextManager, createContextManager } from './context-manager.js';
+import {
+  exportProjectFactsSnapshot,
+  mergeProjectFactsUpdate,
+  projectFactsFromSnapshot,
+} from './facts-merge-helpers.js';
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
@@ -565,6 +570,104 @@ describe('ContextManager', () => {
         changes: {},
       });
       expect(result.applied).toBe(false);
+    });
+  });
+
+  describe('facts merge helpers', () => {
+    it('clones mutable snapshot values when exporting and restoring facts', () => {
+      const manager = new ContextManager();
+      const facts = manager.createContext(makeTask({ id: 't1' })).facts;
+      const moduleInfo: ModuleInfo = {
+        path: 'src/app.ts',
+        type: 'component',
+        exports: ['App'],
+        imports: ['react'],
+      };
+
+      facts.revision = 7;
+      facts.filesystem.existingFiles.add('src/app.ts');
+      facts.filesystem.directoryContents.set('src', ['src/app.ts']);
+      facts.moduleDependencyGraph.modules.set(moduleInfo.path, moduleInfo);
+      facts.moduleDependencyGraph.dependencies.set(moduleInfo.path, ['react']);
+      facts.errors.push({ stepId: 's1', type: 'test', message: 'original', timestamp: 1 });
+
+      const snapshot = exportProjectFactsSnapshot(facts);
+
+      moduleInfo.exports.push('mutated-after-export');
+      facts.filesystem.directoryContents.get('src')!.push('src/mutated.ts');
+      facts.moduleDependencyGraph.dependencies.get(moduleInfo.path)!.push('mutated-dep');
+      facts.errors[0].message = 'mutated-after-export';
+
+      expect(snapshot.moduleDependencyGraph.modules[moduleInfo.path].exports).toEqual(['App']);
+      expect(snapshot.filesystem.directoryContents.src).toEqual(['src/app.ts']);
+      expect(snapshot.moduleDependencyGraph.dependencies[moduleInfo.path]).toEqual(['react']);
+      expect(snapshot.errors[0].message).toBe('original');
+
+      const restored = projectFactsFromSnapshot(snapshot);
+      snapshot.moduleDependencyGraph.modules[moduleInfo.path].imports.push('mutated-after-restore');
+      snapshot.filesystem.directoryContents.src.push('src/after-restore.ts');
+      snapshot.errors[0].message = 'mutated-after-restore';
+
+      expect(restored.moduleDependencyGraph.modules.get(moduleInfo.path)!.imports).toEqual([
+        'react',
+      ]);
+      expect(restored.filesystem.directoryContents.get('src')).toEqual(['src/app.ts']);
+      expect(restored.errors[0].message).toBe('original');
+    });
+
+    it('merges facts updates with cloned mutable payload values', () => {
+      const manager = new ContextManager();
+      const facts = manager.createContext(makeTask({ id: 't1' })).facts;
+      const moduleInfo: ModuleInfo = {
+        path: 'src/app.ts',
+        type: 'component',
+        exports: ['App'],
+        imports: ['react'],
+      };
+      const update: ProjectFactsUpdate = {
+        baseRevision: 0,
+        source: 'sub-agent',
+        timestamp: 1,
+        changes: {
+          setDirectoryContents: [{ path: 'src', entries: ['src/app.ts'] }],
+          upsertModules: [moduleInfo],
+          setDependencies: [{ path: moduleInfo.path, dependencies: ['react'] }],
+          addErrors: [{ stepId: 's1', type: 'test', message: 'original', timestamp: 1 }],
+        },
+      };
+
+      const result = mergeProjectFactsUpdate(facts, update);
+
+      moduleInfo.exports.push('mutated-after-merge');
+      update.changes.setDirectoryContents![0].entries.push('src/mutated.ts');
+      update.changes.setDependencies![0].dependencies.push('mutated-dep');
+      update.changes.addErrors![0].message = 'mutated-after-merge';
+
+      expect(result.applied).toBe(true);
+      expect(result.previousRevision).toBe(0);
+      expect(result.nextRevision).toBe(1);
+      expect(facts.moduleDependencyGraph.modules.get(moduleInfo.path)!.exports).toEqual(['App']);
+      expect(facts.filesystem.directoryContents.get('src')).toEqual(['src/app.ts']);
+      expect(facts.moduleDependencyGraph.dependencies.get(moduleInfo.path)).toEqual(['react']);
+      expect(facts.errors[0].message).toBe('original');
+    });
+
+    it('reports empty facts updates without bumping revision', () => {
+      const manager = new ContextManager();
+      const facts = manager.createContext(makeTask({ id: 't1' })).facts;
+
+      const result = mergeProjectFactsUpdate(facts, {
+        baseRevision: 0,
+        source: 'sub-agent',
+        timestamp: 1,
+        changes: {},
+      });
+
+      expect(result.applied).toBe(false);
+      expect(result.staleBaseRevision).toBe(false);
+      expect(result.previousRevision).toBe(0);
+      expect(result.nextRevision).toBe(0);
+      expect(facts.revision).toBe(0);
     });
   });
 
