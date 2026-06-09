@@ -14,7 +14,7 @@
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
-> **Distilled Planner Model**: FrontAgent's Planner stage has been distilled into a standalone small model [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora). Load the LoRA adapter on top of Qwen2.5-Coder-7B to generate frontend execution plans directly, without calling large LLM APIs. The training workflow, prompts, evaluation scripts, and Hugging Face release metadata live in [models/frontagent-planner](models/frontagent-planner).
+> **Distilled Planner Models**: FrontAgent's Planner stage has been distilled into Hugging Face planner assets collected under [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent). Load the published adapters on their supported Qwen Coder base models to generate frontend execution plans directly, without calling large LLM APIs. The training workflow, prompts, evaluation scripts, and Hugging Face release metadata live in [models/frontagent-planner](models/frontagent-planner).
 
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
@@ -33,7 +33,7 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Filesense Navigation** - Budgeted current-repository navigation with generated schemas and notes
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
-- ✅ **Distilled Planner Assets** - Repository-native training, evaluation, and release assets for the Planner LoRA model
+- ✅ **Distilled Planner Assets** - Repository-native training, evaluation, and release assets for the Hugging Face Planner model collection
 - ✅ **Skill Lab** - Benchmark, improve, and promote content skills with local eval suites
 - ✅ **VS Code Sidebar** - Marketplace extension with task runs, SDD helpers, secure settings, and run logs
 - ✅ **OSS Harness** - Local contract, quality, GitNexus, and workflow gates for maintainer-friendly changes
@@ -1239,7 +1239,7 @@ pnpm clean
 - [x] **LangGraph execution engine (optional)** (NEW!)
 - [x] **Repository management phase (git/gh automation)** (NEW!)
 - [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
-- [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora), with training and release assets in [models/frontagent-planner](models/frontagent-planner) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
+- [x] **Distilled Planner Models** -- SFT fine-tuned from FrontAgent Planner prompts, published in the [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent) Hugging Face collection, with training and release assets in [models/frontagent-planner](models/frontagent-planner)
 - [x] **VS Code extension** -- Sidebar task console, current file/selection context, SDD commands, secure configuration, run logs, and packaged Marketplace artifact
 - [x] **Local stdio MCP server** -- Host-facing FrontAgent task, planning, status, skill, and SDD tools with fail-closed internal execution security
 - [x] **Filesense repository navigation** -- Budgeted current-repository structure lookup with generated JSON schemas and explicit cache/workspace/none write modes
