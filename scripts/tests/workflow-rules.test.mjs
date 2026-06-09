@@ -83,6 +83,17 @@ test('critical changes pass with matching tests and structured GitNexus impact s
   assert.deepEqual(result.reasons, []);
 });
 
+test('authority docs pass with workflow contract tests in local mode', () => {
+  const result = evaluateGitNexusContract({
+    changedFiles: ['README.md', 'scripts/tests/workflow-rules.test.mjs'],
+    impactSummary: '',
+    requireImpactSummary: false,
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.reasons, []);
+});
+
 test('package scoped critical changes reject unrelated package tests', () => {
   const result = evaluateGitNexusContract({
     changedFiles: ['packages/mcp-web/src/server.ts', 'packages/mcp-file/src/security.test.ts'],
