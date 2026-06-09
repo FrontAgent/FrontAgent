@@ -2,6 +2,7 @@ import type { AgentTask, ExecutionStep } from '@frontagent/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { ExecutorActionSkill } from '../skills/index.js';
 import { createExecutor, Executor } from './executor.js';
+import { ExecutorToolCallHandler } from './tool-call-handler.js';
 import type { ExecutorCollectedContext, ExecutorConfig } from './types.js';
 
 function makeStep(overrides: Partial<ExecutionStep> = {}): ExecutionStep {
@@ -119,6 +120,150 @@ describe('Executor', () => {
       executor.registerActionSkill(skill);
       const snapshot = executor.getActionSkillSnapshot();
       expect(snapshot.actionSkills.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('callTool', () => {
+    it('passes approved security args to the MCP client and emits ask then allow decisions', async () => {
+      const approvalHandler = vi.fn().mockResolvedValue(true);
+      const decisions: Array<{ decision: string; reasonCode: string; approvalId?: string }> = [];
+      const callTool = vi.fn().mockResolvedValue({ success: true });
+      const executor = new Executor(
+        makeConfig({
+          security: { mode: 'strict', interactive: true, auditEnabled: true },
+          approvalHandler,
+          onSecurityDecision: (decision) => decisions.push(decision),
+        }),
+      );
+      executor.registerMCPClient('files', {
+        callTool,
+        listTools: vi.fn().mockResolvedValue([]),
+      });
+      executor.registerToolMapping('create_file', 'files');
+
+      const result = await executor.callTool('create_file', {
+        path: 'src/new.ts',
+        content: 'export {}',
+      });
+
+      expect(result).toEqual(expect.objectContaining({ success: true }));
+      expect(approvalHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          decision: 'ask',
+          reasonCode: 'strict_file_write_requires_approval',
+          toolName: 'create_file',
+        }),
+      );
+      expect(callTool).toHaveBeenCalledWith(
+        'create_file',
+        expect.objectContaining({
+          path: 'src/new.ts',
+          content: 'export {}',
+          __frontagentSecurityApproved: true,
+        }),
+      );
+      expect(decisions.map((decision) => decision.decision)).toEqual(['ask', 'allow']);
+      expect(decisions[1]).toEqual(
+        expect.objectContaining({
+          reasonCode: 'approved_by_user',
+          approvalId: expect.any(String),
+        }),
+      );
+    });
+
+    it('fails closed without invoking the MCP client when approval is unavailable', async () => {
+      const decisions: Array<{ decision: string; reasonCode: string }> = [];
+      const callTool = vi.fn().mockResolvedValue({ success: true });
+      const executor = new Executor(
+        makeConfig({
+          security: { mode: 'strict', interactive: false, auditEnabled: true },
+          onSecurityDecision: (decision) => decisions.push(decision),
+        }),
+      );
+      executor.registerMCPClient('files', {
+        callTool,
+        listTools: vi.fn().mockResolvedValue([]),
+      });
+      executor.registerToolMapping('create_file', 'files');
+
+      const result = await executor.callTool('create_file', {
+        path: 'src/new.ts',
+        content: 'export {}',
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Approval is required but no interactive approval channel is available.',
+      });
+      expect(callTool).not.toHaveBeenCalled();
+      expect(decisions).toEqual([
+        expect.objectContaining({
+          decision: 'ask',
+          reasonCode: 'strict_file_write_requires_approval',
+        }),
+        expect.objectContaining({
+          decision: 'deny',
+          reasonCode: 'security_approval_unavailable',
+        }),
+      ]);
+    });
+
+    it('updates browser context only after successful navigation results', async () => {
+      const callTool = vi
+        .fn()
+        .mockResolvedValueOnce({ success: false, error: 'navigation failed' })
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: true });
+      const executor = new Executor(
+        makeConfig({
+          security: { mode: 'balanced', interactive: false, auditEnabled: true },
+        }),
+      );
+      executor.registerMCPClient('browser', {
+        callTool,
+        listTools: vi.fn().mockResolvedValue([]),
+      });
+      executor.registerToolMapping('browser_navigate', 'browser');
+      executor.registerToolMapping('browser_click', 'browser');
+
+      const failedNavigate = await executor.callTool('browser_navigate', {
+        url: 'http://localhost:5173',
+      });
+      const clickAfterFailure = await executor.callTool('browser_click', { selector: '#submit' });
+      const successfulNavigate = await executor.callTool('browser_navigate', {
+        url: 'http://localhost:5173',
+      });
+      const clickAfterSuccess = await executor.callTool('browser_click', { selector: '#submit' });
+
+      expect(failedNavigate).toEqual(expect.objectContaining({ success: false }));
+      expect(clickAfterFailure).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: 'Approval is required but no interactive approval channel is available.',
+        }),
+      );
+      expect(successfulNavigate).toEqual(expect.objectContaining({ success: true }));
+      expect(clickAfterSuccess).toEqual(expect.objectContaining({ success: true }));
+      expect(callTool).toHaveBeenCalledTimes(3);
+      expect(callTool).toHaveBeenNthCalledWith(3, 'browser_click', { selector: '#submit' });
+    });
+  });
+
+  describe('ExecutorToolCallHandler', () => {
+    it('classifies object results with success false as unsuccessful', () => {
+      const handler = new ExecutorToolCallHandler({
+        config: makeConfig(),
+        mcpClients: new Map(),
+        toolToClient: new Map(),
+        nowMs: () => 0,
+        getCurrentBrowserUrl: () => undefined,
+      });
+
+      expect(handler.isSuccessfulToolResult({ success: false })).toBe(false);
+      expect(handler.isSuccessfulToolResult({ success: true })).toBe(true);
+      expect(handler.isSuccessfulToolResult({})).toBe(true);
+      expect(handler.isSuccessfulToolResult('ok')).toBe(true);
     });
   });
 

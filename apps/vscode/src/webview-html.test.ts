@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   getWebviewHtml,
   nonce,
+  renderWebviewBaseStyles,
   renderWebviewBodySection,
+  renderWebviewComposerStyles,
   renderWebviewConfigScript,
   renderWebviewContextScript,
   renderWebviewErrorScript,
   renderWebviewEventScript,
+  renderWebviewHeaderStyles,
   renderWebviewMessageScript,
+  renderWebviewMessageStyles,
+  renderWebviewMotionStyles,
   renderWebviewScriptSection,
   renderWebviewStateScript,
   renderWebviewStyleSection,
@@ -44,6 +49,30 @@ describe('VS Code webview HTML nonce handling', () => {
 
     expect(styleNonce).toBeDefined();
     expect(styleSection).toBe(renderWebviewStyleSection(styleNonce ?? ''));
+  });
+
+  it('assembles the style section from focused CSS helpers', () => {
+    const styleNonce = 'style-test-nonce';
+    const section = renderWebviewStyleSection(styleNonce);
+    const helpers = [
+      renderWebviewBaseStyles(),
+      renderWebviewHeaderStyles(),
+      renderWebviewMessageStyles(),
+      renderWebviewComposerStyles(),
+      renderWebviewMotionStyles(),
+    ];
+
+    expect(section).toBe(`  <style nonce="${styleNonce}">
+${helpers.join('\n')}
+  </style>`);
+    expect(section).toContain(':root {');
+    expect(section).toContain('--accent: var(--vscode-button-background);');
+    expect(section).toContain('.config-banner.ready {');
+    expect(section).toContain('.messages {');
+    expect(section).toContain('.live-dot {');
+    expect(section).toContain('.composer-card:focus-within {');
+    expect(section).toContain('#prompt {');
+    expect(section).toContain('@media (prefers-reduced-motion: no-preference) {');
   });
 
   it('renders the script bootstrapping section through a focused renderer', () => {
