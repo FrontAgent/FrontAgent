@@ -149,10 +149,10 @@ importers:
         version: link:../shared
       '@langchain/core':
         specifier: ^1.1.47
-        version: 1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1)
+        version: 1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1)
       '@langchain/langgraph':
         specifier: ^1.3.2
-        version: 1.3.2(@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@3.25.76)
+        version: 1.3.6(@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@3.25.76)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
@@ -958,20 +958,20 @@ packages:
   '@ladybugdb/core@0.17.1':
     resolution: {integrity: sha512-K1bHnQrRy3bxkyrFHlxGqKUyIUS1LsRXKOSt14XGY/msBZHaDat/uBrlHiWpM4/24OtfOq/qwTqcTCXannnEjw==}
 
-  '@langchain/core@1.1.47':
-    resolution: {integrity: sha512-+fiPu6ZFnJMrZyKeM77OIVPoMPAY6OKWacnPlojHtXTbMMzb2cEOKAJV0U07cDl86NHSCIYYa0i4CyKZzXbHQQ==}
+  '@langchain/core@1.1.48':
+    resolution: {integrity: sha512-fQU6Guyb1pwc2fEplmA8FPbKfOMAofjnyJzExevro0FxEiuGHE18Ov/ZHmT9trWCDTZRI9eW1VIc6aChxV8pAQ==}
     engines: {node: '>=20'}
 
-  '@langchain/langgraph-checkpoint@1.0.2':
-    resolution: {integrity: sha512-F4E5Tr0nt8FGghgdscJtHw+ABzChOHeI80R7Y1pjIHdiJom6c2ieo76vL+FWiny80JmoGqhrVAEIWrw0cXKPxg==}
+  '@langchain/langgraph-checkpoint@1.0.4':
+    resolution: {integrity: sha512-1y5MgZ0gXXrtmoy56e3kaBChI3GwFPIKl27xkrHwN+VE/3iUsyr9gO3Jtp7kdKAe6diZGbcas5bdC/r0yUwTZA==}
     engines: {node: '>=18'}
     peerDependencies:
       '@langchain/core': ^1.1.44
 
-  '@langchain/langgraph-sdk@1.9.4':
-    resolution: {integrity: sha512-hhASJGKa2MDJDtDkuIFdWGysMTog/HkYe0r6B6Gn1XqsURWnF7FIFl9diITAPOv1tB8YpyjnbpsBj/NkT5d+jQ==}
+  '@langchain/langgraph-sdk@1.9.18':
+    resolution: {integrity: sha512-EQLlop/GLlm52Rii06oZDv1bPvrWARnDuzSY6in4d1gnZX2KSQvxajeZH8GYfMjapDVhbo324DRYJgL9euo2fg==}
     peerDependencies:
-      '@langchain/core': ^1.1.44
+      '@langchain/core': ^1.1.48
       react: ^18 || ^19
       react-dom: ^18 || ^19
       svelte: ^4.0.0 || ^5.0.0
@@ -986,19 +986,19 @@ packages:
       vue:
         optional: true
 
-  '@langchain/langgraph@1.3.2':
-    resolution: {integrity: sha512-SL7Ktsr681R7da+1b2MVOWEbaCoFJOXEJPTGOjg4JIG4C7quWbTYC8DzxhcCxte6D/8cGp0rYDBnbKLXEpNqlA==}
+  '@langchain/langgraph@1.3.6':
+    resolution: {integrity: sha512-OlpIhaMYs2IlN5hCGUMF9B/jgVacLK5nYbwri1AQatB+CcFIk1xVi9jHcD+fkAtn+7ExFbwiOAAdhuGeWQA9BA==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@langchain/core': ^1.1.44
+      '@langchain/core': ^1.1.48
       zod: ^3.25.32 || ^4.2.0
       zod-to-json-schema: ^3.x
     peerDependenciesMeta:
       zod-to-json-schema:
         optional: true
 
-  '@langchain/protocol@0.0.15':
-    resolution: {integrity: sha512-MllvbpMjqHevUm+v94M422mH7XKN+wGCvJRBVROTWBotEDOATYB4Ktk2UheYP859y9o2LlhtPek5t1T9eyfAbQ==}
+  '@langchain/protocol@0.0.16':
+    resolution: {integrity: sha512-ws+J7MaHyhO5dG7f0vdyHQiUn9hoCnki0f3crJPa4MCTGzcRC39jYSCghyrGtBPYQnZbUQiGyRVpW3z3M8IpJg==}
 
   '@modelcontextprotocol/sdk@1.29.0':
     resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
@@ -2042,8 +2042,8 @@ packages:
   jszip@3.10.1:
     resolution: {integrity: sha512-xXDvecyTpGLrqFrvkrUSoxxfJI5AH7U8zxxtVclpsUtMCq4JQ290LY8AW5c7Ggnr/Y/oK+bQMbqK2qmtk3pN4g==}
 
-  langsmith@0.7.1:
-    resolution: {integrity: sha512-Wjk90UjNoY5cBHMlNAC/eZx5clI8jnjBOBW8uJu8+MWBtx0QesNjsUiLtjI+I3UnrpxFFpDqGXcnhBjH654Mqg==}
+  langsmith@0.7.5:
+    resolution: {integrity: sha512-OeD6+yKtWwy6sAboq25kD5DICzYv7j2KgtV2n4LsJ8nU2LpEdt1UwbjA6BON/zTggmS/YjV2TtLTHd7VEJhtEA==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -3402,12 +3402,12 @@ snapshots:
       - '@75lb/nature'
       - supports-color
 
-  '@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1)':
+  '@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
       js-tiktoken: 1.0.21
-      langsmith: 0.7.1(@opentelemetry/api@1.9.0)(ws@8.20.1)
+      langsmith: 0.7.5(@opentelemetry/api@1.9.0)(ws@8.20.1)
       mustache: 4.2.0
       p-queue: 6.6.2
       zod: 3.25.76
@@ -3418,15 +3418,15 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/langgraph-checkpoint@1.0.2(@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1))':
+  '@langchain/langgraph-checkpoint@1.0.4(@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1))':
     dependencies:
-      '@langchain/core': 1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1)
+      '@langchain/core': 1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1)
       uuid: 14.0.0
 
-  '@langchain/langgraph-sdk@1.9.4(@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)':
+  '@langchain/langgraph-sdk@1.9.18(@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)':
     dependencies:
-      '@langchain/core': 1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1)
-      '@langchain/protocol': 0.0.15
+      '@langchain/core': 1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1)
+      '@langchain/protocol': 0.0.16
       '@types/json-schema': 7.0.15
       p-queue: 9.3.0
       p-retry: 7.1.1
@@ -3434,12 +3434,12 @@ snapshots:
     optionalDependencies:
       react: 18.3.1
 
-  '@langchain/langgraph@1.3.2(@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@3.25.76)':
+  '@langchain/langgraph@1.3.6(@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@3.25.76)':
     dependencies:
-      '@langchain/core': 1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1)
-      '@langchain/langgraph-checkpoint': 1.0.2(@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1))
-      '@langchain/langgraph-sdk': 1.9.4(@langchain/core@1.1.47(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)
-      '@langchain/protocol': 0.0.15
+      '@langchain/core': 1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1)
+      '@langchain/langgraph-checkpoint': 1.0.4(@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1))
+      '@langchain/langgraph-sdk': 1.9.18(@langchain/core@1.1.48(@opentelemetry/api@1.9.0)(ws@8.20.1))(react@18.3.1)
+      '@langchain/protocol': 0.0.16
       '@standard-schema/spec': 1.1.0
       uuid: 14.0.0
       zod: 3.25.76
@@ -3451,7 +3451,7 @@ snapshots:
       - svelte
       - vue
 
-  '@langchain/protocol@0.0.15': {}
+  '@langchain/protocol@0.0.16': {}
 
   '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
     dependencies:
@@ -4532,7 +4532,7 @@ snapshots:
       readable-stream: 2.3.8
       setimmediate: 1.0.5
 
-  langsmith@0.7.1(@opentelemetry/api@1.9.0)(ws@8.20.1):
+  langsmith@0.7.5(@opentelemetry/api@1.9.0)(ws@8.20.1):
     dependencies:
       p-queue: 6.6.2
     optionalDependencies:
