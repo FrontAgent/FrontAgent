@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/mcp-file",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "MCP File Adapter - 文件操作 MCP Server",
   "type": "module",
   "main": "./dist/index.js",
