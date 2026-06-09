@@ -376,6 +376,16 @@ test('workflow doc links the detailed OSS Harness workflow asset', () => {
   assert.match(detailedWorkflow, /Maintainers decide merge readiness/u);
 });
 
+test('README links the current FrontAgent planner Hugging Face collection', () => {
+  const readme = readFileSync('README.md', 'utf8');
+
+  assert.match(
+    readme,
+    /https:\/\/hf\.co\/collections\/ceilf6\/frontagent-frontend-engineering-agent/u,
+  );
+  assert.doesNotMatch(readme, /https:\/\/huggingface\.co\/ceilf6\/frontagent-planner-7B-lora/u);
+});
+
 test('local Claude state markdown remains ignored', () => {
   assert.doesNotThrow(() =>
     execFileSync('git', ['check-ignore', '-q', '.claude/repo-evolver.local.md']),
