@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/mcp-memory",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "MCP Memory Adapter - remote knowledge sync and RAG query",
   "type": "module",
   "main": "./dist/index.js",
