@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CONTRACT_DIFF_FILTER,
@@ -35,6 +36,7 @@ if (isMainModule()) {
 }
 
 function runBootstrap() {
+  assertGitWorkspaceRootMatchesCwd();
   execFileSync('node', ['scripts/workflows/install-hooks.mjs'], { stdio: 'inherit' });
   console.log('Agent bootstrap complete.');
   console.log(
@@ -53,6 +55,7 @@ function runBootstrap() {
 }
 
 function runGitNexusContract({ mode }) {
+  assertGitWorkspaceRootMatchesCwd();
   runGitNexusAnalyze(mode);
 
   const changedFiles = getChangedFiles(mode);
@@ -65,6 +68,29 @@ function runGitNexusContract({ mode }) {
 
   printContractResult('GitNexus contract', result);
   if (!result.ok) process.exitCode = 1;
+}
+
+export function assertGitWorkspaceRootMatchesCwd(options = {}) {
+  const cwd = normalizeWorkspacePath(options.cwd ?? process.cwd());
+  const gitText = options.gitText ?? ((args) => execFileSync('git', args, { encoding: 'utf8' }));
+  const gitTopLevel = normalizeWorkspacePath(gitText(['rev-parse', '--show-toplevel']).trim());
+  const coreWorktree = readOptionalGitText(gitText, ['config', '--get', 'core.worktree']);
+  const normalizedCoreWorktree = coreWorktree ? resolveCoreWorktreePath(coreWorktree, gitText) : '';
+
+  if (gitTopLevel === cwd && (!normalizedCoreWorktree || normalizedCoreWorktree === cwd)) return;
+
+  throw new Error(
+    [
+      'Git workspace root mismatch detected before running the FrontAgent agent workflow.',
+      `- Current workspace root: ${cwd}`,
+      `- git rev-parse --show-toplevel: ${gitTopLevel}`,
+      `- git config --get core.worktree: ${normalizedCoreWorktree || '<unset>'}`,
+      'Git is resolving a different workspace than the directory running this workflow, which can make bootstrap or GitNexus analyze inspect the wrong files.',
+      `Fix linked worktrees with: git config --worktree core.worktree "${cwd}"`,
+      'For a normal checkout with a stale value, run: git config --unset core.worktree',
+      'Then rerun pnpm agent:bootstrap.',
+    ].join('\n'),
+  );
 }
 
 export function getChangedFiles(mode, options = {}) {
@@ -125,6 +151,15 @@ export function getChangedFiles(mode, options = {}) {
     git.lines(['diff', '--name-only', `--diff-filter=${CONTRACT_DIFF_FILTER}`, 'HEAD']),
     git.lines(['ls-files', '--others', '--exclude-standard']),
   );
+}
+
+function readOptionalGitText(gitText, args) {
+  try {
+    return gitText(args).trim();
+  } catch (err) {
+    if (typeof err?.status === 'number' && err.status !== 0) return '';
+    throw err;
+  }
 }
 
 function getImpactSummary() {
@@ -219,6 +254,18 @@ function fetchBaseRef(baseBranch) {
   execFileSync('git', ['fetch', '--no-tags', '--depth=1', 'origin', baseBranch], {
     stdio: 'inherit',
   });
+}
+
+function normalizeWorkspacePath(value) {
+  const path = resolve(value);
+  return existsSync(path) ? realpathSync(path) : path;
+}
+
+function resolveCoreWorktreePath(coreWorktree, gitText) {
+  if (isAbsolute(coreWorktree)) return normalizeWorkspacePath(coreWorktree);
+
+  const gitDir = normalizeWorkspacePath(gitText(['rev-parse', '--git-dir']).trim());
+  return normalizeWorkspacePath(resolve(gitDir, coreWorktree));
 }
 
 function isMainModule() {

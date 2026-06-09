@@ -32,6 +32,10 @@ vi.mock('./run.js', () => ({
   planFrontAgentTask,
 }));
 
+vi.mock('./sampling-llm.js', () => ({
+  SamplingLLMBackend: vi.fn(function SamplingLLMBackend() {}),
+}));
+
 const { createFrontAgentMcpServer } = await import('./mcp-server.js');
 
 function getRequestHandler(
@@ -54,6 +58,10 @@ function getRequestHandler(
 function parseTextResult(result: unknown): Record<string, unknown> {
   const text = (result as { content: Array<{ type: string; text: string }> }).content[0]?.text;
   return JSON.parse(text) as Record<string, unknown>;
+}
+
+function textResultIsError(result: unknown): boolean | undefined {
+  return (result as { isError?: boolean }).isError;
 }
 
 type ListedTool = {
@@ -168,6 +176,16 @@ function expectSharedTaskSchema(tool: ListedTool): void {
   });
 }
 
+const securityDecision = {
+  decision: 'deny',
+  riskLevel: 'high',
+  reasonCode: 'blocked_command',
+  message: 'Command blocked',
+  toolName: 'run_command',
+  argsSummary: 'rm -rf dist',
+  provenance: [{ source: 'builtin', ruleId: 'dangerous-command' }],
+};
+
 describe('createFrontAgentMcpServer contract', () => {
   beforeEach(() => {
     listSkills.mockClear();
@@ -257,5 +275,122 @@ describe('createFrontAgentMcpServer contract', () => {
     expect(listSkills).toHaveBeenCalledTimes(1);
     expect(runFrontAgentTask).not.toHaveBeenCalled();
     expect(planFrontAgentTask).not.toHaveBeenCalled();
+  });
+
+  it('dispatches frontagent_run_task with stable payload and error flag', async () => {
+    runFrontAgentTask.mockImplementationOnce(async (options) => {
+      options.onRunLogPath('/workspace/project/.frontagent/runs/run-1.json');
+      options.onEvent({ type: 'security_decision', decision: securityDecision });
+      return {
+        success: false,
+        taskId: 'task-1',
+        output: 'partial output',
+        error: 'run failed',
+        duration: 42,
+        validations: [],
+        executedSteps: [
+          {
+            stepId: 'step-1',
+            phase: 'Build',
+            action: 'run',
+            tool: 'run_command',
+            status: 'failed',
+            description: 'Run build',
+            result: { success: false, error: 'command denied' },
+          },
+        ],
+      };
+    });
+    const server = createFrontAgentMcpServer({ projectRoot: '/workspace/project' });
+    const handler = getRequestHandler(server, CallToolRequestSchema.shape.method.value);
+
+    const result = await handler({
+      method: 'tools/call',
+      params: {
+        name: 'frontagent_run_task',
+        arguments: {
+          task: 'Build project',
+          type: 'test',
+          securityMode: 'strict',
+        },
+      },
+    });
+    const payload = parseTextResult(result);
+
+    expect(payload).toEqual({
+      success: false,
+      taskId: 'task-1',
+      output: 'partial output',
+      error: 'run failed',
+      duration: 42,
+      runLogPath: '/workspace/project/.frontagent/runs/run-1.json',
+      executedStepsSummary: [
+        {
+          stepId: 'step-1',
+          phase: 'Build',
+          action: 'run',
+          tool: 'run_command',
+          status: 'failed',
+          description: 'Run build',
+          error: 'command denied',
+        },
+      ],
+      securityDecisions: [securityDecision],
+    });
+    expect(textResultIsError(result)).toBe(true);
+    expect(runFrontAgentTask).toHaveBeenCalledTimes(1);
+    expect(planFrontAgentTask).not.toHaveBeenCalled();
+  });
+
+  it('dispatches frontagent_plan_task with stable payload and success flag', async () => {
+    planFrontAgentTask.mockImplementationOnce(async (options) => {
+      options.onRunLogPath('/workspace/project/.frontagent/runs/plan-1.json');
+      options.onEvent({ type: 'security_decision', decision: securityDecision });
+      return {
+        success: true,
+        taskId: 'plan-1',
+        plan: {
+          taskId: 'plan-1',
+          phases: [],
+          steps: [],
+          estimatedDuration: 0,
+          risks: [],
+        },
+        duration: 7,
+      };
+    });
+    const server = createFrontAgentMcpServer({ projectRoot: '/workspace/project' });
+    const handler = getRequestHandler(server, CallToolRequestSchema.shape.method.value);
+
+    const result = await handler({
+      method: 'tools/call',
+      params: {
+        name: 'frontagent_plan_task',
+        arguments: {
+          task: 'Plan project',
+          type: 'query',
+          disableRag: true,
+        },
+      },
+    });
+    const payload = parseTextResult(result);
+
+    expect(payload).toEqual({
+      success: true,
+      taskId: 'plan-1',
+      plan: {
+        taskId: 'plan-1',
+        phases: [],
+        steps: [],
+        estimatedDuration: 0,
+        risks: [],
+      },
+      duration: 7,
+      runLogPath: '/workspace/project/.frontagent/runs/plan-1.json',
+      securityDecisions: [securityDecision],
+    });
+    expect(textResultIsError(result)).toBe(false);
+    expect(planFrontAgentTask).toHaveBeenCalledTimes(1);
+    expect(runFrontAgentTask).not.toHaveBeenCalled();
   });
 });

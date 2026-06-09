@@ -7,6 +7,10 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { inferDirectoryPurpose, inferImportance, scoreCandidate } from './engine-helpers.js';
+import { type ComparableIndex, persistDirectoryIndex } from './engine-indexing.js';
+import { buildNotesFile, inferConventions } from './engine-notes.js';
+import { buildQueryResult } from './engine-query.js';
+import { ensureSchemaFiles, relativeSchemaRef, schemaPathsForRoot } from './engine-schema.js';
 import type {
   CheckSummary,
   ChildEntry,
@@ -74,6 +78,8 @@ function sameSet(left: Set<string>, right: Set<string>): boolean {
   return true;
 }
 
+const schemaFileDeps = { exists, readJson, stableStringify, writeJson };
+
 // ─── Config & Ignore ───────────────────────────────────────────────────────────
 
 export async function loadConfig(root: string): Promise<FilesenseConfig> {
@@ -137,142 +143,6 @@ async function resolveRootAndConfig(targetPath: string) {
   const config = await loadConfig(root);
   const ignores = await loadIgnoreMatcher(root, config);
   return { root, config, ignores };
-}
-
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-function schemaPathsForRoot(root: string, config: FilesenseConfig) {
-  return {
-    indexSchemaPath: path.join(root, config.schemaDir, 'FILES.schema.json'),
-    notesSchemaPath: path.join(root, config.schemaDir, 'FILES.notes.schema.json'),
-  };
-}
-
-function relativeSchemaRef(dirPath: string, schemaPath: string): string {
-  return path.relative(dirPath, schemaPath).replace(/\\/g, '/');
-}
-
-async function ensureSchemaFiles(root: string, config: FilesenseConfig): Promise<void> {
-  const paths = schemaPathsForRoot(root, config);
-  const indexSchema = buildIndexSchema(config);
-  const notesSchema = buildNotesSchema(config);
-
-  const readSafe = async (p: string) => {
-    try {
-      return await readJson(p);
-    } catch {
-      return null;
-    }
-  };
-
-  if (
-    !(await exists(paths.indexSchemaPath)) ||
-    stableStringify(await readSafe(paths.indexSchemaPath)) !== stableStringify(indexSchema)
-  ) {
-    await writeJson(paths.indexSchemaPath, indexSchema);
-  }
-  if (
-    !(await exists(paths.notesSchemaPath)) ||
-    stableStringify(await readSafe(paths.notesSchemaPath)) !== stableStringify(notesSchema)
-  ) {
-    await writeJson(paths.notesSchemaPath, notesSchema);
-  }
-}
-
-function buildIndexSchema(config: FilesenseConfig): Record<string, unknown> {
-  return {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: `https://filesense.dev/schema/${config.schemaVersion}/FILES.schema.json`,
-    title: 'FILES.json',
-    type: 'object',
-    required: [
-      'schema_version',
-      'generated_at',
-      'root_relative_path',
-      'directory',
-      'children',
-      'sync',
-    ],
-    additionalProperties: false,
-    properties: {
-      $schema: { type: 'string' },
-      schema_version: { type: 'string' },
-      generated_at: { type: 'string' },
-      root_relative_path: { type: 'string' },
-      directory: {
-        type: 'object',
-        required: ['name', 'path'],
-        additionalProperties: false,
-        properties: { name: { type: 'string' }, path: { type: 'string' } },
-      },
-      children: {
-        type: 'array',
-        items: {
-          type: 'object',
-          required: [
-            'name',
-            'type',
-            'path',
-            'ext',
-            'size',
-            'mtimeMs',
-            'hash',
-            'summary',
-            'importance',
-            'status',
-          ],
-          additionalProperties: false,
-          properties: {
-            name: { type: 'string' },
-            type: { enum: ['file', 'dir'] },
-            path: { type: 'string' },
-            ext: { type: 'string' },
-            size: { type: 'number' },
-            mtimeMs: { type: 'number' },
-            hash: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-            summary: { type: 'string' },
-            importance: { enum: ['high', 'normal'] },
-            status: { enum: ['active'] },
-          },
-        },
-      },
-      sync: {
-        type: 'object',
-        required: [
-          'child_count',
-          'file_count',
-          'dir_count',
-          'last_full_sync',
-          'last_incremental_sync',
-        ],
-        additionalProperties: false,
-        properties: {
-          child_count: { type: 'number' },
-          file_count: { type: 'number' },
-          dir_count: { type: 'number' },
-          last_full_sync: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-          last_incremental_sync: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-        },
-      },
-    },
-  };
-}
-
-function buildNotesSchema(config: FilesenseConfig): Record<string, unknown> {
-  return {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: `https://filesense.dev/schema/${config.schemaVersion}/FILES.notes.schema.json`,
-    title: 'FILES.notes.json',
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      $schema: { type: 'string' },
-      directory_purpose: { type: 'string' },
-      agent_hints: { type: 'array', items: { type: 'string' } },
-      conventions: { type: 'array', items: { type: 'string' } },
-      key_entrypoints: { type: 'array', items: { type: 'string' } },
-    },
-  };
 }
 
 // ─── Directory Walking ─────────────────────────────────────────────────────────
@@ -365,121 +235,7 @@ function inferSummary(name: string): string {
   return `${ext.slice(1).toUpperCase()} file`;
 }
 
-function inferAgentHints(index: IndexFile): string[] {
-  const hints: string[] = [];
-  const names = new Set(index.children.map((c) => c.name));
-  const entrypoints = inferKeyEntrypoints(index);
-  if (entrypoints.length > 0)
-    hints.push(
-      `Read ${entrypoints.slice(0, 3).join(', ')} first for local entrypoints and conventions.`,
-    );
-  if (names.has('package.json'))
-    hints.push('Inspect package.json before changing scripts, package metadata, or dependencies.');
-  if (names.has('tsconfig.json'))
-    hints.push('Respect tsconfig.json compiler settings when adding or moving TypeScript files.');
-  if (
-    index.children.some((c) => c.type === 'dir') &&
-    index.children.filter((c) => c.type === 'file').length <= 2
-  ) {
-    hints.push(
-      'Descend into child directories before making edits here; this level is mostly structural.',
-    );
-  }
-  if (hints.length === 0)
-    hints.push(
-      'Start from high-importance files before editing lower-level implementation details.',
-    );
-  return hints.slice(0, 4);
-}
-
-function inferConventions(index: IndexFile): string[] {
-  const conventions: string[] = [];
-  if (index.children.some((c) => ['.ts', '.tsx'].includes(c.ext)))
-    conventions.push('Prefer TypeScript for new source files in this directory.');
-  if (index.children.some((c) => c.ext === '.tsx' && /^[A-Z]/.test(c.name)))
-    conventions.push('Component-like files use PascalCase filenames.');
-  if (index.children.some((c) => /test|spec/i.test(c.name)))
-    conventions.push('Keep tests close to the implementation they validate.');
-  if (index.children.some((c) => c.name === 'README.md'))
-    conventions.push('Update README.md when directory-level usage or setup changes.');
-  if (conventions.length === 0)
-    conventions.push('Preserve the local naming and file-placement patterns already present here.');
-  return conventions.slice(0, 4);
-}
-
-function inferKeyEntrypoints(index: IndexFile): string[] {
-  const preferred = [
-    'README.md',
-    'package.json',
-    'tsconfig.json',
-    'index.ts',
-    'index.tsx',
-    'main.ts',
-    'main.js',
-    'App.tsx',
-    'App.vue',
-  ];
-  const names = index.children.map((c) => c.name);
-  const selected = preferred.filter((n) => names.includes(n));
-  if (selected.length > 0) return selected.slice(0, 6);
-  return index.children
-    .filter((c) => c.type === 'file' && c.importance === 'high')
-    .map((c) => c.name)
-    .slice(0, 6);
-}
-
-function buildNotesFile(
-  root: string,
-  dirPath: string,
-  config: FilesenseConfig,
-  index: IndexFile,
-  previous: NotesFile | null,
-  force: boolean,
-): NotesFile {
-  const inferred: NotesFile = {
-    $schema: relativeSchemaRef(dirPath, schemaPathsForRoot(root, config).notesSchemaPath),
-    directory_purpose: inferDirectoryPurpose(index),
-    agent_hints: inferAgentHints(index),
-    conventions: inferConventions(index),
-    key_entrypoints: inferKeyEntrypoints(index),
-  };
-  if (!previous || force) return inferred;
-  return {
-    $schema: inferred.$schema,
-    directory_purpose: previous.directory_purpose || inferred.directory_purpose,
-    agent_hints: previous.agent_hints?.length ? previous.agent_hints : inferred.agent_hints,
-    conventions: previous.conventions?.length ? previous.conventions : inferred.conventions,
-    key_entrypoints: previous.key_entrypoints?.length
-      ? previous.key_entrypoints
-      : inferred.key_entrypoints,
-  };
-}
-
 // ─── Core Operations ───────────────────────────────────────────────────────────
-
-interface ComparableIndex {
-  $schema?: string;
-  schema_version: string;
-  root_relative_path: string;
-  directory: { name: string; path: string };
-  children: ChildEntry[];
-  sync: { child_count: number; file_count: number; dir_count: number };
-}
-
-function comparableIndex(index: IndexFile): ComparableIndex {
-  return {
-    $schema: index.$schema,
-    schema_version: index.schema_version,
-    root_relative_path: index.root_relative_path,
-    directory: index.directory,
-    children: index.children,
-    sync: {
-      child_count: index.sync.child_count,
-      file_count: index.sync.file_count,
-      dir_count: index.sync.dir_count,
-    },
-  };
-}
 
 async function writeDirectoryIndex(
   root: string,
@@ -544,7 +300,6 @@ async function writeDirectoryIndex(
   children.sort((a, b) => a.name.localeCompare(b.name));
   const relativePath = relativeToRoot(root, dirPath);
   const nextSchema = relativeSchemaRef(dirPath, schemaPathsForRoot(root, config).indexSchemaPath);
-  const previousComparable = previous ? comparableIndex(previous) : null;
   const nextComparable: ComparableIndex = {
     $schema: nextSchema,
     schema_version: config.schemaVersion,
@@ -558,30 +313,15 @@ async function writeDirectoryIndex(
     },
   };
 
-  if (
-    previousComparable &&
-    stableStringify(previousComparable) === stableStringify(nextComparable)
-  ) {
-    return { filesHashed, wroteIndex: false };
-  }
-
-  const timestamp = new Date().toISOString();
-  const nextIndex: IndexFile = {
-    $schema: nextSchema,
-    schema_version: config.schemaVersion,
-    generated_at: timestamp,
-    root_relative_path: relativePath,
-    directory: { name: path.basename(dirPath), path: relativePath },
-    children,
-    sync: {
-      ...nextComparable.sync,
-      last_full_sync: forceFull ? timestamp : (previous?.sync.last_full_sync ?? null),
-      last_incremental_sync: timestamp,
-    },
-  };
-
-  await writeJson(indexPath, nextIndex);
-  return { filesHashed, wroteIndex: true };
+  return persistDirectoryIndex({
+    indexPath,
+    previous,
+    nextComparable,
+    forceFull,
+    filesHashed,
+    stableStringify,
+    writeJson,
+  });
 }
 
 // ─── Public API ────────────────────────────────────────────────────────────────
@@ -612,7 +352,7 @@ export async function init(targetPath: string): Promise<SyncSummary> {
     );
   }
   const config = await loadConfig(root);
-  await ensureSchemaFiles(root, config);
+  await ensureSchemaFiles(root, config, schemaFileDeps);
   return syncIndexes(root, false);
 }
 
@@ -625,7 +365,7 @@ export async function syncIndexes(
   options: { depth?: number; maxEntries?: number; timeoutMs?: number } = {},
 ): Promise<SyncSummary> {
   const { root, config, ignores } = await resolveRootAndConfig(targetPath);
-  await ensureSchemaFiles(root, config);
+  await ensureSchemaFiles(root, config, schemaFileDeps);
   const summary: SyncSummary = {
     root,
     directoriesScanned: 0,
@@ -665,7 +405,7 @@ export async function syncIndexes(
  */
 export async function summarize(targetPath: string, force = false): Promise<SummarizeSummary> {
   const { root, config, ignores } = await resolveRootAndConfig(targetPath);
-  await ensureSchemaFiles(root, config);
+  await ensureSchemaFiles(root, config, schemaFileDeps);
   const summary: SummarizeSummary = {
     root,
     directoriesScanned: 0,
@@ -691,7 +431,13 @@ export async function summarize(targetPath: string, force = false): Promise<Summ
       const previous = (await exists(notesPath))
         ? ((await readJson(notesPath)) as NotesFile)
         : null;
-      const next = buildNotesFile(root, dirPath, config, index, previous, force);
+      const next = buildNotesFile(
+        dirPath,
+        schemaPathsForRoot(root, config).notesSchemaPath,
+        index,
+        previous,
+        force,
+      );
 
       if (previous && stableStringify(previous) === stableStringify(next)) {
         summary.notesSkipped += 1;
@@ -773,7 +519,6 @@ export async function check(targetPath: string): Promise<CheckSummary> {
 export async function query(targetPath: string): Promise<QueryResult> {
   const target = path.resolve(targetPath);
   const { root, config } = await resolveRootAndConfig(target);
-  const relative = path.relative(root, target);
   const indexPath = path.join(target, config.indexFile);
   if (!(await exists(indexPath)))
     throw new Error(`No ${config.indexFile} found in ${target}. Run sync first.`);
@@ -782,7 +527,7 @@ export async function query(targetPath: string): Promise<QueryResult> {
   const notesPath = path.join(target, config.notesFile);
   const notes = (await exists(notesPath)) ? ((await readJson(notesPath)) as NotesFile) : null;
 
-  return { root, target, rootRelativePath: relative === '' ? '.' : relative, index, notes };
+  return buildQueryResult({ root, target, index, notes });
 }
 
 function detectPackageManager(indexes: IndexFile[]): string | undefined {
