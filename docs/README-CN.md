@@ -14,7 +14,7 @@
 
 FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在真实工程场景中部署 agent 时遇到的核心问题：
 
-> **蒸馏规划模型**：FrontAgent 的 Planner 阶段已蒸馏为一个独立的小模型 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)，可基于 Qwen2.5-Coder-7B 加载 LoRA adapter 直接生成前端执行计划，无需调用大型 LLM API。训练流程、提示词、评估脚本和 Hugging Face 发布元数据已统一放在 [models/frontagent-planner](../models/frontagent-planner)。
+> **蒸馏 Planner 模型**：FrontAgent 的 Planner 阶段已蒸馏为 Hugging Face Planner 资产，统一收录在 [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent)。在支持的 Qwen Coder 基座模型上加载已发布 adapter，即可直接生成前端执行计划，无需调用大型 LLM API。训练流程、提示词、评估脚本和 Hugging Face 发布元数据位于 [models/frontagent-planner](../models/frontagent-planner)。
 
 - ✅ **两阶段架构** — 规划与执行分离，避免 JSON 解析错误并支持动态代码生成
 - ✅ **分阶段执行** — 步骤按阶段分组，支持阶段内错误恢复
@@ -30,12 +30,24 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在�
 - ✅ **预规划扫描** — 规划前扫描项目结构以生成准确路径
 - ✅ **自动端口检测** — 从配置文件自动检测开发服务器端口
 - ✅ **远程混合 RAG** — 对整个远程仓库建索引并自动排除子模块，组合 BM25 关键词检索与 embedding 语义检索
+- ✅ **Filesense 导航** — 面向当前仓库的预算化导航，生成 schema 与笔记
 - ✅ **LangGraph 引擎（可选）** — 可切换图执行引擎并支持可选 checkpoint
 - ✅ **Planner Skills 层** — 可复用的规划技能封装（任务拆解与阶段注入）
-- ✅ **蒸馏 Planner 资产** — 在仓库内统一维护 Planner LoRA 模型的训练、评估与发布资料
+- ✅ **蒸馏 Planner 资产** — 仓库原生维护 Hugging Face Planner 模型集合的训练、评估与发布资产
 - ✅ **Skill Lab** — 通过本地 eval 套件对内容技能做 benchmark、改进与提升
+- ✅ **VS Code 侧边栏** — Marketplace 插件提供任务运行、SDD 辅助、安全配置与运行日志
+- ✅ **OSS Harness** — 面向维护者友好的本地 contract、quality、GitNexus 与 workflow gates
 - ✅ **仓库管理阶段** — 验收通过后自动执行 git/gh 流程（commit/push/PR）
 - ✅ **跨会话记忆** — 四阶段记忆体系（预加载、运行时召回、任务后持久化、结构化存储），跨运行保留项目事实、错误修复经验与依赖状态
+
+## 当前发布快照
+
+当前仓库的 npm CLI 包与 VS Code 插件均对齐到 `frontagent@2.1.1`。
+
+- 运行时要求：Node.js `>=20.0.0`；VS Code 插件 engine 为 `^1.120.0`。
+- 构建产物：`pnpm build` 会构建 monorepo、打包 CLI、同步 VS Code 版本，并生成 `apps/vscode/frontagent-2.1.1.vsix`。
+- 质量门禁：`pnpm quality:predev`、`pnpm quality:precommit`、`pnpm quality:ci` 和 `pnpm quality:local` 会组合执行 contract 检查、lint、typecheck、测试、workflow 测试与构建验证。
+- v2.1.1 重点：拆小 agent/executor/context/Filesense/memory/runtime/webview 模块，加固 VS Code webview nonce 生成，恢复 GitNexus contract checks，并扩展 focused tests。
 
 ## 两种使用方式
 
@@ -83,18 +95,41 @@ fa run "添加路由守卫并创建 PR" --engine langgraph --langgraph-checkpoin
 
 ## MCP Server
 
-FrontAgent 可以作为本地 stdio MCP Server 接入 Claude Desktop、Cursor、Codex 等 MCP Host。
+FrontAgent 可以作为本地 stdio MCP Server 接入 Claude Desktop、Cursor、Codex，以及其他可以启动命令式 MCP Server 的客户端。
 
-默认启动：
+MCP 模式只向外部 Host 暴露 FrontAgent 的上层 agent 能力，不直接暴露 `read_file`、`apply_patch`、`run_command`、browser tools 或 `rag_query` 等内部原始工具。
+
+### 启动 Server
 
 ```bash
+# 使用已安装的 CLI
 fa mcp serve
+
+# 或者在源码 checkout 中先执行 pnpm build，再运行构建后的 CLI
+node /absolute/path/to/FrontAgent-app/apps/cli/dist/index.js \
+  mcp serve
 ```
 
-FrontAgent 会优先使用 MCP Host 暴露的单一 workspace root 作为项目根目录；如果 Host 不提供 roots，则退回 MCP Server 进程的当前工作目录。只有需要固定项目，或 Host 暴露多个 workspace roots 时，才需要显式指定：
+默认情况下，如果 MCP Host 暴露且只暴露一个 file root，FrontAgent 会把该 workspace root 作为项目根目录。若 Host 没有暴露 roots，则退回 MCP Server 进程的当前工作目录。
+
+只有需要固定项目，或 Host 暴露多个 workspace roots 且 FrontAgent 无法安全选择时，才需要使用 `--project-root`：
 
 ```bash
 fa mcp serve --project-root /absolute/path/to/your-project
+```
+
+一个 MCP Server 进程绑定一个已解析的项目根目录。
+
+常用 server 参数：
+
+```bash
+fa mcp serve \
+  --engine native \
+  --security-mode balanced \
+  --rag-repo https://github.com/ceilf6/Lab.git \
+  --rag-branch main \
+  --filesense-enabled true \
+  --log-file .frontagent/runs/mcp-server.log
 ```
 
 ### Host 配置
@@ -163,14 +198,17 @@ which fa
 }
 ```
 
-如需 direct LLM fallback，可通过 Host 配置传入环境变量：
+如果需要 direct LLM fallback，可通过 Host 配置传入环境变量：
 
 ```json
 {
   "mcpServers": {
     "frontagent": {
       "command": "fa",
-      "args": ["mcp", "serve"],
+      "args": [
+        "mcp",
+        "serve"
+      ],
       "env": {
         "PROVIDER": "openai",
         "BASE_URL": "https://api.openai.com/v1",
@@ -182,18 +220,65 @@ which fa
 }
 ```
 
+配置位置示例：
+
+- Claude Desktop：在 `claude_desktop_config.json` 的 `mcpServers` 下添加 server。
+- Cursor：在 Cursor MCP 配置中添加到 `mcpServers`，例如 `.cursor/mcp.json`。
+- Codex 或其他 MCP Host：在 Host 的 MCP Server 配置界面中使用相同的 command、args 和 env 值。
+
 ### 暴露的 MCP 工具
 
-FrontAgent 只暴露上层能力，不直接暴露内部 `read_file`、`apply_patch`、`run_command`、browser 或 RAG 底层工具。
+FrontAgent 暴露六个 MCP 工具：
 
 - `frontagent_status`：查看项目、SDD、skills、LLM backend、RAG、日志状态。
-- `frontagent_run_task`：执行完整 FrontAgent 任务。
+- `frontagent_run_task`：执行完整 FrontAgent 任务。输入包括 `task`、`type`、`files`、`url`、`sddPath` 和 `securityMode`。
 - `frontagent_plan_task`：只生成执行计划，不执行、不写文件。
 - `frontagent_validate_sdd`：校验 SDD。
 - `frontagent_list_skills`：列出可见内容技能。
 - `frontagent_init_sdd`：初始化 SDD；已存在时默认不覆盖，除非 `force=true`。
 
-MCP 模式默认使用 `auto` LLM backend：Host 支持 MCP Sampling 时优先使用 Host 模型；否则回退到 FrontAgent direct LLM 配置。由于 stdio MCP 没有 FrontAgent 的交互审批 UI，需要审批的动作会 fail-closed。
+`frontagent_run_task` 返回结构化 JSON 文本：
+
+```json
+{
+  "success": true,
+  "taskId": "task_...",
+  "output": "...",
+  "error": null,
+  "duration": 1234,
+  "runLogPath": "/absolute/path/.frontagent/runs/...",
+  "executedStepsSummary": [],
+  "securityDecisions": []
+}
+```
+
+### LLM Backend 行为
+
+MCP 模式使用 `auto` LLM backend 选择：
+
+1. 如果 Host 支持 MCP Sampling，FrontAgent 会通过 `sampling/createMessage` 请求 Host 模型。
+2. 如果 Sampling 不支持或不可用，FrontAgent 会回退到 direct LLM 配置。
+
+Direct fallback 使用与 `fa run` 相同的环境变量和 flags：
+
+```bash
+export PROVIDER="openai"
+export BASE_URL="https://api.openai.com/v1"
+export MODEL="gpt-4"
+export API_KEY="sk-..."
+```
+
+只读工具如 `frontagent_status`、`frontagent_list_skills`、`frontagent_validate_sdd` 和 `frontagent_init_sdd` 不需要 LLM 配置。`frontagent_run_task` 和 `frontagent_plan_task` 需要 Host Sampling 支持或有效的 direct LLM fallback。
+
+### 安全模型
+
+MCP 模式保留 FrontAgent 内部安全边界：
+
+- 外部 MCP Host 不能直接调用内部文件、shell、browser 或 RAG 工具。
+- 内部文件写入、shell 命令、browser 操作和其他副作用仍会经过 `SecurityManager`。
+- 默认安全模式为 `balanced`。
+- 因为 stdio MCP 没有 FrontAgent 的交互审批 UI，任何需要 `ask` 决策的动作都会 fail closed。
+- `frontagent_init_sdd` 只会在配置的项目根目录内写入 SDD 文件。
 
 ## 远程 RAG
 
@@ -208,6 +293,7 @@ FrontAgent 现在支持一个面向整个远程仓库的知识库流程，用于
 默认知识源：
 
 - 仓库：`https://github.com/ceilf6/Lab.git`
+- Source mode：默认是 `git`；当配置了 `FRONTAGENT_OPENVIKING_ENDPOINT` 时，FrontAgent 默认使用 `composite`（优先 `OpenViking`，Git RAG 作为 fallback）
 
 CLI 参数：
 
@@ -229,7 +315,9 @@ fa run "解释 React setState 的行为" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
-  --rag-embedding-model text-embedding-3-small
+  --rag-embedding-model text-embedding-3-small \
+  --rag-embedding-batch-size 32 \
+  --rag-embedding-timeout-ms 30000
 
 # 使用 Weaviate 作为语义向量库（BM25 仍保留本地索引）
 fa run "解释 React setState 的行为" \
@@ -239,7 +327,23 @@ fa run "解释 React setState 的行为" \
   --rag-embedding-model text-embedding-3-small \
   --rag-vector-store-provider weaviate \
   --rag-weaviate-url http://127.0.0.1:8080 \
-  --rag-weaviate-collection-prefix FrontAgentRagChunk
+  --rag-weaviate-collection-prefix FrontAgentRagChunk \
+  --rag-weaviate-batch-size 64 \
+  --rag-weaviate-timeout-ms 30000
+
+# 使用 OpenViking Wiki 作为主知识提供方，并保留 Git RAG fallback
+fa run "FrontAgent RAG 在哪里实现？" \
+  --rag-source composite \
+  --open-viking-endpoint https://openviking.example.com/query \
+  --open-viking-corpus wiki \
+  --open-viking-namespace docs/openviking \
+  --open-viking-l1-entry docs/openviking/frontagent-l1.md
+
+# 只使用 OpenViking，并禁用 Git fallback
+fa run "FrontAgent RAG 在哪里实现？" \
+  --rag-source openviking \
+  --open-viking-endpoint https://openviking.example.com/query \
+  --disable-open-viking-fallback
 
 # 禁用检索前的 LLM 查询优化
 fa run "如何自实现选择框" \
@@ -252,7 +356,8 @@ fa run "解释 React setState 的行为" \
   --api-key YOUR_TOKEN \
   --rag-embedding-model text-embedding-3-small \
   --rag-reranker-model jina-reranker-v2-base-multilingual \
-  --rag-reranker-base-url https://your-reranker-endpoint/v1
+  --rag-reranker-base-url https://your-reranker-endpoint/v1 \
+  --rag-reranker-timeout-ms 30000
 
 # 单次运行禁用重排序
 fa run "解释 React setState 的行为" \
@@ -264,6 +369,9 @@ fa run "解释 React setState 的行为" \
 
 # 单次运行禁用远程 RAG
 fa run "创建页面" --disable-rag
+
+# 本次查询前强制同步远程 git；默认会复用本地缓存
+fa run "解释 React setState 的行为" --rag-sync-on-query
 ```
 
 ## Skill Lab
@@ -308,8 +416,16 @@ fa skill promote frontend-design 20260331T120000Z
 环境变量：
 
 ```bash
+export FRONTAGENT_RAG_SOURCE="composite" # git | openviking | composite
+export FRONTAGENT_OPENVIKING_ENDPOINT="https://openviking.example.com/query"
+export FRONTAGENT_OPENVIKING_API_KEY=""
+export FRONTAGENT_OPENVIKING_CORPUS="wiki"
+export FRONTAGENT_OPENVIKING_NAMESPACE="docs/openviking"
+export FRONTAGENT_OPENVIKING_L1_ENTRY="docs/openviking/frontagent-l1.md"
+export FRONTAGENT_OPENVIKING_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_REPO="https://github.com/ceilf6/Lab.git"
 export FRONTAGENT_RAG_BRANCH="main"
+export FRONTAGENT_RAG_SYNC_ON_QUERY="false"
 export FRONTAGENT_RAG_MAX_RESULTS="5"
 export FRONTAGENT_RAG_KEYWORD_CANDIDATES="40"
 export FRONTAGENT_RAG_SEMANTIC_CANDIDATES="40"
@@ -322,13 +438,27 @@ export FRONTAGENT_RAG_RERANKER_BASE_URL="https://your-reranker-endpoint/v1"
 export FRONTAGENT_RAG_RERANKER_API_KEY="sk-..."
 export FRONTAGENT_RAG_RERANKER_CANDIDATE_COUNT="20"
 export FRONTAGENT_RAG_RERANKER_MAX_DOCUMENT_CHARS="1800"
+export FRONTAGENT_RAG_RERANKER_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
+export FRONTAGENT_RAG_EMBEDDING_DIMENSIONS=""
+export FRONTAGENT_RAG_EMBEDDING_BATCH_SIZE="32"
+export FRONTAGENT_RAG_EMBEDDING_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_VECTOR_STORE_PROVIDER="weaviate"
 export FRONTAGENT_RAG_WEAVIATE_URL="http://127.0.0.1:8080"
 export FRONTAGENT_RAG_WEAVIATE_API_KEY=""
 export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
+export FRONTAGENT_RAG_WEAVIATE_BATCH_SIZE="64"
+export FRONTAGENT_RAG_WEAVIATE_TIMEOUT_MS="30000"
+
+# Filesense 轻量级当前仓库导航
+export FRONTAGENT_FILESENSE_ENABLED="true"
+export FRONTAGENT_FILESENSE_OUTPUT="summary"       # summary | candidates | verbose
+export FRONTAGENT_FILESENSE_WRITE_MODE="cache"     # cache | workspace | none
+export FRONTAGENT_FILESENSE_MAX_ENTRIES="300"
+export FRONTAGENT_FILESENSE_MAX_BYTES="131072"
+export FRONTAGENT_FILESENSE_TIMEOUT_MS="3000"
 ```
 
 如果 `provider=openai`，并且没有单独设置 `FRONTAGENT_RAG_EMBEDDING_BASE_URL` / `FRONTAGENT_RAG_EMBEDDING_API_KEY`，FrontAgent 会自动复用智能体 LLM 的 `base-url` 和 `api-key`。
@@ -351,6 +481,8 @@ fa run "解释 React createElement" \
 在 BM25 + embedding 初筛之后，FrontAgent 现在会默认把 Top-N 候选文档块再送到一个 `/rerank` 兼容端点做交叉编码器式重排序，进一步提升最终排序精度。只要 reranker 的 model/base-url/api-key 可用，就会自动执行；如果你要关闭，可使用 `--disable-rag-reranker`。
 
 当 `FRONTAGENT_RAG_VECTOR_STORE_PROVIDER=weaviate` 时，FrontAgent 会继续把 BM25 保存在本地 `index.json`，但语义向量会写入并查询 Weaviate，而不是本地 `embeddings.json`。
+
+Filesense 用作当前仓库导航 provider。FrontAgent 在准备结构、定位、创建和重构时会优先使用 `filesense_navigate`，因为它有预算控制，且避免全仓持久同步。`filesense_sync_and_summarize` 仍可用于显式索引维护，但不是常规规划路径。
 
 预构建缓存包分发流程：
 
@@ -478,7 +610,7 @@ const projectStructure = await scanProjectFiles();
 - ✅ **减少幻觉** — 减少“文件未找到”错误
 - ✅ **更好上下文** — Planner 在规划前了解项目结构
 
-实现位置：packages/core/src/agent.ts:217-255
+实现位置：`packages/core/src/agent/project-prescan-preparation.ts`
 
 ### 2. 自动开发服务器端口检测（NEW）
 
@@ -500,13 +632,14 @@ const devServerPort = await detectDevServerPort();
 - ✅ **框架感知** — 识别不同框架的默认端口
 - ✅ **浏览器测试更可靠** — 使用正确的端口进行验证
 
-实现位置：packages/core/src/agent.ts:732-793
+实现位置：`packages/core/src/agent/dev-server-detection.ts`
 
 ### 3. 两阶段架构
 
 FrontAgent 采用两阶段架构，彻底解决在生成大量代码时的 JSON 解析问题：
 
-阶段 1：Planner
+#### 阶段 1：Planner
+
 - 输入：用户任务 + SDD 约束 + 项目上下文 + 项目文件列表（NEW）
 - 输出：结构化执行计划（仅描述、无代码）
 - 技术：使用 `generateObject` 生成符合 Zod Schema 的 JSON
@@ -529,7 +662,8 @@ FrontAgent 采用两阶段架构，彻底解决在生成大量代码时的 JSON 
 }
 ```
 
-阶段 2：Executor
+#### 阶段 2：Executor
+
 - 输入：结构化执行计划
 - 流程：按计划逐步执行
 - 代码生成：遇到 `needsCodeGeneration: true` 时使用 `generateText` 动态生成代码
@@ -545,7 +679,7 @@ FrontAgent 采用两阶段架构，彻底解决在生成大量代码时的 JSON 
 
 FrontAgent 实现了分阶段执行与自动错误恢复：
 
-阶段化执行：
+#### 阶段化执行
 
 执行计划会被划分为多个阶段，每个阶段专注一个目标：
 
@@ -601,7 +735,7 @@ FrontAgent 实现了分阶段执行与自动错误恢复：
 - 🔀 **依赖感知的阶段调度**（Phase DAG）减少错序跳步
 - 🚀 **验收后自动化交付**（可选）支持仓库管理阶段
 
-工具错误反馈循环：
+#### 工具错误反馈循环
 
 当工具执行失败时，系统会自动分析错误并生成修复步骤：
 
@@ -613,7 +747,20 @@ Error: Cannot apply patch: file not found in context: src/App.tsx
 {
   "canRecover": true,
   "analysis": "File src/App.tsx not read into context, need to read it first",
-  "recoverySteps": [ ... ]
+  "recoverySteps": [
+    {
+      "description": "Read src/App.tsx into context",
+      "action": "read_file",
+      "tool": "filesystem",
+      "params": { "path": "src/App.tsx" }
+    },
+    {
+      "description": "Reapply patch to src/App.tsx",
+      "action": "apply_patch",
+      "tool": "filesystem",
+      "params": { }
+    }
+  ]
 }
 
 // 3. 自动执行修复步骤
@@ -702,27 +849,41 @@ console.log(agent.getExecutorSkillSnapshot());
 ```yaml
 ## 文件系统状态
 
-确认存在的文件:
+### 确认存在的文件：
 - src/App.tsx
 - src/components/Button.tsx
 - package.json
 
-确认不存在的路径:
+### 确认不存在的路径：
 - src/pages/Login.tsx
 
-依赖状态:
-已安装: react-router-dom, axios
-缺失: @types/node
+## 依赖状态
 
-创建的模块示例:
+### 已安装包：
+react-router-dom, axios
+
+### 缺失包：
+@types/node
+
+## 已创建模块
+
+### component（3 个模块）：
 - src/components/ui/Button.tsx (默认导出 Button)
-- src/pages/HomePage.tsx (默认导出 HomePage)
+- src/components/ui/Card.tsx (默认导出 Card)
+- src/components/layout/Header.tsx (导出 Header, Navigation)
 
-项目状态:
+### page（2 个模块）：
+- src/pages/HomePage.tsx (默认导出 HomePage)
+- src/pages/LoginPage.tsx (默认导出 LoginPage)
+
+### ⚠️ 缺失模块引用：
+- src/pages/HomePage.tsx 引用了不存在的模块：../components/ui/Spinner
+
+## 项目状态
 - Dev server: Running (port: 5173) ← 自动检测
 - Build status: Success
 
-最近错误:
+## 最近错误
 - [apply_patch] Cannot apply patch: file not found in context
 ```
 
@@ -733,17 +894,6 @@ console.log(agent.getExecutorSkillSnapshot());
 - 🔄 **实时更新**：每次工具执行后自动更新 facts
 - 📉 **减少 token 使用**：信息简洁，缩短 LLM 输入
 - 🔗 **模块跟踪**：自动解析每个文件的 import/export
-
-#### 渐进式探索：先观察，再写入
-
-当文件系统状态不确定时，FrontAgent 会引导 Planner 使用“逐步缩小范围”的策略：
-
-1. **Glob 全局发现**：通过 `search_code` 的 `globOnly=true` 和 `filePattern` 先收集候选路径
-2. **上下文确认**：通过 `list_directory` / `read_file` 理解候选目录和文件内容
-3. **Bash 精确确认**：写入前用 `run_command` 检查目标目录存在、目标文件状态符合预期
-4. **执行写入**：最后才调用 `create_file` / `apply_patch`
-
-Executor 也会在 `create_file` 前做父目录与目标路径校验，避免在错误位置创建文件。
 
 ### 8. 跨会话记忆系统（NEW）
 
@@ -846,19 +996,36 @@ modification_rules:
 
 提供文件操作相关的 MCP 工具：
 
-- `read_file`, `list_directory`, `create_file`, `apply_patch`, `search_code`, `get_ast`, `rollback`
+- `read_file`：读取文件内容
+- `list_directory`：列出目录内容（支持递归）
+- `create_file`：创建新文件（两阶段：从描述生成代码）
+- `apply_patch`：应用代码补丁（两阶段：从描述生成改动）
+- `search_code`：搜索代码
+- `get_ast`：获取 AST 分析
+- `rollback`：回滚改动
 
 ### @frontagent/mcp-shell — Shell 命令 MCP
 
 提供终端命令执行（需用户批准）：
 
-- `run_command`：支持自定义工作目录、超时、区分警告/错误等
+- `run_command`：执行 shell 命令
+  - 支持自定义工作目录
+  - 支持超时设置
+  - 执行前需要用户批准
+  - 自动区分 warning 和 error
+  - 适用场景：`npm install`、`git init`、`pnpm build` 等
 
 ### @frontagent/mcp-web — Web 感知 MCP
 
 提供浏览器交互工具：
 
-- `browser_navigate`, `get_page_structure`, `get_accessibility_tree`, `get_interactive_elements`, `browser_click`, `browser_type`, `browser_scroll`, `browser_screenshot`, `browser_wait_for_selector`
+- `browser_navigate`：导航到 URL
+- `get_page_structure`：获取页面 DOM 结构
+- `get_accessibility_tree`：获取 accessibility tree
+- `get_interactive_elements`：获取可交互元素
+- `browser_click` / `browser_type` / `browser_scroll`：页面交互
+- `browser_screenshot`：页面截图
+- `browser_wait_for_selector`：等待元素可用
 
 ### @frontagent/hallucination-guard — 幻觉防护
 
@@ -884,20 +1051,22 @@ modification_rules:
 ```
 frontagent/
 ├── packages/
-│   ├── shared/
-│   ├── sdd/
-│   ├── mcp-file/
-│   ├── mcp-web/
-│   ├── mcp-shell/
-│   ├── hallucination-guard/
-│   └── core/
+│   ├── shared/              # 共享类型与工具
+│   ├── sdd/                 # SDD 控制层
+│   ├── mcp-file/            # 文件操作 MCP client
+│   ├── mcp-web/             # Web 感知 MCP client
+│   ├── mcp-shell/           # Shell 命令 MCP client
+│   ├── hallucination-guard/ # 幻觉防护
+│   └── core/                # Agent 核心（两阶段架构）
 │       └── memory/          # 跨会话记忆系统
 ├── apps/
-│   └── cli/
+│   └── cli/                 # CLI 工具
 ├── examples/
+│   ├── sdd-example.yaml     # SDD 配置示例
+│   └── e-commerce-frontend/ # 电商前端示例
 └── docs/
-    ├── architecture.md
-    └── design.md
+    ├── architecture.md      # 架构设计
+    └── design.md            # 原始需求
 ```
 
 ## 使用示例
@@ -986,7 +1155,7 @@ fa run "实现用户资料页并创建 PR" \
 
 ## 环境变量
 
-必需配置：
+### 必需配置
 
 | 变量 | 含义 | 示例 |
 |------|------|------|
@@ -998,7 +1167,7 @@ fa run "实现用户资料页并创建 PR" \
 | LANGGRAPH_CHECKPOINT | 是否启用 LangGraph checkpoint | true / false |
 | MAX_RECOVERY_ATTEMPTS | 每阶段最大恢复重试次数 | 3 |
 
-OpenAI 示例：
+### OpenAI 配置示例
 
 ```bash
 export PROVIDER="openai"
@@ -1007,7 +1176,7 @@ export MODEL="gpt-4"
 export API_KEY="sk-..."
 ```
 
-Anthropic 示例：
+### Anthropic 配置示例
 
 ```bash
 export PROVIDER="anthropic"
@@ -1034,7 +1203,8 @@ pnpm clean
 
 ## 路线图
 
-已完成 ✅
+### 已完成 ✅
+
 - 两阶段架构（Planner + Executor）
 - 分阶段执行
 - 工具错误反馈循环（自愈）
@@ -1055,15 +1225,20 @@ pnpm clean
 - LangGraph 执行引擎（可选）（NEW）
 - 仓库管理阶段（git/gh 自动化）（NEW）
 - 跨会话记忆系统（NEW）— 四阶段持久化记忆 + 结构化 Markdown 存储 + 运行时召回 + Prompt 分区
-- Planner 蒸馏模型 — 基于 FrontAgent Planner 提示词 SFT 微调，发布为 [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora)，训练与发布资产位于 [models/frontagent-planner](../models/frontagent-planner)（Qwen2.5-Coder-7B + LoRA，100% JSON 合法率，100% 完整计划率）
+- Planner 蒸馏模型 — 基于 FrontAgent Planner 提示词 SFT 微调，发布在 [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent) Hugging Face collection，训练与发布资产位于 [models/frontagent-planner](../models/frontagent-planner)
+- VS Code 插件 — 侧边栏任务台、当前文件/选区上下文、SDD 命令、安全配置、运行日志和打包后的 Marketplace 产物
+- 本地 stdio MCP Server — 面向 Host 的 FrontAgent 任务、规划、状态、skill 和 SDD 工具，并采用 fail-closed 的内部执行安全模型
+- Filesense 仓库导航 — 有预算控制的当前仓库结构查找，支持生成 JSON schemas，并显式提供 cache/workspace/none 写入模式
+- OSS Harness 质量门禁 — Bootstrap、local contract、precommit、CI、GitNexus 和 workflow-rule checks
 
-进行中 🚧
+### 进行中 🚧
+
 - 增强的 SDD 约束（更细粒度规则）
 
-计划中 📋
+### 计划中 📋
+
 - 记忆驱动模式学习（从历史任务自动提取编码习惯）
 - 基于 Playwright 的 GUI 自动化测试
-- VS Code 插件
 - 多 agent 协作
 - 自定义 MCP 服务支持
 - 代码审查模式
