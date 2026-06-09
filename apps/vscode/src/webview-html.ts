@@ -9,9 +9,8 @@ export function nonce(): string {
     .replace(/=+$/, '');
 }
 
-export function renderWebviewStyleSection(styleNonce: string): string {
-  return `  <style nonce="${styleNonce}">
-    :root {
+export function renderWebviewBaseStyles(): string {
+  return `    :root {
       color-scheme: light dark;
       --gap: 10px;
       --radius: 8px;
@@ -84,8 +83,11 @@ export function renderWebviewStyleSection(styleNonce: string): string {
       font-size: 11px;
       line-height: 1.6;
       white-space: nowrap;
-    }
-    .config-banner {
+    }`;
+}
+
+export function renderWebviewHeaderStyles(): string {
+  return `    .config-banner {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
@@ -164,8 +166,11 @@ export function renderWebviewStyleSection(styleNonce: string): string {
       min-width: 30px;
       padding-inline: 8px;
     }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
-    .messages {
+    button:disabled { opacity: 0.55; cursor: not-allowed; }`;
+}
+
+export function renderWebviewMessageStyles(): string {
+  return `    .messages {
       min-height: 0;
       overflow: auto;
       padding: 14px 12px 12px;
@@ -299,8 +304,11 @@ export function renderWebviewStyleSection(styleNonce: string): string {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-    }
-    .composer {
+    }`;
+}
+
+export function renderWebviewComposerStyles(): string {
+  return `    .composer {
       display: grid;
       gap: 8px;
       padding: 8px 10px 10px;
@@ -472,8 +480,11 @@ export function renderWebviewStyleSection(styleNonce: string): string {
     }
     .muted { color: var(--muted); }
     .danger { color: var(--danger); }
-    .hidden { display: none; }
-    @media (prefers-reduced-motion: no-preference) {
+    .hidden { display: none; }`;
+}
+
+export function renderWebviewMotionStyles(): string {
+  return `    @media (prefers-reduced-motion: no-preference) {
       .live-dot {
         animation: pulse 1.4s ease-in-out infinite;
       }
@@ -488,7 +499,20 @@ export function renderWebviewStyleSection(styleNonce: string): string {
         0%, 45% { opacity: 1; }
         46%, 100% { opacity: 0; }
       }
-    }
+    }`;
+}
+
+export function renderWebviewStyleSection(styleNonce: string): string {
+  const styles = [
+    renderWebviewBaseStyles(),
+    renderWebviewHeaderStyles(),
+    renderWebviewMessageStyles(),
+    renderWebviewComposerStyles(),
+    renderWebviewMotionStyles(),
+  ];
+
+  return `  <style nonce="${styleNonce}">
+${styles.join('\n')}
   </style>`;
 }
 
