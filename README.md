@@ -10,7 +10,7 @@
 
 > Enterprise-grade AI Agent System - Constrained by SDD, Powered by MCP for Controlled Perception and Execution
 
-[中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md) | [v2.1.1 Release Notes](docs/releases/v2.1.1.md)
+[中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md)
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
