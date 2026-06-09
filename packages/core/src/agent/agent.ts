@@ -38,15 +38,12 @@ import type {
 } from '../types.js';
 import { WorkflowIntegration } from '../workflow-integration.js';
 import { buildFinalOutput } from './answer-generation.js';
-import { detectDevServerPort } from './dev-server-detection.js';
+import { gatherRequestedContext } from './context-gathering.js';
 import { createExecutionCallbacks } from './execution-callbacks.js';
-import { mergeRetrievalQuery, normalizeSearchQuery } from './helpers.js';
+import { FactsUpdateFlusher } from './facts-update-flush.js';
 import { persistMemory, preloadMemory } from './memory-lifecycle.js';
-import {
-  formatRagResult,
-  retrieveRagContext,
-  rewriteRagQueryForRetrieval,
-} from './rag-retrieval.js';
+import { prepareProjectPlanningContext } from './project-prescan-preparation.js';
+import { prepareTaskExecutionSetup } from './task-execution-setup.js';
 
 /**
  * FrontAgent 主类
@@ -68,14 +65,17 @@ export class FrontAgent {
   private skillContentResolver?: SkillContentResolver;
   private memoryStore: MemoryStore;
   private workflowIntegration?: WorkflowIntegration;
-  private pendingFactsUpdates: ProjectFactsUpdate[] = [];
-  private factsUpdateFlushInProgress = false;
+  private factsUpdateFlusher: FactsUpdateFlusher;
   private lastAnswerGenerationError?: string;
   private lastLlmFailureError?: string;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.contextManager = new ContextManager();
+    this.factsUpdateFlusher = new FactsUpdateFlusher({
+      contextManager: this.contextManager,
+      debugLog: this.debugLog.bind(this),
+    });
     this.sddParser = new SDDParser();
 
     if (config.sddPath) {
@@ -382,8 +382,7 @@ export class FrontAgent {
     },
   ): Promise<AgentPlanResult> {
     const startTime = Date.now();
-    this.pendingFactsUpdates = [];
-    this.factsUpdateFlushInProgress = false;
+    this.factsUpdateFlusher.reset();
     this.lastAnswerGenerationError = undefined;
     this.lastLlmFailureError = undefined;
 
@@ -431,65 +430,25 @@ export class FrontAgent {
         });
       }
 
-      let projectStructure: string | undefined;
-      const preScannedFiles = new Map<string, string>();
-      try {
-        this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
-        const listResult = (await this.executor.callTool('list_directory', {
-          path: this.config.projectRoot,
-          recursive: true,
-        })) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
-
-        if (listResult.success && listResult.entries) {
-          const files = listResult.entries
-            .filter(
-              (e) =>
-                e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'),
-            )
-            .map((e) => e.path);
-
-          if (files.length > 0) {
-            projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
-          }
-
-          const configFiles = files.filter(
-            (f) => f.endsWith('package.json') || f.includes('vite.config'),
-          );
-          for (const configFile of configFiles) {
-            try {
-              const readResult = (await this.executor.callTool('read_file', {
-                path: configFile,
-              })) as { success: boolean; content?: string };
-              if (readResult.success && readResult.content) {
-                preScannedFiles.set(configFile, readResult.content);
-              }
-            } catch {
-              // Ignore optional pre-scan read failures.
-            }
-          }
-        }
-      } catch (error) {
-        this.debugWarn('[Agent] Failed to pre-scan project structure for plan-only:', error);
-      }
-
-      this.emitStatus('检测开发服务器端口', '检测开发服务器端口');
-      const devServerPort = detectDevServerPort(
-        { debugLog: this.debugLog.bind(this), debugWarn: this.debugWarn.bind(this) },
-        preScannedFiles,
-      );
-
-      this.emitStatus('检索知识库', 'RAG 检索');
-      const ragContext = await retrieveRagContext(this.ragDeps, task.id, task.description);
-      const ragResults = ragContext?.formattedResults;
+      const planningPreparation = await prepareProjectPlanningContext({
+        deps: {
+          executor: this.executor,
+          ragDeps: this.ragDeps,
+          emitStatus: this.emitStatus.bind(this),
+          debugLog: this.debugLog.bind(this),
+          debugWarn: this.debugWarn.bind(this),
+        },
+        taskId: task.id,
+        taskDescription: task.description,
+        projectRoot: this.config.projectRoot,
+        ragEnabled: this.config.rag?.enabled !== false,
+        preScanFailureLabel: '[Agent] Failed to pre-scan project structure for plan-only:',
+      });
 
       if (this.config.rag?.enabled !== false) {
         this.emit({
           type: 'rag_retrieved',
-          searchMode: ragContext?.searchMode,
-          reranked: ragContext?.reranked,
-          warnings: ragContext?.warnings,
-          timing: ragContext?.timing,
-          matches: ragContext?.matches ?? [],
+          ...planningPreparation.ragEvent,
         });
       }
 
@@ -501,9 +460,9 @@ export class FrontAgent {
         {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
-          ragResults,
-          projectStructure,
-          devServerPort,
+          ragResults: planningPreparation.ragResults,
+          projectStructure: planningPreparation.projectStructure,
+          devServerPort: planningPreparation.devServerPort,
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
@@ -565,8 +524,7 @@ export class FrontAgent {
       };
     } finally {
       this.emitStatus('清理计划上下文', '清理计划上下文');
-      this.pendingFactsUpdates = [];
-      this.factsUpdateFlushInProgress = false;
+      this.factsUpdateFlusher.reset();
       this.currentTaskId = undefined;
       this.contextManager.clearContext(task.id);
     }
@@ -582,8 +540,7 @@ export class FrontAgent {
     },
   ): Promise<AgentExecutionResult> {
     const startTime = Date.now();
-    this.pendingFactsUpdates = [];
-    this.factsUpdateFlushInProgress = false;
+    this.factsUpdateFlusher.reset();
     this.lastAnswerGenerationError = undefined;
     this.lastLlmFailureError = undefined;
     const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
@@ -614,89 +571,31 @@ export class FrontAgent {
       this.throwIfAborted(options?.signal);
       this.currentTaskId = task.id;
 
-      const context = this.contextManager.createContext(task, this.sddConfig);
-      context.collectedContext.skillContext = skillContext;
-      context.collectedContext.matchedSkillNames = matchedSkillNames;
-      context.collectedContext.metadata.originalTaskDescription = taskDescription;
-
-      this.emitStatus('加载跨会话记忆', '加载跨会话记忆');
-      this.memoryStore.resetSession();
-      preloadMemory(this.memoryDeps, task.id, context);
-
-      if (this.promptGenerator) {
-        const constitutionPrompt = this.workflowIntegration?.getConstitutionPrompt();
-        if (constitutionPrompt) {
-          this.contextManager.addMessage(task.id, { role: 'system', content: constitutionPrompt });
-        }
-        const sddPrompt = this.promptGenerator.generate();
-        this.contextManager.addMessage(task.id, {
-          role: 'system',
-          content: sddPrompt,
-        });
-      }
-
-      let projectStructure: string | undefined;
-      const preScannedFiles = new Map<string, string>();
-      try {
-        this.emitStatus('扫描项目结构', 'list_directory 扫描项目结构');
-        const listResult = (await this.executor.callTool('list_directory', {
-          path: this.config.projectRoot,
-          recursive: true,
-        })) as { success: boolean; entries?: Array<{ name: string; type: string; path: string }> };
-
-        if (listResult.success && listResult.entries) {
-          const files = listResult.entries
-            .filter(
-              (e) =>
-                e.type === 'file' && !e.path.includes('node_modules') && !e.path.includes('.git'),
-            )
-            .map((e) => e.path);
-
-          if (files.length > 0) {
-            projectStructure = `项目文件列表（共 ${files.length} 个文件）:\n${files.join('\n')}`;
-            this.debugLog(`[Agent] 📂 Pre-scanned project structure: ${files.length} files`);
-          }
-
-          const configFiles = files.filter(
-            (f) => f.endsWith('package.json') || f.includes('vite.config'),
-          );
-          for (const configFile of configFiles) {
-            try {
-              const readResult = (await this.executor.callTool('read_file', {
-                path: configFile,
-              })) as { success: boolean; content?: string };
-              if (readResult.success && readResult.content) {
-                preScannedFiles.set(configFile, readResult.content);
-              }
-            } catch (_error) {
-              // Ignore read failures
-            }
-          }
-        }
-      } catch (error) {
-        this.debugWarn('[Agent] Failed to pre-scan project structure:', error);
-      }
-
-      this.emitStatus('检测开发服务器端口', '检测开发服务器端口');
-      const devServerPort = detectDevServerPort(
-        { debugLog: this.debugLog.bind(this), debugWarn: this.debugWarn.bind(this) },
-        preScannedFiles,
-      );
-
-      this.emitStatus('检索知识库', 'RAG 检索');
-      const ragContext = await retrieveRagContext(this.ragDeps, task.id, task.description);
-      const ragResults = ragContext?.formattedResults;
-
-      if (this.config.rag?.enabled !== false) {
-        this.emit({
-          type: 'rag_retrieved',
-          searchMode: ragContext?.searchMode,
-          reranked: ragContext?.reranked,
-          warnings: ragContext?.warnings,
-          timing: ragContext?.timing,
-          matches: ragContext?.matches ?? [],
-        });
-      }
+      const setup = await prepareTaskExecutionSetup({
+        task,
+        originalTaskDescription: taskDescription,
+        skillContext,
+        matchedSkillNames,
+        deps: {
+          config: this.config,
+          sddConfig: this.sddConfig,
+          contextManager: this.contextManager,
+          memoryStore: this.memoryStore,
+          memoryDeps: this.memoryDeps,
+          promptGenerator: this.promptGenerator,
+          workflowIntegration: this.workflowIntegration,
+          planningDeps: {
+            executor: this.executor,
+            ragDeps: this.ragDeps,
+            emitStatus: this.emitStatus.bind(this),
+            debugLog: this.debugLog.bind(this),
+            debugWarn: this.debugWarn.bind(this),
+          },
+          emit: this.emit.bind(this),
+          emitStatus: this.emitStatus.bind(this),
+        },
+      });
+      const { context, planningPreparation } = setup;
 
       this.emit({ type: 'planning_started' });
       this.emitStatus('生成执行计划', 'LLM 规划');
@@ -706,9 +605,9 @@ export class FrontAgent {
         {
           files: context.collectedContext.files,
           pageStructure: context.collectedContext.pageStructure,
-          ragResults,
-          projectStructure,
-          devServerPort,
+          ragResults: planningPreparation.ragResults,
+          projectStructure: planningPreparation.projectStructure,
+          devServerPort: planningPreparation.devServerPort,
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
@@ -831,8 +730,7 @@ export class FrontAgent {
       persistMemory(this.memoryDeps, task.id, task.description);
 
       this.emitStatus('清理运行上下文', '清理运行上下文');
-      this.pendingFactsUpdates = [];
-      this.factsUpdateFlushInProgress = false;
+      this.factsUpdateFlusher.reset();
       this.currentTaskId = undefined;
       this.contextManager.clearContext(task.id);
     }
@@ -891,58 +789,14 @@ export class FrontAgent {
     taskId: string,
     requests: Array<{ type: string; params: Record<string, unknown> }>,
   ): Promise<void> {
-    for (const request of requests) {
-      try {
-        switch (request.type) {
-          case 'read_file': {
-            const path = request.params.path as string;
-            const result = await this.executor.callTool('read_file', { path });
-            if ((result as { success?: boolean }).success) {
-              this.contextManager.addFile(taskId, path, (result as { content: string }).content);
-            }
-            break;
-          }
-          case 'get_page': {
-            const url = request.params.url as string;
-            await this.executor.callTool('browser_navigate', { url });
-            const result = await this.executor.callTool('get_page_structure', {});
-            this.contextManager.setPageStructure(taskId, result);
-            break;
-          }
-          case 'rag_query': {
-            const query = request.params.query as string;
-            const maxResults = request.params.maxResults as number | undefined;
-            const rewrittenQuery = await rewriteRagQueryForRetrieval(this.ragDeps, query);
-            const retrievalQuery = rewrittenQuery
-              ? mergeRetrievalQuery(query, rewrittenQuery)
-              : normalizeSearchQuery(query);
-            const result = (await this.executor.callTool('rag_query', {
-              query: retrievalQuery,
-              maxResults,
-            })) as {
-              success?: boolean;
-              results?: Array<{
-                type: string;
-                title: string;
-                sourceUrl: string;
-                snippet: string;
-                path?: string;
-              }>;
-            };
-
-            if (result.success && result.results?.length) {
-              this.contextManager.addRagResults(
-                taskId,
-                result.results.map((item) => formatRagResult(item)),
-              );
-            }
-            break;
-          }
-        }
-      } catch (error) {
-        this.debugWarn(`Failed to gather context: ${request.type}`, error);
-      }
-    }
+    await gatherRequestedContext({
+      taskId,
+      requests,
+      executor: this.executor,
+      contextManager: this.contextManager,
+      ragDeps: this.ragDeps,
+      debugWarn: this.debugWarn.bind(this),
+    });
   }
 
   private rememberPlannerFallback(reason: string | undefined): void {
@@ -952,43 +806,7 @@ export class FrontAgent {
   }
 
   private async enqueueFactsUpdate(taskId: string, update: ProjectFactsUpdate): Promise<void> {
-    this.pendingFactsUpdates.push(update);
-    await this.flushFactsUpdates(taskId);
-  }
-
-  private async flushFactsUpdates(taskId: string): Promise<void> {
-    if (this.factsUpdateFlushInProgress) {
-      return;
-    }
-
-    this.factsUpdateFlushInProgress = true;
-    while (true) {
-      try {
-        while (this.pendingFactsUpdates.length > 0) {
-          const nextUpdate = this.pendingFactsUpdates.shift();
-          if (!nextUpdate) {
-            continue;
-          }
-
-          const mergeResult = this.contextManager.mergeFactsUpdate(taskId, nextUpdate);
-          const staleText = mergeResult.staleBaseRevision
-            ? ' (stale base revision, rebased in main reducer)'
-            : '';
-          this.debugLog(
-            `[Agent] Merged facts update from ${mergeResult.source}: ` +
-              `r${mergeResult.previousRevision} -> r${mergeResult.nextRevision}${staleText}`,
-          );
-        }
-      } finally {
-        this.factsUpdateFlushInProgress = false;
-      }
-
-      if (this.pendingFactsUpdates.length === 0) {
-        break;
-      }
-
-      this.factsUpdateFlushInProgress = true;
-    }
+    await this.factsUpdateFlusher.enqueue(taskId, update);
   }
 
   getSDDConfig(): SDDConfig | undefined {

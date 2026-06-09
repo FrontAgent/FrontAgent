@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
-import { getChangedFiles } from '../workflows/contract-check.mjs';
+import { assertGitWorkspaceRootMatchesCwd, getChangedFiles } from '../workflows/contract-check.mjs';
 import {
   classifyContractPaths,
   evaluateGitNexusContract,
@@ -127,6 +127,85 @@ test('GitNexus analyze streams output to avoid spawn buffer limits', () => {
   assert.doesNotMatch(analyzeFunction, /encoding: 'utf8'/u);
   assert.match(contractCheck, /'--wal-checkpoint-threshold'/u);
   assert.match(contractCheck, /GITNEXUS_WAL_CHECKPOINT_THRESHOLD = '67108864'/u);
+});
+
+test('Git workspace guard accepts matching toplevel and core.worktree', () => {
+  const workspaceRoot = '/tmp/frontagent-workspace';
+
+  assert.doesNotThrow(() =>
+    assertGitWorkspaceRootMatchesCwd({
+      cwd: workspaceRoot,
+      gitText: (args) => {
+        const command = args.join(' ');
+        if (command === 'rev-parse --show-toplevel') return `${workspaceRoot}\n`;
+        if (command === 'config --get core.worktree') return `${workspaceRoot}\n`;
+        throw new Error(`unexpected git command: ${command}`);
+      },
+    }),
+  );
+});
+
+test('Git workspace guard accepts matching toplevel when core.worktree is unset', () => {
+  const workspaceRoot = '/tmp/frontagent-workspace';
+
+  assert.doesNotThrow(() =>
+    assertGitWorkspaceRootMatchesCwd({
+      cwd: workspaceRoot,
+      gitText: (args) => {
+        const command = args.join(' ');
+        if (command === 'rev-parse --show-toplevel') return `${workspaceRoot}\n`;
+        if (command === 'config --get core.worktree') {
+          throw Object.assign(new Error('core.worktree unset'), { status: 1 });
+        }
+        throw new Error(`unexpected git command: ${command}`);
+      },
+    }),
+  );
+});
+
+test('Git workspace guard resolves relative core.worktree from git dir', () => {
+  const workspaceRoot = '/tmp/frontagent-workspace';
+
+  assert.doesNotThrow(() =>
+    assertGitWorkspaceRootMatchesCwd({
+      cwd: workspaceRoot,
+      gitText: (args) => {
+        const command = args.join(' ');
+        if (command === 'rev-parse --show-toplevel') return `${workspaceRoot}\n`;
+        if (command === 'rev-parse --git-dir') return `${workspaceRoot}/.git\n`;
+        if (command === 'config --get core.worktree') return '..\n';
+        throw new Error(`unexpected git command: ${command}`);
+      },
+    }),
+  );
+});
+
+test('Git workspace guard rejects mismatched toplevel and core.worktree with repair hint', () => {
+  const workspaceRoot = '/tmp/frontagent-worktree';
+  const gitRoot = '/tmp/frontagent-main';
+
+  assert.throws(
+    () =>
+      assertGitWorkspaceRootMatchesCwd({
+        cwd: workspaceRoot,
+        gitText: (args) => {
+          const command = args.join(' ');
+          if (command === 'rev-parse --show-toplevel') return `${gitRoot}\n`;
+          if (command === 'config --get core.worktree') return `${gitRoot}\n`;
+          throw new Error(`unexpected git command: ${command}`);
+        },
+      }),
+    (err) => {
+      assert.match(err.message, /Git workspace root mismatch/u);
+      assert.match(err.message, new RegExp(workspaceRoot, 'u'));
+      assert.match(err.message, new RegExp(gitRoot, 'u'));
+      assert.match(err.message, /git rev-parse --show-toplevel/u);
+      assert.match(err.message, /git config --get core\.worktree/u);
+      assert.match(err.message, /git config --worktree core\.worktree/u);
+      assert.match(err.message, /pnpm agent:bootstrap/u);
+      return true;
+    },
+  );
 });
 
 test('non-critical changes keep GitNexus advisory', () => {

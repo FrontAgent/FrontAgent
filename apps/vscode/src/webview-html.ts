@@ -9,23 +9,8 @@ export function nonce(): string {
     .replace(/=+$/, '');
 }
 
-export function getWebviewHtml(webview: vscode.Webview): string {
-  const scriptNonce = nonce();
-  const styleNonce = nonce();
-  const csp = [
-    `default-src 'none'`,
-    `style-src ${webview.cspSource} 'nonce-${styleNonce}'`,
-    `script-src 'nonce-${scriptNonce}'`,
-  ].join('; ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style nonce="${styleNonce}">
-    :root {
+export function renderWebviewBaseStyles(): string {
+  return `    :root {
       color-scheme: light dark;
       --gap: 10px;
       --radius: 8px;
@@ -98,8 +83,11 @@ export function getWebviewHtml(webview: vscode.Webview): string {
       font-size: 11px;
       line-height: 1.6;
       white-space: nowrap;
-    }
-    .config-banner {
+    }`;
+}
+
+export function renderWebviewHeaderStyles(): string {
+  return `    .config-banner {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
@@ -178,8 +166,11 @@ export function getWebviewHtml(webview: vscode.Webview): string {
       min-width: 30px;
       padding-inline: 8px;
     }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
-    .messages {
+    button:disabled { opacity: 0.55; cursor: not-allowed; }`;
+}
+
+export function renderWebviewMessageStyles(): string {
+  return `    .messages {
       min-height: 0;
       overflow: auto;
       padding: 14px 12px 12px;
@@ -313,8 +304,11 @@ export function getWebviewHtml(webview: vscode.Webview): string {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-    }
-    .composer {
+    }`;
+}
+
+export function renderWebviewComposerStyles(): string {
+  return `    .composer {
       display: grid;
       gap: 8px;
       padding: 8px 10px 10px;
@@ -486,8 +480,11 @@ export function getWebviewHtml(webview: vscode.Webview): string {
     }
     .muted { color: var(--muted); }
     .danger { color: var(--danger); }
-    .hidden { display: none; }
-    @media (prefers-reduced-motion: no-preference) {
+    .hidden { display: none; }`;
+}
+
+export function renderWebviewMotionStyles(): string {
+  return `    @media (prefers-reduced-motion: no-preference) {
       .live-dot {
         animation: pulse 1.4s ease-in-out infinite;
       }
@@ -502,11 +499,285 @@ export function getWebviewHtml(webview: vscode.Webview): string {
         0%, 45% { opacity: 1; }
         46%, 100% { opacity: 0; }
       }
+    }`;
+}
+
+export function renderWebviewStyleSection(styleNonce: string): string {
+  const styles = [
+    renderWebviewBaseStyles(),
+    renderWebviewHeaderStyles(),
+    renderWebviewMessageStyles(),
+    renderWebviewComposerStyles(),
+    renderWebviewMotionStyles(),
+  ];
+
+  return `  <style nonce="${styleNonce}">
+${styles.join('\n')}
+  </style>`;
+}
+
+export function renderWebviewStateScript(): string {
+  return `    const vscode = acquireVsCodeApi();
+    let state = null;
+    let activeMode = 'query';
+    let lastComposer = '';
+    let lastBrowserUrl = '';
+    const $ = (id) => document.getElementById(id);
+    const prompt = $('prompt');
+    const browserUrl = $('browserUrl');
+    const modeSelect = $('modeSelect');
+    const detailsPanel = $('detailsPanel');
+
+    function render(next) {
+      state = next;
+      activeMode = next.mode || activeMode;
+      $('status').textContent = next.isRunning ? next.lastActivityLabel || next.status : next.status;
+      $('sendButton').disabled = next.isRunning || !next.configStatus.configured;
+      $('stopButton').disabled = !next.isRunning;
+      renderConfig(next.configStatus);
+      renderMode();
+      renderContext(next);
+      renderMessages(next);
+      renderDetails(next);
+      if (next.composer !== lastComposer) {
+        prompt.value = next.composer || '';
+        lastComposer = next.composer || '';
+      }
+      if (next.browserUrl !== lastBrowserUrl) {
+        browserUrl.value = next.browserUrl || '';
+        lastBrowserUrl = next.browserUrl || '';
+      }
+    }`;
+}
+
+export function renderWebviewConfigScript(): string {
+  return `    const modeCopy = {
+      query: { label: 'Ask', description: 'Explain and answer' },
+      modify: { label: 'Agent Edit', description: 'Plan and change code' },
+      debug: { label: 'Debug', description: 'Trace and fix failures' }
+    };
+
+    function renderConfig(config) {
+      const missing = config.missing || [];
+      $('configBanner').className = config.configured ? 'config-banner ready' : 'config-banner';
+      $('configText').textContent = config.configured
+        ? \`\${config.provider} · \${config.model}\`
+        : \`Missing \${missing.join(', ')}\`;
+      $('configPrimary').textContent = config.configured
+        ? \`\${config.provider} · \${config.model}\`
+        : 'Model setup needed';
+      $('configSecondary').textContent = config.configured
+        ? 'Ready to run with workspace settings and SecretStorage.'
+        : \`Missing \${missing.join(', ')}. Configure now or use the command palette.\`;
+      if (document.activeElement !== $('configProvider')) $('configProvider').value = config.provider || '';
+      if (document.activeElement !== $('configModel')) $('configModel').value = config.model || '';
+      if (document.activeElement !== $('configBaseUrl')) $('configBaseUrl').value = config.baseUrl || '';
     }
-  </style>
-</head>
-<body>
-  <div class="shell">
+
+    function renderMode() {
+      if (document.activeElement !== modeSelect) modeSelect.value = activeMode;
+      $('modeDescription').textContent = modeCopy[activeMode]?.description || '';
+    }`;
+}
+
+export function renderWebviewContextScript(): string {
+  return `    function renderContext(next) {
+      $('contextFiles').innerHTML = next.contextFiles.length
+        ? next.contextFiles.map((file) => \`<span class="chip">\${escapeHtml(file)}<button type="button" data-remove-file="\${escapeHtml(file)}">x</button></span>\`).join('')
+        : '<span class="context-empty">No files attached</span>';
+      $('selectionPreview').className = next.selectionPreview ? 'selection' : 'selection hidden';
+      $('selectionPreview').textContent = next.selectionPreview ? \`Selection context:\\n\${next.selectionPreview}\` : '';
+    }
+
+    function renderDetails(next) {
+      detailsPanel.open = !next.detailsCollapsed;
+      $('activityLabel').textContent = next.lastActivityLabel || '等待开始';
+      $('operation').textContent = next.currentOperation || '';
+      $('phaseCount').textContent = next.phases.length ? \`(\${next.phases.length})\` : '';
+      $('phases').innerHTML = next.phases.length ? next.phases.map((phase) => \`
+        <div class="phase">
+          <div class="phase-head">
+            <strong>\${escapeHtml(phase.name)}</strong>
+            <span class="badge \${escapeHtml(phase.status)}">\${escapeHtml(phase.status)}</span>
+          </div>
+          <div class="steps">
+            \${phase.steps.map((step) => \`
+              <div class="step">
+                <span class="badge \${escapeHtml(step.status)}">\${escapeHtml(step.status)}</span>
+                <div>
+                  <div>\${escapeHtml(step.description)}</div>
+                  <div class="muted mono">\${escapeHtml(step.tool)} · \${escapeHtml(step.action)}</div>
+                  \${step.error ? \`<div class="danger">\${escapeHtml(step.error)}</div>\` : ''}
+                </div>
+              </div>\`).join('')}
+          </div>
+        </div>\`).join('') : 'No plan yet.';
+      $('ragMeta').textContent = next.ragSearchMode ? \`\${next.ragSearchMode}\${next.ragReranked ? ' · reranked' : ''}\` : '';
+      $('rag').innerHTML = next.ragMatches.length
+        ? next.ragMatches.map((match) => \`<div><strong>\${escapeHtml(match.title)}</strong><div class="muted mono">\${escapeHtml(match.path || '')}</div></div>\`).join('')
+        : 'No matches yet.';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }`;
+}
+
+export function renderWebviewMessageScript(): string {
+  return `    function renderMessages(next) {
+      const parts = [];
+      if (!next.messages.length && !next.streamText && !next.approval) {
+        parts.push('<div class="empty"><strong>Start with FrontAgent</strong><br>Ask a question, switch to Agent Edit for code changes, or attach a file, selection, and browser URL for richer context.</div>');
+      }
+      for (const message of next.messages) {
+        const meta = [];
+        if (message.mode) meta.push(modeCopy[message.mode]?.label || message.mode);
+        for (const file of message.files || []) meta.push(file);
+        if (message.url) meta.push(message.url);
+        parts.push(\`
+          <div class="message \${escapeHtml(message.role)}">
+            <div class="role">\${escapeHtml(message.role)}</div>
+            <div class="bubble">\${escapeHtml(message.text)}</div>
+            \${meta.length ? \`<div class="meta">\${meta.map((item) => \`<span class="chip">\${escapeHtml(item)}</span>\`).join('')}</div>\` : ''}
+          </div>\`);
+      }
+      if (next.isRunning || next.streamText) {
+        const label = next.lastActivityLabel || 'FrontAgent is working';
+        const operation = next.currentOperation || next.status || '';
+        const stream = next.streamText
+          ? \`<div class="stream-content">\${escapeHtml(next.streamText)}<span class="stream-cursor"></span></div>\`
+          : '<div class="muted">Waiting for the first streamed response...</div>';
+        parts.push(\`
+          <div class="message assistant">
+            <div class="role">assistant</div>
+            <div class="live-card">
+              <div class="live-status">
+                <span class="live-dot"></span>
+                <span class="live-label">\${escapeHtml(label)}</span>
+                \${operation ? \`<span class="live-operation">\${escapeHtml(operation)}</span>\` : ''}
+              </div>
+              \${stream}
+            </div>
+          </div>\`);
+      }
+      if (next.approval) {
+        parts.push(\`
+          <div class="approval">
+            <strong>Approval required: \${escapeHtml(next.approval.toolName)}</strong>
+            <div class="muted">\${escapeHtml(next.approval.riskLevel)} · \${escapeHtml(next.approval.reasonCode)}</div>
+            <div>\${escapeHtml(next.approval.message)}</div>
+            <pre>\${escapeHtml(next.approval.argsSummary)}</pre>
+            <div class="approval-actions">
+              <button data-approve="\${escapeHtml(next.approval.approvalId)}" type="button">Approve</button>
+              <button class="secondary" data-reject="\${escapeHtml(next.approval.approvalId)}" type="button">Reject</button>
+            </div>
+          </div>\`);
+      }
+      $('messages').innerHTML = parts.join('');
+      $('messages').scrollTop = $('messages').scrollHeight;
+    }`;
+}
+
+export function renderWebviewEventScript(): string {
+  return `    $('composer').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const task = prompt.value.trim();
+      if (!task) return;
+      vscode.postMessage({
+        type: 'send',
+        task,
+        mode: activeMode,
+        files: state?.contextFiles || [],
+        url: browserUrl.value.trim() || undefined
+      });
+      prompt.value = '';
+      lastComposer = '';
+    });
+    $('stopButton').addEventListener('click', () => vscode.postMessage({ type: 'stop' }));
+    $('logButton').addEventListener('click', () => vscode.postMessage({ type: 'openLog' }));
+    $('toggleConfig').addEventListener('click', () => $('configForm').classList.toggle('open'));
+    $('closeConfig').addEventListener('click', () => $('configForm').classList.remove('open'));
+    $('openCommandConfig').addEventListener('click', () => vscode.postMessage({ type: 'configure' }));
+    $('configForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      vscode.postMessage({
+        type: 'saveConfig',
+        provider: $('configProvider').value,
+        model: $('configModel').value,
+        baseUrl: $('configBaseUrl').value,
+        apiKey: $('configApiKey').value
+      });
+      $('configApiKey').value = '';
+    });
+    modeSelect.addEventListener('change', () => {
+      activeMode = modeSelect.value || 'query';
+      renderMode();
+    });
+    $('contextFiles').addEventListener('click', (event) => {
+      const file = event.target?.getAttribute?.('data-remove-file');
+      if (!file || !state) return;
+      state.contextFiles = state.contextFiles.filter((item) => item !== file);
+      renderContext(state);
+    });
+    $('messages').addEventListener('click', (event) => {
+      const approve = event.target?.getAttribute?.('data-approve');
+      const reject = event.target?.getAttribute?.('data-reject');
+      if (approve) vscode.postMessage({ type: 'approve', approvalId: approve });
+      if (reject) vscode.postMessage({ type: 'reject', approvalId: reject });
+    });
+    detailsPanel.addEventListener('toggle', () => {
+      vscode.postMessage({ type: 'details', collapsed: !detailsPanel.open });
+    });
+
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      if (message.type === 'state') render(message.state);
+    });`;
+}
+
+export function renderWebviewErrorScript(): string {
+  return `    window.addEventListener('error', (event) => {
+      vscode.postMessage({
+        type: 'webviewError',
+        message: event.message || 'Unknown webview error',
+        stack: event.error?.stack
+      });
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason;
+      vscode.postMessage({
+        type: 'webviewError',
+        message: reason?.message || String(reason || 'Unhandled webview rejection'),
+        stack: reason?.stack
+      });
+    });`;
+}
+
+export function renderWebviewScriptSection(scriptNonce: string): string {
+  const scripts = [
+    renderWebviewStateScript(),
+    renderWebviewConfigScript(),
+    renderWebviewContextScript(),
+    renderWebviewMessageScript(),
+    renderWebviewEventScript(),
+    renderWebviewErrorScript(),
+  ];
+
+  return `  <script nonce="${scriptNonce}">
+${scripts.join('\n')}
+
+    vscode.postMessage({ type: 'ready' });
+  </script>`;
+}
+
+export function renderWebviewBodySection(): string {
+  return `  <div class="shell">
     <header class="top">
       <div class="bar">
         <div class="identity">
@@ -595,240 +866,30 @@ export function getWebviewHtml(webview: vscode.Webview): string {
         </div>
       </details>
     </form>
-  </div>
+  </div>`;
+}
 
-  <script nonce="${scriptNonce}">
-    const vscode = acquireVsCodeApi();
-    let state = null;
-    let activeMode = 'query';
-    let lastComposer = '';
-    let lastBrowserUrl = '';
-    const $ = (id) => document.getElementById(id);
-    const prompt = $('prompt');
-    const browserUrl = $('browserUrl');
-    const modeSelect = $('modeSelect');
-    const detailsPanel = $('detailsPanel');
-    const modeCopy = {
-      query: { label: 'Ask', description: 'Explain and answer' },
-      modify: { label: 'Agent Edit', description: 'Plan and change code' },
-      debug: { label: 'Debug', description: 'Trace and fix failures' }
-    };
+export function getWebviewHtml(webview: vscode.Webview): string {
+  const scriptNonce = nonce();
+  const styleNonce = nonce();
+  const csp = [
+    `default-src 'none'`,
+    `style-src ${webview.cspSource} 'nonce-${styleNonce}'`,
+    `script-src 'nonce-${scriptNonce}'`,
+  ].join('; ');
 
-    function render(next) {
-      state = next;
-      activeMode = next.mode || activeMode;
-      $('status').textContent = next.isRunning ? next.lastActivityLabel || next.status : next.status;
-      $('sendButton').disabled = next.isRunning || !next.configStatus.configured;
-      $('stopButton').disabled = !next.isRunning;
-      renderConfig(next.configStatus);
-      renderMode();
-      renderContext(next);
-      renderMessages(next);
-      renderDetails(next);
-      if (next.composer !== lastComposer) {
-        prompt.value = next.composer || '';
-        lastComposer = next.composer || '';
-      }
-      if (next.browserUrl !== lastBrowserUrl) {
-        browserUrl.value = next.browserUrl || '';
-        lastBrowserUrl = next.browserUrl || '';
-      }
-    }
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="${csp}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+${renderWebviewStyleSection(styleNonce)}
+</head>
+<body>
+${renderWebviewBodySection()}
 
-    function renderConfig(config) {
-      const missing = config.missing || [];
-      $('configBanner').className = config.configured ? 'config-banner ready' : 'config-banner';
-      $('configText').textContent = config.configured
-        ? \`\${config.provider} · \${config.model}\`
-        : \`Missing \${missing.join(', ')}\`;
-      $('configPrimary').textContent = config.configured
-        ? \`\${config.provider} · \${config.model}\`
-        : 'Model setup needed';
-      $('configSecondary').textContent = config.configured
-        ? 'Ready to run with workspace settings and SecretStorage.'
-        : \`Missing \${missing.join(', ')}. Configure now or use the command palette.\`;
-      if (document.activeElement !== $('configProvider')) $('configProvider').value = config.provider || '';
-      if (document.activeElement !== $('configModel')) $('configModel').value = config.model || '';
-      if (document.activeElement !== $('configBaseUrl')) $('configBaseUrl').value = config.baseUrl || '';
-    }
-
-    function renderMode() {
-      if (document.activeElement !== modeSelect) modeSelect.value = activeMode;
-      $('modeDescription').textContent = modeCopy[activeMode]?.description || '';
-    }
-
-    function renderContext(next) {
-      $('contextFiles').innerHTML = next.contextFiles.length
-        ? next.contextFiles.map((file) => \`<span class="chip">\${escapeHtml(file)}<button type="button" data-remove-file="\${escapeHtml(file)}">x</button></span>\`).join('')
-        : '<span class="context-empty">No files attached</span>';
-      $('selectionPreview').className = next.selectionPreview ? 'selection' : 'selection hidden';
-      $('selectionPreview').textContent = next.selectionPreview ? \`Selection context:\\n\${next.selectionPreview}\` : '';
-    }
-
-    function renderMessages(next) {
-      const parts = [];
-      if (!next.messages.length && !next.streamText && !next.approval) {
-        parts.push('<div class="empty"><strong>Start with FrontAgent</strong><br>Ask a question, switch to Agent Edit for code changes, or attach a file, selection, and browser URL for richer context.</div>');
-      }
-      for (const message of next.messages) {
-        const meta = [];
-        if (message.mode) meta.push(modeCopy[message.mode]?.label || message.mode);
-        for (const file of message.files || []) meta.push(file);
-        if (message.url) meta.push(message.url);
-        parts.push(\`
-          <div class="message \${escapeHtml(message.role)}">
-            <div class="role">\${escapeHtml(message.role)}</div>
-            <div class="bubble">\${escapeHtml(message.text)}</div>
-            \${meta.length ? \`<div class="meta">\${meta.map((item) => \`<span class="chip">\${escapeHtml(item)}</span>\`).join('')}</div>\` : ''}
-          </div>\`);
-      }
-      if (next.isRunning || next.streamText) {
-        const label = next.lastActivityLabel || 'FrontAgent is working';
-        const operation = next.currentOperation || next.status || '';
-        const stream = next.streamText
-          ? \`<div class="stream-content">\${escapeHtml(next.streamText)}<span class="stream-cursor"></span></div>\`
-          : '<div class="muted">Waiting for the first streamed response...</div>';
-        parts.push(\`
-          <div class="message assistant">
-            <div class="role">assistant</div>
-            <div class="live-card">
-              <div class="live-status">
-                <span class="live-dot"></span>
-                <span class="live-label">\${escapeHtml(label)}</span>
-                \${operation ? \`<span class="live-operation">\${escapeHtml(operation)}</span>\` : ''}
-              </div>
-              \${stream}
-            </div>
-          </div>\`);
-      }
-      if (next.approval) {
-        parts.push(\`
-          <div class="approval">
-            <strong>Approval required: \${escapeHtml(next.approval.toolName)}</strong>
-            <div class="muted">\${escapeHtml(next.approval.riskLevel)} · \${escapeHtml(next.approval.reasonCode)}</div>
-            <div>\${escapeHtml(next.approval.message)}</div>
-            <pre>\${escapeHtml(next.approval.argsSummary)}</pre>
-            <div class="approval-actions">
-              <button data-approve="\${escapeHtml(next.approval.approvalId)}" type="button">Approve</button>
-              <button class="secondary" data-reject="\${escapeHtml(next.approval.approvalId)}" type="button">Reject</button>
-            </div>
-          </div>\`);
-      }
-      $('messages').innerHTML = parts.join('');
-      $('messages').scrollTop = $('messages').scrollHeight;
-    }
-
-    function renderDetails(next) {
-      detailsPanel.open = !next.detailsCollapsed;
-      $('activityLabel').textContent = next.lastActivityLabel || '等待开始';
-      $('operation').textContent = next.currentOperation || '';
-      $('phaseCount').textContent = next.phases.length ? \`(\${next.phases.length})\` : '';
-      $('phases').innerHTML = next.phases.length ? next.phases.map((phase) => \`
-        <div class="phase">
-          <div class="phase-head">
-            <strong>\${escapeHtml(phase.name)}</strong>
-            <span class="badge \${escapeHtml(phase.status)}">\${escapeHtml(phase.status)}</span>
-          </div>
-          <div class="steps">
-            \${phase.steps.map((step) => \`
-              <div class="step">
-                <span class="badge \${escapeHtml(step.status)}">\${escapeHtml(step.status)}</span>
-                <div>
-                  <div>\${escapeHtml(step.description)}</div>
-                  <div class="muted mono">\${escapeHtml(step.tool)} · \${escapeHtml(step.action)}</div>
-                  \${step.error ? \`<div class="danger">\${escapeHtml(step.error)}</div>\` : ''}
-                </div>
-              </div>\`).join('')}
-          </div>
-        </div>\`).join('') : 'No plan yet.';
-      $('ragMeta').textContent = next.ragSearchMode ? \`\${next.ragSearchMode}\${next.ragReranked ? ' · reranked' : ''}\` : '';
-      $('rag').innerHTML = next.ragMatches.length
-        ? next.ragMatches.map((match) => \`<div><strong>\${escapeHtml(match.title)}</strong><div class="muted mono">\${escapeHtml(match.path || '')}</div></div>\`).join('')
-        : 'No matches yet.';
-    }
-
-    function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[char]));
-    }
-
-    $('composer').addEventListener('submit', (event) => {
-      event.preventDefault();
-      const task = prompt.value.trim();
-      if (!task) return;
-      vscode.postMessage({
-        type: 'send',
-        task,
-        mode: activeMode,
-        files: state?.contextFiles || [],
-        url: browserUrl.value.trim() || undefined
-      });
-      prompt.value = '';
-      lastComposer = '';
-    });
-    $('stopButton').addEventListener('click', () => vscode.postMessage({ type: 'stop' }));
-    $('logButton').addEventListener('click', () => vscode.postMessage({ type: 'openLog' }));
-    $('toggleConfig').addEventListener('click', () => $('configForm').classList.toggle('open'));
-    $('closeConfig').addEventListener('click', () => $('configForm').classList.remove('open'));
-    $('openCommandConfig').addEventListener('click', () => vscode.postMessage({ type: 'configure' }));
-    $('configForm').addEventListener('submit', (event) => {
-      event.preventDefault();
-      vscode.postMessage({
-        type: 'saveConfig',
-        provider: $('configProvider').value,
-        model: $('configModel').value,
-        baseUrl: $('configBaseUrl').value,
-        apiKey: $('configApiKey').value
-      });
-      $('configApiKey').value = '';
-    });
-    modeSelect.addEventListener('change', () => {
-      activeMode = modeSelect.value || 'query';
-      renderMode();
-    });
-    $('contextFiles').addEventListener('click', (event) => {
-      const file = event.target?.getAttribute?.('data-remove-file');
-      if (!file || !state) return;
-      state.contextFiles = state.contextFiles.filter((item) => item !== file);
-      renderContext(state);
-    });
-    $('messages').addEventListener('click', (event) => {
-      const approve = event.target?.getAttribute?.('data-approve');
-      const reject = event.target?.getAttribute?.('data-reject');
-      if (approve) vscode.postMessage({ type: 'approve', approvalId: approve });
-      if (reject) vscode.postMessage({ type: 'reject', approvalId: reject });
-    });
-    detailsPanel.addEventListener('toggle', () => {
-      vscode.postMessage({ type: 'details', collapsed: !detailsPanel.open });
-    });
-
-    window.addEventListener('message', (event) => {
-      const message = event.data;
-      if (message.type === 'state') render(message.state);
-    });
-    window.addEventListener('error', (event) => {
-      vscode.postMessage({
-        type: 'webviewError',
-        message: event.message || 'Unknown webview error',
-        stack: event.error?.stack
-      });
-    });
-    window.addEventListener('unhandledrejection', (event) => {
-      const reason = event.reason;
-      vscode.postMessage({
-        type: 'webviewError',
-        message: reason?.message || String(reason || 'Unhandled webview rejection'),
-        stack: reason?.stack
-      });
-    });
-
-    vscode.postMessage({ type: 'ready' });
-  </script>
+${renderWebviewScriptSection(scriptNonce)}
 </body>
 </html>`;
 }
