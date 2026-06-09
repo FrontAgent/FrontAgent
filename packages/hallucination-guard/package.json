@@ -1,6 +1,6 @@
 {
   "name": "@frontagent/hallucination-guard",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "幻觉防控模块 - Agent 输出校验与事实核查",
   "type": "module",
   "main": "./dist/index.js",

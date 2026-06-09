@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-06-09
+
+### Changed
+
+- **core/executor**: Decomposed executor tool-call handling, validation skip handling, progress enforcement, step feedback, and trace recording into focused helpers. This keeps task execution behavior intact while making MCP task invocation, progress checks, and step trace output easier to test and maintain.
+- **core/agent**: Extracted agent context gathering, facts update flushing, project prescan preparation, task execution setup, and execution callback wiring out of the main FrontAgent orchestration path. This reduces the size and coupling of the core agent loop without changing the public execution contract.
+- **core/context**: Split context fact serialization, facts merge helpers, filesystem fact updates, and module dependency graph updates from `ContextManager`, improving maintainability around context persistence and workspace fact refreshes.
+- **core/planner**: Split planner phase helper logic into dedicated modules and expanded planner tests around phase handling.
+- **mcp-filesense**: Extracted engine helper, indexing, notes, query, and schema orchestration responsibilities from the Filesense engine. Query, notes, schema, and index persistence behavior now have focused module boundaries and tests.
+- **mcp-memory**: Extracted memory preload/recall helpers and persistence writer responsibilities from `MemoryStore`, keeping memory I/O behavior isolated from recall orchestration.
+- **mcp-memory/rag**: Extracted semantic search orchestration from the knowledge-base implementation while preserving hybrid RAG behavior.
+- **runtime-node**: Extracted runtime MCP task invocation setup from the MCP server path, clarifying schema assertions and task handler wiring.
+- **vscode**: Split the webview body, script, style, and template rendering helpers into smaller units with dedicated tests while preserving the sidebar UI behavior.
+- **sub-agents**: Split code-quality subagent prompt policy into a focused helper with tests.
+- **tooling**: Removed the temporary GitNexus release-candidate patch and aligned the Biome schema version.
+
+### Fixed
+
+- **vscode/security**: Hardened VS Code webview nonce generation.
+- **filesense**: Preserved relative path semantics in Filesense query results.
+- **filesense**: Preserved notes schema path ownership when generating Filesense notes.
+- **workflow**: Restored and hardened the local GitNexus contract gate.
+- **workflow**: Resolved relative core worktree paths and guarded bootstrap against mismatched worktrees.
+
+### Tests
+
+- Added focused CLI command router coverage.
+- Added runtime MCP contract and schema assertion coverage.
+- Added hybrid RAG knowledge-base coverage.
+- Added executor coverage for validation skipping, progress enforcement, step feedback, tool-call handling, and trace recording.
+- Added agent coverage for context gathering, facts flushing, project prescan preparation, execution callbacks, and task execution setup.
+- Added ContextManager coverage for fact serialization, facts merging, filesystem fact updates, and module dependency graph behavior.
+- Added Filesense coverage for engine helpers, indexing persistence writes, notes generation, query result behavior, and schema orchestration.
+- Added memory coverage for preload/recall helpers and persistence writers.
+- Added VS Code webview renderer coverage for body, script, style, and template extraction.
+- Cleaned Biome warnings in executor, shared utility, and LLM service tests.
+
+### Dependencies
+
+- Updated production dependency lockfile entries from the Dependabot production dependency group.
+
+### Compatibility Notes
+
+- The published CLI package and VS Code extension are now versioned as `2.1.1`.
+- Node.js remains `>=20.0.0`.
+- The VS Code extension still requires VS Code `^1.120.0`.
+
 ## [2.1.0] - 2026-06-08
 
 ### Added

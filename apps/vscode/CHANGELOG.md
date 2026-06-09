@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.1
+
+- Aligned the extension package with the FrontAgent `2.1.1` release.
+- Split the sidebar webview HTML implementation into focused body, script, style, and template renderers.
+- Added focused webview renderer tests to preserve sidebar behavior while making future UI changes easier to review.
+- Kept the minimum VS Code engine requirement at `^1.120.0`.
+- Build output now packages the `frontagent-2.1.1.vsix` artifact through the root `pnpm build` script.
+
 ## 2.1.0
 
 - Added release alignment with the FrontAgent `2.1.0` CLI and runtime packages.

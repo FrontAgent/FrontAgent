@@ -1,15 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type {
-  AgentTask,
-  ExecutionStep,
-  SecurityDecision,
-  StepResult,
-  ValidationResult,
-} from '@frontagent/shared';
+import type { AgentTask, ExecutionStep, StepResult, ValidationResult } from '@frontagent/shared';
 import { logger } from '@frontagent/shared';
-import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
-import { SecurityManager, toApprovalRequest } from '../security.js';
 import {
   createDefaultExecutorSkillRegistry,
   type ExecutorActionSkill,
@@ -18,15 +10,15 @@ import {
 import type { ExecutorOutput } from '../types.js';
 import { buildOrderedPhaseGroups, detectLanguage } from './phase-ordering.js';
 import { PhaseRunner } from './phase-runner.js';
+import { executeStepsWithProgressEnforcement } from './progress-enforcement.js';
+import { executeStepsWithErrorFeedbackViaLangGraph } from './step-feedback-runner.js';
+import { createStepTraceRecorder } from './step-trace-recorder.js';
+import { ExecutorToolCallHandler } from './tool-call-handler.js';
 import type {
   ExecutorCollectedContext,
   ExecutorConfig,
-  ExecutorSubStage,
-  ExecutorTraceStage,
-  LangGraphRuntimeState,
   MCPClient,
   PhaseExecutionGroup,
-  SerializablePhaseExecutionGroup,
 } from './types.js';
 
 export class Executor {
@@ -34,13 +26,19 @@ export class Executor {
   private mcpClients: Map<string, MCPClient> = new Map();
   private toolToClient: Map<string, string> = new Map();
   private actionSkills: ReturnType<typeof createDefaultExecutorSkillRegistry>;
-  private securityManager: SecurityManager;
   private currentBrowserUrl?: string;
   private phaseRunner: PhaseRunner;
+  private toolCallHandler: ExecutorToolCallHandler;
 
   constructor(config: ExecutorConfig) {
     this.config = config;
-    this.securityManager = new SecurityManager();
+    this.toolCallHandler = new ExecutorToolCallHandler({
+      config: this.config,
+      mcpClients: this.mcpClients,
+      toolToClient: this.toolToClient,
+      nowMs: () => this.nowMs(),
+      getCurrentBrowserUrl: () => this.currentBrowserUrl,
+    });
     this.actionSkills = createDefaultExecutorSkillRegistry({
       llmService: this.config.llmService,
       debug: this.config.debug,
@@ -86,24 +84,6 @@ export class Executor {
     return Number(process.hrtime.bigint()) / 1_000_000;
   }
 
-  private isTraceEnabled(): boolean {
-    return Boolean(this.config.trace?.enabled || this.config.trace?.onStepTrace);
-  }
-
-  private createTraceStage(
-    name: ExecutorTraceStage['name'],
-    startedAtMs: number,
-    success: boolean,
-    error?: string,
-  ): ExecutorTraceStage {
-    return {
-      name,
-      durationMs: this.nowMs() - startedAtMs,
-      success,
-      error,
-    };
-  }
-
   registerMCPClient(name: string, client: MCPClient): void {
     this.mcpClients.set(name, client);
   }
@@ -128,104 +108,40 @@ export class Executor {
     },
   ): Promise<ExecutorOutput> {
     const startTime = Date.now();
-    const traceEnabled = this.isTraceEnabled();
-    const traceStartedAt = traceEnabled ? this.nowMs() : 0;
-    const traceStages: ExecutorTraceStage[] = [];
-    const subStages: ExecutorSubStage[] = [];
-
-    const finish = (output: ExecutorOutput): ExecutorOutput => {
-      if (traceEnabled) {
-        const stepResult = output.stepResult;
-        const toolResult = stepResult.output as Record<string, unknown> | undefined;
-        this.config.trace?.onStepTrace?.({
-          taskId: context.task.id,
-          stepId: step.stepId,
-          action: step.action,
-          tool: step.tool,
-          totalMs: this.nowMs() - traceStartedAt,
-          success: stepResult.success,
-          skipped:
-            typeof stepResult.output === 'object' &&
-            stepResult.output !== null &&
-            Boolean((stepResult.output as { skipped?: boolean }).skipped),
-          error: stepResult.error,
-          stages: traceStages,
-          toolDurationMs: toolResult?.__toolDurationMs as number | undefined,
-          subStages: subStages.length > 0 ? subStages : undefined,
-        });
-      }
-      return output;
-    };
-
-    const withStage = async <T>(
-      name: ExecutorTraceStage['name'],
-      fn: () => Promise<T> | T,
-    ): Promise<T> => {
-      if (!traceEnabled) {
-        return fn();
-      }
-      const stageStartedAt = this.nowMs();
-      try {
-        const result = await fn();
-        traceStages.push(this.createTraceStage(name, stageStartedAt, true));
-        return result;
-      } catch (error) {
-        traceStages.push(
-          this.createTraceStage(
-            name,
-            stageStartedAt,
-            false,
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
-        throw error;
-      }
-    };
+    const trace = createStepTraceRecorder({
+      trace: this.config.trace,
+      taskId: context.task.id,
+      step,
+      nowMs: () => this.nowMs(),
+    });
 
     try {
-      const paramValidation = await withStage('validate_params', () =>
+      const paramValidation = await trace.withStage('validate_params', () =>
         this.validateStepParams(step),
       );
       if (!paramValidation.valid) {
         if (this.config.debug) {
           console.log(`[Executor] Skipping step due to invalid params: ${paramValidation.reason}`);
         }
-        return finish({
-          stepResult: {
-            success: true,
-            output: { skipped: true, reason: paramValidation.reason },
-            duration: Date.now() - startTime,
-          },
-          validation: { pass: true, results: [] },
-          needsRollback: false,
-        });
+        return trace.finish(this.buildSkippedStepOutput(paramValidation.reason, startTime));
       }
 
-      const preValidation = await withStage('validate_before', () =>
+      const preValidation = await trace.withStage('validate_before', () =>
         this.validateBeforeExecution(step, context),
       );
       if (!preValidation.pass) {
-        const errorMsg = preValidation.blockedBy?.join('; ') || '';
-        const isDirectoryError =
-          errorMsg.includes('is not a file') || errorMsg.includes('Not a file');
-        const isFileNotExist = errorMsg.includes('does not exist') && step.action === 'read_file';
-
-        if (isDirectoryError || isFileNotExist) {
+        const skip = this.getPreValidationSkip(step, preValidation);
+        if (skip) {
           if (this.config.debug) {
-            console.log(`[Executor] Skipping step due to validation: ${errorMsg}`);
+            console.log(`[Executor] Skipping step due to validation: ${skip.reason}`);
           }
-          return finish({
-            stepResult: {
-              success: true,
-              output: { skipped: true, reason: errorMsg, exists: false },
-              duration: Date.now() - startTime,
-            },
-            validation: { pass: true, results: [] },
-            needsRollback: false,
-          });
+          return trace.finish(
+            this.buildSkippedStepOutput(skip.reason, startTime, { exists: false }),
+          );
         }
 
-        return finish({
+        const errorMsg = preValidation.blockedBy?.join('; ') || '';
+        return trace.finish({
           stepResult: {
             success: false,
             error: `Pre-execution validation failed: ${errorMsg}`,
@@ -246,18 +162,20 @@ export class Executor {
         console.log('[Executor] Step params:', toolParams);
       }
 
-      toolParams = await withStage('prepare_tool_params', () =>
+      toolParams = await trace.withStage('prepare_tool_params', () =>
         this.actionSkills.prepareToolParams({
           step,
           params: toolParams,
           context,
           onSubStageTiming: (name, durationMs) => {
-            subStages.push({ name, durationMs, success: true });
+            trace.addSubStage(name, durationMs);
           },
         }),
       );
 
-      const toolResult = await withStage('call_tool', () => this.callTool(step.tool, toolParams));
+      const toolResult = await trace.withStage('call_tool', () =>
+        this.callTool(step.tool, toolParams),
+      );
 
       if (typeof toolResult === 'object' && toolResult !== null) {
         const resultObj = toolResult as { success?: boolean; error?: string };
@@ -267,20 +185,12 @@ export class Executor {
             if (this.config.debug) {
               console.log(`[Executor] Skipping step due to tool error: ${resultObj.error}`);
             }
-            return finish({
-              stepResult: {
-                success: true,
-                output: { skipped: true, reason: resultObj.error },
-                duration: Date.now() - startTime,
-              },
-              validation: { pass: true, results: [] },
-              needsRollback: false,
-            });
+            return trace.finish(this.buildSkippedStepOutput(resultObj.error, startTime));
           }
         }
       }
 
-      const postValidation = await withStage('validate_after', () =>
+      const postValidation = await trace.withStage('validate_after', () =>
         this.validateAfterExecution(step, toolResult, toolParams),
       );
 
@@ -292,23 +202,14 @@ export class Executor {
         snapshotId: (toolResult as { snapshotId?: string })?.snapshotId,
       };
 
-      return finish({
+      return trace.finish({
         stepResult,
         validation: postValidation,
         needsRollback: !postValidation.pass && step.validation.some((v) => v.required),
       });
     } catch (error) {
-      if (traceEnabled && traceStages.length === 0) {
-        traceStages.push(
-          this.createTraceStage(
-            'catch',
-            traceStartedAt,
-            false,
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
-      }
-      return finish({
+      trace.markCatchIfEmpty(error);
+      return trace.finish({
         stepResult: {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -322,6 +223,37 @@ export class Executor {
         needsRollback: true,
       });
     }
+  }
+
+  private buildSkippedStepOutput(
+    reason: string | undefined,
+    startTime: number,
+    output: { exists?: false } = {},
+  ): ExecutorOutput {
+    return {
+      stepResult: {
+        success: true,
+        output: { skipped: true, reason, ...output },
+        duration: Date.now() - startTime,
+      },
+      validation: { pass: true, results: [] },
+      needsRollback: false,
+    };
+  }
+
+  private getPreValidationSkip(
+    step: ExecutionStep,
+    validation: ValidationResult,
+  ): { reason: string } | undefined {
+    const reason = validation.blockedBy?.join('; ') || '';
+    const isDirectoryError = reason.includes('is not a file') || reason.includes('Not a file');
+    const isFileNotExist = reason.includes('does not exist') && step.action === 'read_file';
+
+    if (isDirectoryError || isFileNotExist) {
+      return { reason };
+    }
+
+    return undefined;
   }
 
   private validateStepParams(step: ExecutionStep): { valid: boolean; reason?: string } {
@@ -632,131 +564,15 @@ export class Executor {
   }
 
   async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const clientName = this.toolToClient.get(toolName);
-    if (!clientName) {
-      throw new Error(`No MCP client registered for tool: ${toolName}`);
-    }
-
-    const client = this.mcpClients.get(clientName);
-    if (!client) {
-      throw new Error(`MCP client not found: ${clientName}`);
-    }
-
-    if (this.config.debug) {
-      console.log(`[Executor] Calling tool: ${toolName}`, args);
-    }
-
-    const security = await this.enforceSecurity(toolName, args);
-    if (!security.allowed) {
-      return {
-        success: false,
-        error: security.error,
-      };
-    }
-
-    const mcpStart = this.nowMs();
-    const result = await client.callTool(toolName, security.args);
-    const mcpDurationMs = this.nowMs() - mcpStart;
-    if (typeof result === 'object' && result !== null) {
-      (result as Record<string, unknown>).__toolDurationMs = mcpDurationMs;
-    }
+    const toolCall = await this.toolCallHandler.callTool(toolName, args);
 
     if (toolName === 'browser_navigate' || toolName === 'navigate') {
-      if (typeof args.url === 'string' && this.isSuccessfulToolResult(result)) {
+      if (typeof args.url === 'string' && toolCall.successful) {
         this.currentBrowserUrl = args.url;
       }
     }
 
-    if (this.config.debug) {
-      console.log('[Executor] Tool result:', result);
-    }
-
-    return result;
-  }
-
-  private async enforceSecurity(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<{ allowed: true; args: Record<string, unknown> } | { allowed: false; error: string }> {
-    const decision = this.securityManager.evaluate({
-      toolName,
-      args,
-      projectRoot: this.config.projectRoot,
-      sddConfig: this.config.sddConfig,
-      security: this.config.security,
-      currentBrowserUrl: this.currentBrowserUrl,
-    });
-
-    this.emitSecurityDecision(decision);
-
-    if (decision.decision === 'deny') {
-      return { allowed: false, error: `Security policy denied ${toolName}: ${decision.message}` };
-    }
-
-    if (decision.decision === 'allow') {
-      return { allowed: true, args };
-    }
-
-    const approvalRequest = toApprovalRequest(decision);
-    const interactive = this.config.security?.interactive ?? false;
-    if (!interactive || !this.config.approvalHandler) {
-      const deniedDecision: SecurityDecision = {
-        ...decision,
-        decision: 'deny',
-        reasonCode: 'security_approval_unavailable',
-        message: 'Approval is required but no interactive approval channel is available.',
-      };
-      this.emitSecurityDecision(deniedDecision);
-      return { allowed: false, error: deniedDecision.message };
-    }
-
-    const approved = await this.config.approvalHandler(approvalRequest);
-    const finalDecision: SecurityDecision = approved
-      ? {
-          ...decision,
-          decision: 'allow',
-          reasonCode: 'approved_by_user',
-          message: `User approved: ${decision.message}`,
-          approvalId: approvalRequest.approvalId,
-        }
-      : {
-          ...decision,
-          decision: 'deny',
-          reasonCode: 'rejected_by_user',
-          message: `User rejected: ${decision.message}`,
-          approvalId: approvalRequest.approvalId,
-        };
-    this.emitSecurityDecision(finalDecision);
-
-    if (!approved) {
-      return {
-        allowed: false,
-        error: `Security approval rejected for ${toolName}: ${decision.message}`,
-      };
-    }
-
-    return {
-      allowed: true,
-      args: {
-        ...args,
-        __frontagentSecurityApproved: true,
-      },
-    };
-  }
-
-  private emitSecurityDecision(decision: SecurityDecision): void {
-    if (this.config.security?.auditEnabled === false) {
-      return;
-    }
-    this.config.onSecurityDecision?.(decision);
-  }
-
-  private isSuccessfulToolResult(result: unknown): boolean {
-    if (typeof result !== 'object' || result === null) {
-      return true;
-    }
-    const resultObj = result as { success?: boolean };
-    return resultObj.success !== false;
+    return toolCall.result;
   }
 
   async executeSteps(
@@ -767,43 +583,12 @@ export class Executor {
     },
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
   ): Promise<ExecutorOutput[]> {
-    const results: ExecutorOutput[] = [];
-    const completedSteps = new Set<string>();
-
-    const pendingSteps = [...steps];
-
-    while (pendingSteps.length > 0) {
-      const executableIndex = pendingSteps.findIndex((step) =>
-        step.dependencies.every((dep) => completedSteps.has(dep)),
-      );
-
-      if (executableIndex === -1) {
-        throw new Error('Circular dependency detected or missing dependency');
-      }
-
-      const step = pendingSteps.splice(executableIndex, 1)[0];
-      step.status = 'running';
-
-      const output = await this.executeStep(step, context);
-      step.result = output.stepResult;
-      step.status = output.stepResult.success ? 'completed' : 'failed';
-
-      results.push(output);
-      completedSteps.add(step.stepId);
-
-      if (onStepComplete) {
-        onStepComplete(step, output);
-      }
-
-      if (!output.stepResult.success && output.needsRollback) {
-        for (const pending of pendingSteps) {
-          pending.status = 'skipped';
-        }
-        break;
-      }
-    }
-
-    return results;
+    return executeStepsWithProgressEnforcement(
+      steps,
+      context,
+      { executeStep: (step, executionContext) => this.executeStep(step, executionContext) },
+      onStepComplete,
+    );
   }
 
   private shouldUseLangGraphEngine(): boolean {
@@ -876,131 +661,6 @@ export class Executor {
     );
   }
 
-  private async executeStepsWithErrorFeedbackViaLangGraph(
-    steps: ExecutionStep[],
-    context: {
-      task: AgentTask;
-      collectedContext: ExecutorCollectedContext;
-    },
-    onStepStart?: (step: ExecutionStep) => void,
-    onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
-    onPhaseStart?: (phase: string, stepCount: number) => void,
-    onPhaseError?: (
-      phase: string,
-      errors: Array<{ step: ExecutionStep; error: string }>,
-    ) => Promise<ExecutionStep[]>,
-    onPhaseComplete?: (
-      phase: string,
-      results: ExecutorOutput[],
-    ) => Promise<Array<{ step: ExecutionStep; error: string }>>,
-    signal?: AbortSignal,
-  ): Promise<ExecutorOutput[]> {
-    const orderedPhaseGroups = buildOrderedPhaseGroups(steps, this.debugWarn.bind(this));
-    const serializablePhaseGroups: SerializablePhaseExecutionGroup[] = orderedPhaseGroups.map(
-      (group) => ({
-        phase: group.phase,
-        steps: group.steps,
-        dependencies: Array.from(group.dependencies),
-        firstSeenIndex: group.firstSeenIndex,
-        priority: group.priority,
-      }),
-    );
-
-    const RuntimeStateAnnotation = Annotation.Root({
-      runtime: Annotation<LangGraphRuntimeState>({
-        reducer: (_left, right) => right,
-        default: () => ({
-          phaseGroups: [],
-          phaseIndex: 0,
-          completedStepIds: [],
-          allResults: [],
-        }),
-      }),
-    });
-
-    const graph = new StateGraph(RuntimeStateAnnotation)
-      .addNode('select_phase', () => ({}))
-      .addNode('execute_phase', async (state) => {
-        const runtime = state.runtime as LangGraphRuntimeState;
-        if (runtime.phaseIndex >= runtime.phaseGroups.length) {
-          return {};
-        }
-
-        const phaseGroupData = runtime.phaseGroups[runtime.phaseIndex];
-        const phaseGroup: PhaseExecutionGroup = {
-          ...phaseGroupData,
-          dependencies: new Set(phaseGroupData.dependencies),
-        };
-        const completedStepIds = new Set(runtime.completedStepIds);
-        const allResults = [...runtime.allResults];
-
-        await this.executeSinglePhaseWithRecovery(
-          phaseGroup,
-          context,
-          completedStepIds,
-          allResults,
-          onStepStart,
-          onStepComplete,
-          onPhaseStart,
-          onPhaseError,
-          onPhaseComplete,
-          signal,
-        );
-
-        return {
-          runtime: {
-            ...runtime,
-            completedStepIds: Array.from(completedStepIds),
-            allResults,
-          },
-        };
-      })
-      .addNode('advance_phase', (state) => {
-        const runtime = state.runtime as LangGraphRuntimeState;
-        return {
-          runtime: {
-            ...runtime,
-            phaseIndex: runtime.phaseIndex + 1,
-          },
-        };
-      })
-      .addEdge(START, 'select_phase')
-      .addConditionalEdges('select_phase', (state) => {
-        const runtime = state.runtime as LangGraphRuntimeState;
-        return runtime.phaseIndex >= runtime.phaseGroups.length ? END : 'execute_phase';
-      })
-      .addEdge('execute_phase', 'advance_phase')
-      .addEdge('advance_phase', 'select_phase')
-      .compile({
-        checkpointer: this.config.langGraph?.useCheckpoint ? new MemorySaver() : undefined,
-        name: 'frontagent.phase.flow',
-      });
-
-    const initialState: LangGraphRuntimeState = {
-      phaseGroups: serializablePhaseGroups,
-      phaseIndex: 0,
-      completedStepIds: [],
-      allResults: [],
-    };
-
-    const runnableConfig = this.config.langGraph?.useCheckpoint
-      ? {
-          configurable: {
-            thread_id: `${this.config.langGraph?.threadIdPrefix ?? 'frontagent'}-${Date.now()}`,
-          },
-        }
-      : undefined;
-
-    const finalState = (await graph.invoke(
-      { runtime: initialState },
-      runnableConfig as unknown as Record<string, unknown>,
-    )) as {
-      runtime?: LangGraphRuntimeState;
-    };
-
-    return finalState.runtime?.allResults ?? [];
-  }
-
   async executeStepsWithErrorFeedback(
     steps: ExecutionStep[],
     context: {
@@ -1024,16 +684,39 @@ export class Executor {
       if (this.config.debug) {
         console.log('[Executor] Using LangGraph execution engine');
       }
-      return this.executeStepsWithErrorFeedbackViaLangGraph(
+      return executeStepsWithErrorFeedbackViaLangGraph({
         steps,
         context,
-        onStepStart,
-        onStepComplete,
-        onPhaseStart,
-        onPhaseError,
-        onPhaseComplete,
-        signal,
-      );
+        debugWarn: this.debugWarn.bind(this),
+        langGraph: this.config.langGraph,
+        executeSinglePhaseWithRecovery: (
+          phaseGroup,
+          executionContext,
+          completedStepIds,
+          allResults,
+          callbacks,
+        ) =>
+          this.executeSinglePhaseWithRecovery(
+            phaseGroup,
+            executionContext,
+            completedStepIds,
+            allResults,
+            callbacks.onStepStart,
+            callbacks.onStepComplete,
+            callbacks.onPhaseStart,
+            callbacks.onPhaseError,
+            callbacks.onPhaseComplete,
+            callbacks.signal,
+          ),
+        callbacks: {
+          onStepStart,
+          onStepComplete,
+          onPhaseStart,
+          onPhaseError,
+          onPhaseComplete,
+          signal,
+        },
+      });
     }
 
     const orderedPhaseGroups = buildOrderedPhaseGroups(steps, this.debugWarn.bind(this));

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { z } from 'zod';
 import type { LLMConfig } from '../types.js';
 import { LLMService, normalizeProviderBaseURL } from './llm-service.js';
 
@@ -157,7 +158,9 @@ describe('LLMService', () => {
 
   describe('generateObject with backend', () => {
     it('delegates to backend', async () => {
-      const schema = { parse: (v: unknown) => v } as any;
+      const schema = {
+        parse: (v: unknown) => v as { result: string },
+      } as z.ZodType<{ result: string }>;
       const backend = {
         name: 'test',
         generateText: vi.fn(),

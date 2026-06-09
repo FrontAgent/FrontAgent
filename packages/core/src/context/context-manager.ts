@@ -3,25 +3,21 @@ import type {
   AgentContext,
   FilesenseNavigationIntent,
   Message,
-  ModuleInfo,
   ProjectFacts,
   ProjectFactsMergeResult,
   ProjectFactsSnapshot,
   ProjectFactsUpdate,
   RagContextMatch,
 } from '../types.js';
+import { serializeProjectFactsForLLM } from './fact-serializer.js';
 import {
-  cloneStringArray,
-  formatFilesenseNavigationContext,
-  inferModuleType,
-  mapToRecord,
-  normalizeFilesenseNavigation,
-  parentDirectoriesForPath,
-  parseExports,
-  parseImports,
-  recordToClonedStringArrayMap,
-  resolveImportPath,
-} from './helpers.js';
+  exportProjectFactsSnapshot,
+  mergeProjectFactsUpdate,
+  projectFactsFromSnapshot,
+} from './facts-merge-helpers.js';
+import { updateFilesystemFactsFromToolResult } from './filesystem-facts-update.js';
+import { formatFilesenseNavigationContext, normalizeFilesenseNavigation } from './helpers.js';
+import { updateModuleDependencyGraphFromToolResult } from './module-dependency-graph.js';
 
 /**
  * 上下文管理器
@@ -90,19 +86,6 @@ export class ContextManager {
 
   private removeFromSet(set: Set<string>, value: string): boolean {
     return set.delete(value);
-  }
-
-  private setStringArrayMap(map: Map<string, string[]>, key: string, value: string[]): boolean {
-    const previous = map.get(key);
-    if (
-      previous &&
-      previous.length === value.length &&
-      previous.every((item, idx) => item === value[idx])
-    ) {
-      return false;
-    }
-    map.set(key, value);
-    return true;
   }
 
   /**
@@ -327,169 +310,8 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return;
 
-    const { facts } = context;
-    let changed = false;
-
-    // Handle filesense navigation results - consume explicit factsDelta instead of guessing result shape.
-    if (toolName.startsWith('filesense_')) {
-      const data = result.data as
-        | { factsDelta?: { existingFiles?: string[]; existingDirectories?: string[] } }
-        | undefined;
-      const factsDelta = data?.factsDelta;
-      if (result.success && factsDelta) {
-        for (const file of factsDelta.existingFiles ?? []) {
-          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
-        }
-        for (const dir of factsDelta.existingDirectories ?? []) {
-          changed = this.addToSet(facts.filesystem.existingDirectories, dir) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, dir) || changed;
-        }
-      }
-    }
-
-    // Handle filesense tool results - enrich ProjectFacts from index data
-    if (
-      toolName === 'filesense_sync' ||
-      toolName === 'filesense_sync_and_summarize' ||
-      toolName === 'filesense_query'
-    ) {
-      if (result.success && result.data) {
-        const data = result.data as Record<string, unknown>;
-
-        // For query results, extract file/directory existence from the index
-        const index = (data.index ?? (data as { sync?: unknown }).sync) as
-          | { children?: Array<{ name: string; path: string; type: string }> }
-          | undefined;
-        if (index?.children) {
-          for (const child of index.children) {
-            if (child.type === 'file') {
-              changed = this.addToSet(facts.filesystem.existingFiles, child.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, child.path) || changed;
-            } else if (child.type === 'dir') {
-              changed = this.addToSet(facts.filesystem.existingDirectories, child.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, child.path) || changed;
-            }
-          }
-        }
-
-        // For sync results, mark the root as existing directory
-        const root = data.root as string | undefined;
-        if (root) {
-          changed = this.addToSet(facts.filesystem.existingDirectories, root) || changed;
-        }
-      }
-    }
-
-    switch (toolName) {
-      case 'create_file':
-      case 'apply_patch': {
-        const path = params.path as string;
-        if (result.success) {
-          changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-        } else if (result.error?.includes('not found')) {
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-        }
-        break;
-      }
-      case 'read_file': {
-        const path = params.path as string;
-        // 🔧 修复：检查 skipped 和 exists 字段，正确记录不存在的文件
-        if (result.success && !result.skipped) {
-          // 真正成功读取了文件
-          changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-        } else if (result.skipped && result.exists === false) {
-          // 步骤被跳过且文件不存在
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
-        } else if (
-          result.error?.includes('not found') ||
-          result.error?.includes('does not exist')
-        ) {
-          // 明确的文件不存在错误
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-          changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
-        }
-        break;
-      }
-      case 'list_directory': {
-        const path = params.path as string;
-        // 🔧 修复：同样检查 skipped 字段
-        if (result.success && !result.skipped && Array.isArray(result.entries)) {
-          changed = this.addToSet(facts.filesystem.existingDirectories, path) || changed;
-
-          // 🔧 关键修复：从目录内容推断文件存在性
-          // list_directory 返回的 entries 是 FileInfo[] 对象数组
-          // FileInfo = { name: string, path: string, type: 'file' | 'directory', size?, modifiedAt? }
-          const entries = result.entries as Array<{ name: string; path: string; type: string }>;
-
-          // 存储路径字符串用于 directoryContents
-          changed =
-            this.setStringArrayMap(
-              facts.filesystem.directoryContents,
-              path,
-              entries.map((e) => e.path),
-            ) || changed;
-
-          // 将目录中的文件/子目录添加到相应的集合
-          for (const entry of entries) {
-            if (entry.type === 'file') {
-              changed = this.addToSet(facts.filesystem.existingFiles, entry.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, entry.path) || changed;
-            } else if (entry.type === 'directory') {
-              changed = this.addToSet(facts.filesystem.existingDirectories, entry.path) || changed;
-              changed =
-                this.removeFromSet(facts.filesystem.nonExistentPaths, entry.path) || changed;
-            }
-          }
-        } else if (result.skipped || result.error?.includes('not found')) {
-          changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-        }
-        break;
-      }
-      case 'search_code': {
-        if (!result.success) {
-          break;
-        }
-
-        const files = new Set<string>();
-
-        if (Array.isArray(result.files)) {
-          for (const file of result.files) {
-            if (typeof file === 'string') {
-              files.add(file);
-            }
-          }
-        }
-
-        if (Array.isArray(result.matches)) {
-          for (const match of result.matches as Array<{ file?: unknown }>) {
-            if (typeof match.file === 'string') {
-              files.add(match.file);
-            }
-          }
-        }
-
-        for (const file of files) {
-          changed = this.addToSet(facts.filesystem.existingFiles, file) || changed;
-          changed = this.removeFromSet(facts.filesystem.nonExistentPaths, file) || changed;
-
-          for (const parent of parentDirectoriesForPath(file)) {
-            changed = this.addToSet(facts.filesystem.existingDirectories, parent) || changed;
-            changed = this.removeFromSet(facts.filesystem.nonExistentPaths, parent) || changed;
-          }
-        }
-        break;
-      }
-    }
-
-    if (changed) {
-      this.bumpFactsRevision(facts);
+    if (updateFilesystemFactsFromToolResult(context.facts, toolName, params, result)) {
+      this.bumpFactsRevision(context.facts);
     }
   }
 
@@ -605,65 +427,16 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return;
 
-    const { moduleDependencyGraph } = context.facts;
-
-    // 只处理成功的 create_file 和 apply_patch 操作
-    if (!result.success) return;
-    if (toolName !== 'create_file' && toolName !== 'apply_patch') return;
-
-    const path = params.path as string;
-    const content = (params.content as string) || (result.content as string) || '';
-
-    // 只处理 TS/JS 文件
-    if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) return;
-
-    // 解析导入和导出
-    const imports = parseImports(content);
-    const { exports: exportedSymbols, defaultExport } = parseExports(content);
-
-    // 创建模块信息
-    const moduleInfo: ModuleInfo = {
-      path,
-      type: inferModuleType(path),
-      exports: exportedSymbols,
-      defaultExport,
-      imports,
-      createdAt: Date.now(),
-    };
-
-    // 更新模块映射
-    moduleDependencyGraph.modules.set(path, moduleInfo);
-
-    // 更新依赖关系
-    const resolvedDeps: string[] = [];
-    for (const importPath of imports) {
-      const resolved = resolveImportPath(importPath, path, '');
-      if (resolved) {
-        resolvedDeps.push(resolved);
-      }
+    if (
+      updateModuleDependencyGraphFromToolResult(
+        context.facts.moduleDependencyGraph,
+        toolName,
+        params,
+        result,
+      )
+    ) {
+      this.bumpFactsRevision(context.facts);
     }
-    moduleDependencyGraph.dependencies.set(path, resolvedDeps);
-
-    // 清理旧的反向依赖（如果模块被重复更新）
-    for (const [depPath, reverseDeps] of moduleDependencyGraph.reverseDependencies.entries()) {
-      const nextReverseDeps = reverseDeps.filter((reversePath) => reversePath !== path);
-      if (nextReverseDeps.length > 0) {
-        moduleDependencyGraph.reverseDependencies.set(depPath, nextReverseDeps);
-      } else {
-        moduleDependencyGraph.reverseDependencies.delete(depPath);
-      }
-    }
-
-    // 更新反向依赖
-    for (const dep of resolvedDeps) {
-      const reverseDeps = moduleDependencyGraph.reverseDependencies.get(dep) || [];
-      if (!reverseDeps.includes(path)) {
-        reverseDeps.push(path);
-        moduleDependencyGraph.reverseDependencies.set(dep, reverseDeps);
-      }
-    }
-
-    this.bumpFactsRevision(context.facts);
   }
 
   /**
@@ -761,44 +534,7 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return undefined;
 
-    const { facts } = context;
-
-    const modulesRecord: Record<string, ModuleInfo> = {};
-    for (const [path, moduleInfo] of facts.moduleDependencyGraph.modules.entries()) {
-      modulesRecord[path] = {
-        ...moduleInfo,
-        exports: cloneStringArray(moduleInfo.exports),
-        imports: cloneStringArray(moduleInfo.imports),
-      };
-    }
-
-    return {
-      revision: facts.revision,
-      filesystem: {
-        existingFiles: Array.from(facts.filesystem.existingFiles),
-        existingDirectories: Array.from(facts.filesystem.existingDirectories),
-        nonExistentPaths: Array.from(facts.filesystem.nonExistentPaths),
-        directoryContents: mapToRecord(facts.filesystem.directoryContents, cloneStringArray),
-      },
-      dependencies: {
-        installedPackages: Array.from(facts.dependencies.installedPackages),
-        missingPackages: Array.from(facts.dependencies.missingPackages),
-      },
-      project: {
-        devServerRunning: facts.project.devServerRunning,
-        runningPort: facts.project.runningPort,
-        buildStatus: facts.project.buildStatus,
-      },
-      moduleDependencyGraph: {
-        modules: modulesRecord,
-        dependencies: mapToRecord(facts.moduleDependencyGraph.dependencies, cloneStringArray),
-        reverseDependencies: mapToRecord(
-          facts.moduleDependencyGraph.reverseDependencies,
-          cloneStringArray,
-        ),
-      },
-      errors: facts.errors.map((error) => ({ ...error })),
-    };
+    return exportProjectFactsSnapshot(context.facts);
   }
 
   /**
@@ -816,120 +552,7 @@ export class ContextManager {
       };
     }
 
-    const { facts } = context;
-    const previousRevision = facts.revision;
-    const staleBaseRevision = update.baseRevision !== previousRevision;
-    let changed = false;
-    const { changes } = update;
-
-    for (const path of changes.addExistingFiles ?? []) {
-      changed = this.addToSet(facts.filesystem.existingFiles, path) || changed;
-      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-    }
-
-    for (const path of changes.addExistingDirectories ?? []) {
-      changed = this.addToSet(facts.filesystem.existingDirectories, path) || changed;
-      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-    }
-
-    for (const path of changes.addNonExistentPaths ?? []) {
-      changed = this.addToSet(facts.filesystem.nonExistentPaths, path) || changed;
-      changed = this.removeFromSet(facts.filesystem.existingFiles, path) || changed;
-    }
-
-    for (const path of changes.removeNonExistentPaths ?? []) {
-      changed = this.removeFromSet(facts.filesystem.nonExistentPaths, path) || changed;
-    }
-
-    for (const entry of changes.setDirectoryContents ?? []) {
-      changed =
-        this.setStringArrayMap(
-          facts.filesystem.directoryContents,
-          entry.path,
-          cloneStringArray(entry.entries),
-        ) || changed;
-    }
-
-    for (const pkg of changes.addInstalledPackages ?? []) {
-      changed = this.addToSet(facts.dependencies.installedPackages, pkg) || changed;
-      changed = this.removeFromSet(facts.dependencies.missingPackages, pkg) || changed;
-    }
-
-    for (const pkg of changes.addMissingPackages ?? []) {
-      changed = this.addToSet(facts.dependencies.missingPackages, pkg) || changed;
-    }
-
-    for (const pkg of changes.removeMissingPackages ?? []) {
-      changed = this.removeFromSet(facts.dependencies.missingPackages, pkg) || changed;
-    }
-
-    if (changes.project) {
-      const nextProject = changes.project;
-      if (
-        nextProject.devServerRunning !== undefined &&
-        facts.project.devServerRunning !== nextProject.devServerRunning
-      ) {
-        facts.project.devServerRunning = nextProject.devServerRunning;
-        changed = true;
-      }
-      if (
-        nextProject.runningPort !== undefined &&
-        facts.project.runningPort !== nextProject.runningPort
-      ) {
-        facts.project.runningPort = nextProject.runningPort;
-        changed = true;
-      }
-      if (
-        nextProject.buildStatus !== undefined &&
-        facts.project.buildStatus !== nextProject.buildStatus
-      ) {
-        facts.project.buildStatus = nextProject.buildStatus;
-        changed = true;
-      }
-    }
-
-    for (const moduleInfo of changes.upsertModules ?? []) {
-      const normalized: ModuleInfo = {
-        ...moduleInfo,
-        exports: cloneStringArray(moduleInfo.exports),
-        imports: cloneStringArray(moduleInfo.imports),
-      };
-      facts.moduleDependencyGraph.modules.set(moduleInfo.path, normalized);
-      changed = true;
-    }
-
-    for (const depEntry of changes.setDependencies ?? []) {
-      facts.moduleDependencyGraph.dependencies.set(
-        depEntry.path,
-        cloneStringArray(depEntry.dependencies),
-      );
-      changed = true;
-    }
-
-    for (const reverseDepEntry of changes.setReverseDependencies ?? []) {
-      facts.moduleDependencyGraph.reverseDependencies.set(
-        reverseDepEntry.path,
-        cloneStringArray(reverseDepEntry.reverseDependencies),
-      );
-      changed = true;
-    }
-
-    for (const error of changes.addErrors ?? []) {
-      facts.errors.push({ ...error });
-      changed = true;
-    }
-
-    if (changed) {
-      this.bumpFactsRevision(facts);
-    }
-
-    return {
-      applied: changed,
-      staleBaseRevision,
-      previousRevision,
-      nextRevision: facts.revision,
-      source: update.source,
-    };
+    return mergeProjectFactsUpdate(context.facts, update);
   }
 
   /**
@@ -939,41 +562,7 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return;
 
-    const modulesMap = new Map<string, ModuleInfo>();
-    for (const [path, moduleInfo] of Object.entries(snapshot.moduleDependencyGraph.modules)) {
-      modulesMap.set(path, {
-        ...moduleInfo,
-        exports: cloneStringArray(moduleInfo.exports),
-        imports: cloneStringArray(moduleInfo.imports),
-      });
-    }
-
-    context.facts = {
-      revision: snapshot.revision,
-      filesystem: {
-        existingFiles: new Set(snapshot.filesystem.existingFiles),
-        existingDirectories: new Set(snapshot.filesystem.existingDirectories),
-        nonExistentPaths: new Set(snapshot.filesystem.nonExistentPaths),
-        directoryContents: recordToClonedStringArrayMap(snapshot.filesystem.directoryContents),
-      },
-      dependencies: {
-        installedPackages: new Set(snapshot.dependencies.installedPackages),
-        missingPackages: new Set(snapshot.dependencies.missingPackages),
-      },
-      project: {
-        devServerRunning: snapshot.project.devServerRunning,
-        runningPort: snapshot.project.runningPort,
-        buildStatus: snapshot.project.buildStatus ?? 'unknown',
-      },
-      moduleDependencyGraph: {
-        modules: modulesMap,
-        dependencies: recordToClonedStringArrayMap(snapshot.moduleDependencyGraph.dependencies),
-        reverseDependencies: recordToClonedStringArrayMap(
-          snapshot.moduleDependencyGraph.reverseDependencies,
-        ),
-      },
-      errors: snapshot.errors.map((error) => ({ ...error })),
-    };
+    context.facts = projectFactsFromSnapshot(snapshot);
   }
 
   /**
@@ -983,116 +572,9 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) return '';
 
-    const { facts } = context;
-    const parts: string[] = [];
-
-    parts.push(`## 事实版本: ${facts.revision}`);
-
-    // 文件系统事实
-    parts.push('## 文件系统状态');
-
-    if (facts.filesystem.existingFiles.size > 0) {
-      parts.push('\n### 已确认存在的文件:');
-      for (const file of facts.filesystem.existingFiles) {
-        parts.push(`- ${file}`);
-      }
-    }
-
-    if (facts.filesystem.existingDirectories.size > 0) {
-      parts.push('\n### 已确认存在的目录:');
-      for (const dir of facts.filesystem.existingDirectories) {
-        const contents = facts.filesystem.directoryContents.get(dir);
-        if (contents && contents.length > 0) {
-          parts.push(
-            `- ${dir}/ (包含: ${contents.slice(0, 5).join(', ')}${contents.length > 5 ? '...' : ''})`,
-          );
-        } else {
-          parts.push(`- ${dir}/`);
-        }
-      }
-    }
-
-    if (facts.filesystem.nonExistentPaths.size > 0) {
-      parts.push('\n### 已确认不存在的路径:');
-      for (const path of facts.filesystem.nonExistentPaths) {
-        parts.push(`- ${path}`);
-      }
-    }
-
-    // 依赖状态
-    if (
-      facts.dependencies.installedPackages.size > 0 ||
-      facts.dependencies.missingPackages.size > 0
-    ) {
-      parts.push('\n## 依赖状态');
-
-      if (facts.dependencies.installedPackages.size > 0) {
-        parts.push('\n### 已安装的包:');
-        parts.push(Array.from(facts.dependencies.installedPackages).join(', '));
-      }
-
-      if (facts.dependencies.missingPackages.size > 0) {
-        parts.push('\n### 缺失的包:');
-        parts.push(Array.from(facts.dependencies.missingPackages).join(', '));
-      }
-    }
-
-    // 项目状态
-    parts.push('\n## 项目状态');
-    parts.push(
-      `- 开发服务器: ${facts.project.devServerRunning ? `运行中${facts.project.runningPort ? ` (端口: ${facts.project.runningPort})` : ''}` : '未运行'}`,
-    );
-    if (facts.project.buildStatus && facts.project.buildStatus !== 'unknown') {
-      parts.push(`- 构建状态: ${facts.project.buildStatus === 'success' ? '成功' : '失败'}`);
-    }
-
-    // 模块依赖图
-    if (facts.moduleDependencyGraph.modules.size > 0) {
-      parts.push('\n## 已创建的模块');
-
-      // 按类型分组
-      const byType = new Map<string, ModuleInfo[]>();
-      for (const module of facts.moduleDependencyGraph.modules.values()) {
-        const list = byType.get(module.type) || [];
-        list.push(module);
-        byType.set(module.type, list);
-      }
-
-      for (const [type, modules] of byType) {
-        parts.push(`\n### ${type} (${modules.length}个):`);
-        for (const m of modules) {
-          const exportInfo = m.defaultExport
-            ? `默认导出: ${m.defaultExport}`
-            : m.exports.length > 0
-              ? `导出: ${m.exports.slice(0, 3).join(', ')}${m.exports.length > 3 ? '...' : ''}`
-              : '无导出';
-          parts.push(`- ${m.path} (${exportInfo})`);
-        }
-      }
-
-      // 检查缺失的依赖
-      const missingDeps = this.validateModuleDependencies(taskId);
-      if (missingDeps.length > 0) {
-        parts.push('\n### ⚠️ 缺失的模块引用:');
-        for (const { from, missing: _missing, importPath } of missingDeps.slice(0, 10)) {
-          parts.push(`- ${from} 引用了不存在的模块: ${importPath}`);
-        }
-        if (missingDeps.length > 10) {
-          parts.push(`... 还有 ${missingDeps.length - 10} 个缺失引用`);
-        }
-      }
-    }
-
-    // 最近错误
-    if (facts.errors.length > 0) {
-      parts.push('\n## 最近的错误 (最多显示5条)');
-      const recentErrors = facts.errors.slice(-5);
-      for (const error of recentErrors) {
-        parts.push(`- [${error.type}] ${error.message}`);
-      }
-    }
-
-    return parts.join('\n');
+    return serializeProjectFactsForLLM(context.facts, {
+      missingModuleReferences: this.validateModuleDependencies(taskId),
+    });
   }
 }
 

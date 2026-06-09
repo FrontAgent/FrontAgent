@@ -4,6 +4,45 @@
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-06-09
+
+### 变更
+- **core/executor**：拆分 Executor 的工具调用处理、校验跳过逻辑、进度约束、步骤反馈和 trace 记录逻辑，保持执行行为不变，同时降低核心执行路径的维护成本。
+- **core/agent**：从 FrontAgent 主编排流程中提取上下文收集、facts 刷新、项目预扫描、任务执行准备和执行回调逻辑，减少主循环耦合。
+- **core/context**：拆分 context fact 序列化、facts 合并、文件系统 facts 更新和模块依赖图更新逻辑，提升上下文持久化与工作区事实刷新的可测性。
+- **core/planner**：拆分 planner phase helper，并补充 phase 处理相关测试。
+- **mcp-filesense**：拆分 Filesense engine 的 helper、索引、notes、query 和 schema 编排职责，为查询、notes、schema 与索引持久化补充独立模块边界。
+- **mcp-memory**：拆分 memory preload/recall helper 和持久化 writer，隔离记忆 I/O 与召回编排逻辑。
+- **mcp-memory/rag**：从知识库实现中提取语义检索编排逻辑，保持 hybrid RAG 行为不变。
+- **runtime-node**：拆分 runtime MCP task invocation setup，使 MCP server 的 schema 断言和 task handler 组装更清晰。
+- **vscode**：拆分 webview body、script、style 和 template renderer，并补充对应测试，保持侧边栏 UI 行为不变。
+- **sub-agents**：拆分 code-quality subagent prompt policy。
+- **tooling**：移除临时 GitNexus RC patch，并对齐 Biome schema 版本。
+
+### 修复
+- **vscode/security**：加固 VS Code webview nonce 生成。
+- **filesense**：保留 Filesense query 的相对路径语义。
+- **filesense**：生成 Filesense notes 时保留 notes schema path 归属。
+- **workflow**：恢复并加固本地 GitNexus contract gate。
+- **workflow**：修复 core worktree 相对路径解析，并防止 bootstrap 在 worktree 不匹配时继续执行。
+
+### 测试
+- 新增 CLI command router 覆盖。
+- 新增 runtime MCP contract 与 schema assertion 覆盖。
+- 新增 hybrid RAG knowledge-base 覆盖。
+- 新增 executor 在校验跳过、进度约束、步骤反馈、工具调用处理和 trace 记录上的覆盖。
+- 新增 agent 在上下文收集、facts 刷新、项目预扫描、执行回调和任务执行准备上的覆盖。
+- 新增 ContextManager 在 fact 序列化、facts 合并、文件系统 facts 更新和模块依赖图上的覆盖。
+- 新增 Filesense engine helper、索引持久化、notes 生成、query result 和 schema 编排覆盖。
+- 新增 memory preload/recall helper 与 persistence writer 覆盖。
+- 新增 VS Code webview body、script、style 和 template renderer 覆盖。
+- 清理 executor、shared utility 和 LLM service 测试中的 Biome warning。
+
+### 兼容性说明
+- npm CLI 包与 VS Code 扩展版本更新为 `2.1.1`。
+- Node.js 要求保持 `>=20.0.0`。
+- VS Code 扩展要求保持 `^1.120.0`。
+
 ## [1.0.1] - 2026-04-30
 
 ### 新增
