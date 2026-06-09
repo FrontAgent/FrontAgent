@@ -10,7 +10,7 @@
 
 > Enterprise-grade AI Agent System - Constrained by SDD, Powered by MCP for Controlled Perception and Execution
 
-[中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md)
+[中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md) | [v2.1.1 Release Notes](docs/releases/v2.1.1.md)
 
 FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
 
@@ -30,12 +30,24 @@ FrontAgent is an AI Agent system designed specifically for frontend engineering,
 - ✅ **Pre-Planning Scan** - Scan project structure before planning to generate accurate file paths
 - ✅ **Auto Port Detection** - Automatically detect dev server ports from config files
 - ✅ **Remote Hybrid RAG** - Full-repository indexing with submodule exclusion, combining BM25 keyword search and embedding-based semantic search
+- ✅ **Filesense Navigation** - Budgeted current-repository navigation with generated schemas and notes
 - ✅ **LangGraph Engine (Optional)** - Switchable graph-based execution engine with optional checkpoints
 - ✅ **Planner Skills Layer** - Reusable planning skills for task decomposition and phase injection
 - ✅ **Distilled Planner Assets** - Repository-native training, evaluation, and release assets for the Planner LoRA model
 - ✅ **Skill Lab** - Benchmark, improve, and promote content skills with local eval suites
+- ✅ **VS Code Sidebar** - Marketplace extension with task runs, SDD helpers, secure settings, and run logs
+- ✅ **OSS Harness** - Local contract, quality, GitNexus, and workflow gates for maintainer-friendly changes
 - ✅ **Repository Management Phase** - Auto git/gh workflow after acceptance (commit, push, PR)
 - ✅ **Cross-Session Memory** - Four-phase memory system (preload, runtime recall, post-task persistence, structured storage) that persists project facts, error resolutions, and dependency state across runs
+
+## Current Release Snapshot
+
+The repository is currently aligned on `frontagent@2.1.1` for both the npm CLI package and the VS Code extension.
+
+- Runtime requirements: Node.js `>=20.0.0`; VS Code extension engine `^1.120.0`.
+- Build output: `pnpm build` builds the monorepo, bundles the CLI, syncs the VS Code version, and packages `apps/vscode/frontagent-2.1.1.vsix`.
+- Quality gates: `pnpm quality:predev`, `pnpm quality:precommit`, `pnpm quality:ci`, and `pnpm quality:local` combine contract checks, linting, typechecking, tests, workflow tests, and build verification.
+- v2.1.1 focus: smaller agent/executor/context/Filesense/memory/runtime/webview modules, hardened VS Code webview nonce generation, restored GitNexus contract checks, and expanded focused tests.
 
 ## Two Ways to Use FrontAgent
 
@@ -112,9 +124,12 @@ Useful server options:
 
 ```bash
 fa mcp serve \
+  --engine native \
   --security-mode balanced \
   --rag-repo https://github.com/ceilf6/Lab.git \
-  --rag-branch main
+  --rag-branch main \
+  --filesense-enabled true \
+  --log-file .frontagent/runs/mcp-server.log
 ```
 
 ### Host Configuration
@@ -298,7 +313,9 @@ fa run "Explain React setState behavior" \
   --provider openai \
   --base-url https://yunwu.ai/v1 \
   --api-key YOUR_TOKEN \
-  --rag-embedding-model text-embedding-3-small
+  --rag-embedding-model text-embedding-3-small \
+  --rag-embedding-batch-size 32 \
+  --rag-embedding-timeout-ms 30000
 
 # Use Weaviate as the semantic vector store (BM25 stays local)
 fa run "Explain React setState behavior" \
@@ -308,7 +325,9 @@ fa run "Explain React setState behavior" \
   --rag-embedding-model text-embedding-3-small \
   --rag-vector-store-provider weaviate \
   --rag-weaviate-url http://127.0.0.1:8080 \
-  --rag-weaviate-collection-prefix FrontAgentRagChunk
+  --rag-weaviate-collection-prefix FrontAgentRagChunk \
+  --rag-weaviate-batch-size 64 \
+  --rag-weaviate-timeout-ms 30000
 
 # Use OpenViking Wiki as the primary knowledge provider, with Git RAG fallback
 fa run "Where is FrontAgent RAG implemented?" \
@@ -335,7 +354,8 @@ fa run "Explain React setState behavior" \
   --api-key YOUR_TOKEN \
   --rag-embedding-model text-embedding-3-small \
   --rag-reranker-model jina-reranker-v2-base-multilingual \
-  --rag-reranker-base-url https://your-reranker-endpoint/v1
+  --rag-reranker-base-url https://your-reranker-endpoint/v1 \
+  --rag-reranker-timeout-ms 30000
 
 # Disable reranking for a run
 fa run "Explain React setState behavior" \
@@ -416,13 +436,19 @@ export FRONTAGENT_RAG_RERANKER_BASE_URL="https://your-reranker-endpoint/v1"
 export FRONTAGENT_RAG_RERANKER_API_KEY="sk-..."
 export FRONTAGENT_RAG_RERANKER_CANDIDATE_COUNT="20"
 export FRONTAGENT_RAG_RERANKER_MAX_DOCUMENT_CHARS="1800"
+export FRONTAGENT_RAG_RERANKER_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_EMBEDDING_MODEL="text-embedding-3-small"
 export FRONTAGENT_RAG_EMBEDDING_BASE_URL="https://api.openai.com/v1"
 export FRONTAGENT_RAG_EMBEDDING_API_KEY="sk-..."
+export FRONTAGENT_RAG_EMBEDDING_DIMENSIONS=""
+export FRONTAGENT_RAG_EMBEDDING_BATCH_SIZE="32"
+export FRONTAGENT_RAG_EMBEDDING_TIMEOUT_MS="30000"
 export FRONTAGENT_RAG_VECTOR_STORE_PROVIDER="weaviate"
 export FRONTAGENT_RAG_WEAVIATE_URL="http://127.0.0.1:8080"
 export FRONTAGENT_RAG_WEAVIATE_API_KEY=""
 export FRONTAGENT_RAG_WEAVIATE_COLLECTION_PREFIX="FrontAgentRagChunk"
+export FRONTAGENT_RAG_WEAVIATE_BATCH_SIZE="64"
+export FRONTAGENT_RAG_WEAVIATE_TIMEOUT_MS="30000"
 
 # Filesense lightweight repository navigation
 export FRONTAGENT_FILESENSE_ENABLED="true"
@@ -583,7 +609,7 @@ const projectStructure = await scanProjectFiles();
 - ✅ **Reduced Hallucination** - Fewer "file not found" errors
 - ✅ **Better Context** - Planner understands the project structure before planning
 
-**Implementation**: `packages/core/src/agent.ts:217-255`
+**Implementation**: `packages/core/src/agent/project-prescan-preparation.ts`
 
 ### 2. Automatic Dev Server Port Detection (NEW!)
 
@@ -605,7 +631,7 @@ const devServerPort = await detectDevServerPort();
 - ✅ **Framework Awareness** - Recognizes different framework defaults
 - ✅ **Browser Testing** - Correct port used for browser validation tasks
 
-**Implementation**: `packages/core/src/agent.ts:732-793`
+**Implementation**: `packages/core/src/agent/dev-server-detection.ts`
 
 ### 3. Two-Stage Architecture
 
@@ -1214,6 +1240,10 @@ pnpm clean
 - [x] **Repository management phase (git/gh automation)** (NEW!)
 - [x] **Cross-session memory system** (NEW!) -- Four-phase durable memory with structured Markdown storage, runtime recall, and prompt zone separation
 - [x] **Distilled Planner Model** -- SFT fine-tuned from FrontAgent Planner prompts, published as [frontagent-planner-7B-lora](https://huggingface.co/ceilf6/frontagent-planner-7B-lora), with training and release assets in [models/frontagent-planner](models/frontagent-planner) (Qwen2.5-Coder-7B + LoRA, 100% JSON validity, 100% complete plan rate)
+- [x] **VS Code extension** -- Sidebar task console, current file/selection context, SDD commands, secure configuration, run logs, and packaged Marketplace artifact
+- [x] **Local stdio MCP server** -- Host-facing FrontAgent task, planning, status, skill, and SDD tools with fail-closed internal execution security
+- [x] **Filesense repository navigation** -- Budgeted current-repository structure lookup with generated JSON schemas and explicit cache/workspace/none write modes
+- [x] **OSS Harness quality gates** -- Bootstrap, local contract, precommit, CI, GitNexus, and workflow-rule checks
 
 ### In Progress 🚧
 - [ ] Enhanced SDD constraints (finer-grained rule control)
@@ -1221,7 +1251,6 @@ pnpm clean
 ### Planned 📋
 - [ ] Memory-driven pattern learning (auto-extract coding conventions from past tasks)
 - [ ] GUI agent auto-testing (Playwright-based)
-- [ ] VS Code plugin (use directly in IDE)
 - [ ] Multi-agent collaboration (decompose large tasks)
 - [ ] Custom MCP server support (user-defined tools)
 - [ ] Code review mode (auto-check code quality)
