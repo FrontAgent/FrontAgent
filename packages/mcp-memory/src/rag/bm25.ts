@@ -168,7 +168,7 @@ export function tokenize(input: string): string[] {
   return tokens;
 }
 
-function countTerms(tokens: string[]): Record<string, number> {
+export function countTerms(tokens: string[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const token of tokens) {
     counts[token] = (counts[token] ?? 0) + 1;
