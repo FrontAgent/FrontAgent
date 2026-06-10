@@ -29,15 +29,56 @@ function stripBrackets(hostname: string): string {
   return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
 }
 
+/**
+ * Parse one IPv4 part the way browsers do (`inet_aton` semantics):
+ * decimal, hex (`0x…`), or octal (leading `0`).
+ */
+function parseIpv4Part(part: string): number | undefined {
+  let digits = part;
+  let radix = 10;
+  if (/^0x/i.test(part)) {
+    digits = part.slice(2);
+    radix = 16;
+    if (digits === '') return 0; // WHATWG: bare "0x" is 0
+    if (!/^[0-9a-f]+$/i.test(digits)) return undefined;
+  } else if (part.length > 1 && part.startsWith('0')) {
+    digits = part.slice(1);
+    radix = 8;
+    if (!/^[0-7]+$/.test(digits)) return undefined;
+  } else if (!/^\d+$/.test(part)) {
+    return undefined;
+  }
+  return Number.parseInt(digits, radix);
+}
+
+/**
+ * Parse an IPv4 host into four octets. `new URL()` already normalizes
+ * numeric hosts to dotted-quad, but this also accepts the decimal / hex /
+ * octal and partial (1–3 part) encodings directly so the guard does not
+ * depend on URL-parser normalization.
+ */
 function parseIpv4(host: string): number[] | undefined {
   const parts = host.split('.');
-  if (parts.length !== 4) return undefined;
-  const octets: number[] = [];
+  // Tolerate a single trailing dot ("169.254.169.254.").
+  if (parts.length > 1 && parts[parts.length - 1] === '') parts.pop();
+  if (parts.length < 1 || parts.length > 4) return undefined;
+  // A plain hostname must not be mistaken for an IP: only treat the host
+  // as IPv4 when every part parses as a number (matches WHATWG host parsing).
+  const values: number[] = [];
   for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) return undefined;
-    const value = Number(part);
-    if (value > 255) return undefined;
-    octets.push(value);
+    const value = parseIpv4Part(part);
+    if (value === undefined) return undefined;
+    values.push(value);
+  }
+  // inet_aton: the last value fills all remaining bytes.
+  const prefix = values.slice(0, -1);
+  if (prefix.some((value) => value > 255)) return undefined;
+  const last = values[values.length - 1];
+  const lastByteCount = 4 - prefix.length;
+  if (last >= 256 ** lastByteCount) return undefined;
+  const octets = [...prefix];
+  for (let i = lastByteCount - 1; i >= 0; i--) {
+    octets.push((last >>> (8 * i)) & 0xff);
   }
   return octets;
 }

@@ -27,6 +27,24 @@ describe('checkUrlSafety', () => {
     expect(checkUrlSafety('http://[fe80::1]/').ok).toBe(false);
   });
 
+  it('blocks alternate encodings of the metadata IP', () => {
+    // decimal, hex, octal, partial and trailing-dot forms of 169.254.169.254
+    expect(checkUrlSafety('http://2852039166/').ok).toBe(false);
+    expect(checkUrlSafety('http://0xA9FEA9FE/').ok).toBe(false);
+    expect(checkUrlSafety('http://0251.0376.0251.0376/').ok).toBe(false);
+    expect(checkUrlSafety('http://169.254.43518/').ok).toBe(false);
+    expect(checkUrlSafety('http://0xa9.254.169.254/').ok).toBe(false);
+    expect(checkUrlSafety('http://169.254.169.254./').ok).toBe(false);
+  });
+
+  it('blocks alternate encodings of private addresses in strict mode', () => {
+    const strict = { blockPrivate: true };
+    expect(checkUrlSafety('http://2130706433/', strict).ok).toBe(false); // 127.0.0.1
+    expect(checkUrlSafety('http://0x7f000001/', strict).ok).toBe(false); // 127.0.0.1
+    expect(checkUrlSafety('http://017700000001/', strict).ok).toBe(false); // 127.0.0.1
+    expect(checkUrlSafety('http://0xC0A80101/', strict).ok).toBe(false); // 192.168.1.1
+  });
+
   it('rejects malformed URLs', () => {
     expect(checkUrlSafety('not a url').ok).toBe(false);
     expect(checkUrlSafety('').ok).toBe(false);
