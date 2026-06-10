@@ -139,7 +139,9 @@ export function applyPatch(
 
 /**
  * 校验补丁行号边界。
- * 行号越界时 splice 会相对文件末尾操作并静默损坏内容，因此必须在任何写入前整体拒绝。
+ * 契约：所有行号均基于原始文件内容（1-based）；补丁按 startLine 倒序自下而上应用，
+ * 因此各补丁的行范围不得重叠——重叠时先应用的补丁会改变后应用补丁的目标行，
+ * 导致 splice 静默损坏内容。越界或重叠都必须在创建 snapshot / 写入前整体拒绝。
  */
 function validatePatchBounds(patches: FilePatch[], lineCount: number): string | null {
   for (const patch of patches) {
@@ -170,6 +172,47 @@ function validatePatchBounds(patches: FilePatch[], lineCount: number): string | 
       }
       if (endLine > lineCount) {
         return `Invalid patch (${operation}): endLine ${endLine} exceeds file length (${lineCount} lines)`;
+      }
+    }
+  }
+
+  return validatePatchOverlap(patches);
+}
+
+/**
+ * 拒绝行范围重叠的补丁组合。
+ * replace/delete 占用 [startLine, endLine ?? startLine]；insert 占用 startLine 这一插入点
+ * （落在其他补丁范围内时，倒序应用会先改写目标区间，再让 insert/范围补丁作用到错误的行）。
+ * 两个 insert 指向同一行不冲突：插入点不消耗原始行。
+ */
+function validatePatchOverlap(patches: FilePatch[]): string | null {
+  const describe = (p: FilePatch): string =>
+    p.operation === 'insert'
+      ? `insert at line ${p.startLine}`
+      : `${p.operation} at lines ${p.startLine}-${p.endLine ?? p.startLine}`;
+
+  for (let i = 0; i < patches.length; i++) {
+    for (let j = i + 1; j < patches.length; j++) {
+      const a = patches[i];
+      const b = patches[j];
+      if (a.operation === 'insert' && b.operation === 'insert') {
+        continue;
+      }
+
+      let conflict: boolean;
+      if (a.operation === 'insert' || b.operation === 'insert') {
+        const point = a.operation === 'insert' ? a : b;
+        const range = a.operation === 'insert' ? b : a;
+        conflict =
+          point.startLine >= range.startLine &&
+          point.startLine <= (range.endLine ?? range.startLine);
+      } else {
+        conflict =
+          a.startLine <= (b.endLine ?? b.startLine) && b.startLine <= (a.endLine ?? a.startLine);
+      }
+
+      if (conflict) {
+        return `Invalid patch set: ${describe(a)} overlaps ${describe(b)}; line numbers refer to the original file content and patch ranges must not overlap`;
       }
     }
   }
@@ -303,7 +346,8 @@ export const applyPatchSchema = {
       },
       patches: {
         type: 'array',
-        description: '补丁列表',
+        description:
+          '补丁列表。所有行号均相对原始文件内容（应用任何补丁之前），各补丁的行范围不得重叠',
         items: {
           type: 'object',
           properties: {
