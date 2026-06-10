@@ -51,6 +51,7 @@ import {
 export class HybridRepositoryKnowledgeBase {
   private readonly config: RequiredHybridConfig;
   private readonly queryCache = new Map<string, RagQueryResult>();
+  private cachedIndex: RepositoryIndex | null = null;
 
   constructor(config: KnowledgeBaseConfig) {
     this.config = normalizeConfig(config);
@@ -267,9 +268,15 @@ export class HybridRepositoryKnowledgeBase {
 
   private async ensureIndex(forceRefresh: boolean): Promise<RepositoryIndex> {
     mkdirSync(this.config.cacheDir, { recursive: true });
-    const existing = await this.readIndex();
     const targetRepoDir = this.getRepoDir();
+    if (this.cachedIndex && this.canReuseWarmIndex(this.cachedIndex, targetRepoDir, forceRefresh)) {
+      return this.cachedIndex;
+    }
+
+    this.cachedIndex = null;
+    const existing = await this.readIndex();
     if (existing && this.canReuseWarmIndex(existing, targetRepoDir, forceRefresh)) {
+      this.cachedIndex = existing;
       return existing;
     }
 
@@ -301,6 +308,7 @@ export class HybridRepositoryKnowledgeBase {
         maxFileSizeBytes: this.config.maxFileSizeBytes,
       })
     ) {
+      this.cachedIndex = existing;
       return existing;
     }
 
@@ -316,6 +324,7 @@ export class HybridRepositoryKnowledgeBase {
       maxFileSizeBytes: this.config.maxFileSizeBytes,
     });
     await this.writeIndex(index);
+    this.cachedIndex = index;
     return index;
   }
 
