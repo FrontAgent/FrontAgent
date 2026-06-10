@@ -5,6 +5,7 @@
 
 import type { AXNode, DOMNode, InteractiveElement } from '@frontagent/shared';
 import type { Browser, BrowserContext, Page } from 'playwright';
+import { checkUrlSafety, defaultUrlSafetyOptions } from './url-safety.js';
 
 type PlaywrightModule = typeof import('playwright');
 
@@ -70,6 +71,11 @@ export class BrowserManager {
    * 导航到指定 URL
    */
   async navigate(url: string): Promise<{ success: boolean; title?: string; error?: string }> {
+    const safety = checkUrlSafety(url, defaultUrlSafetyOptions());
+    if (!safety.ok) {
+      return { success: false, error: `Access denied: ${safety.error}` };
+    }
+
     await this.ensurePage();
 
     try {
