@@ -124,6 +124,13 @@ export async function searchCode(
           searchRegex.lastIndex = 0;
 
           while ((match = searchRegex.exec(line)) !== null) {
+            // 零宽匹配（如 pattern 为 `a*`、`(?=x)`）不会推进 lastIndex，
+            // 手动前移避免死循环；空匹配本身没有可展示的内容，直接跳过
+            if (match[0].length === 0) {
+              searchRegex.lastIndex++;
+              continue;
+            }
+
             const searchMatch: SearchMatch = {
               file: relative(realProjectRoot, fullPath),
               line: lineIdx + 1,
