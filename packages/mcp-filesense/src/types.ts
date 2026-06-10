@@ -95,6 +95,8 @@ export interface FilesenseBudget {
 }
 
 export interface NavigateOptions extends FilesenseBudget {
+  /** Containment boundary (e.g. MCP projectRoot); config-root discovery and scanning never leave it. */
+  boundary?: string;
   paths?: string[];
   intent?:
     | 'locate'

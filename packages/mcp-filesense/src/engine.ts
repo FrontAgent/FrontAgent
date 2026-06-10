@@ -56,6 +56,11 @@ function relativeToRoot(root: string, targetPath: string): string {
   return relative === '' ? '.' : relative;
 }
 
+function isWithinRoot(targetPath: string, root: string): boolean {
+  const relative = path.relative(root, targetPath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
@@ -89,16 +94,25 @@ export async function loadConfig(root: string): Promise<FilesenseConfig> {
     : DEFAULT_CONFIG;
 }
 
-export async function findConfigRoot(startPath: string): Promise<string> {
+/**
+ * Walk upward from startPath looking for a `.filesrc.json` config root.
+ * When `stopAt` is provided (e.g. the MCP projectRoot sandbox), the walk never
+ * leaves that boundary: a config above it is ignored, and the boundary itself
+ * is the fallback root so discovered roots are always contained within it.
+ */
+export async function findConfigRoot(startPath: string, stopAt?: string): Promise<string> {
   let current = path.resolve(startPath);
   const stat = await fs.stat(current);
   if (stat.isFile()) current = path.dirname(current);
   const initialDir = current;
+  const boundary = stopAt === undefined ? undefined : path.resolve(stopAt);
+  if (boundary !== undefined && !isWithinRoot(current, boundary)) return boundary;
 
   while (true) {
     if (await exists(path.join(current, '.filesrc.json'))) return current;
+    if (current === boundary) return boundary;
     const parent = path.dirname(current);
-    if (parent === current) return initialDir;
+    if (parent === current) return boundary ?? initialDir;
     current = parent;
   }
 }
@@ -138,8 +152,8 @@ export async function loadIgnoreMatcher(
   };
 }
 
-async function resolveRootAndConfig(targetPath: string) {
-  const root = await findConfigRoot(targetPath);
+async function resolveRootAndConfig(targetPath: string, boundary?: string) {
+  const root = await findConfigRoot(targetPath, boundary);
   const config = await loadConfig(root);
   const ignores = await loadIgnoreMatcher(root, config);
   return { root, config, ignores };
@@ -329,7 +343,7 @@ async function writeDirectoryIndex(
 /**
  * Initialize filesense in a directory (creates .filesrc.json, .filesignore, schemas, initial index)
  */
-export async function init(targetPath: string): Promise<SyncSummary> {
+export async function init(targetPath: string, boundary?: string): Promise<SyncSummary> {
   const root = path.resolve(targetPath);
   const configPath = path.join(root, '.filesrc.json');
   if (!(await exists(configPath))) {
@@ -353,7 +367,7 @@ export async function init(targetPath: string): Promise<SyncSummary> {
   }
   const config = await loadConfig(root);
   await ensureSchemaFiles(root, config, schemaFileDeps);
-  return syncIndexes(root, false);
+  return syncIndexes(root, false, { boundary });
 }
 
 /**
@@ -362,9 +376,9 @@ export async function init(targetPath: string): Promise<SyncSummary> {
 export async function syncIndexes(
   targetPath: string,
   forceFull = false,
-  options: { depth?: number; maxEntries?: number; timeoutMs?: number } = {},
+  options: { depth?: number; maxEntries?: number; timeoutMs?: number; boundary?: string } = {},
 ): Promise<SyncSummary> {
-  const { root, config, ignores } = await resolveRootAndConfig(targetPath);
+  const { root, config, ignores } = await resolveRootAndConfig(targetPath, options.boundary);
   await ensureSchemaFiles(root, config, schemaFileDeps);
   const summary: SyncSummary = {
     root,
@@ -403,8 +417,12 @@ export async function syncIndexes(
 /**
  * Summarize directories with heuristic FILES.notes.json
  */
-export async function summarize(targetPath: string, force = false): Promise<SummarizeSummary> {
-  const { root, config, ignores } = await resolveRootAndConfig(targetPath);
+export async function summarize(
+  targetPath: string,
+  force = false,
+  boundary?: string,
+): Promise<SummarizeSummary> {
+  const { root, config, ignores } = await resolveRootAndConfig(targetPath, boundary);
   await ensureSchemaFiles(root, config, schemaFileDeps);
   const summary: SummarizeSummary = {
     root,
@@ -455,8 +473,8 @@ export async function summarize(targetPath: string, force = false): Promise<Summ
 /**
  * Check index coverage and freshness
  */
-export async function check(targetPath: string): Promise<CheckSummary> {
-  const { root, config, ignores } = await resolveRootAndConfig(targetPath);
+export async function check(targetPath: string, boundary?: string): Promise<CheckSummary> {
+  const { root, config, ignores } = await resolveRootAndConfig(targetPath, boundary);
   const summary: CheckSummary = {
     root,
     checkedDirectories: 0,
@@ -516,9 +534,9 @@ export async function check(targetPath: string): Promise<CheckSummary> {
 /**
  * Query a directory's index and notes
  */
-export async function query(targetPath: string): Promise<QueryResult> {
+export async function query(targetPath: string, boundary?: string): Promise<QueryResult> {
   const target = path.resolve(targetPath);
-  const { root, config } = await resolveRootAndConfig(target);
+  const { root, config } = await resolveRootAndConfig(target, boundary);
   const indexPath = path.join(target, config.indexFile);
   if (!(await exists(indexPath)))
     throw new Error(`No ${config.indexFile} found in ${target}. Run sync first.`);
@@ -566,7 +584,7 @@ export async function navigate(
   const timeoutMs = options.timeoutMs ?? 3000;
   const output = options.output ?? 'summary';
   const target = path.resolve(targetPath);
-  const { root, config, ignores } = await resolveRootAndConfig(target);
+  const { root, config, ignores } = await resolveRootAndConfig(target, options.boundary);
   const requestedPaths = options.paths?.length ? options.paths : ['.'];
   const indexes: IndexFile[] = [];
   const warnings: string[] = [];
@@ -582,6 +600,10 @@ export async function navigate(
   for (const requestedPath of requestedPaths) {
     if (stop()) break;
     const startDir = path.resolve(root, requestedPath);
+    if (options.boundary !== undefined && !isWithinRoot(startDir, path.resolve(options.boundary))) {
+      warnings.push(`Path resolves outside the allowed root: ${requestedPath}`);
+      continue;
+    }
     if (!(await exists(startDir))) {
       warnings.push(`Path does not exist: ${requestedPath}`);
       continue;
@@ -718,8 +740,9 @@ export async function navigate(
 export async function syncAndSummarize(
   targetPath: string,
   forceFull = false,
+  boundary?: string,
 ): Promise<{ sync: SyncSummary; summarize: SummarizeSummary }> {
-  const syncResult = await syncIndexes(targetPath, forceFull);
-  const summarizeResult = await summarize(targetPath, false);
+  const syncResult = await syncIndexes(targetPath, forceFull, { boundary });
+  const summarizeResult = await summarize(targetPath, false, boundary);
   return { sync: syncResult, summarize: summarizeResult };
 }
