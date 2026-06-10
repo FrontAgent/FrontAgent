@@ -66,6 +66,7 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
   private state: ViewState = createInitialViewState();
   private pendingPrefill?: PrefillRequest;
   private activeRun?: AbortController;
+  private runGeneration = 0;
   private pendingApproval?: PendingApproval;
   private runtimeModulePromise?: Promise<RuntimeModule>;
 
@@ -216,22 +217,29 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    // Each run gets a generation; callbacks from superseded runs check it and bail
+    // so a cancelled or failed run can never clobber the run that replaced it.
+    const generation = ++this.runGeneration;
     const controller = new AbortController();
     this.activeRun = controller;
     this.pendingApproval = undefined;
-    const runtimeOptions = await resolveRuntimeOptions(this.context, folder, configStatus);
     const runtimeTask = this.state.selectionPreview
       ? `${task}\n\nSelected text context:\n${this.state.selectionPreview}`
       : task;
+    let runtimeOptions: Awaited<ReturnType<typeof resolveRuntimeOptions>>;
     let runtime: RuntimeModule;
     try {
+      runtimeOptions = await resolveRuntimeOptions(this.context, folder, configStatus);
       runtime = await this.loadRuntimeModule();
     } catch (error) {
-      this.state = failChatRun(
-        this.state,
-        `FrontAgent runtime failed to load: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      this.postState();
+      if (this.runGeneration === generation) {
+        this.activeRun = undefined;
+        this.state = failChatRun(
+          this.state,
+          `FrontAgent runtime failed to load: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        this.postState();
+      }
       return;
     }
 
@@ -251,10 +259,12 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
         filterConsole: true,
         signal: controller.signal,
         onRunLogPath: (runLogPath) => {
+          if (this.runGeneration !== generation) return;
           this.state = { ...this.state, runLogPath };
           this.postState();
         },
         onEvent: (event) => {
+          if (this.runGeneration !== generation) return;
           if (event.type === 'status_update') {
             this.log(
               `Runtime status: ${event.label}${event.operation ? ` (${event.operation})` : ''}`,
@@ -263,12 +273,16 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
           this.state = reduceAgentEvent(this.state, event);
           this.postState();
         },
-        onApprovalRequest: (request) => this.requestApproval(request),
+        onApprovalRequest: (request) =>
+          this.runGeneration === generation
+            ? this.requestApproval(request)
+            : Promise.resolve(false),
       })
       .then((result) => {
         this.log(
           `Run finished. success=${String(result.success)}, steps=${result.executedSteps.length}`,
         );
+        if (this.runGeneration !== generation) return;
         this.state = reduceAgentEvent(this.state, {
           type: 'task_completed',
           result,
@@ -277,6 +291,7 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
       })
       .catch((error) => {
         this.logError('Run failed.', error);
+        if (this.runGeneration !== generation) return;
         this.state = failChatRun(
           this.state,
           error instanceof Error ? error.message : String(error),
@@ -284,6 +299,7 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
         this.postState();
       })
       .finally(() => {
+        if (this.runGeneration !== generation) return;
         this.activeRun = undefined;
         this.pendingApproval = undefined;
         this.state = { ...this.state, isRunning: false, approval: null };
@@ -292,16 +308,16 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
   }
 
   private cancelRun(): void {
-    if (!this.activeRun) return;
+    const run = this.activeRun;
+    if (!run) return;
+    // Supersede the cancelled run immediately so a new run can start without
+    // waiting for the aborted promise to settle; its late callbacks become no-ops.
+    this.runGeneration += 1;
+    this.activeRun = undefined;
     this.pendingApproval?.resolve(false);
     this.pendingApproval = undefined;
-    this.activeRun.abort(new Error('FrontAgent run cancelled by user'));
-    this.state = {
-      ...this.state,
-      lastActivityLabel: '正在取消',
-      currentOperation: '等待当前步骤结束',
-      approval: null,
-    };
+    run.abort(new Error('FrontAgent run cancelled by user'));
+    this.state = failChatRun(this.state, 'FrontAgent run cancelled by user');
     this.postState();
   }
 
