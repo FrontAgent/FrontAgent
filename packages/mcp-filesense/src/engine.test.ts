@@ -235,6 +235,81 @@ describe('findConfigRoot', () => {
     const root = await findConfigRoot(path.join(TEST_DIR, 'file.ts'));
     expect(root).toBe(TEST_DIR);
   });
+
+  it('does not walk above stopAt even when an ancestor has a config', async () => {
+    await fs.writeFile(path.join(TEST_DIR, '.filesrc.json'), '{}');
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    await fs.mkdir(path.join(sandbox, 'sub'), { recursive: true });
+
+    const root = await findConfigRoot(path.join(sandbox, 'sub'), sandbox);
+    expect(root).toBe(sandbox);
+  });
+
+  it('still finds a config inside the stopAt boundary', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    await fs.mkdir(path.join(sandbox, 'pkg', 'src'), { recursive: true });
+    await fs.writeFile(path.join(sandbox, 'pkg', '.filesrc.json'), '{}');
+
+    const root = await findConfigRoot(path.join(sandbox, 'pkg', 'src'), sandbox);
+    expect(root).toBe(path.join(sandbox, 'pkg'));
+  });
+
+  it('clamps a start path outside stopAt to the boundary', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    const outside = path.join(TEST_DIR, 'outside');
+    await fs.mkdir(sandbox, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(path.join(outside, '.filesrc.json'), '{}');
+
+    const root = await findConfigRoot(outside, sandbox);
+    expect(root).toBe(sandbox);
+  });
+
+  it('clamps a nonexistent out-of-boundary start path without touching it', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    await fs.mkdir(sandbox, { recursive: true });
+
+    const root = await findConfigRoot(path.join(TEST_DIR, 'does-not-exist'), sandbox);
+    expect(root).toBe(sandbox);
+  });
+});
+
+describe('engine boundary enforcement', () => {
+  beforeEach(ensureClean);
+  afterEach(async () => {
+    await fs.rm(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('init rejects a target outside the boundary and writes nothing there', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    const outside = path.join(TEST_DIR, 'outside');
+    await fs.mkdir(sandbox, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+
+    await expect(init(outside, sandbox)).rejects.toThrow(/outside the boundary/i);
+    await expect(fs.access(path.join(outside, '.filesrc.json'))).rejects.toThrow();
+  });
+
+  it('query rejects a target outside the boundary', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    const outside = path.join(TEST_DIR, 'outside');
+    await fs.mkdir(sandbox, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(path.join(outside, 'FILES.json'), '{}');
+
+    await expect(query(outside, sandbox)).rejects.toThrow(/outside the boundary/i);
+  });
+
+  it('syncIndexes rejects a target outside the boundary', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    const outside = path.join(TEST_DIR, 'outside');
+    await fs.mkdir(sandbox, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+
+    await expect(syncIndexes(outside, false, { boundary: sandbox })).rejects.toThrow(
+      /outside the boundary/i,
+    );
+  });
 });
 
 describe('loadIgnoreMatcher', () => {

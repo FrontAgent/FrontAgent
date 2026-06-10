@@ -244,11 +244,14 @@ export async function handleFilesenseTool(
   projectRoot: string,
 ): Promise<FilesenseToolResult> {
   try {
+    // The sandbox root doubles as the engine boundary so config-root discovery
+    // (.filesrc.json lookup) can never walk above the MCP project root.
+    const sandboxRoot = realProjectRoot(projectRoot);
     const targetPath = resolvePath(args.path as string | undefined, projectRoot);
 
     switch (toolName) {
       case 'filesense_init': {
-        const result = await engine.init(targetPath);
+        const result = await engine.init(targetPath, sandboxRoot);
         return { success: true, data: result };
       }
       case 'filesense_sync': {
@@ -256,23 +259,32 @@ export async function handleFilesenseTool(
           depth: args.depth as number | undefined,
           maxEntries: args.maxEntries as number | undefined,
           timeoutMs: args.timeoutMs as number | undefined,
+          boundary: sandboxRoot,
         });
         return { success: true, data: result };
       }
       case 'filesense_summarize': {
-        const result = await engine.summarize(targetPath, (args.force as boolean) ?? false);
+        const result = await engine.summarize(
+          targetPath,
+          (args.force as boolean) ?? false,
+          sandboxRoot,
+        );
         return { success: true, data: result };
       }
       case 'filesense_query': {
-        const result = await engine.query(targetPath);
+        const result = await engine.query(targetPath, sandboxRoot);
         return { success: true, data: result };
       }
       case 'filesense_check': {
-        const result = await engine.check(targetPath);
+        const result = await engine.check(targetPath, sandboxRoot);
         return { success: true, data: result };
       }
       case 'filesense_sync_and_summarize': {
-        const result = await engine.syncAndSummarize(targetPath, (args.full as boolean) ?? false);
+        const result = await engine.syncAndSummarize(
+          targetPath,
+          (args.full as boolean) ?? false,
+          sandboxRoot,
+        );
         return { success: true, data: result };
       }
       case 'filesense_navigate': {
@@ -288,6 +300,7 @@ export async function handleFilesenseTool(
             ? resolvePath(requestedPaths[0], projectRoot)
             : targetPath;
         const result = await engine.navigate(firstPath, {
+          boundary: sandboxRoot,
           paths: requestedPaths,
           intent: args.intent as never,
           depth: args.depth as number | undefined,
