@@ -235,6 +235,35 @@ describe('findConfigRoot', () => {
     const root = await findConfigRoot(path.join(TEST_DIR, 'file.ts'));
     expect(root).toBe(TEST_DIR);
   });
+
+  it('does not walk above stopAt even when an ancestor has a config', async () => {
+    await fs.writeFile(path.join(TEST_DIR, '.filesrc.json'), '{}');
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    await fs.mkdir(path.join(sandbox, 'sub'), { recursive: true });
+
+    const root = await findConfigRoot(path.join(sandbox, 'sub'), sandbox);
+    expect(root).toBe(sandbox);
+  });
+
+  it('still finds a config inside the stopAt boundary', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    await fs.mkdir(path.join(sandbox, 'pkg', 'src'), { recursive: true });
+    await fs.writeFile(path.join(sandbox, 'pkg', '.filesrc.json'), '{}');
+
+    const root = await findConfigRoot(path.join(sandbox, 'pkg', 'src'), sandbox);
+    expect(root).toBe(path.join(sandbox, 'pkg'));
+  });
+
+  it('clamps a start path outside stopAt to the boundary', async () => {
+    const sandbox = path.join(TEST_DIR, 'sandbox');
+    const outside = path.join(TEST_DIR, 'outside');
+    await fs.mkdir(sandbox, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(path.join(outside, '.filesrc.json'), '{}');
+
+    const root = await findConfigRoot(outside, sandbox);
+    expect(root).toBe(sandbox);
+  });
 });
 
 describe('loadIgnoreMatcher', () => {

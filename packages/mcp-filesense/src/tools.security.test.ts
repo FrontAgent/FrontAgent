@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { handleFilesenseTool } from './tools.js';
+import type { CheckSummary, NavigateResult, SyncSummary } from './types.js';
 
 let roots: string[] = [];
 
@@ -69,5 +70,50 @@ describe('mcp-filesense path containment', () => {
     const result = await handleFilesenseTool('filesense_check', { path: '.' }, root);
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('mcp-filesense config-root containment (issue #272)', () => {
+  /** Temp layout: parent/.filesrc.json + parent/secret.txt above the sandboxed projectRoot. */
+  function makeRootWithParentConfig(): { parent: string; projectRoot: string } {
+    const parent = makeRoot();
+    writeFileSync(join(parent, '.filesrc.json'), '{}', 'utf-8');
+    writeFileSync(join(parent, 'secret.txt'), 'top secret\n', 'utf-8');
+    const projectRoot = join(parent, 'app');
+    mkdirSync(join(projectRoot, 'src'), { recursive: true });
+    writeFileSync(join(projectRoot, 'src', 'main.ts'), 'export const x = 1;\n', 'utf-8');
+    return { parent, projectRoot };
+  }
+
+  it('check does not adopt a config root above the project root', async () => {
+    const { projectRoot } = makeRootWithParentConfig();
+
+    const result = await handleFilesenseTool('filesense_check', { path: '.' }, projectRoot);
+
+    expect(result.success).toBe(true);
+    expect((result.data as CheckSummary).root).toBe(realpathSync(projectRoot));
+  });
+
+  it('sync from a subdirectory never indexes the parent tree', async () => {
+    const { parent, projectRoot } = makeRootWithParentConfig();
+
+    const result = await handleFilesenseTool('filesense_sync', { path: 'src' }, projectRoot);
+
+    expect(result.success).toBe(true);
+    expect((result.data as SyncSummary).root).toBe(realpathSync(projectRoot));
+    // The parent tree must stay untouched: no FILES.json written above the sandbox.
+    expect(existsSync(join(parent, 'FILES.json'))).toBe(false);
+  });
+
+  it('navigate does not expose parent-tree entries', async () => {
+    const { projectRoot } = makeRootWithParentConfig();
+
+    const result = await handleFilesenseTool('filesense_navigate', { paths: ['.'] }, projectRoot);
+
+    expect(result.success).toBe(true);
+    const data = result.data as NavigateResult;
+    expect(data.root).toBe(realpathSync(projectRoot));
+    expect(data.factsDelta.existingFiles).not.toContain('secret.txt');
+    expect(data.factsDelta.existingFiles.some((file) => file.includes('secret'))).toBe(false);
   });
 });
