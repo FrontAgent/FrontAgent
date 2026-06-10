@@ -109,9 +109,10 @@ export class SDDValidator {
     const approvalReasons: string[] = [];
     const normalizedPath = normalizePath(targetPath);
 
-    // 检查是否在保护目录中
+    // 检查是否在保护目录中(按路径段匹配,避免误判同前缀的兄弟目录,如 node_modules-shim)
     for (const dir of this.config.modificationRules.protectedDirectories) {
-      if (normalizedPath.startsWith(normalizePath(dir))) {
+      const dirPrefix = normalizePath(dir).replace(/\/+$/, '');
+      if (normalizedPath === dirPrefix || normalizedPath.startsWith(`${dirPrefix}/`)) {
         violations.push({
           type: 'error',
           rule: 'protected_directory',

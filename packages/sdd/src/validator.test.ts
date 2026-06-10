@@ -19,6 +19,34 @@ describe('SDDValidator', () => {
       expect(result.violations[0].rule).toBe('protected_directory');
     });
 
+    it('blocks the protected directory itself as an exact match', () => {
+      const validator = new SDDValidator(makeConfig());
+      const result = validator.validate({
+        type: 'write_file',
+        targetPath: 'node_modules',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.violations[0].rule).toBe('protected_directory');
+    });
+
+    it('allows sibling directories that share a protected-directory name prefix', () => {
+      const validator = new SDDValidator(makeConfig());
+      const result = validator.validate({
+        type: 'write_file',
+        targetPath: 'node_modules-shim/pkg/index.ts',
+      });
+      expect(result.violations.some((v) => v.rule === 'protected_directory')).toBe(false);
+    });
+
+    it('allows .gitnexus paths when .git is protected', () => {
+      const validator = new SDDValidator(makeConfig());
+      const result = validator.validate({
+        type: 'write_file',
+        targetPath: '.gitnexus/meta.json',
+      });
+      expect(result.violations.some((v) => v.rule === 'protected_directory')).toBe(false);
+    });
+
     it('blocks modification of .git directory', () => {
       const validator = new SDDValidator(makeConfig());
       const result = validator.validate({
