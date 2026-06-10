@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { canReuseIndex } from './repository.js';
+import { countTerms, tokenize } from './bm25.js';
+import { buildRepositoryIndex, canReuseIndex } from './repository.js';
 import type { RepositoryIndex } from './types.js';
 import { INDEX_VERSION } from './types.js';
 
@@ -46,6 +50,37 @@ const baseExpected = {
   chunkOverlap: 200,
   maxFileSizeBytes: 256 * 1024,
 };
+
+describe('buildRepositoryIndex tokenization contract', () => {
+  it('indexes chunk term frequencies with the shared bm25 tokenizer', async () => {
+    const repoDir = mkdtempSync(join(tmpdir(), 'rag-repo-'));
+    try {
+      writeFileSync(join(repoDir, 'app.ts'), 'const getUserName = 1; // 中文检索', 'utf-8');
+
+      const index = await buildRepositoryIndex({
+        repoDir,
+        repoUrl: 'https://github.com/user/repo.git',
+        branch: 'main',
+        revision: 'abc123',
+        excludedPathPrefixes: [],
+        excludedSubmodulePaths: [],
+        chunkSize: 2048,
+        chunkOverlap: 0,
+        maxFileSizeBytes: 1024 * 1024,
+      });
+
+      const chunk = index.chunks.find((candidate) => candidate.path === 'app.ts');
+      expect(chunk).toBeDefined();
+      // repository 索引侧与 BM25 检索侧必须使用同一份分词实现，
+      // 否则查询 token 与索引 token 漂移会导致检索质量回退
+      expect(chunk?.termFrequency).toEqual(countTerms(tokenize(chunk?.keywordText ?? '')));
+      expect(Object.keys(chunk?.termFrequency ?? {})).toContain('user');
+      expect(Object.keys(chunk?.termFrequency ?? {})).toContain('中文');
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('canReuseIndex', () => {
   it('returns true when all fields match', () => {
