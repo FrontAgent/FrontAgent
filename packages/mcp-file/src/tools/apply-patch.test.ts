@@ -210,6 +210,111 @@ describe('applyPatch line-range validation', () => {
     expect(readFixture(root)).toBe(FIXTURE);
   });
 
+  it('applies multi-patch sets in original-file coordinates when an earlier patch shrinks the file', () => {
+    const root = makeRoot();
+    makeFixture(root);
+
+    const result = applyPatch(
+      {
+        path: 'src/sample.ts',
+        patches: [
+          { operation: 'delete', startLine: 4, endLine: 5 },
+          { operation: 'replace', startLine: 2, content: 'patched2' },
+        ],
+      },
+      root,
+      new SnapshotManager(root),
+    );
+
+    expect(result.success).toBe(true);
+    expect(readFixture(root)).toBe('line1\npatched2\nline3');
+  });
+
+  it('applies multi-patch sets in original-file coordinates when an earlier patch grows the file', () => {
+    const root = makeRoot();
+    makeFixture(root);
+
+    const result = applyPatch(
+      {
+        path: 'src/sample.ts',
+        patches: [
+          { operation: 'insert', startLine: 2, content: 'inserted-a\ninserted-b' },
+          { operation: 'replace', startLine: 4, content: 'patched4' },
+        ],
+      },
+      root,
+      new SnapshotManager(root),
+    );
+
+    expect(result.success).toBe(true);
+    expect(readFixture(root)).toBe('line1\ninserted-a\ninserted-b\nline2\nline3\npatched4\nline5');
+  });
+
+  it('rejects overlapping range patches before creating a snapshot', () => {
+    const root = makeRoot();
+    makeFixture(root);
+    const snapshotManager = new SnapshotManager(root);
+
+    const result = applyPatch(
+      {
+        path: 'src/sample.ts',
+        patches: [
+          { operation: 'delete', startLine: 1, endLine: 5 },
+          { operation: 'replace', startLine: 5, content: 'ghost' },
+        ],
+      },
+      root,
+      snapshotManager,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/delete at lines 1-5 overlaps replace at lines 5-5/);
+    expect(result.snapshotId).toBe('');
+    expect(snapshotManager.getFileSnapshots(join(root, 'src/sample.ts'))).toHaveLength(0);
+    expect(readFixture(root)).toBe(FIXTURE);
+  });
+
+  it('rejects an insert whose insertion point falls inside another patch range', () => {
+    const root = makeRoot();
+    makeFixture(root);
+
+    const result = applyPatch(
+      {
+        path: 'src/sample.ts',
+        patches: [
+          { operation: 'insert', startLine: 3, content: 'x' },
+          { operation: 'delete', startLine: 2, endLine: 4 },
+        ],
+      },
+      root,
+      new SnapshotManager(root),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/insert at line 3 overlaps delete at lines 2-4/);
+    expect(readFixture(root)).toBe(FIXTURE);
+  });
+
+  it('allows an insert immediately after a deleted range', () => {
+    const root = makeRoot();
+    makeFixture(root);
+
+    const result = applyPatch(
+      {
+        path: 'src/sample.ts',
+        patches: [
+          { operation: 'delete', startLine: 2, endLine: 3 },
+          { operation: 'insert', startLine: 4, content: 'inserted' },
+        ],
+      },
+      root,
+      new SnapshotManager(root),
+    );
+
+    expect(result.success).toBe(true);
+    expect(readFixture(root)).toBe('line1\ninserted\nline4\nline5');
+  });
+
   it('rejects the whole patch set before creating a snapshot when any patch is invalid', () => {
     const root = makeRoot();
     makeFixture(root);
