@@ -4,8 +4,17 @@
  */
 
 import { existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import type { HallucinationCheckResult } from '@frontagent/shared';
+
+/**
+ * 判断 child 是否位于 parent 目录内（含 parent 本身）。
+ * 使用 path.relative 而非字符串前缀，避免同级目录（如 /tmp/project-secret）误判。
+ */
+function isInsidePath(child: string, parent: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
 
 export interface FileExistenceCheckInput {
   path: string;
@@ -21,10 +30,11 @@ export async function checkFileExistence(
 ): Promise<HallucinationCheckResult> {
   const { path, projectRoot, shouldExist = true } = input;
 
-  const fullPath = resolve(projectRoot, path);
+  const resolvedRoot = resolve(projectRoot);
+  const fullPath = resolve(resolvedRoot, path);
 
   // 安全检查：确保路径在项目根目录内
-  if (!fullPath.startsWith(projectRoot)) {
+  if (!isInsidePath(fullPath, resolvedRoot)) {
     return {
       pass: false,
       type: 'file_existence',

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { checkFileExistence, checkFilesExistence } from './file-existence.js';
 
@@ -44,6 +44,39 @@ describe('checkFileExistence', () => {
     expect(result.pass).toBe(false);
     expect(result.severity).toBe('block');
     expect(result.message).toMatch(/outside project root/i);
+  });
+
+  it('blocks sibling directory sharing the project root prefix', async () => {
+    const root = makeRoot();
+    const sibling = `${root}-secret`;
+    mkdirSync(sibling);
+    roots.push(sibling);
+    writeFileSync(join(sibling, 'leak.txt'), '', 'utf-8');
+
+    const result = await checkFileExistence({
+      path: relative(root, join(sibling, 'leak.txt')),
+      projectRoot: root,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.severity).toBe('block');
+    expect(result.message).toMatch(/outside project root/i);
+  });
+
+  it('blocks absolute path outside project root', async () => {
+    const root = makeRoot();
+
+    const result = await checkFileExistence({ path: '/etc/hosts', projectRoot: root });
+    expect(result.pass).toBe(false);
+    expect(result.severity).toBe('block');
+    expect(result.message).toMatch(/outside project root/i);
+  });
+
+  it('normalizes project root with trailing separator', async () => {
+    const root = makeRoot();
+    writeFileSync(join(root, 'app.ts'), '', 'utf-8');
+
+    const result = await checkFileExistence({ path: 'app.ts', projectRoot: `${root}/` });
+    expect(result.pass).toBe(true);
   });
 
   it('fails when path is a directory, not a file', async () => {
