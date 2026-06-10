@@ -5,6 +5,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
+import { countTerms, tokenize } from './bm25.js';
 import { chunkText } from './chunking.js';
 import {
   BINARY_EXTENSIONS,
@@ -332,61 +333,6 @@ function looksBinary(buffer: Buffer, path: string): boolean {
 function getTopLevelDir(path: string): string {
   const firstSegment = normalizeRepoPath(path).split('/')[0];
   return firstSegment || 'root';
-}
-
-function tokenize(input: string): string[] {
-  const tokens: string[] = [];
-  const seen = new Set<string>();
-
-  const emit = (token: string) => {
-    if (token.length >= 2 && !seen.has(token)) {
-      seen.add(token);
-      tokens.push(token);
-    }
-  };
-
-  const normalized = input.toLowerCase();
-  for (const match of normalized.match(/[a-z0-9_@./:-]+/g) ?? []) {
-    emit(match);
-    if (match.includes('_')) {
-      for (const part of match.split('_')) {
-        emit(part);
-      }
-    }
-  }
-
-  for (const identifier of input.match(/[A-Za-z][a-zA-Z0-9]*/g) ?? []) {
-    if (!/[a-z]/.test(identifier) || !/[A-Z]/.test(identifier)) {
-      continue;
-    }
-    const parts = identifier
-      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-      .split(/\s+/);
-    for (const part of parts) {
-      emit(part.toLowerCase());
-    }
-  }
-
-  for (const match of normalized.match(/[一-鿿]+/g) ?? []) {
-    if (match.length === 1) {
-      emit(match);
-      continue;
-    }
-    for (let i = 0; i < match.length - 1; i++) {
-      emit(match.slice(i, i + 2));
-    }
-  }
-
-  return tokens;
-}
-
-function countTerms(tokens: string[]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const token of tokens) {
-    counts[token] = (counts[token] ?? 0) + 1;
-  }
-  return counts;
 }
 
 function buildChunkSignature(chunks: RepositoryChunk[]): string {
