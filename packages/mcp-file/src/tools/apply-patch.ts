@@ -67,6 +67,17 @@ export function applyPatch(
 
   const lines = originalContent.split('\n');
 
+  const boundsError = validatePatchBounds(patches, lines.length);
+  if (boundsError) {
+    return {
+      success: false,
+      diff: '',
+      validation: { syntaxValid: false, lintErrors: [], typeErrors: [] },
+      snapshotId: '',
+      error: boundsError,
+    };
+  }
+
   // 创建快照
   const snapshotId = dryRun ? '' : snapshotManager.createSnapshot(safePath.fullPath, 'modify');
 
@@ -124,6 +135,43 @@ export function applyPatch(
     validation,
     snapshotId,
   };
+}
+
+/**
+ * 校验补丁行号边界。
+ * 行号越界时 splice 会相对文件末尾操作并静默损坏内容，因此必须在任何写入前整体拒绝。
+ */
+function validatePatchBounds(patches: FilePatch[], lineCount: number): string | null {
+  for (const patch of patches) {
+    const { operation, startLine, endLine } = patch;
+
+    if (!Number.isInteger(startLine) || startLine < 1) {
+      return `Invalid patch (${operation}): startLine ${startLine} must be an integer >= 1`;
+    }
+
+    if (operation === 'insert') {
+      // insert 在 startLine 之前插入，允许 lineCount + 1 表示追加到文件末尾
+      if (startLine > lineCount + 1) {
+        return `Invalid patch (insert): startLine ${startLine} exceeds file length + 1 (${lineCount} lines)`;
+      }
+      continue;
+    }
+
+    if (startLine > lineCount) {
+      return `Invalid patch (${operation}): startLine ${startLine} exceeds file length (${lineCount} lines)`;
+    }
+
+    if (endLine !== undefined) {
+      if (!Number.isInteger(endLine) || endLine < startLine) {
+        return `Invalid patch (${operation}): endLine ${endLine} must be an integer >= startLine (${startLine})`;
+      }
+      if (endLine > lineCount) {
+        return `Invalid patch (${operation}): endLine ${endLine} exceeds file length (${lineCount} lines)`;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
