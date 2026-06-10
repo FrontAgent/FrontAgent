@@ -4,17 +4,9 @@
  */
 
 import { existsSync, statSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import type { HallucinationCheckResult } from '@frontagent/shared';
-
-/**
- * 判断 child 是否位于 parent 目录内（含 parent 本身）。
- * 使用 path.relative 而非字符串前缀，避免同级目录（如 /tmp/project-secret）误判。
- */
-function isInsidePath(child: string, parent: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
+import { isInsidePath } from './path-containment.js';
 
 export interface FileExistenceCheckInput {
   path: string;
