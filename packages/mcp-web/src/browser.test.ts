@@ -103,6 +103,20 @@ describe('BrowserManager', () => {
         expect(result.success).toBe(false);
         expect(result.error).toContain('ERR_CONNECTION_REFUSED');
       });
+
+      it('blocks SSRF to cloud metadata without calling goto', async () => {
+        const result = await manager.navigate('http://169.254.169.254/latest/meta-data/');
+        expect(result.success).toBe(false);
+        expect(result.error).toMatch(/Access denied/i);
+        expect(mockPage.goto).not.toHaveBeenCalled();
+      });
+
+      it('blocks file: scheme without calling goto', async () => {
+        const result = await manager.navigate('file:///etc/passwd');
+        expect(result.success).toBe(false);
+        expect(result.error).toMatch(/Access denied/i);
+        expect(mockPage.goto).not.toHaveBeenCalled();
+      });
     });
 
     describe('click', () => {
