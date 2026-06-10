@@ -62,17 +62,47 @@ function isWithinRoot(targetPath: string, root: string): boolean {
 }
 
 /**
+ * Canonicalize a path for containment checks: realpath the deepest existing
+ * ancestor and re-append the nonexistent remainder, so symlinked segments
+ * cannot smuggle a lexically in-boundary path to a real location outside it.
+ */
+async function canonicalize(targetPath: string): Promise<string> {
+  let base = path.resolve(targetPath);
+  const suffix: string[] = [];
+  while (true) {
+    try {
+      const real = await fs.realpath(base);
+      return suffix.length > 0 ? path.join(real, ...suffix) : real;
+    } catch {
+      const parent = path.dirname(base);
+      if (parent === base) return path.join(base, ...suffix);
+      suffix.unshift(path.basename(base));
+      base = parent;
+    }
+  }
+}
+
+/**
  * Resolve an operation target while enforcing the optional containment
  * boundary. Every public engine operation funnels its target through this so
  * a caller-supplied boundary bounds all reads and writes, not just
- * config-root discovery.
+ * config-root discovery. Containment is checked lexically first (so paths
+ * that are obviously outside are rejected without touching the filesystem)
+ * and then on the canonical real path, so in-boundary symlinks cannot escape.
  */
-function resolveContainedTarget(targetPath: string, boundary?: string): string {
+async function resolveContainedTarget(targetPath: string, boundary?: string): Promise<string> {
   const target = path.resolve(targetPath);
-  if (boundary !== undefined && !isWithinRoot(target, path.resolve(boundary))) {
+  if (boundary === undefined) return target;
+  const lexicalBoundary = path.resolve(boundary);
+  if (!isWithinRoot(target, lexicalBoundary)) {
     throw new Error(`Access denied: Path resolves outside the boundary: ${targetPath}`);
   }
-  return target;
+  const realBoundary = await canonicalize(lexicalBoundary);
+  const realTarget = await canonicalize(target);
+  if (!isWithinRoot(realTarget, realBoundary)) {
+    throw new Error(`Access denied: Path resolves outside the boundary: ${targetPath}`);
+  }
+  return realTarget;
 }
 
 function stableStringify(value: unknown): string {
@@ -116,10 +146,17 @@ export async function loadConfig(root: string): Promise<FilesenseConfig> {
  */
 export async function findConfigRoot(startPath: string, stopAt?: string): Promise<string> {
   let current = path.resolve(startPath);
-  // Clamp before any filesystem access so out-of-boundary paths are never
-  // touched, even for metadata.
-  const boundary = stopAt === undefined ? undefined : path.resolve(stopAt);
-  if (boundary !== undefined && !isWithinRoot(current, boundary)) return boundary;
+  let boundary: string | undefined;
+  if (stopAt !== undefined) {
+    // Clamp lexically before any filesystem access so paths that are
+    // obviously outside the boundary are never touched, even for metadata;
+    // then re-check on canonical real paths so symlinks cannot escape.
+    const lexicalBoundary = path.resolve(stopAt);
+    if (!isWithinRoot(current, lexicalBoundary)) return lexicalBoundary;
+    boundary = await canonicalize(lexicalBoundary);
+    current = await canonicalize(current);
+    if (!isWithinRoot(current, boundary)) return boundary;
+  }
   const stat = await fs.stat(current);
   if (stat.isFile()) current = path.dirname(current);
   const initialDir = current;
@@ -169,7 +206,7 @@ export async function loadIgnoreMatcher(
 }
 
 async function resolveRootAndConfig(targetPath: string, boundary?: string) {
-  const target = resolveContainedTarget(targetPath, boundary);
+  const target = await resolveContainedTarget(targetPath, boundary);
   const root = await findConfigRoot(target, boundary);
   const config = await loadConfig(root);
   const ignores = await loadIgnoreMatcher(root, config);
@@ -361,7 +398,7 @@ async function writeDirectoryIndex(
  * Initialize filesense in a directory (creates .filesrc.json, .filesignore, schemas, initial index)
  */
 export async function init(targetPath: string, boundary?: string): Promise<SyncSummary> {
-  const root = resolveContainedTarget(targetPath, boundary);
+  const root = await resolveContainedTarget(targetPath, boundary);
   const configPath = path.join(root, '.filesrc.json');
   if (!(await exists(configPath))) {
     await writeJson(configPath, DEFAULT_CONFIG);
@@ -552,7 +589,7 @@ export async function check(targetPath: string, boundary?: string): Promise<Chec
  * Query a directory's index and notes
  */
 export async function query(targetPath: string, boundary?: string): Promise<QueryResult> {
-  const target = resolveContainedTarget(targetPath, boundary);
+  const target = await resolveContainedTarget(targetPath, boundary);
   const { root, config } = await resolveRootAndConfig(target, boundary);
   const indexPath = path.join(target, config.indexFile);
   if (!(await exists(indexPath)))
@@ -600,8 +637,10 @@ export async function navigate(
   const maxEntries = options.maxEntries ?? 300;
   const timeoutMs = options.timeoutMs ?? 3000;
   const output = options.output ?? 'summary';
-  const target = resolveContainedTarget(targetPath, options.boundary);
+  const target = await resolveContainedTarget(targetPath, options.boundary);
   const { root, config, ignores } = await resolveRootAndConfig(target, options.boundary);
+  const realBoundary =
+    options.boundary === undefined ? undefined : await canonicalize(options.boundary);
   const requestedPaths = options.paths?.length ? options.paths : ['.'];
   const indexes: IndexFile[] = [];
   const warnings: string[] = [];
@@ -616,10 +655,15 @@ export async function navigate(
 
   for (const requestedPath of requestedPaths) {
     if (stop()) break;
-    const startDir = path.resolve(root, requestedPath);
-    if (options.boundary !== undefined && !isWithinRoot(startDir, path.resolve(options.boundary))) {
-      warnings.push(`Path resolves outside the allowed root: ${requestedPath}`);
-      continue;
+    let startDir = path.resolve(root, requestedPath);
+    if (realBoundary !== undefined) {
+      // Canonicalize each requested path so an in-boundary symlink cannot
+      // route the scan to a real location outside the boundary.
+      startDir = await canonicalize(startDir);
+      if (!isWithinRoot(startDir, realBoundary)) {
+        warnings.push(`Path resolves outside the allowed root: ${requestedPath}`);
+        continue;
+      }
     }
     if (!(await exists(startDir))) {
       warnings.push(`Path does not exist: ${requestedPath}`);
