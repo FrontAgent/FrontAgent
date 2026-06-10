@@ -156,6 +156,24 @@ describe('applyPatch line-range validation', () => {
     expect(readFixture(root)).toBe(FIXTURE);
   });
 
+  it('rejects insert with endLine because insert does not use a line range', () => {
+    const root = makeRoot();
+    makeFixture(root);
+
+    const result = applyPatch(
+      {
+        path: 'src/sample.ts',
+        patches: [{ operation: 'insert', startLine: 2, endLine: 3, content: 'x' }],
+      },
+      root,
+      new SnapshotManager(root),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/endLine is not supported for insert operations/);
+    expect(readFixture(root)).toBe(FIXTURE);
+  });
+
   it('rejects endLine lower than startLine', () => {
     const root = makeRoot();
     makeFixture(root);
