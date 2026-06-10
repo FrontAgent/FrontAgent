@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { inspect } from 'node:util';
 import type { AgentEvent, AgentExecutionResult } from '@frontagent/core';
@@ -118,24 +118,29 @@ function summarizeEvent(event: AgentEvent): unknown {
 
 class FileRunLogger implements RunLogger {
   private closed = false;
+  private readonly stream: WriteStream;
 
   constructor(
     readonly path: string,
     header: Record<string, unknown>,
   ) {
     mkdirSync(dirname(path), { recursive: true });
-    appendFileSync(
-      this.path,
+    this.stream = createWriteStream(path, { flags: 'a', encoding: 'utf8' });
+    // Disk failures (ENOSPC, EACCES, ...) must not crash the agent run; an
+    // unhandled 'error' event on the stream would. Disable further logging instead.
+    this.stream.on('error', () => {
+      this.closed = true;
+    });
+    this.stream.write(
       ['# FrontAgent Run Log', `startedAt: ${timestampForLine()}`, stringify(header), ''].join(
         '\n',
       ),
-      'utf8',
     );
   }
 
   private write(kind: string, payload: unknown): void {
     if (this.closed) return;
-    appendFileSync(this.path, `[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`, 'utf8');
+    this.stream.write(`[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`);
   }
 
   console(level: 'log' | 'warn' | 'error', args: unknown[]): void {
@@ -156,8 +161,11 @@ class FileRunLogger implements RunLogger {
 
   close(): void {
     if (this.closed) return;
-    appendFileSync(this.path, `[${timestampForLine()}] closed\n`, 'utf8');
     this.closed = true;
+    // end() writes the final marker after all buffered entries, preserving
+    // order, then closes the fd. Pending writes keep the event loop alive,
+    // so a normal CLI exit still flushes the full log.
+    this.stream.end(`[${timestampForLine()}] closed\n`);
   }
 }
 
