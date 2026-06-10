@@ -7,7 +7,10 @@ function internals(m: BrowserManager): Internals {
 }
 
 function createMockPage() {
+  const mainFrame = { name: 'main' };
   return {
+    route: vi.fn().mockResolvedValue(undefined),
+    mainFrame: vi.fn().mockReturnValue(mainFrame),
     goto: vi.fn().mockResolvedValue(undefined),
     title: vi.fn().mockResolvedValue('Test Page'),
     url: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -284,6 +287,153 @@ describe('BrowserManager', () => {
         expect(result.viewport).toEqual({ width: 1920, height: 1080 });
         expect(result.domTree).toEqual([{ tag: 'body', children: [] }]);
       });
+    });
+  });
+
+  describe('navigation guard', () => {
+    afterEach(() => {
+      vi.doUnmock('playwright');
+      vi.resetModules();
+    });
+
+    type RouteHandler = (route: ReturnType<typeof createMockRoute>) => Promise<void>;
+
+    async function launchWithGuard() {
+      const mockPage = createMockPage();
+      const mockBrowser = createMockBrowser(mockPage);
+      vi.doMock('playwright', () => ({
+        chromium: { launch: vi.fn().mockResolvedValue(mockBrowser) },
+      }));
+      const { BrowserManager: FreshManager } = await import('./browser.js');
+      const manager = new FreshManager();
+      await manager.launch();
+      const handler = mockPage.route.mock.calls[0][1] as RouteHandler;
+      return { manager, mockPage, handler };
+    }
+
+    function createMockRoute(options: {
+      url: string;
+      isNavigation?: boolean;
+      frame?: unknown;
+      mainFrame: unknown;
+    }) {
+      return {
+        request: () => ({
+          url: () => options.url,
+          isNavigationRequest: () => options.isNavigation ?? true,
+          frame: () => options.frame ?? options.mainFrame,
+        }),
+        continue: vi.fn().mockResolvedValue(undefined),
+        abort: vi.fn().mockResolvedValue(undefined),
+        fetch: vi.fn().mockResolvedValue({ status: () => 200, headers: () => ({}) }),
+        fulfill: vi.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    it('registers a route guard for all requests on launch', async () => {
+      const { mockPage } = await launchWithGuard();
+      expect(mockPage.route).toHaveBeenCalledWith('**/*', expect.any(Function));
+    });
+
+    it('continues non-navigation requests untouched', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'http://169.254.169.254/asset.js',
+        isNavigation: false,
+        mainFrame: mockPage.mainFrame(),
+      });
+      await handler(route);
+      expect(route.continue).toHaveBeenCalled();
+      expect(route.abort).not.toHaveBeenCalled();
+      expect(route.fetch).not.toHaveBeenCalled();
+    });
+
+    it('continues subframe navigations untouched', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'http://example.com/frame',
+        frame: { name: 'iframe' },
+        mainFrame: mockPage.mainFrame(),
+      });
+      await handler(route);
+      expect(route.continue).toHaveBeenCalled();
+      expect(route.abort).not.toHaveBeenCalled();
+    });
+
+    it('aborts top-level navigations to blocked targets (redirect hops)', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'http://169.254.169.254/latest/meta-data/',
+        mainFrame: mockPage.mainFrame(),
+      });
+      await handler(route);
+      expect(route.abort).toHaveBeenCalledWith('blockedbyclient');
+      expect(route.fetch).not.toHaveBeenCalled();
+      expect(route.fulfill).not.toHaveBeenCalled();
+    });
+
+    it('aborts top-level navigations to encoded metadata IPs', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      for (const url of ['http://2852039166/', 'http://0xA9FEA9FE/']) {
+        const route = createMockRoute({ url, mainFrame: mockPage.mainFrame() });
+        await handler(route);
+        expect(route.abort).toHaveBeenCalledWith('blockedbyclient');
+      }
+    });
+
+    it('fetches allowed navigations with redirects disabled and fulfills', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'https://example.com/',
+        mainFrame: mockPage.mainFrame(),
+      });
+      await handler(route);
+      expect(route.fetch).toHaveBeenCalledWith({ maxRedirects: 0 });
+      expect(route.fulfill).toHaveBeenCalledWith({
+        response: expect.objectContaining({ status: expect.any(Function) }),
+      });
+      expect(route.abort).not.toHaveBeenCalled();
+    });
+
+    it('aborts redirects whose Location target is blocked', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'https://example.com/start',
+        mainFrame: mockPage.mainFrame(),
+      });
+      route.fetch.mockResolvedValueOnce({
+        status: () => 302,
+        headers: () => ({ location: 'http://169.254.169.254/latest/meta-data/' }),
+      });
+      await handler(route);
+      expect(route.abort).toHaveBeenCalledWith('blockedbyclient');
+      expect(route.fulfill).not.toHaveBeenCalled();
+    });
+
+    it('fulfills redirects whose Location target is allowed', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'https://example.com/start',
+        mainFrame: mockPage.mainFrame(),
+      });
+      route.fetch.mockResolvedValueOnce({
+        status: () => 302,
+        headers: () => ({ location: '/landing' }),
+      });
+      await handler(route);
+      expect(route.fulfill).toHaveBeenCalled();
+      expect(route.abort).not.toHaveBeenCalled();
+    });
+
+    it('aborts when the guarded fetch fails', async () => {
+      const { mockPage, handler } = await launchWithGuard();
+      const route = createMockRoute({
+        url: 'https://example.com/',
+        mainFrame: mockPage.mainFrame(),
+      });
+      route.fetch.mockRejectedValueOnce(new Error('net::ERR_FAILED'));
+      await handler(route);
+      expect(route.abort).toHaveBeenCalledWith('failed');
     });
   });
 
