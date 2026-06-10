@@ -92,10 +92,31 @@ export function readFile(params: ReadFileParams, projectRoot: string): ReadFileR
 
     // 如果指定了行范围，截取内容
     if (startLine !== undefined || endLine !== undefined) {
-      const start = (startLine ?? 1) - 1; // 转为 0-based
+      const start = startLine ?? 1;
       const end = endLine ?? allLines.length;
-      content = allLines.slice(start, end).join('\n');
-      lines = end - start;
+
+      if (!Number.isInteger(start) || start < 1) {
+        return {
+          success: false,
+          error: `Invalid startLine: ${start} (must be an integer >= 1)`,
+        };
+      }
+      if (start > allLines.length) {
+        return {
+          success: false,
+          error: `startLine ${start} exceeds file length (${allLines.length} lines)`,
+        };
+      }
+      if (!Number.isInteger(end) || end < start) {
+        return {
+          success: false,
+          error: `Invalid endLine: ${end} (must be an integer >= startLine)`,
+        };
+      }
+
+      const selected = allLines.slice(start - 1, end);
+      content = selected.join('\n');
+      lines = selected.length;
     }
 
     return {
