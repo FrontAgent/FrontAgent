@@ -154,6 +154,9 @@ function validatePatchBounds(patches: FilePatch[], lineCount: number): string | 
       if (startLine > lineCount + 1) {
         return `Invalid patch (insert): startLine ${startLine} exceeds file length + 1 (${lineCount} lines)`;
       }
+      if (endLine !== undefined) {
+        return `Invalid patch (insert): endLine is not supported for insert operations`;
+      }
       continue;
     }
 
