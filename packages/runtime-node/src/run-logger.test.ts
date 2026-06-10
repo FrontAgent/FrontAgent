@@ -1,6 +1,9 @@
-import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { redactForLog, resolveRunLogPath } from './run-logger.js';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import type { AgentEvent } from '@frontagent/core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createRunLogger, redactForLog, resolveRunLogPath } from './run-logger.js';
 
 describe('redactForLog', () => {
   describe('string redaction', () => {
@@ -173,5 +176,115 @@ describe('resolveRunLogPath', () => {
     const result = resolveRunLogPath('/project');
     const filename = result.split('/').pop()!;
     expect(filename).toMatch(/^\d{8}T\d{6}Z-/);
+  });
+});
+
+describe('createRunLogger (file logger)', () => {
+  const tempDirs: string[] = [];
+
+  function makeTempDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'frontagent-runlog-'));
+    tempDirs.push(dir);
+    return dir;
+  }
+
+  function makeLogger(dir = makeTempDir(), task = 'test task') {
+    const logger = createRunLogger({
+      projectRoot: dir,
+      enabled: true,
+      logFile: 'run.log',
+      task,
+      provider: 'test-provider',
+      model: 'test-model',
+      options: {},
+    });
+    if (!logger) throw new Error('expected logger');
+    return logger;
+  }
+
+  async function readWhenClosed(path: string): Promise<string> {
+    await vi.waitFor(() => {
+      expect(readFileSync(path, 'utf8')).toContain('closed');
+    });
+    return readFileSync(path, 'utf8');
+  }
+
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns null when disabled', () => {
+    expect(
+      createRunLogger({
+        projectRoot: '/tmp',
+        enabled: false,
+        task: 't',
+        provider: 'p',
+        model: 'm',
+        options: {},
+      }),
+    ).toBeNull();
+  });
+
+  it('flushes header, entries, and close marker to the log file in order', async () => {
+    const logger = makeLogger();
+    logger.event({ type: 'stream_token', stepId: 's1', token: 'hello' } as AgentEvent);
+    logger.console('warn', ['warned', { apiKey: 'sk-secret' }]);
+    logger.result({ success: true } as never);
+    logger.error(new Error('boom'));
+    logger.close();
+
+    const content = await readWhenClosed(logger.path);
+    expect(content).toContain('# FrontAgent Run Log');
+    expect(content).toContain('event.stream_token');
+    expect(content).toContain('"tokenLength"');
+    expect(content).not.toContain('hello');
+    expect(content).toContain('console.warn');
+    expect(content).toContain('[REDACTED]');
+    expect(content).not.toContain('sk-secret');
+    expect(content).toContain('result');
+    expect(content).toContain('boom');
+    expect(content.indexOf('# FrontAgent Run Log')).toBeLessThan(
+      content.indexOf('event.stream_token'),
+    );
+    expect(content.indexOf('event.stream_token')).toBeLessThan(content.indexOf('console.warn'));
+    expect(content.trimEnd().endsWith('closed')).toBe(true);
+  });
+
+  it('ignores writes after close and is idempotent on close', async () => {
+    const logger = makeLogger();
+    logger.event({ type: 'status_update', label: 'before' } as AgentEvent);
+    logger.close();
+    logger.close();
+    logger.event({ type: 'status_update', label: 'after-close' } as AgentEvent);
+    logger.console('log', ['after-close-console']);
+
+    const content = await readWhenClosed(logger.path);
+    expect(content).toContain('before');
+    expect(content).not.toContain('after-close');
+    expect(content.match(/closed/g)).toHaveLength(1);
+  });
+
+  it('appends to an existing file instead of truncating', async () => {
+    const dir = makeTempDir();
+    const path = resolve(dir, 'run.log');
+
+    const first = makeLogger(dir, 'first');
+    first.close();
+    await vi.waitFor(() => {
+      expect(readFileSync(path, 'utf8')).toContain('closed');
+    });
+
+    const second = makeLogger(dir, 'second');
+    second.close();
+    await vi.waitFor(() => {
+      expect((readFileSync(path, 'utf8').match(/closed/g) ?? []).length).toBe(2);
+    });
+
+    const content = readFileSync(path, 'utf8');
+    expect(content).toContain('"task": "first"');
+    expect(content).toContain('"task": "second"');
   });
 });
