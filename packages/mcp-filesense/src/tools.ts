@@ -3,7 +3,8 @@
  * Exposes filesense operations as MCP-compatible tools for FrontAgent
  */
 
-import { resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
 import * as engine from './engine.js';
 import type {
   CheckSummary,
@@ -207,9 +208,34 @@ export interface FilesenseToolResult {
   error?: string;
 }
 
+function realProjectRoot(projectRoot: string): string {
+  try {
+    return realpathSync(resolve(projectRoot));
+  } catch {
+    return resolve(projectRoot);
+  }
+}
+
+function isInsidePath(child: string, parent: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/**
+ * Resolve a user-supplied path against the project root while enforcing
+ * containment. Absolute paths and `..` escapes that resolve outside the
+ * project root are rejected to prevent arbitrary filesystem read/write.
+ */
 function resolvePath(inputPath: string | undefined, projectRoot: string): string {
-  if (!inputPath || inputPath === '.' || inputPath === '') return projectRoot;
-  return resolve(projectRoot, inputPath);
+  const root = realProjectRoot(projectRoot);
+  if (!inputPath || inputPath === '.' || inputPath === '') return root;
+
+  const fullPath = resolve(root, inputPath);
+  if (!isInsidePath(fullPath, root)) {
+    throw new Error(`Access denied: Path resolves outside project root: ${inputPath}`);
+  }
+
+  return fullPath;
 }
 
 export async function handleFilesenseTool(
@@ -250,14 +276,19 @@ export async function handleFilesenseTool(
         return { success: true, data: result };
       }
       case 'filesense_navigate': {
+        const requestedPaths = Array.isArray(args.paths)
+          ? args.paths.filter((item): item is string => typeof item === 'string')
+          : undefined;
+        // Validate every requested path stays inside the project root.
+        for (const requested of requestedPaths ?? []) {
+          resolvePath(requested, projectRoot);
+        }
         const firstPath =
-          Array.isArray(args.paths) && typeof args.paths[0] === 'string'
-            ? resolvePath(args.paths[0], projectRoot)
+          requestedPaths && requestedPaths.length > 0
+            ? resolvePath(requestedPaths[0], projectRoot)
             : targetPath;
         const result = await engine.navigate(firstPath, {
-          paths: Array.isArray(args.paths)
-            ? args.paths.filter((item): item is string => typeof item === 'string')
-            : undefined,
+          paths: requestedPaths,
           intent: args.intent as never,
           depth: args.depth as number | undefined,
           maxEntries: args.maxEntries as number | undefined,
