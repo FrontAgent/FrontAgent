@@ -9,6 +9,7 @@ import { allFilesenseSchemas, handleFilesenseTool } from '@frontagent/mcp-filese
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { stripInternalArgs } from './internal-args.js';
 import { SnapshotManager } from './snapshot.js';
 import { applyPatch, applyPatchSchema } from './tools/apply-patch.js';
 import { createFile, createFileSchema } from './tools/create-file.js';
@@ -82,7 +83,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 // 处理工具调用
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
+  const { name } = request.params;
+  // Strip internal-only markers (e.g. __frontagentSecurityApproved) so external
+  // clients cannot bypass write-approval gates. The trusted executor sets these
+  // in-process, never over the wire.
+  const args = stripInternalArgs(request.params.arguments as Record<string, unknown> | undefined);
 
   try {
     switch (name) {
