@@ -53,6 +53,54 @@ export class BrowserManager {
 
     this.page = await this.context.newPage();
     this.page.setDefaultTimeout(this.config.timeout);
+    await this.installNavigationGuard(this.page);
+  }
+
+  /**
+   * Re-check URL safety on every top-level navigation, including HTTP
+   * redirects. `navigate()` only validates the initial URL; without this an
+   * allowed public URL could 302 to a blocked target (e.g. the cloud
+   * metadata endpoint) and Playwright would follow it unchecked.
+   */
+  private async installNavigationGuard(page: Page): Promise<void> {
+    await page.route('**/*', async (route) => {
+      const request = route.request();
+      const isTopLevelNavigation =
+        request.isNavigationRequest() && request.frame() === page.mainFrame();
+      if (!isTopLevelNavigation) {
+        await route.continue();
+        return;
+      }
+
+      const safety = checkUrlSafety(request.url(), defaultUrlSafetyOptions());
+      if (!safety.ok) {
+        await route.abort('blockedbyclient');
+        return;
+      }
+
+      // Playwright does not re-invoke route handlers for server-side
+      // redirect hops, so fetch with redirects disabled. Fulfilling a 3xx
+      // response makes the browser issue a new top-level request for the
+      // redirect target, which goes through this handler (and the safety
+      // check) again. The Location pre-check below only makes blocked
+      // redirects fail fast instead of hanging until the goto timeout.
+      try {
+        const response = await route.fetch({ maxRedirects: 0 });
+        const status = response.status();
+        const location = response.headers().location;
+        if (status >= 300 && status < 400 && location) {
+          const target = new URL(location, request.url()).toString();
+          const redirectSafety = checkUrlSafety(target, defaultUrlSafetyOptions());
+          if (!redirectSafety.ok) {
+            await route.abort('blockedbyclient');
+            return;
+          }
+        }
+        await route.fulfill({ response });
+      } catch {
+        await route.abort('failed').catch(() => {});
+      }
+    });
   }
 
   /**
