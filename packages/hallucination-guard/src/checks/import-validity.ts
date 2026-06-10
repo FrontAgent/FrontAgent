@@ -6,6 +6,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { HallucinationCheckResult } from '@frontagent/shared';
+import { isInsidePath } from './path-containment.js';
 
 export interface ImportValidityCheckInput {
   importPath: string;
@@ -52,10 +53,24 @@ export async function checkImportValidity(
   }
 
   // 相对导入
-  const sourceDir = dirname(resolve(projectRoot, sourceFilePath));
+  const resolvedRoot = resolve(projectRoot);
+  const sourceDir = dirname(resolve(resolvedRoot, sourceFilePath));
   const possiblePaths = generatePossiblePaths(importPath, sourceDir);
 
-  for (const possiblePath of possiblePaths) {
+  // 安全检查：只允许解析到项目根目录内的候选路径
+  const containedPaths = possiblePaths.filter((path) => isInsidePath(path, resolvedRoot));
+
+  if (containedPaths.length === 0) {
+    return {
+      pass: false,
+      type: 'import_validity',
+      severity: 'block',
+      message: `Security violation: Import "${importPath}" resolves outside project root`,
+      details: { importPath, sourceFilePath, projectRoot },
+    };
+  }
+
+  for (const possiblePath of containedPaths) {
     if (existsSync(possiblePath)) {
       return {
         pass: true,
@@ -71,7 +86,7 @@ export async function checkImportValidity(
     type: 'import_validity',
     severity: 'block',
     message: `Hallucination detected: Cannot resolve import "${importPath}" from "${sourceFilePath}"`,
-    details: { importPath, sourceFilePath, triedPaths: possiblePaths },
+    details: { importPath, sourceFilePath, triedPaths: containedPaths },
   };
 }
 
