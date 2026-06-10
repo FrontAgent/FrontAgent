@@ -61,6 +61,20 @@ function isWithinRoot(targetPath: string, root: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
+/**
+ * Resolve an operation target while enforcing the optional containment
+ * boundary. Every public engine operation funnels its target through this so
+ * a caller-supplied boundary bounds all reads and writes, not just
+ * config-root discovery.
+ */
+function resolveContainedTarget(targetPath: string, boundary?: string): string {
+  const target = path.resolve(targetPath);
+  if (boundary !== undefined && !isWithinRoot(target, path.resolve(boundary))) {
+    throw new Error(`Access denied: Path resolves outside the boundary: ${targetPath}`);
+  }
+  return target;
+}
+
 function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
@@ -102,11 +116,13 @@ export async function loadConfig(root: string): Promise<FilesenseConfig> {
  */
 export async function findConfigRoot(startPath: string, stopAt?: string): Promise<string> {
   let current = path.resolve(startPath);
+  // Clamp before any filesystem access so out-of-boundary paths are never
+  // touched, even for metadata.
+  const boundary = stopAt === undefined ? undefined : path.resolve(stopAt);
+  if (boundary !== undefined && !isWithinRoot(current, boundary)) return boundary;
   const stat = await fs.stat(current);
   if (stat.isFile()) current = path.dirname(current);
   const initialDir = current;
-  const boundary = stopAt === undefined ? undefined : path.resolve(stopAt);
-  if (boundary !== undefined && !isWithinRoot(current, boundary)) return boundary;
 
   while (true) {
     if (await exists(path.join(current, '.filesrc.json'))) return current;
@@ -153,7 +169,8 @@ export async function loadIgnoreMatcher(
 }
 
 async function resolveRootAndConfig(targetPath: string, boundary?: string) {
-  const root = await findConfigRoot(targetPath, boundary);
+  const target = resolveContainedTarget(targetPath, boundary);
+  const root = await findConfigRoot(target, boundary);
   const config = await loadConfig(root);
   const ignores = await loadIgnoreMatcher(root, config);
   return { root, config, ignores };
@@ -344,7 +361,7 @@ async function writeDirectoryIndex(
  * Initialize filesense in a directory (creates .filesrc.json, .filesignore, schemas, initial index)
  */
 export async function init(targetPath: string, boundary?: string): Promise<SyncSummary> {
-  const root = path.resolve(targetPath);
+  const root = resolveContainedTarget(targetPath, boundary);
   const configPath = path.join(root, '.filesrc.json');
   if (!(await exists(configPath))) {
     await writeJson(configPath, DEFAULT_CONFIG);
@@ -535,7 +552,7 @@ export async function check(targetPath: string, boundary?: string): Promise<Chec
  * Query a directory's index and notes
  */
 export async function query(targetPath: string, boundary?: string): Promise<QueryResult> {
-  const target = path.resolve(targetPath);
+  const target = resolveContainedTarget(targetPath, boundary);
   const { root, config } = await resolveRootAndConfig(target, boundary);
   const indexPath = path.join(target, config.indexFile);
   if (!(await exists(indexPath)))
@@ -583,7 +600,7 @@ export async function navigate(
   const maxEntries = options.maxEntries ?? 300;
   const timeoutMs = options.timeoutMs ?? 3000;
   const output = options.output ?? 'summary';
-  const target = path.resolve(targetPath);
+  const target = resolveContainedTarget(targetPath, options.boundary);
   const { root, config, ignores } = await resolveRootAndConfig(target, options.boundary);
   const requestedPaths = options.paths?.length ? options.paths : ['.'];
   const indexes: IndexFile[] = [];
