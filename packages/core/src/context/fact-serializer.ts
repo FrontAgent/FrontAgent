@@ -4,6 +4,9 @@ const DIRECTORY_CONTENT_PREVIEW_LIMIT = 5;
 const MODULE_EXPORT_PREVIEW_LIMIT = 3;
 const MISSING_MODULE_REFERENCE_LIMIT = 10;
 const RECENT_ERROR_LIMIT = 5;
+const EXISTING_FILE_DISPLAY_LIMIT = 30;
+const EXISTING_DIRECTORY_DISPLAY_LIMIT = 20;
+const NON_EXISTENT_PATH_DISPLAY_LIMIT = 15;
 
 export interface MissingModuleReference {
   from: string;
@@ -13,6 +16,30 @@ export interface MissingModuleReference {
 
 export interface SerializeProjectFactsOptions {
   missingModuleReferences?: MissingModuleReference[];
+}
+
+/**
+ * Emits at most `limit` entries from an insertion-ordered path set, keeping the
+ * most recently recorded ones, followed by a marker describing what was omitted.
+ * The full data stays in facts storage — only the LLM serialization is capped.
+ */
+function pushBudgetedPathSection(
+  parts: string[],
+  paths: Set<string>,
+  limit: number,
+  label: string,
+  renderEntry: (path: string) => string,
+): void {
+  const entries = Array.from(paths);
+  const shown = entries.length > limit ? entries.slice(-limit) : entries;
+  for (const entry of shown) {
+    parts.push(renderEntry(entry));
+  }
+  if (entries.length > limit) {
+    parts.push(
+      `... 还有 ${entries.length - limit} 个${label}（共 ${entries.length} 个，仅显示最近 ${limit} 个）`,
+    );
+  }
 }
 
 export function serializeProjectFactsForLLM(
@@ -27,32 +54,43 @@ export function serializeProjectFactsForLLM(
 
   if (facts.filesystem.existingFiles.size > 0) {
     parts.push('\n### 已确认存在的文件:');
-    for (const file of facts.filesystem.existingFiles) {
-      parts.push(`- ${file}`);
-    }
+    pushBudgetedPathSection(
+      parts,
+      facts.filesystem.existingFiles,
+      EXISTING_FILE_DISPLAY_LIMIT,
+      '已确认存在的文件',
+      (file) => `- ${file}`,
+    );
   }
 
   if (facts.filesystem.existingDirectories.size > 0) {
     parts.push('\n### 已确认存在的目录:');
-    for (const dir of facts.filesystem.existingDirectories) {
-      const contents = facts.filesystem.directoryContents.get(dir);
-      if (contents && contents.length > 0) {
-        parts.push(
-          `- ${dir}/ (包含: ${contents.slice(0, DIRECTORY_CONTENT_PREVIEW_LIMIT).join(', ')}${
+    pushBudgetedPathSection(
+      parts,
+      facts.filesystem.existingDirectories,
+      EXISTING_DIRECTORY_DISPLAY_LIMIT,
+      '已确认存在的目录',
+      (dir) => {
+        const contents = facts.filesystem.directoryContents.get(dir);
+        if (contents && contents.length > 0) {
+          return `- ${dir}/ (包含: ${contents.slice(0, DIRECTORY_CONTENT_PREVIEW_LIMIT).join(', ')}${
             contents.length > DIRECTORY_CONTENT_PREVIEW_LIMIT ? '...' : ''
-          })`,
-        );
-      } else {
-        parts.push(`- ${dir}/`);
-      }
-    }
+          })`;
+        }
+        return `- ${dir}/`;
+      },
+    );
   }
 
   if (facts.filesystem.nonExistentPaths.size > 0) {
     parts.push('\n### 已确认不存在的路径:');
-    for (const path of facts.filesystem.nonExistentPaths) {
-      parts.push(`- ${path}`);
-    }
+    pushBudgetedPathSection(
+      parts,
+      facts.filesystem.nonExistentPaths,
+      NON_EXISTENT_PATH_DISPLAY_LIMIT,
+      '已确认不存在的路径',
+      (path) => `- ${path}`,
+    );
   }
 
   if (
