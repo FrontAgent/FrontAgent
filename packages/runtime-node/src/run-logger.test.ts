@@ -289,20 +289,41 @@ describe('createRunLogger (file logger)', () => {
     expect(content.trimEnd().endsWith('closed')).toBe(true);
   });
 
-  it('drops entries instead of queueing once the write buffer exceeds the cap', async () => {
+  it('drops droppable entries instead of queueing once the write buffer exceeds the cap', async () => {
     // 64 KB cap: one 100 KB entry saturates the buffer within this tick, so
-    // the entries written synchronously afterwards must be dropped, not queued.
+    // droppable entries written synchronously afterwards are dropped, not queued.
     const logger = makeLogger(makeTempDir(), 'backpressure', 64 * 1024);
     logger.console('log', [`first:${'x'.repeat(100 * 1024)}`]);
-    logger.console('log', ['dropped-entry-1']);
-    logger.console('log', ['dropped-entry-2']);
+    logger.console('log', ['dropped-console-log']);
+    logger.event({ type: 'stream_token', stepId: 's1', token: 'dropped-token' } as AgentEvent);
     await logger.close();
 
     const content = readFileSync(logger.path, 'utf8');
     expect(content).toContain('first:');
-    expect(content).not.toContain('dropped-entry-1');
-    expect(content).not.toContain('dropped-entry-2');
+    expect(content).not.toContain('dropped-console-log');
+    expect(content).not.toContain('event.stream_token');
     expect(content).toContain('dropped 2 log entries while the write buffer was saturated');
+    expect(content.trimEnd().endsWith('closed')).toBe(true);
+  });
+
+  it('always writes terminal diagnostics even when the buffer is saturated', async () => {
+    const logger = makeLogger(makeTempDir(), 'backpressure-terminal', 64 * 1024);
+    logger.console('log', [`first:${'x'.repeat(100 * 1024)}`]);
+    logger.event({ type: 'stream_token', stepId: 's1', token: 'dropped-token' } as AgentEvent);
+    logger.console('error', ['critical-stderr']);
+    logger.event({ type: 'task_failed', error: 'terminal-failure' } as AgentEvent);
+    logger.error(new Error('boom-after-saturation'));
+    logger.result({ success: false } as never);
+    await logger.close();
+
+    const content = readFileSync(logger.path, 'utf8');
+    expect(content).toContain('critical-stderr');
+    expect(content).toContain('event.task_failed');
+    expect(content).toContain('terminal-failure');
+    expect(content).toContain('boom-after-saturation');
+    expect(content).toContain('"success": false');
+    // The dropped stream_token is reported before the next non-droppable write.
+    expect(content).toContain('dropped 1 log entries while the write buffer was saturated');
     expect(content.trimEnd().endsWith('closed')).toBe(true);
   });
 });

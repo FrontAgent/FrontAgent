@@ -147,14 +147,17 @@ class FileRunLogger implements RunLogger {
   }
 
   /**
-   * Drops entries instead of queueing once the stream buffers more than
-   * maxBufferedBytes, so a producer that outruns the disk (e.g. high-frequency
-   * stream_token events on a slow mount) cannot grow memory without bound.
-   * Dropped entries are surfaced as a summary line once the buffer recovers.
+   * Droppable entries are discarded instead of queued once the stream buffers
+   * more than maxBufferedBytes, so a producer that outruns the disk (e.g.
+   * high-frequency stream_token events on a slow mount) cannot grow memory
+   * without bound. Only low-value high-frequency entries are droppable —
+   * terminal diagnostics (result, error, console.error, non-stream events)
+   * are always written. Dropped entries are surfaced as a summary line once
+   * the buffer recovers or the logger closes.
    */
-  private write(kind: string, payload: unknown): void {
+  private write(kind: string, payload: unknown, droppable = false): void {
     if (this.closed) return;
-    if (this.stream.writableLength > this.maxBufferedBytes) {
+    if (droppable && this.stream.writableLength > this.maxBufferedBytes) {
       this.droppedEntries += 1;
       return;
     }
@@ -171,11 +174,11 @@ class FileRunLogger implements RunLogger {
   }
 
   console(level: 'log' | 'warn' | 'error', args: unknown[]): void {
-    this.write(`console.${level}`, formatConsoleArgs(args));
+    this.write(`console.${level}`, formatConsoleArgs(args), level !== 'error');
   }
 
   event(event: AgentEvent): void {
-    this.write(`event.${event.type}`, summarizeEvent(event));
+    this.write(`event.${event.type}`, summarizeEvent(event), event.type === 'stream_token');
   }
 
   result(result: AgentExecutionResult): void {
