@@ -83,6 +83,46 @@ describe('PhaseRunner', () => {
       expect(step2.status).toBe('completed');
     });
 
+    it('skips already-completed steps on resume and unblocks their dependents (sequential)', async () => {
+      const done = makeStep({ stepId: 's1', status: 'completed' });
+      const next = makeStep({ stepId: 's2', dependencies: ['s1'] });
+      const deps = makeDeps();
+      const runner = new PhaseRunner(deps);
+      const completedStepIds = new Set<string>();
+
+      await runner.executeSinglePhaseWithRecovery(
+        makePhaseGroup([done, next]),
+        makeContext(),
+        completedStepIds,
+        [],
+        {},
+      );
+
+      expect(deps.executeStep).toHaveBeenCalledTimes(1);
+      expect(deps.executeStep).toHaveBeenCalledWith(next, expect.anything());
+      expect(done.status).toBe('completed');
+      expect(next.status).toBe('completed');
+      expect(completedStepIds.has('s1')).toBe(true);
+    });
+
+    it('skips already-completed steps on resume and unblocks their dependents (parallel)', async () => {
+      const done = makeStep({ stepId: 's1', status: 'completed' });
+      const next = makeStep({ stepId: 's2', dependencies: ['s1'] });
+      const deps = makeDeps({ parallelExecution: true });
+      const runner = new PhaseRunner(deps);
+
+      await runner.executeSinglePhaseWithRecovery(
+        makePhaseGroup([done, next]),
+        makeContext(),
+        new Set(),
+        [],
+        {},
+      );
+
+      expect(deps.executeStep).toHaveBeenCalledTimes(1);
+      expect(next.status).toBe('completed');
+    });
+
     it('skips steps with unmet dependencies', async () => {
       const step = makeStep({ stepId: 's1', dependencies: ['missing-dep'] });
       const deps = makeDeps();

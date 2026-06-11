@@ -149,7 +149,16 @@ export class PhaseRunner {
     onStepComplete?: (step: ExecutionStep, output: ExecutorOutput) => void,
     signal?: AbortSignal,
   ): Promise<void> {
-    const pending = [...phaseSteps];
+    const pending: ExecutionStep[] = [];
+    for (const step of phaseSteps) {
+      // 会话恢复：已完成的步骤直接计入完成集合，不重复执行
+      if (step.status === 'completed') {
+        completedStepIds.add(step.stepId);
+        this.deps.debugLog(`[Executor] ⏩ Step ${step.stepId} already completed, skipping`);
+        continue;
+      }
+      pending.push(step);
+    }
 
     while (pending.length > 0) {
       this.deps.throwIfAborted(signal);
@@ -218,6 +227,14 @@ export class PhaseRunner {
   ): Promise<void> {
     for (const step of phaseSteps) {
       this.deps.throwIfAborted(signal);
+
+      // 会话恢复：已完成的步骤直接计入完成集合，不重复执行
+      if (step.status === 'completed') {
+        completedStepIds.add(step.stepId);
+        this.deps.debugLog(`[Executor] ⏩ Step ${step.stepId} already completed, skipping`);
+        continue;
+      }
+
       const dependenciesMet = step.dependencies.every((dep) => completedStepIds.has(dep));
       if (!dependenciesMet) {
         const missingDeps = step.dependencies.filter((dep) => !completedStepIds.has(dep));

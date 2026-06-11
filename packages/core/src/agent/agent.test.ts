@@ -86,6 +86,14 @@ describe('createAgent', () => {
     agent.removeEventListener(listener);
   });
 
+  it('returns undefined session snapshot when no task is running', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+    });
+    expect(agent.getSessionSnapshot()).toBeUndefined();
+  });
+
   it('returns planner and executor skill snapshots', () => {
     const agent = createAgent({
       projectRoot: '/test',

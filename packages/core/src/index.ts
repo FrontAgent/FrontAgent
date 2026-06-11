@@ -115,6 +115,7 @@ export type {
   AgentExecutionResult,
   AgentPlanResult,
   AgentSecurityConfig,
+  AgentSessionSnapshot,
   ContextInfo,
   ContextRequest,
   ExecutorOutput,

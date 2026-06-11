@@ -117,7 +117,8 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
   program
     .command('run')
     .description('运行 Agent 任务')
-    .argument('<task>', '任务描述')
+    .argument('[task]', '任务描述（使用 --resume 恢复会话时可省略）')
+    .option('--resume [sessionId]', '恢复最近未完成的会话，或指定 sessionId 恢复')
     .option('-s, --sdd <path>', 'SDD 配置文件路径', 'sdd.yaml')
     .option('-t, --type <type>', '任务类型 (create/modify/query/debug/refactor/test)', 'query')
     .option('-f, --files <files...>', '相关文件列表')
@@ -359,7 +360,10 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
     .option('--no-run-log', '关闭默认运行日志')
     .option('--debug', '启用调试模式', false)
     .action(async (task, options) => {
-      await handlers.run(task, options);
+      if (!task && !options.resume) {
+        throw new Error('缺少任务描述：请提供 <task> 参数，或使用 --resume 恢复会话。');
+      }
+      await handlers.run(task ?? '', options);
     });
 
   // ── mcp serve ──────────────────────────────────────────────────────
