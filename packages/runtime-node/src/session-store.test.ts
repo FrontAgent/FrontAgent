@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentSessionSnapshot } from '@frontagent/core';
@@ -85,6 +85,50 @@ describe('session store', () => {
   it('returns undefined for unknown or corrupt sessions', () => {
     expect(loadSessionRecord(projectRoot, 'missing')).toBeUndefined();
     expect(getSessionsDir(projectRoot)).toContain('.frontagent');
+  });
+
+  it('drops half-written records missing required fields and keeps resume working', () => {
+    const good = makeRecord({ sessionId: 'session-good', status: 'running' });
+    saveSessionRecord(projectRoot, good);
+
+    const base = makeRecord({ sessionId: 'ignored' });
+    const broken: Array<[string, unknown]> = [
+      [
+        'session-no-updated-at',
+        { ...base, sessionId: 'session-no-updated-at', updatedAt: undefined },
+      ],
+      ['session-bad-status', { ...base, sessionId: 'session-bad-status', status: 'paused' }],
+      [
+        'session-no-messages',
+        {
+          ...base,
+          sessionId: 'session-no-messages',
+          snapshot: { ...base.snapshot, messages: undefined },
+        },
+      ],
+      [
+        'session-bad-steps',
+        {
+          ...base,
+          sessionId: 'session-bad-steps',
+          snapshot: { ...base.snapshot, plan: { steps: [{ notAStep: true }] } },
+        },
+      ],
+      ['session-not-json', '{ definitely not json'],
+    ];
+    mkdirSync(getSessionsDir(projectRoot), { recursive: true });
+    for (const [id, content] of broken) {
+      writeFileSync(
+        join(getSessionsDir(projectRoot), `${id}.json`),
+        typeof content === 'string' ? content : JSON.stringify(content),
+      );
+    }
+
+    for (const [id] of broken) {
+      expect(loadSessionRecord(projectRoot, id)).toBeUndefined();
+    }
+    expect(listSessionRecords(projectRoot).map((r) => r.sessionId)).toEqual(['session-good']);
+    expect(findLatestResumableSession(projectRoot)?.sessionId).toBe('session-good');
   });
 
   it('lists sessions newest-first and finds the latest resumable one', () => {

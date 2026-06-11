@@ -38,6 +38,53 @@ export function saveSessionRecord(projectRoot: string, record: SessionRecord): v
   );
 }
 
+const SESSION_STATUSES: ReadonlySet<string> = new Set(['running', 'completed', 'failed']);
+
+/**
+ * 完整的会话记录 schema 校验：session-store 是恢复数据的唯一校验入口，
+ * 历史版本、手工修改或半写入的文件在这里被丢弃，不流入恢复路径。
+ */
+function isValidSessionRecord(value: unknown): value is SessionRecord {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Partial<SessionRecord>;
+
+  if (typeof record.sessionId !== 'string' || record.sessionId === '') return false;
+  if (typeof record.status !== 'string' || !SESSION_STATUSES.has(record.status)) return false;
+  if (typeof record.createdAt !== 'string' || typeof record.updatedAt !== 'string') return false;
+
+  const snapshot = record.snapshot as Partial<SessionRecord['snapshot']> | undefined;
+  if (typeof snapshot !== 'object' || snapshot === null) return false;
+  if (typeof snapshot.taskDescription !== 'string') return false;
+  if (typeof snapshot.taskType !== 'string') return false;
+  if (!Array.isArray(snapshot.messages)) return false;
+  if (
+    snapshot.messages.some(
+      (message) =>
+        typeof message !== 'object' ||
+        message === null ||
+        typeof (message as { role?: unknown }).role !== 'string' ||
+        typeof (message as { content?: unknown }).content !== 'string',
+    )
+  ) {
+    return false;
+  }
+  if (typeof snapshot.plan !== 'object' || snapshot.plan === null) return false;
+  if (!Array.isArray(snapshot.plan.steps)) return false;
+  if (
+    snapshot.plan.steps.some(
+      (step) =>
+        typeof step !== 'object' ||
+        step === null ||
+        typeof (step as { stepId?: unknown }).stepId !== 'string' ||
+        typeof (step as { status?: unknown }).status !== 'string',
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export function loadSessionRecord(
   projectRoot: string,
   sessionId: string,
@@ -45,9 +92,8 @@ export function loadSessionRecord(
   const path = join(getSessionsDir(projectRoot), `${sessionId}.json`);
   try {
     if (!existsSync(path)) return undefined;
-    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as SessionRecord;
-    if (!parsed?.sessionId || !parsed.snapshot?.plan) return undefined;
-    return parsed;
+    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as unknown;
+    return isValidSessionRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
