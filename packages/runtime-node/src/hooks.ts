@@ -20,6 +20,33 @@ export interface HooksSettings {
 }
 
 export const DEFAULT_HOOK_TIMEOUT_MS = 10_000;
+export const MIN_HOOK_TIMEOUT_MS = 100;
+export const MAX_HOOK_TIMEOUT_MS = 600_000;
+
+/**
+ * 校验 settings 中的 timeoutMs：必须是有限正数，并 clamp 到合理区间；
+ * 非法值回退默认，避免 0/负数/NaN 让 preToolUse 立即超时拦截所有调用。
+ */
+export function normalizeHookTimeout(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return DEFAULT_HOOK_TIMEOUT_MS;
+  }
+  return Math.min(Math.max(Math.floor(value), MIN_HOOK_TIMEOUT_MS), MAX_HOOK_TIMEOUT_MS);
+}
+
+/**
+ * 项目内 hooks 是仓库提交的可执行配置，默认不自动执行：
+ * 需要宿主显式 opt-in（CLI --enable-hooks / runtime 选项），
+ * 或设置 FRONTAGENT_ENABLE_PROJECT_HOOKS=1|true。
+ */
+export function shouldEnableProjectHooks(
+  optionValue: boolean | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (optionValue === true) return true;
+  const envValue = env.FRONTAGENT_ENABLE_PROJECT_HOOKS;
+  return envValue === '1' || envValue === 'true';
+}
 
 export interface HookExecution {
   command: string;
@@ -136,7 +163,7 @@ export function createAgentLifecycleHooks(
   const settings = input.settings;
   if (!settings) return undefined;
 
-  const timeoutMs = settings.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS;
+  const timeoutMs = normalizeHookTimeout(settings.timeoutMs);
   const preCommands = normalizeCommands(settings.preToolUse);
   const postCommands = normalizeCommands(settings.postToolUse);
   if (preCommands.length === 0 && postCommands.length === 0) return undefined;
@@ -180,7 +207,7 @@ export async function runTaskCompleteHooks(
   payload: { event: 'taskComplete'; taskId: string; success: boolean; error?: string },
 ): Promise<void> {
   const commands = normalizeCommands(input.settings?.taskComplete);
-  const timeoutMs = input.settings?.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS;
+  const timeoutMs = normalizeHookTimeout(input.settings?.timeoutMs);
 
   for (const command of commands) {
     const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);

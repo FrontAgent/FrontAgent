@@ -4,10 +4,15 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAgentLifecycleHooks,
+  DEFAULT_HOOK_TIMEOUT_MS,
   type HookExecution,
   loadHooksSettings,
+  MAX_HOOK_TIMEOUT_MS,
+  MIN_HOOK_TIMEOUT_MS,
+  normalizeHookTimeout,
   runHookCommand,
   runTaskCompleteHooks,
+  shouldEnableProjectHooks,
 } from './hooks.js';
 
 describe('loadHooksSettings', () => {
@@ -35,6 +40,34 @@ describe('loadHooksSettings', () => {
       JSON.stringify({ hooks: { preToolUse: 'exit 0', timeoutMs: 500 } }),
     );
     expect(loadHooksSettings(projectRoot)).toEqual({ preToolUse: 'exit 0', timeoutMs: 500 });
+  });
+});
+
+describe('normalizeHookTimeout', () => {
+  it('falls back to the default for invalid values and clamps the range', () => {
+    for (const invalid of ['500', 0, -1, Number.NaN, Number.POSITIVE_INFINITY, null, {}]) {
+      expect(normalizeHookTimeout(invalid)).toBe(DEFAULT_HOOK_TIMEOUT_MS);
+    }
+    expect(normalizeHookTimeout(1)).toBe(MIN_HOOK_TIMEOUT_MS);
+    expect(normalizeHookTimeout(10_000_000)).toBe(MAX_HOOK_TIMEOUT_MS);
+    expect(normalizeHookTimeout(5000)).toBe(5000);
+  });
+});
+
+describe('shouldEnableProjectHooks', () => {
+  it('requires explicit opt-in via option or environment', () => {
+    expect(shouldEnableProjectHooks(undefined, {})).toBe(false);
+    expect(shouldEnableProjectHooks(false, {})).toBe(false);
+    expect(shouldEnableProjectHooks(true, {})).toBe(true);
+    expect(shouldEnableProjectHooks(undefined, { FRONTAGENT_ENABLE_PROJECT_HOOKS: '1' })).toBe(
+      true,
+    );
+    expect(shouldEnableProjectHooks(undefined, { FRONTAGENT_ENABLE_PROJECT_HOOKS: 'true' })).toBe(
+      true,
+    );
+    expect(shouldEnableProjectHooks(undefined, { FRONTAGENT_ENABLE_PROJECT_HOOKS: '0' })).toBe(
+      false,
+    );
   });
 });
 

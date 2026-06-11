@@ -118,6 +118,11 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
     .command('run')
     .description('运行 Agent 任务')
     .argument('<task>', '任务描述')
+    .option(
+      '--enable-hooks',
+      '启用项目内 .frontagent/settings.json 的生命周期 hooks（默认关闭，仓库配置不自动执行 shell）',
+      false,
+    )
     .option('-s, --sdd <path>', 'SDD 配置文件路径', 'sdd.yaml')
     .option('-t, --type <type>', '任务类型 (create/modify/query/debug/refactor/test)', 'query')
     .option('-f, --files <files...>', '相关文件列表')

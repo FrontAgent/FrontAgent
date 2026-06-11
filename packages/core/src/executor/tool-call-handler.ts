@@ -69,7 +69,15 @@ export class ExecutorToolCallHandler {
     }
 
     const mcpStart = this.nowMs();
-    const result = await client.callTool(toolName, security.args);
+    let result: unknown;
+    try {
+      result = await client.callTool(toolName, security.args);
+    } catch (error) {
+      // MCP 调用抛异常的 outcome 同样要被 postToolUse 观察，再保持异常传播
+      const message = error instanceof Error ? error.message : String(error);
+      await this.runPostToolUseHook(toolName, args, false, message);
+      throw error;
+    }
     const mcpDurationMs = this.nowMs() - mcpStart;
     if (typeof result === 'object' && result !== null) {
       (result as Record<string, unknown>).__toolDurationMs = mcpDurationMs;
@@ -116,9 +124,8 @@ export class ExecutorToolCallHandler {
         return `preToolUse hook blocked ${toolName}${decision.reason ? `: ${decision.reason}` : ''}`;
       }
     } catch (error) {
-      if (this.config.debug) {
-        console.warn('[Executor] preToolUse hook errored (non-blocking):', error);
-      }
+      // hook 基础设施故障 fail-open，但必须默认可见，便于发现策略 hook 失效
+      console.warn(`[Executor] preToolUse hook errored (non-blocking) for ${toolName}:`, error);
     }
     return undefined;
   }
@@ -135,9 +142,11 @@ export class ExecutorToolCallHandler {
     try {
       await hook({ event: 'postToolUse', toolName, args, success, error });
     } catch (hookError) {
-      if (this.config.debug) {
-        console.warn('[Executor] postToolUse hook errored (non-blocking):', hookError);
-      }
+      // 同上：postToolUse 故障默认记录，不中断任务
+      console.warn(
+        `[Executor] postToolUse hook errored (non-blocking) for ${toolName}:`,
+        hookError,
+      );
     }
   }
 

@@ -82,6 +82,37 @@ describe('ExecutorToolCallHandler lifecycle hooks', () => {
     });
   });
 
+  it('observes a thrown MCP call in postToolUse and rethrows', async () => {
+    const postToolUse = vi.fn(async () => {});
+    const callTool = vi.fn(async () => {
+      throw new Error('mcp transport down');
+    });
+    const client: MCPClient = { callTool, listTools: async () => [] };
+    const config = {
+      projectRoot: '/tmp/frontagent-project',
+      security: { interactive: false },
+      lifecycleHooks: { postToolUse },
+    } as unknown as ExecutorConfig;
+    const handler = new ExecutorToolCallHandler({
+      config,
+      mcpClients: new Map([['file', client]]),
+      toolToClient: new Map([['read_file', 'file']]),
+      nowMs: () => 0,
+      getCurrentBrowserUrl: () => undefined,
+    });
+
+    await expect(handler.callTool('read_file', { path: 'a.ts' })).rejects.toThrow(
+      'mcp transport down',
+    );
+    expect(postToolUse).toHaveBeenCalledWith({
+      event: 'postToolUse',
+      toolName: 'read_file',
+      args: { path: 'a.ts' },
+      success: false,
+      error: 'mcp transport down',
+    });
+  });
+
   it('passes the tool failure error to postToolUse', async () => {
     const postToolUse = vi.fn(async () => {});
     const callTool = vi.fn(async () => ({ success: false, error: 'disk on fire' }));

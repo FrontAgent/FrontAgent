@@ -23,6 +23,7 @@ import {
   createAgentLifecycleHooks,
   loadHooksSettings,
   runTaskCompleteHooks,
+  shouldEnableProjectHooks,
 } from './hooks.js';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-clients.js';
 import { createRunLogger, installRunConsoleFilter } from './run-logger.js';
@@ -43,6 +44,12 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   streamShellOutput?: boolean;
   llmBackend?: LLMBackend;
   signal?: AbortSignal;
+  /**
+   * 显式启用项目内 .frontagent/settings.json 的 hooks（默认关闭）。
+   * 仓库提交的配置不应自动获得本机 shell 执行能力；
+   * 也可用 FRONTAGENT_ENABLE_PROJECT_HOOKS=1 启用。
+   */
+  enableProjectHooks?: boolean;
   onRunLogPath?: (path: string | null) => void;
   onEvent?: (event: AgentEvent) => void;
   onApprovalRequest?: (request: ApprovalRequest) => Promise<boolean>;
@@ -118,9 +125,11 @@ export async function runFrontAgentTask(
     : () => {};
   const webClient = new WebMCPClient();
 
+  // 项目 hooks 默认不执行：仓库提交的 settings 不应自动获得 shell 执行能力
+  const projectHooksEnabled = shouldEnableProjectHooks(options.enableProjectHooks);
   const hooksInput: CreateLifecycleHooksInput = {
     projectRoot,
-    settings: loadHooksSettings(projectRoot),
+    settings: projectHooksEnabled ? loadHooksSettings(projectRoot) : undefined,
     onHookExecuted: (hookEvent, execution) => {
       runLogger?.event({
         type: 'status_update',
@@ -130,6 +139,14 @@ export async function runFrontAgentTask(
       });
     },
   };
+  if (!projectHooksEnabled && loadHooksSettings(projectRoot)) {
+    runLogger?.event({
+      type: 'status_update',
+      label: 'hooks 未启用',
+      operation:
+        '检测到 .frontagent/settings.json 的 hooks 配置；如需启用请使用 --enable-hooks 或 FRONTAGENT_ENABLE_PROJECT_HOOKS=1',
+    });
+  }
 
   const config: AgentConfig = {
     projectRoot,
