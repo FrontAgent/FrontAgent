@@ -223,6 +223,38 @@ describe('HybridRepositoryKnowledgeBase', () => {
     expect(second.sourceRevision).toBe(first.sourceRevision);
   });
 
+  it('serves distinct queries from the in-memory index without re-reading index.json', async () => {
+    const { cacheDir, kb } = await createFixture();
+
+    const first = await kb.query({ query: 'hybrid repository handler' });
+    expect(first.success).toBe(true);
+    expect(first.sourceRevision).toBe('test-revision');
+
+    // Rewrite the on-disk index with a different revision. A warm instance must
+    // keep serving the parsed in-memory index instead of re-reading the file.
+    const mutated = makeIndex(join(cacheDir, 'repo'));
+    mutated.source.revision = 'rewritten-revision';
+    await writeFile(join(cacheDir, 'index.json'), JSON.stringify(mutated), 'utf-8');
+
+    const second = await kb.query({ query: 'repository concepts' });
+    expect(second.success).toBe(true);
+    expect(second.timing?.cacheHit).toBe(false);
+    expect(second.sourceRevision).toBe('test-revision');
+  });
+
+  it('keeps serving distinct queries after index.json becomes unreadable', async () => {
+    const { cacheDir, kb } = await createFixture();
+
+    const first = await kb.query({ query: 'hybrid repository handler' });
+    expect(first.success).toBe(true);
+
+    await writeFile(join(cacheDir, 'index.json'), 'not json', 'utf-8');
+
+    const second = await kb.query({ query: 'validates query input' });
+    expect(second.success).toBe(true);
+    expect(second.sourceRevision).toBe('test-revision');
+  });
+
   it('falls back to keyword-only search with a warning when embeddings lack an API key', async () => {
     const { index, kb } = await createFixture({
       embedding: { enabled: true, apiKey: '' },
