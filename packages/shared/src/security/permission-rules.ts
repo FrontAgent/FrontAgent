@@ -107,8 +107,14 @@ export function evaluatePermissionRules(
 /**
  * 从一次已批准的调用派生精确 allow 规则（用于"始终允许"持久化）。
  * 主参数做字面量转义：包含 * 的命令不会被扩大成通配授权。
+ * 无法提取主参数时返回 undefined——不能从一次具体审批派生
+ * "允许该工具所有调用"的裸规则，这类授权必须由用户显式书写。
  */
-export function deriveAllowRule(toolName: string, args: Record<string, unknown>): string {
+export function deriveAllowRule(
+  toolName: string,
+  args: Record<string, unknown>,
+): string | undefined {
   const primaryArg = extractPrimaryArg(args);
-  return primaryArg === undefined ? toolName : `${toolName}(${escapePatternLiteral(primaryArg)})`;
+  if (primaryArg === undefined) return undefined;
+  return `${toolName}(${escapePatternLiteral(primaryArg)})`;
 }

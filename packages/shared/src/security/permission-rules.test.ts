@@ -89,8 +89,10 @@ describe('deriveAllowRule', () => {
     );
   });
 
-  it('falls back to the bare tool name without a primary argument', () => {
-    expect(deriveAllowRule('rollback', {})).toBe('rollback');
+  it('refuses to derive a rule when no primary argument exists', () => {
+    // 不能从一次具体审批派生"允许该工具所有调用"的裸规则
+    expect(deriveAllowRule('rollback', {})).toBeUndefined();
+    expect(deriveAllowRule('custom_tool', { query: 'first' })).toBeUndefined();
   });
 
   it('escapes literal wildcards so an approval is never widened', () => {
@@ -98,15 +100,17 @@ describe('deriveAllowRule', () => {
     expect(rule).toBe('run_command(echo \\*)');
 
     // 派生规则只匹配原始调用，不匹配其他命令
-    expect(matchesPermissionRule(rule, 'run_command', { command: 'echo *' })).toBe(true);
-    expect(matchesPermissionRule(rule, 'run_command', { command: 'echo secret' })).toBe(false);
-    expect(matchesPermissionRule(rule, 'run_command', { command: 'echo anything else' })).toBe(
+    expect(matchesPermissionRule(rule as string, 'run_command', { command: 'echo *' })).toBe(true);
+    expect(matchesPermissionRule(rule as string, 'run_command', { command: 'echo secret' })).toBe(
       false,
     );
+    expect(
+      matchesPermissionRule(rule as string, 'run_command', { command: 'echo anything else' }),
+    ).toBe(false);
   });
 
   it('escapes backslashes so windows-style paths stay literal', () => {
-    const rule = deriveAllowRule('create_file', { path: 'src\\*.ts' });
+    const rule = deriveAllowRule('create_file', { path: 'src\\*.ts' }) as string;
     expect(matchesPermissionRule(rule, 'create_file', { path: 'src\\*.ts' })).toBe(true);
     expect(matchesPermissionRule(rule, 'create_file', { path: 'src\\evil.ts' })).toBe(false);
   });

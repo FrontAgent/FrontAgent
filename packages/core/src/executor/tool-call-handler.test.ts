@@ -18,7 +18,10 @@ function makeHandler(overrides: Partial<ExecutorConfig> = {}) {
   const handler = new ExecutorToolCallHandler({
     config,
     mcpClients: new Map([['shell', client]]),
-    toolToClient: new Map([['run_command', 'shell']]),
+    toolToClient: new Map([
+      ['run_command', 'shell'],
+      ['custom_tool', 'shell'],
+    ]),
     nowMs: () => 0,
     getCurrentBrowserUrl: () => undefined,
   });
@@ -67,6 +70,25 @@ describe('ExecutorToolCallHandler approvals', () => {
 
     // 第二个不同命令仍需审批
     expect(approvalHandler).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not widen authorization when no primary argument can be derived', async () => {
+    const onPersistAllowRule = vi.fn();
+    const approvalHandler = vi.fn(async () => ({ approved: true, alwaysAllow: true }));
+    const { handler, callTool } = makeHandler({
+      security: { interactive: true },
+      approvalHandler,
+      onPersistAllowRule,
+    });
+
+    // custom_tool 走 unknown_tool_requires_approval，args 无 command/url/path/selector
+    await handler.callTool('custom_tool', { query: 'first' });
+    await handler.callTool('custom_tool', { query: 'second' });
+
+    // 无法派生精确规则：不持久化裸工具规则，第二次调用仍需审批
+    expect(onPersistAllowRule).not.toHaveBeenCalled();
+    expect(approvalHandler).toHaveBeenCalledTimes(2);
+    expect(callTool).toHaveBeenCalledTimes(2);
   });
 
   it('does not persist a rule for plain boolean approvals', async () => {

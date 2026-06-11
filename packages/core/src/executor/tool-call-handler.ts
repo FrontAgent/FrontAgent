@@ -126,12 +126,15 @@ export class ExecutorToolCallHandler {
     const alwaysAllow = typeof response === 'boolean' ? false : Boolean(response.alwaysAllow);
 
     if (approved && alwaysAllow) {
+      // 无法派生精确规则（无主参数）时只按本次批准执行，不扩大授权
       const rule = deriveAllowRule(toolName, args);
-      // 同步合并进内存规则：当前会话内相同调用立即免审批，再持久化到 settings
-      const security = this.config.security ?? (this.config.security = {});
-      const permissions = security.permissions ?? (security.permissions = {});
-      permissions.allow = [...(permissions.allow ?? []), rule];
-      this.config.onPersistAllowRule?.(rule);
+      if (rule !== undefined) {
+        // 同步合并进内存规则：当前会话内相同调用立即免审批，再持久化到 settings
+        const security = this.config.security ?? (this.config.security = {});
+        const permissions = security.permissions ?? (security.permissions = {});
+        permissions.allow = [...(permissions.allow ?? []), rule];
+        this.config.onPersistAllowRule?.(rule);
+      }
     }
 
     const finalDecision: SecurityDecision = approved
