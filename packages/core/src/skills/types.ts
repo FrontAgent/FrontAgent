@@ -11,6 +11,8 @@ export interface PlannerContextSnapshot {
   readonly matchedSkillNames?: readonly string[];
   /** Preloaded cross-session memory content (Phase 1) */
   readonly memoryContext?: string;
+  /** Layered AGENTS.md/CLAUDE.md project instructions */
+  readonly projectInstructions?: string;
   readonly filesense?: FilesenseConfig;
 }
 

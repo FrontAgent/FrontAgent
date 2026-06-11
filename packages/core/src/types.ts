@@ -585,6 +585,8 @@ export interface ContextInfo {
   matchedSkillNames?: string[];
   /** 跨会话记忆内容（Phase 1 preload） */
   memoryContext?: string;
+  /** 分层 AGENTS.md/CLAUDE.md 项目指令 */
+  projectInstructions?: string;
   /** 结构化 Filesense 目录导航上下文 */
   filesenseNavigation?: FilesenseNavigationContext;
   /** Filesense 目录索引上下文 */
