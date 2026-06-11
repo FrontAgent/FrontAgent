@@ -4,6 +4,19 @@
 
 // Logger
 export { getLogLevel, type LogLevel, logger, setLogLevel } from './logger.js';
+// Security - Permission rules
+export type {
+  ParsedPermissionRule,
+  PermissionRuleMatch,
+} from './security/permission-rules.js';
+export {
+  deriveAllowRule,
+  escapePatternLiteral,
+  evaluatePermissionRules,
+  extractPrimaryArg,
+  matchesPermissionRule,
+  parsePermissionRule,
+} from './security/permission-rules.js';
 // Security - Shell analysis
 export type {
   DangerousShellCommandResult,
@@ -18,10 +31,12 @@ export {
 // Security types
 export type {
   ApprovalRequest,
+  SecurityApprovalResponse,
   SecurityConfig,
   SecurityDecision,
   SecurityDecisionOutcome,
   SecurityMode,
+  SecurityPermissionRules,
   SecurityRiskLevel,
   SecurityRuleProvenance,
   SecurityRuleSource,
