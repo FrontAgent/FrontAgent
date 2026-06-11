@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { AgentEvent } from '@frontagent/core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createRunLogger, redactForLog, resolveRunLogPath } from './run-logger.js';
 
 describe('redactForLog', () => {
@@ -188,7 +188,7 @@ describe('createRunLogger (file logger)', () => {
     return dir;
   }
 
-  function makeLogger(dir = makeTempDir(), task = 'test task') {
+  function makeLogger(dir = makeTempDir(), task = 'test task', maxBufferedBytes?: number) {
     const logger = createRunLogger({
       projectRoot: dir,
       enabled: true,
@@ -197,16 +197,10 @@ describe('createRunLogger (file logger)', () => {
       provider: 'test-provider',
       model: 'test-model',
       options: {},
+      maxBufferedBytes,
     });
     if (!logger) throw new Error('expected logger');
     return logger;
-  }
-
-  async function readWhenClosed(path: string): Promise<string> {
-    await vi.waitFor(() => {
-      expect(readFileSync(path, 'utf8')).toContain('closed');
-    });
-    return readFileSync(path, 'utf8');
   }
 
   afterEach(() => {
@@ -234,9 +228,9 @@ describe('createRunLogger (file logger)', () => {
     logger.console('warn', ['warned', { apiKey: 'sk-secret' }]);
     logger.result({ success: true } as never);
     logger.error(new Error('boom'));
-    logger.close();
+    await logger.close();
 
-    const content = await readWhenClosed(logger.path);
+    const content = readFileSync(logger.path, 'utf8');
     expect(content).toContain('# FrontAgent Run Log');
     expect(content).toContain('event.stream_token');
     expect(content).toContain('"tokenLength"');
@@ -256,12 +250,13 @@ describe('createRunLogger (file logger)', () => {
   it('ignores writes after close and is idempotent on close', async () => {
     const logger = makeLogger();
     logger.event({ type: 'status_update', label: 'before' } as AgentEvent);
-    logger.close();
-    logger.close();
+    const closed = logger.close();
+    await logger.close();
+    await closed;
     logger.event({ type: 'status_update', label: 'after-close' } as AgentEvent);
     logger.console('log', ['after-close-console']);
 
-    const content = await readWhenClosed(logger.path);
+    const content = readFileSync(logger.path, 'utf8');
     expect(content).toContain('before');
     expect(content).not.toContain('after-close');
     expect(content.match(/closed/g)).toHaveLength(1);
@@ -272,19 +267,42 @@ describe('createRunLogger (file logger)', () => {
     const path = resolve(dir, 'run.log');
 
     const first = makeLogger(dir, 'first');
-    first.close();
-    await vi.waitFor(() => {
-      expect(readFileSync(path, 'utf8')).toContain('closed');
-    });
+    await first.close();
 
     const second = makeLogger(dir, 'second');
-    second.close();
-    await vi.waitFor(() => {
-      expect((readFileSync(path, 'utf8').match(/closed/g) ?? []).length).toBe(2);
-    });
+    await second.close();
 
     const content = readFileSync(path, 'utf8');
+    expect((content.match(/closed/g) ?? []).length).toBe(2);
     expect(content).toContain('"task": "first"');
     expect(content).toContain('"task": "second"');
+  });
+
+  it('close() resolves only after all buffered entries are flushed to disk', async () => {
+    const logger = makeLogger();
+    logger.console('log', ['x'.repeat(256 * 1024)]);
+    await logger.close();
+
+    // No polling: the file must be complete the moment close() resolves.
+    const content = readFileSync(logger.path, 'utf8');
+    expect(content).toContain('x'.repeat(256 * 1024));
+    expect(content.trimEnd().endsWith('closed')).toBe(true);
+  });
+
+  it('drops entries instead of queueing once the write buffer exceeds the cap', async () => {
+    // 64 KB cap: one 100 KB entry saturates the buffer within this tick, so
+    // the entries written synchronously afterwards must be dropped, not queued.
+    const logger = makeLogger(makeTempDir(), 'backpressure', 64 * 1024);
+    logger.console('log', [`first:${'x'.repeat(100 * 1024)}`]);
+    logger.console('log', ['dropped-entry-1']);
+    logger.console('log', ['dropped-entry-2']);
+    await logger.close();
+
+    const content = readFileSync(logger.path, 'utf8');
+    expect(content).toContain('first:');
+    expect(content).not.toContain('dropped-entry-1');
+    expect(content).not.toContain('dropped-entry-2');
+    expect(content).toContain('dropped 2 log entries while the write buffer was saturated');
+    expect(content.trimEnd().endsWith('closed')).toBe(true);
   });
 });
