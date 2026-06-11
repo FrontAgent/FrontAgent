@@ -47,14 +47,25 @@ export const DEFAULT_HISTORY_KEEP_RECENT = 12;
 /** zone 收缩顺序：低优先级在前 */
 const ZONE_SHRINK_ORDER: PromptZoneName[] = ['context', 'filesense', 'memory', 'rules'];
 
-/** 收缩到极限时每个 zone 至少保留的字符数，保证截断标记可见 */
-const MIN_ZONE_CHARS = 200;
+/** 预算装不下完整标记时使用的简短标记 */
+const SHORT_TRUNCATION_MARKER = '[已截断]';
 
+/**
+ * 截断到预算内并附可见标记。后置条件：返回值长度恒 <= max(budget, 0)；
+ * 预算装不下完整标记时退化为简短标记，预算更小则只保留裁剪内容。
+ */
 export function truncateWithMarker(content: string, budget: number, zoneName: string): string {
   if (content.length <= budget) return content;
+  if (budget <= 0) return '';
+
   const marker = `\n[已截断：${zoneName} zone 超出 ${budget} 字符预算]`;
-  const keep = Math.max(budget - marker.length, MIN_ZONE_CHARS);
-  return `${content.slice(0, keep)}${marker}`;
+  if (budget > marker.length) {
+    return `${content.slice(0, budget - marker.length)}${marker}`;
+  }
+  if (budget > SHORT_TRUNCATION_MARKER.length) {
+    return `${content.slice(0, budget - SHORT_TRUNCATION_MARKER.length)}${SHORT_TRUNCATION_MARKER}`;
+  }
+  return content.slice(0, budget);
 }
 
 export interface PromptZone {
@@ -83,7 +94,7 @@ export function applyZoneBudgets(zones: PromptZone[], config?: ContextBudgetConf
     const overflow = total - totalBudget;
     result = result.map((zone) => {
       if (zone.name !== shrinkTarget) return zone;
-      const target = Math.max(zone.content.length - overflow, MIN_ZONE_CHARS);
+      const target = Math.max(zone.content.length - overflow, 0);
       return { ...zone, content: truncateWithMarker(zone.content, target, zone.name) };
     });
   }
@@ -120,9 +131,15 @@ export function compactMessageHistory(
     return { messages, compacted: false, compactedCount: 0 };
   }
 
-  // 开头连续的 system 消息（SDD 约束、constitution）必须原样保留
+  // 开头连续的 system 消息（SDD 约束、constitution）必须原样保留；
+  // 历史压缩生成的 summary 不算受保护头部，会被纳入下一轮重新汇总，
+  // 保证任意时刻最多只有一条 summary
   let headEnd = 0;
-  while (headEnd < messages.length && messages[headEnd].role === 'system') {
+  while (
+    headEnd < messages.length &&
+    messages[headEnd].role === 'system' &&
+    !isCompactedSummaryMessage(messages[headEnd])
+  ) {
     headEnd += 1;
   }
 

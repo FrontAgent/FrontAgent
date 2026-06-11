@@ -19,6 +19,21 @@ describe('truncateWithMarker', () => {
     expect(result.length).toBeLessThanOrEqual(300);
     expect(result.startsWith('xxx')).toBe(true);
   });
+
+  it('never exceeds tiny budgets that cannot fit the full marker', () => {
+    const fullMarkerLength = '\n[已截断：memory zone 超出 30 字符预算]'.length;
+    expect(fullMarkerLength).toBeGreaterThan(20);
+
+    const small = truncateWithMarker('x'.repeat(500), 20, 'memory');
+    expect(small.length).toBeLessThanOrEqual(20);
+    expect(small).toContain('[已截断]');
+
+    const tiny = truncateWithMarker('x'.repeat(500), 3, 'memory');
+    expect(tiny.length).toBeLessThanOrEqual(3);
+
+    expect(truncateWithMarker('x'.repeat(500), 0, 'memory')).toBe('');
+    expect(truncateWithMarker('x'.repeat(500), -5, 'memory')).toBe('');
+  });
 });
 
 describe('applyZoneBudgets', () => {
@@ -37,6 +52,10 @@ describe('applyZoneBudgets', () => {
     expect(result[1].content).toContain('[已截断：memory zone 超出 300 字符预算]');
   });
 
+  function totalLength(result: PromptZone[]): number {
+    return result.reduce((sum, zone) => sum + zone.content.length, 0);
+  }
+
   it('shrinks lower-priority zones first when the total budget competes', () => {
     const result = applyZoneBudgets(zones({ rules: 1000, memory: 1000, context: 1000 }), {
       zoneBudgets: { rules: 5000, memory: 5000, context: 5000 },
@@ -46,6 +65,7 @@ describe('applyZoneBudgets', () => {
     expect(byName.context).toContain('[已截断：context zone');
     expect(byName.rules).toBe('r'.repeat(1000));
     expect(byName.memory).toBe('m'.repeat(1000));
+    expect(totalLength(result)).toBeLessThanOrEqual(2400);
   });
 
   it('keeps shrinking into higher-priority zones only when needed', () => {
@@ -54,9 +74,19 @@ describe('applyZoneBudgets', () => {
       totalBudget: 1500,
     });
     const byName = Object.fromEntries(result.map((zone) => [zone.name, zone.content]));
-    expect(byName.context).toContain('[已截断：context zone');
+    // 极限收缩下 context 先被清空，memory 再被截断，rules 最后保留
+    expect(byName.context).toBe('');
     expect(byName.memory).toContain('[已截断：memory zone');
     expect(byName.rules).toBe('r'.repeat(1000));
+    expect(totalLength(result)).toBeLessThanOrEqual(1500);
+  });
+
+  it('stays within an extremely small total budget by squeezing all zones', () => {
+    const result = applyZoneBudgets(zones({ rules: 1000, memory: 1000, context: 1000 }), {
+      zoneBudgets: { rules: 5000, memory: 5000, context: 5000 },
+      totalBudget: 100,
+    });
+    expect(totalLength(result)).toBeLessThanOrEqual(100);
   });
 });
 
@@ -109,5 +139,29 @@ describe('compactMessageHistory', () => {
     expect(second.compacted).toBe(true);
     expect(second.messages.at(-1)?.content).toBe('late message 9');
     expect(second.messages[0].content).toBe('system prompt 0');
+  });
+
+  it('keeps at most one summary and a bounded length across many compaction rounds', () => {
+    const options = { threshold: 10, keepRecent: 5 };
+    let messages = makeMessages(30, 2);
+
+    for (let round = 0; round < 10; round++) {
+      const result = compactMessageHistory(messages, options);
+      messages = [
+        ...result.messages,
+        ...Array.from({ length: 8 }, (_, i) => ({
+          role: 'user' as const,
+          content: `round ${round} message ${i}`,
+        })),
+      ];
+    }
+    const final = compactMessageHistory(messages, options);
+
+    const summaries = final.messages.filter((message) => isCompactedSummaryMessage(message));
+    expect(summaries).toHaveLength(1);
+    // head(2) + summary(1) + keepRecent(5)
+    expect(final.messages.length).toBe(8);
+    expect(final.messages[0].content).toBe('system prompt 0');
+    expect(final.messages[1].content).toBe('system prompt 1');
   });
 });
