@@ -161,6 +161,21 @@ describe('runHeadlessCommand', () => {
     expect(payload.error).toBe('boom');
   });
 
+  it('passes the same raw sdd option and projectRoot as the interactive path', async () => {
+    const { deps, runTask } = makeDeps(makeResult());
+
+    await runHeadlessCommand('build it', { output: 'json', sdd: 'configs/sdd.yaml' }, deps);
+
+    // 与交互路径 run.tsx 一致：原样传 options.sdd，
+    // 由 runtime 的 runFrontAgentTask 统一 resolve(projectRoot, sddPath ?? 'sdd.yaml')
+    const taskOptions = runTask.mock.calls[0][0] as {
+      sddPath?: string;
+      projectRoot?: string;
+    };
+    expect(taskOptions.sddPath).toBe('configs/sdd.yaml');
+    expect(taskOptions.projectRoot).toBe(process.cwd());
+  });
+
   it('prints a human summary in text mode', async () => {
     const { deps, stdoutLines, stderrLines } = makeDeps(makeResult());
 
