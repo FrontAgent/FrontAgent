@@ -108,6 +108,7 @@ export class FrontAgent {
       security: config.security,
       sddConfig: this.sddConfig,
       approvalHandler: config.security?.approvalHandler,
+      onPersistAllowRule: config.security?.onPersistAllowRule,
       onSecurityDecision: (decision) => {
         this.emit({ type: 'security_decision', decision });
       },

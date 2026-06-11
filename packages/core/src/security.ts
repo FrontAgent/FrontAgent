@@ -4,6 +4,7 @@ import {
   type ApprovalRequest,
   analyzeShellCommand,
   detectDangerousShellCommand,
+  evaluatePermissionRules,
   generateId,
   isCommonValidationCommand,
   isInstallCommand,
@@ -74,6 +75,10 @@ function sdd(ruleId: string, details?: string): SecurityRuleProvenance {
 
 function runtime(ruleId: string, details?: string): SecurityRuleProvenance {
   return { source: 'runtime', ruleId, mutable: false, details };
+}
+
+function user(ruleId: string, details?: string): SecurityRuleProvenance {
+  return { source: 'user', ruleId, mutable: true, details };
 }
 
 function summarizeArgs(toolName: string, args: Record<string, unknown>): string {
@@ -231,6 +236,44 @@ export function toApprovalRequest(decisionValue: SecurityDecision): ApprovalRequ
 export class SecurityManager {
   evaluate(input: SecurityEvaluationInput): SecurityDecision {
     const config = normalizeSecurityConfig(input.security);
+    const { toolName, args } = input;
+
+    // 用户声明式 deny 规则最先生效，优先于其他所有判定
+    const ruleMatch = evaluatePermissionRules(input.security?.permissions, toolName, args);
+    if (ruleMatch?.outcome === 'deny') {
+      return decision({
+        decision: 'deny',
+        riskLevel: 'high',
+        reasonCode: 'permission_rule_denied',
+        message: `Denied by user permission rule: ${ruleMatch.rule}`,
+        toolName,
+        args,
+        provenance: [user('permissions.deny', ruleMatch.rule)],
+      });
+    }
+
+    const base = this.evaluateBuiltin(input, config);
+
+    // 用户 allow 规则只把"需要审批"升级为放行，不绕过内建硬性 deny
+    if (base.decision === 'ask' && ruleMatch?.outcome === 'allow') {
+      return decision({
+        decision: 'allow',
+        riskLevel: base.riskLevel,
+        reasonCode: 'permission_rule_allowed',
+        message: `Allowed by user permission rule: ${ruleMatch.rule}`,
+        toolName,
+        args,
+        provenance: [user('permissions.allow', ruleMatch.rule), ...base.provenance],
+      });
+    }
+
+    return base;
+  }
+
+  private evaluateBuiltin(
+    input: SecurityEvaluationInput,
+    config: NormalizedSecurityConfig,
+  ): SecurityDecision {
     const { toolName, args } = input;
 
     if (WRITE_TOOLS.has(toolName)) {

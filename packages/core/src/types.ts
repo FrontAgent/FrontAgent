@@ -9,6 +9,7 @@ import type {
   ExecutionPlan,
   ExecutionStep,
   SDDConfig,
+  SecurityApprovalResponse,
   SecurityConfig,
   SecurityDecision,
   StepResult,
@@ -65,7 +66,9 @@ export interface AgentPlanResult {
 
 export interface AgentSecurityConfig extends SecurityConfig {
   /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
-  approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+  approvalHandler?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;
+  /** 用户选择"始终允许"时的规则持久化回调 */
+  onPersistAllowRule?: (rule: string) => void;
 }
 
 /**

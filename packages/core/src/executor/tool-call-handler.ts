@@ -1,4 +1,4 @@
-import type { SecurityDecision } from '@frontagent/shared';
+import { deriveAllowRule, type SecurityDecision } from '@frontagent/shared';
 import { SecurityManager, toApprovalRequest } from '../security.js';
 import type { ExecutorConfig, MCPClient } from './types.js';
 
@@ -121,7 +121,14 @@ export class ExecutorToolCallHandler {
       return { allowed: false, error: deniedDecision.message };
     }
 
-    const approved = await this.config.approvalHandler(approvalRequest);
+    const response = await this.config.approvalHandler(approvalRequest);
+    const approved = typeof response === 'boolean' ? response : response.approved;
+    const alwaysAllow = typeof response === 'boolean' ? false : Boolean(response.alwaysAllow);
+
+    if (approved && alwaysAllow && this.config.onPersistAllowRule) {
+      this.config.onPersistAllowRule(deriveAllowRule(toolName, args));
+    }
+
     const finalDecision: SecurityDecision = approved
       ? {
           ...decision,
