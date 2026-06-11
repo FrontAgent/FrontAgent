@@ -109,16 +109,22 @@ export async function runHeadlessCommand(
   const deniedApprovals: DeniedApproval[] = [];
   let runLogPath: string | null = null;
 
-  // stdout 只承载最终结果文档：运行期 console 输出全部重定向到 stderr
+  // JSON 模式下 stdout 只承载最终结果文档：运行期不仅重定向 console，
+  // 还拦截 process.stdout.write 本身——runtime/工具/第三方库的直接
+  // stdout 写入全部转到 stderr。任务结束、流恢复之后才输出最终文档。
   const originalConsole = { log: console.log, info: console.info, warn: console.warn };
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   if (outputJson) {
     console.log = (...args: unknown[]) => console.error(...args);
     console.info = (...args: unknown[]) => console.error(...args);
     console.warn = (...args: unknown[]) => console.error(...args);
+    process.stdout.write = ((...args: Parameters<typeof process.stdout.write>) =>
+      process.stderr.write(...args)) as typeof process.stdout.write;
   }
 
+  let result: AgentExecutionResult;
   try {
-    const result = await deps.runTask({
+    result = await deps.runTask({
       ...stripCliOnlyOptions(options),
       projectRoot,
       task,
@@ -135,48 +141,35 @@ export async function runHeadlessCommand(
       onEvent: (event) => collectDeniedApproval(event, deniedApprovals),
       // 不提供 onApprovalRequest：未被规则放行的敏感调用 fail-closed 拒绝
     });
-
-    const payload = buildHeadlessPayload(result, deniedApprovals, runLogPath);
-    if (outputJson) {
-      deps.stdout(JSON.stringify(payload));
-    } else {
-      deps.stdout(
-        payload.success ? '✅ 任务执行成功' : `❌ 任务失败：${payload.error ?? '未知错误'}`,
-      );
-      if (payload.output) deps.stdout(payload.output);
-      if (deniedApprovals.length > 0) {
-        deps.stderr(`被拒绝的敏感调用：${deniedApprovals.map((d) => d.toolName).join(', ')}`);
-      }
-    }
-    return payload.success ? 0 : 1;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (outputJson) {
-      deps.stdout(
-        JSON.stringify(
-          buildHeadlessPayload(
-            {
-              success: false,
-              taskId: '',
-              executedSteps: [],
-              error: message,
-              duration: 0,
-              validations: [],
-            },
-            deniedApprovals,
-            runLogPath,
-          ),
-        ),
-      );
-    } else {
-      deps.stderr(`❌ 任务失败：${message}`);
-    }
-    return 1;
+    result = {
+      success: false,
+      taskId: '',
+      executedSteps: [],
+      error: error instanceof Error ? error.message : String(error),
+      duration: 0,
+      validations: [],
+    };
   } finally {
     console.log = originalConsole.log;
     console.info = originalConsole.info;
     console.warn = originalConsole.warn;
+    process.stdout.write = originalStdoutWrite;
   }
+
+  const payload = buildHeadlessPayload(result, deniedApprovals, runLogPath);
+  if (outputJson) {
+    deps.stdout(JSON.stringify(payload));
+  } else {
+    deps.stdout(
+      payload.success ? '✅ 任务执行成功' : `❌ 任务失败：${payload.error ?? '未知错误'}`,
+    );
+    if (payload.output) deps.stdout(payload.output);
+    if (deniedApprovals.length > 0) {
+      deps.stderr(`被拒绝的敏感调用：${deniedApprovals.map((d) => d.toolName).join(', ')}`);
+    }
+  }
+  return payload.success ? 0 : 1;
 }
 
 function isDebugEnabled(value: unknown): boolean {

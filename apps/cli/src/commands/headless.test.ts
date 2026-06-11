@@ -141,6 +141,50 @@ describe('runHeadlessCommand', () => {
     expect(runTask.mock.calls[0][0].onApprovalRequest).toBeUndefined();
   });
 
+  it('redirects direct process.stdout writes during the run to stderr in JSON mode', async () => {
+    const stdoutChunks: string[] = [];
+    const stderrChunks: string[] = [];
+    const originalStdoutWrite = process.stdout.write;
+    const originalStderrWrite = process.stderr.write;
+    process.stdout.write = ((chunk: unknown) => {
+      stdoutChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write;
+    process.stderr.write = ((chunk: unknown) => {
+      stderrChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    try {
+      const sink: string[] = [];
+      const deps = {
+        runTask: vi.fn(async () => {
+          // 模拟 runtime/工具/第三方库绕过 console 的直接 stdout 写入
+          process.stdout.write('runtime noise that would break jq\n');
+          console.log('console noise');
+          return makeResult();
+        }),
+        stdout: (line: string) => sink.push(line),
+        stderr: (line: string) => sink.push(`[err] ${line}`),
+      } as unknown as HeadlessRunDeps;
+
+      const exitCode = await runHeadlessCommand('build it', { output: 'json' }, deps);
+
+      expect(exitCode).toBe(0);
+      // 运行期的直接 stdout 写入被转到 stderr，stdout 上没有任何运行期输出
+      expect(stdoutChunks).toHaveLength(0);
+      expect(stderrChunks.join('')).toContain('runtime noise that would break jq');
+      // 最终结果文档仍是唯一一份 JSON
+      expect(sink.filter((line) => !line.startsWith('[err]'))).toHaveLength(1);
+      expect(JSON.parse(sink[0]).success).toBe(true);
+      // 流在返回前恢复
+      expect(process.stdout.write).not.toBe(originalStdoutWrite); // 仍是本测试的桩
+    } finally {
+      process.stdout.write = originalStdoutWrite;
+      process.stderr.write = originalStderrWrite;
+    }
+  });
+
   it('returns exit code 1 when the task fails', async () => {
     const { deps, stdoutLines } = makeDeps(makeResult({ success: false, error: 'step failed' }));
 
