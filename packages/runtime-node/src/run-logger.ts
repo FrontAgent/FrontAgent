@@ -125,6 +125,7 @@ function summarizeEvent(event: AgentEvent): unknown {
 class FileRunLogger implements RunLogger {
   private closed = false;
   private droppedEntries = 0;
+  private closePromise?: Promise<void>;
   private readonly stream: WriteStream;
 
   constructor(
@@ -190,17 +191,23 @@ class FileRunLogger implements RunLogger {
   }
 
   close(): Promise<void> {
+    // Every close() call must resolve only once the log is flushed, so
+    // repeated calls during the flush share the first call's promise.
+    if (this.closePromise) return this.closePromise;
+    // closed without a closePromise means the stream errored and was
+    // auto-destroyed; there is nothing left to flush.
     if (this.closed) return Promise.resolve();
     this.closed = true;
     this.writeDroppedSummary();
     // end() writes the final marker after all buffered entries, preserving
-    // order, then closes the fd. The returned promise resolves on 'close'
-    // (also emitted when the stream is destroyed by an error), so callers
-    // can await the flush before reading or publishing the log file.
-    return new Promise((resolve) => {
+    // order, then closes the fd. The promise resolves on 'close' (also
+    // emitted when the stream is destroyed by an error), so callers can
+    // await the flush before reading or publishing the log file.
+    this.closePromise = new Promise((resolve) => {
       this.stream.once('close', () => resolve());
       this.stream.end(`[${timestampForLine()}] closed\n`);
     });
+    return this.closePromise;
   }
 }
 

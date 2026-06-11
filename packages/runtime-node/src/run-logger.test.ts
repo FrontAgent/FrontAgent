@@ -250,13 +250,19 @@ describe('createRunLogger (file logger)', () => {
   it('ignores writes after close and is idempotent on close', async () => {
     const logger = makeLogger();
     logger.event({ type: 'status_update', label: 'before' } as AgentEvent);
-    const closed = logger.close();
-    await logger.close();
-    await closed;
+    // A large entry keeps the stream flushing while close() is called twice:
+    // both calls must share the flush, so awaiting only the second promise
+    // still guarantees the file is complete.
+    logger.console('log', ['x'.repeat(256 * 1024)]);
+    const first = logger.close();
+    const second = logger.close();
+    expect(second).toBe(first);
+    await second;
     logger.event({ type: 'status_update', label: 'after-close' } as AgentEvent);
     logger.console('log', ['after-close-console']);
 
     const content = readFileSync(logger.path, 'utf8');
+    expect(content).toContain('x'.repeat(256 * 1024));
     expect(content).toContain('before');
     expect(content).not.toContain('after-close');
     expect(content.match(/closed/g)).toHaveLength(1);
