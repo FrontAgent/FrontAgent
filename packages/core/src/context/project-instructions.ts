@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 /**
  * 项目指令文件加载器
@@ -80,7 +80,9 @@ export function discoverProjectInstructionSources(
 
   if (options.cwd) {
     const cwd = resolve(options.cwd);
-    const withinProject = cwd !== projectRoot && cwd.startsWith(`${projectRoot}/`);
+    // 平台无关的祖先判断：相对路径非空、不向上越界、不落到别的盘符
+    const rel = relative(projectRoot, cwd);
+    const withinProject = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
     if (withinProject) {
       const cwdSource = readInstructionFile(cwd, 'cwd', maxBytes);
       if (cwdSource) sources.push(cwdSource);

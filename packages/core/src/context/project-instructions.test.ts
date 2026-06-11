@@ -82,6 +82,38 @@ describe('project-instructions', () => {
     expect(loadProjectInstructions({ projectRoot, globalConfigDir: globalDir })).toBeUndefined();
   });
 
+  it('treats non-normalized cwd paths inside the project as the cwd level', () => {
+    const cwd = join(projectRoot, 'apps', 'web');
+    mkdirSync(cwd, { recursive: true });
+    writeFileSync(join(cwd, 'AGENTS.md'), 'app rules');
+
+    // 含 ..、重复分隔符、尾随分隔符的 cwd 输入都应归一化后判定为项目内
+    for (const messyCwd of [
+      join(projectRoot, 'apps', '..', 'apps', 'web'),
+      `${projectRoot}//apps//web`,
+      `${join(projectRoot, 'apps', 'web')}/`,
+    ]) {
+      const sources = discoverProjectInstructionSources({
+        projectRoot,
+        cwd: messyCwd,
+        globalConfigDir: globalDir,
+      });
+      expect(sources.map((s) => s.level)).toContain('cwd');
+    }
+
+    // 项目根的兄弟目录（共享前缀但不在项目内）必须被排除
+    const sibling = `${projectRoot}-sibling`;
+    mkdirSync(sibling, { recursive: true });
+    writeFileSync(join(sibling, 'AGENTS.md'), 'sibling rules');
+    const siblingSources = discoverProjectInstructionSources({
+      projectRoot,
+      cwd: sibling,
+      globalConfigDir: globalDir,
+    });
+    expect(siblingSources.map((s) => s.level)).not.toContain('cwd');
+    rmSync(sibling, { recursive: true, force: true });
+  });
+
   it('truncates oversized files with an explicit marker', () => {
     writeFileSync(join(projectRoot, 'AGENTS.md'), 'x'.repeat(200));
 
