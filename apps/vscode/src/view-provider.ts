@@ -61,6 +61,13 @@ type WebviewMessage =
   | { type: 'details'; collapsed: boolean }
   | { type: 'webviewError'; message: string; stack?: string };
 
+/**
+ * Trailing-edge throttle window for stream_token-driven state posts. Each
+ * post serializes the full ViewState across the webview bridge and triggers
+ * a full re-render, so per-token posting causes visible jank on long streams.
+ */
+const STREAM_STATE_POST_INTERVAL_MS = 50;
+
 export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private state: ViewState = createInitialViewState();
@@ -69,6 +76,8 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
   private runGeneration = 0;
   private pendingApproval?: PendingApproval;
   private runtimeModulePromise?: Promise<RuntimeModule>;
+  private statePostTimer?: ReturnType<typeof setTimeout>;
+  private lastStatePostAt = 0;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -271,7 +280,11 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
             );
           }
           this.state = reduceAgentEvent(this.state, event);
-          this.postState();
+          if (event.type === 'stream_token') {
+            this.postStateThrottled();
+          } else {
+            this.postState();
+          }
         },
         onApprovalRequest: (request) =>
           this.runGeneration === generation
@@ -279,15 +292,13 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
             : Promise.resolve(false),
       })
       .then((result) => {
+        // Terminal state is applied exactly once, via the task_completed /
+        // task_failed events in onEvent. Re-reducing the resolved result here
+        // would apply completion twice and turn an event-reported failure into
+        // a synthetic task_completed.
         this.log(
           `Run finished. success=${String(result.success)}, steps=${result.executedSteps.length}`,
         );
-        if (this.runGeneration !== generation) return;
-        this.state = reduceAgentEvent(this.state, {
-          type: 'task_completed',
-          result,
-        });
-        this.postState();
       })
       .catch((error) => {
         this.logError('Run failed.', error);
@@ -370,7 +381,31 @@ export class FrontAgentViewProvider implements vscode.WebviewViewProvider {
   }
 
   private postState(): void {
+    if (this.statePostTimer) {
+      clearTimeout(this.statePostTimer);
+      this.statePostTimer = undefined;
+    }
+    this.lastStatePostAt = Date.now();
     this.post({ type: 'state', state: this.state });
+  }
+
+  /**
+   * Posts the current state at most once per STREAM_STATE_POST_INTERVAL_MS,
+   * with a trailing-edge timer so the final tokens always reach the webview.
+   * Any immediate postState() (non-stream events) flushes and supersedes a
+   * pending trailing post, since every post carries the full latest state.
+   */
+  private postStateThrottled(): void {
+    if (this.statePostTimer) return;
+    const elapsed = Date.now() - this.lastStatePostAt;
+    if (elapsed >= STREAM_STATE_POST_INTERVAL_MS) {
+      this.postState();
+      return;
+    }
+    this.statePostTimer = setTimeout(() => {
+      this.statePostTimer = undefined;
+      this.postState();
+    }, STREAM_STATE_POST_INTERVAL_MS - elapsed);
   }
 
   private post(message: Record<string, unknown>): void {
