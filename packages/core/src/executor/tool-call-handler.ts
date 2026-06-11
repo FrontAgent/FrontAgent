@@ -125,8 +125,13 @@ export class ExecutorToolCallHandler {
     const approved = typeof response === 'boolean' ? response : response.approved;
     const alwaysAllow = typeof response === 'boolean' ? false : Boolean(response.alwaysAllow);
 
-    if (approved && alwaysAllow && this.config.onPersistAllowRule) {
-      this.config.onPersistAllowRule(deriveAllowRule(toolName, args));
+    if (approved && alwaysAllow) {
+      const rule = deriveAllowRule(toolName, args);
+      // 同步合并进内存规则：当前会话内相同调用立即免审批，再持久化到 settings
+      const security = this.config.security ?? (this.config.security = {});
+      const permissions = security.permissions ?? (security.permissions = {});
+      permissions.allow = [...(permissions.allow ?? []), rule];
+      this.config.onPersistAllowRule?.(rule);
     }
 
     const finalDecision: SecurityDecision = approved

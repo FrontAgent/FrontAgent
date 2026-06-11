@@ -4,7 +4,8 @@ import type { SecurityPermissionRules } from './types.js';
  * 声明式权限规则匹配引擎
  *
  * 规则语法："toolName" 匹配该工具的任意调用；"toolName(pattern)" 进一步用
- * pattern 匹配主参数，* 为通配符。deny 永远优先于 allow。
+ * pattern 匹配主参数，* 为通配符，\* 与 \\ 为字面量转义（供系统派生的
+ * 精确规则使用，避免一次批准被扩大成通配授权）。deny 永远优先于 allow。
  */
 
 export interface ParsedPermissionRule {
@@ -32,11 +33,33 @@ export function extractPrimaryArg(args: Record<string, unknown>): string | undef
   return undefined;
 }
 
+function escapeRegExpChar(char: string): string {
+  return /[.*+?^${}()|[\]\\]/.test(char) ? `\\${char}` : char;
+}
+
 function patternToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, (char) =>
-    char === '*' ? '.*' : `\\${char}`,
-  );
-  return new RegExp(`^${escaped}$`);
+  let source = '';
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    if (char === '\\' && i + 1 < pattern.length) {
+      // \* 与 \\ 是字面量转义；其余保留反斜杠本身
+      const next = pattern[i + 1];
+      if (next === '*' || next === '\\') {
+        source += escapeRegExpChar(next);
+        i += 1;
+        continue;
+      }
+      source += '\\\\';
+      continue;
+    }
+    source += char === '*' ? '.*' : escapeRegExpChar(char);
+  }
+  return new RegExp(`^${source}$`);
+}
+
+/** 把主参数转义为字面量 pattern（* 和 \ 不再具有元字符含义） */
+export function escapePatternLiteral(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/\*/g, '\\*');
 }
 
 export function matchesPermissionRule(
@@ -81,8 +104,11 @@ export function evaluatePermissionRules(
   return undefined;
 }
 
-/** 从一次已批准的调用派生精确 allow 规则（用于"始终允许"持久化） */
+/**
+ * 从一次已批准的调用派生精确 allow 规则（用于"始终允许"持久化）。
+ * 主参数做字面量转义：包含 * 的命令不会被扩大成通配授权。
+ */
 export function deriveAllowRule(toolName: string, args: Record<string, unknown>): string {
   const primaryArg = extractPrimaryArg(args);
-  return primaryArg === undefined ? toolName : `${toolName}(${primaryArg})`;
+  return primaryArg === undefined ? toolName : `${toolName}(${escapePatternLiteral(primaryArg)})`;
 }

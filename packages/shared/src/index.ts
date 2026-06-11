@@ -11,6 +11,7 @@ export type {
 } from './security/permission-rules.js';
 export {
   deriveAllowRule,
+  escapePatternLiteral,
   evaluatePermissionRules,
   extractPrimaryArg,
   matchesPermissionRule,

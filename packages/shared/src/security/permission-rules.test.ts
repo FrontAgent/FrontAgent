@@ -92,4 +92,41 @@ describe('deriveAllowRule', () => {
   it('falls back to the bare tool name without a primary argument', () => {
     expect(deriveAllowRule('rollback', {})).toBe('rollback');
   });
+
+  it('escapes literal wildcards so an approval is never widened', () => {
+    const rule = deriveAllowRule('run_command', { command: 'echo *' });
+    expect(rule).toBe('run_command(echo \\*)');
+
+    // 派生规则只匹配原始调用，不匹配其他命令
+    expect(matchesPermissionRule(rule, 'run_command', { command: 'echo *' })).toBe(true);
+    expect(matchesPermissionRule(rule, 'run_command', { command: 'echo secret' })).toBe(false);
+    expect(matchesPermissionRule(rule, 'run_command', { command: 'echo anything else' })).toBe(
+      false,
+    );
+  });
+
+  it('escapes backslashes so windows-style paths stay literal', () => {
+    const rule = deriveAllowRule('create_file', { path: 'src\\*.ts' });
+    expect(matchesPermissionRule(rule, 'create_file', { path: 'src\\*.ts' })).toBe(true);
+    expect(matchesPermissionRule(rule, 'create_file', { path: 'src\\evil.ts' })).toBe(false);
+  });
+});
+
+describe('escaped patterns vs user wildcards', () => {
+  it('keeps unescaped * as a wildcard for hand-written rules', () => {
+    expect(
+      matchesPermissionRule('run_command(pnpm test:*)', 'run_command', {
+        command: 'pnpm test:unit',
+      }),
+    ).toBe(true);
+  });
+
+  it('treats \\* as a literal star inside hand-written rules', () => {
+    expect(
+      matchesPermissionRule('run_command(echo \\*)', 'run_command', { command: 'echo *' }),
+    ).toBe(true);
+    expect(
+      matchesPermissionRule('run_command(echo \\*)', 'run_command', { command: 'echo x' }),
+    ).toBe(false);
+  });
 });

@@ -41,6 +41,34 @@ describe('ExecutorToolCallHandler approvals', () => {
     expect(onPersistAllowRule).toHaveBeenCalledWith('run_command(pnpm exec custom-script)');
   });
 
+  it('skips approval for the same call within the session after always-allow', async () => {
+    const approvalHandler = vi.fn(async () => ({ approved: true, alwaysAllow: true }));
+    const { handler, callTool } = makeHandler({
+      security: { interactive: true },
+      approvalHandler,
+    });
+
+    await handler.callTool('run_command', { command: 'pnpm exec custom-script' });
+    await handler.callTool('run_command', { command: 'pnpm exec custom-script' });
+
+    expect(approvalHandler).toHaveBeenCalledOnce();
+    expect(callTool).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the in-memory rule literal: a star in the approved command is not a wildcard', async () => {
+    const approvalHandler = vi.fn(async () => ({ approved: true, alwaysAllow: true }));
+    const { handler } = makeHandler({
+      security: { interactive: true },
+      approvalHandler,
+    });
+
+    await handler.callTool('run_command', { command: 'echo *' });
+    await handler.callTool('run_command', { command: 'echo secret' });
+
+    // 第二个不同命令仍需审批
+    expect(approvalHandler).toHaveBeenCalledTimes(2);
+  });
+
   it('does not persist a rule for plain boolean approvals', async () => {
     const onPersistAllowRule = vi.fn();
     const { handler } = makeHandler({
