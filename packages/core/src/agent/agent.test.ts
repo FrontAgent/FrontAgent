@@ -86,6 +86,18 @@ describe('createAgent', () => {
     agent.removeEventListener(listener);
   });
 
+  it('accepts lifecycle hooks configuration', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      lifecycleHooks: {
+        preToolUse: async () => ({ block: false }),
+        postToolUse: async () => {},
+      },
+    });
+    expect(agent).toBeDefined();
+  });
+
   it('returns planner and executor skill snapshots', () => {
     const agent = createAgent({
       projectRoot: '/test',

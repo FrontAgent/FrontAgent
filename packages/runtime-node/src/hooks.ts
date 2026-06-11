@@ -1,0 +1,165 @@
+import { spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { AgentLifecycleHooks } from '@frontagent/core';
+
+/**
+ * 生命周期 hooks（.frontagent/settings.json 的 hooks 段）
+ *
+ * 每个事件配置一条或多条 shell 命令；事件载荷以 JSON 写入 stdin。
+ * preToolUse 命令非零退出或超时会拦截该工具调用，并把 stderr 作为原因
+ * 反馈给 agent；postToolUse / taskComplete 失败仅记录，不中断任务。
+ */
+
+export interface HooksSettings {
+  preToolUse?: string | string[];
+  postToolUse?: string | string[];
+  taskComplete?: string | string[];
+  /** 单条 hook 命令的超时毫秒（默认 10000） */
+  timeoutMs?: number;
+}
+
+export const DEFAULT_HOOK_TIMEOUT_MS = 10_000;
+
+export interface HookExecution {
+  command: string;
+  exitCode: number | null;
+  stderr: string;
+  timedOut: boolean;
+  durationMs: number;
+}
+
+/** 从 .frontagent/settings.json 读取 hooks 段；缺失或损坏时返回 undefined */
+export function loadHooksSettings(projectRoot: string): HooksSettings | undefined {
+  const settingsPath = join(projectRoot, '.frontagent', 'settings.json');
+  try {
+    if (!existsSync(settingsPath)) return undefined;
+    const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8')) as { hooks?: unknown };
+    const hooks = parsed?.hooks;
+    if (typeof hooks !== 'object' || hooks === null || Array.isArray(hooks)) return undefined;
+    return hooks as HooksSettings;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeCommands(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  const commands = Array.isArray(value) ? value : [value];
+  return commands.filter((command) => typeof command === 'string' && command.trim() !== '');
+}
+
+export function runHookCommand(
+  command: string,
+  payload: unknown,
+  timeoutMs: number,
+  cwd: string,
+): Promise<HookExecution> {
+  return new Promise((resolvePromise) => {
+    const startedAt = Date.now();
+    const child = spawn(command, { shell: true, cwd, stdio: ['pipe', 'ignore', 'pipe'] });
+
+    let stderr = '';
+    let timedOut = false;
+    let settled = false;
+
+    const settle = (exitCode: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise({
+        command,
+        exitCode,
+        stderr: stderr.slice(0, 4000),
+        timedOut,
+        durationMs: Date.now() - startedAt,
+      });
+    };
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+      settle(null);
+    }, timeoutMs);
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf-8');
+    });
+    child.on('error', (error) => {
+      stderr += String(error);
+      settle(null);
+    });
+    child.on('close', (code) => settle(code));
+
+    child.stdin?.on('error', () => {});
+    child.stdin?.end(JSON.stringify(payload));
+  });
+}
+
+export interface CreateLifecycleHooksInput {
+  projectRoot: string;
+  settings?: HooksSettings;
+  /** 每次 hook 执行后的记录回调（写入运行日志） */
+  onHookExecuted?: (event: string, execution: HookExecution) => void;
+}
+
+/**
+ * 把 hooks 配置编译为 core 的 AgentLifecycleHooks 回调；没有配置时返回 undefined
+ */
+export function createAgentLifecycleHooks(
+  input: CreateLifecycleHooksInput,
+): AgentLifecycleHooks | undefined {
+  const settings = input.settings;
+  if (!settings) return undefined;
+
+  const timeoutMs = settings.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS;
+  const preCommands = normalizeCommands(settings.preToolUse);
+  const postCommands = normalizeCommands(settings.postToolUse);
+  if (preCommands.length === 0 && postCommands.length === 0) return undefined;
+
+  const hooks: AgentLifecycleHooks = {};
+
+  if (preCommands.length > 0) {
+    hooks.preToolUse = async (payload) => {
+      for (const command of preCommands) {
+        const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);
+        input.onHookExecuted?.('preToolUse', execution);
+        if (execution.timedOut) {
+          return { block: true, reason: `hook 超时（${timeoutMs}ms）：${command}` };
+        }
+        if (execution.exitCode !== 0) {
+          return {
+            block: true,
+            reason: execution.stderr.trim() || `hook 退出码 ${execution.exitCode}`,
+          };
+        }
+      }
+      return { block: false };
+    };
+  }
+
+  if (postCommands.length > 0) {
+    hooks.postToolUse = async (payload) => {
+      for (const command of postCommands) {
+        const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);
+        input.onHookExecuted?.('postToolUse', execution);
+      }
+    };
+  }
+
+  return hooks;
+}
+
+/** 任务结束时运行 taskComplete hooks；失败仅记录，不影响结果 */
+export async function runTaskCompleteHooks(
+  input: CreateLifecycleHooksInput,
+  payload: { event: 'taskComplete'; taskId: string; success: boolean; error?: string },
+): Promise<void> {
+  const commands = normalizeCommands(input.settings?.taskComplete);
+  const timeoutMs = input.settings?.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS;
+
+  for (const command of commands) {
+    const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);
+    input.onHookExecuted?.('taskComplete', execution);
+  }
+}

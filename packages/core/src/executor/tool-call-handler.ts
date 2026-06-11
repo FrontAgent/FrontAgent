@@ -51,12 +51,18 @@ export class ExecutorToolCallHandler {
       console.log(`[Executor] Calling tool: ${toolName}`, args);
     }
 
+    const hookBlock = await this.runPreToolUseHook(toolName, args);
+    if (hookBlock) {
+      return { result: { success: false, error: hookBlock }, successful: false };
+    }
+
     const security = await this.enforceSecurity(toolName, args);
     if (!security.allowed) {
       const result = {
         success: false,
         error: security.error,
       };
+      await this.runPostToolUseHook(toolName, args, false, security.error);
       return { result, successful: false };
     }
 
@@ -71,10 +77,52 @@ export class ExecutorToolCallHandler {
       console.log('[Executor] Tool result:', result);
     }
 
+    const successful = this.isSuccessfulToolResult(result);
+    await this.runPostToolUseHook(toolName, args, successful);
+
     return {
       result,
-      successful: this.isSuccessfulToolResult(result),
+      successful,
     };
+  }
+
+  /** 返回拦截原因；不拦截时返回 undefined。hook 自身异常按不拦截处理 */
+  private async runPreToolUseHook(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<string | undefined> {
+    const hook = this.config.lifecycleHooks?.preToolUse;
+    if (!hook) return undefined;
+
+    try {
+      const decision = await hook({ event: 'preToolUse', toolName, args });
+      if (decision.block) {
+        return `preToolUse hook blocked ${toolName}${decision.reason ? `: ${decision.reason}` : ''}`;
+      }
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn('[Executor] preToolUse hook errored (non-blocking):', error);
+      }
+    }
+    return undefined;
+  }
+
+  private async runPostToolUseHook(
+    toolName: string,
+    args: Record<string, unknown>,
+    success: boolean,
+    error?: string,
+  ): Promise<void> {
+    const hook = this.config.lifecycleHooks?.postToolUse;
+    if (!hook) return;
+
+    try {
+      await hook({ event: 'postToolUse', toolName, args, success, error });
+    } catch (hookError) {
+      if (this.config.debug) {
+        console.warn('[Executor] postToolUse hook errored (non-blocking):', hookError);
+      }
+    }
   }
 
   isSuccessfulToolResult(result: unknown): boolean {

@@ -49,6 +49,8 @@ export interface AgentConfig {
   memory?: MemoryConfig;
   /** 工具执行安全控制面配置 */
   security?: AgentSecurityConfig;
+  /** 生命周期 hooks（preToolUse/postToolUse 拦截点） */
+  lifecycleHooks?: AgentLifecycleHooks;
   /** 调试模式 */
   debug?: boolean;
   /** 可选的执行器 trace 钩子，用于性能分析 */
@@ -66,6 +68,37 @@ export interface AgentPlanResult {
 export interface AgentSecurityConfig extends SecurityConfig {
   /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
   approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+}
+
+/** preToolUse hook 的载荷 */
+export interface PreToolUseHookPayload {
+  event: 'preToolUse';
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+/** postToolUse hook 的载荷 */
+export interface PostToolUseHookPayload {
+  event: 'postToolUse';
+  toolName: string;
+  args: Record<string, unknown>;
+  success: boolean;
+  error?: string;
+}
+
+/** preToolUse hook 的裁决；block 为 true 时工具调用被拦截 */
+export interface PreToolUseHookDecision {
+  block: boolean;
+  reason?: string;
+}
+
+/**
+ * 生命周期 hooks：宿主（runtime/CLI/VS Code）提供回调实现，
+ * core 在工具调用前后触发。taskComplete 由宿主监听 task 事件实现。
+ */
+export interface AgentLifecycleHooks {
+  preToolUse?: (payload: PreToolUseHookPayload) => Promise<PreToolUseHookDecision>;
+  postToolUse?: (payload: PostToolUseHookPayload) => Promise<void>;
 }
 
 /**

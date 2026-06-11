@@ -18,6 +18,12 @@ import {
   resolveBuiltInSkillRoots,
   resolveRuntimeConfig,
 } from './config.js';
+import {
+  type CreateLifecycleHooksInput,
+  createAgentLifecycleHooks,
+  loadHooksSettings,
+  runTaskCompleteHooks,
+} from './hooks.js';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-clients.js';
 import { createRunLogger, installRunConsoleFilter } from './run-logger.js';
 
@@ -112,6 +118,19 @@ export async function runFrontAgentTask(
     : () => {};
   const webClient = new WebMCPClient();
 
+  const hooksInput: CreateLifecycleHooksInput = {
+    projectRoot,
+    settings: loadHooksSettings(projectRoot),
+    onHookExecuted: (hookEvent, execution) => {
+      runLogger?.event({
+        type: 'status_update',
+        label: `hook:${hookEvent}`,
+        operation: execution.command,
+        detail: `exit=${execution.exitCode}${execution.timedOut ? ' (timeout)' : ''} ${execution.durationMs}ms`,
+      });
+    },
+  };
+
   const config: AgentConfig = {
     projectRoot,
     sddPath: existsSync(sddPath) ? sddPath : undefined,
@@ -131,6 +150,7 @@ export async function runFrontAgentTask(
       auditEnabled: true,
       approvalHandler: options.onApprovalRequest,
     },
+    lifecycleHooks: createAgentLifecycleHooks(hooksInput),
     subAgents: options.codeQualityIsolationMode
       ? {
           codeQualityEvaluator: {
@@ -185,6 +205,25 @@ export async function runFrontAgentTask(
   agent.addEventListener((event) => {
     runLogger?.event(event);
     options.onEvent?.(event);
+  });
+
+  // taskComplete hooks：任务结束事件触发，失败仅记录不影响结果
+  agent.addEventListener((event) => {
+    if (event.type === 'task_completed') {
+      void runTaskCompleteHooks(hooksInput, {
+        event: 'taskComplete',
+        taskId: event.result.taskId,
+        success: event.result.success,
+        error: event.result.error,
+      }).catch((error) => runLogger?.error(error));
+    } else if (event.type === 'task_failed') {
+      void runTaskCompleteHooks(hooksInput, {
+        event: 'taskComplete',
+        taskId: '',
+        success: false,
+        error: event.error,
+      }).catch((error) => runLogger?.error(error));
+    }
   });
 
   try {
