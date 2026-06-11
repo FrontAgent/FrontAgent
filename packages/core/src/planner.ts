@@ -275,6 +275,11 @@ export class Planner {
       );
     }
 
+    // Zone 1.5: 分层项目指令（AGENTS.md/CLAUDE.md），软性指导，SDD 约束优先
+    if (context.projectInstructions) {
+      contextParts.push(`\n${context.projectInstructions}`);
+    }
+
     // Zone 2: inject cross-session memory as a distinct block
     if (context.memoryContext) {
       contextParts.push(`\n${context.memoryContext}`);

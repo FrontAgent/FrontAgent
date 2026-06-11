@@ -9,6 +9,7 @@ import type {
   ExecutionPlan,
   ExecutionStep,
   SDDConfig,
+  SecurityApprovalResponse,
   SecurityConfig,
   SecurityDecision,
   StepResult,
@@ -67,7 +68,9 @@ export interface AgentPlanResult {
 
 export interface AgentSecurityConfig extends SecurityConfig {
   /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
-  approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+  approvalHandler?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;
+  /** 用户选择"始终允许"时的规则持久化回调 */
+  onPersistAllowRule?: (rule: string) => void;
 }
 
 /**
@@ -587,6 +590,8 @@ export interface ContextInfo {
   matchedSkillNames?: string[];
   /** 跨会话记忆内容（Phase 1 preload） */
   memoryContext?: string;
+  /** 分层 AGENTS.md/CLAUDE.md 项目指令 */
+  projectInstructions?: string;
   /** 结构化 Filesense 目录导航上下文 */
   filesenseNavigation?: FilesenseNavigationContext;
   /** Filesense 目录索引上下文 */

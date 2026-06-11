@@ -4,15 +4,16 @@ import type { Message } from '../types.js';
  * 上下文预算与历史压缩
  *
  * 系统提示词的每个 zone 有独立字符预算，超出部分截断并附显式标记；
- * 当各 zone 预算后总量仍超过 totalBudget 时，按 rules > memory >
- * filesense > context 的优先级从低到高继续收缩。消息历史超过阈值时
- * 把较早的消息压缩为一条摘要，事实(facts)不经过消息历史，不受影响。
+ * 当各 zone 预算后总量仍超过 totalBudget 时，按 rules > instructions >
+ * memory > filesense > context 的优先级从低到高继续收缩。消息历史超过
+ * 阈值时把较早的消息压缩为一条摘要，事实(facts)不经过消息历史，不受影响。
  */
 
-export type PromptZoneName = 'rules' | 'memory' | 'filesense' | 'context';
+export type PromptZoneName = 'rules' | 'instructions' | 'memory' | 'filesense' | 'context';
 
 export interface ZoneBudgets {
   rules?: number;
+  instructions?: number;
   memory?: number;
   filesense?: number;
   context?: number;
@@ -36,6 +37,7 @@ export interface ContextBudgetConfig {
 
 export const DEFAULT_ZONE_BUDGETS: Required<ZoneBudgets> = {
   rules: 32_000,
+  instructions: 16_000,
   memory: 16_000,
   filesense: 8_000,
   context: 16_000,
@@ -45,7 +47,13 @@ export const DEFAULT_HISTORY_THRESHOLD = 40;
 export const DEFAULT_HISTORY_KEEP_RECENT = 12;
 
 /** zone 收缩顺序：低优先级在前 */
-const ZONE_SHRINK_ORDER: PromptZoneName[] = ['context', 'filesense', 'memory', 'rules'];
+const ZONE_SHRINK_ORDER: PromptZoneName[] = [
+  'context',
+  'filesense',
+  'memory',
+  'instructions',
+  'rules',
+];
 
 /** 预算装不下完整标记时使用的简短标记 */
 const SHORT_TRUNCATION_MARKER = '[已截断]';
@@ -75,8 +83,9 @@ export interface PromptZone {
 
 /**
  * 应用 zone 预算：先按各 zone 独立预算截断，再在总预算下按优先级收缩。
- * totalBudget 约束的是最终序列化结果——zone 间的拼接分隔符成本
- * （separatorLength * (zones - 1)）计入总量。
+ * totalBudget 约束的是最终序列化结果——分隔符成本按"仍然非空的 zone 数"
+ * 动态计算（空 zone 不参与序列化），因此即使 totalBudget 小于分隔符总成本，
+ * 低优先级 zone 被压空后总量仍能收敛到预算内。
  */
 export function applyZoneBudgets(
   zones: PromptZone[],
@@ -93,10 +102,14 @@ export function applyZoneBudgets(
   const totalBudget = config?.totalBudget;
   if (totalBudget === undefined) return result;
 
-  const separatorCost = Math.max(zones.length - 1, 0) * separatorLength;
+  const serializedTotal = (current: PromptZone[]) => {
+    const nonEmpty = current.filter((zone) => zone.content.length > 0);
+    const contentTotal = nonEmpty.reduce((sum, zone) => sum + zone.content.length, 0);
+    return contentTotal + Math.max(nonEmpty.length - 1, 0) * separatorLength;
+  };
 
   for (const shrinkTarget of ZONE_SHRINK_ORDER) {
-    const total = result.reduce((sum, zone) => sum + zone.content.length, 0) + separatorCost;
+    const total = serializedTotal(result);
     if (total <= totalBudget) break;
 
     const overflow = total - totalBudget;
@@ -108,6 +121,14 @@ export function applyZoneBudgets(
   }
 
   return result;
+}
+
+/** 序列化预算后的 zones：空 zone 不参与 join，结果长度受 totalBudget 约束 */
+export function serializeZones(zones: PromptZone[], separator = '\n'): string {
+  return zones
+    .filter((zone) => zone.content.length > 0)
+    .map((zone) => zone.content)
+    .join(separator);
 }
 
 const COMPACTED_SUMMARY_HEADER = '## 历史消息摘要 (compacted)';

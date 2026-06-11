@@ -318,6 +318,18 @@ describe('ContextManager', () => {
       expect(prompt).toContain('rules');
     });
 
+    it('includes project instructions zone after rules and before memory', () => {
+      const manager = new ContextManager();
+      manager.createContext(makeTask({ id: 't1' }));
+      const ctx = manager.getContext('t1')!;
+      ctx.collectedContext.projectInstructions = '## 项目指令 (Project Instructions)\nUse pnpm';
+      ctx.collectedContext.memoryContext = '## Memory\nKnown facts';
+      const prompt = manager.buildSystemPrompt('t1', 'SDD rules');
+      expect(prompt).toContain('Use pnpm');
+      expect(prompt.indexOf('SDD rules')).toBeLessThan(prompt.indexOf('Use pnpm'));
+      expect(prompt.indexOf('Use pnpm')).toBeLessThan(prompt.indexOf('Known facts'));
+    });
+
     it('includes memory context when set', () => {
       const manager = new ContextManager();
       manager.createContext(makeTask({ id: 't1' }));

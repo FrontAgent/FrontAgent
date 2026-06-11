@@ -74,7 +74,7 @@ export default async function runCommand(task: string, options: Record<string, u
           return Promise.resolve(false);
         }
 
-        return new Promise<boolean>((resolveApproval) => {
+        return new Promise<{ approved: boolean; alwaysAllow?: boolean }>((resolveApproval) => {
           store.setState({
             approval: {
               approvalId: request.approvalId,
@@ -83,7 +83,7 @@ export default async function runCommand(task: string, options: Record<string, u
               reasonCode: request.reasonCode,
               message: request.message,
               argsSummary: request.argsSummary,
-              resolve: resolveApproval,
+              resolve: (approved, alwaysAllow) => resolveApproval({ approved, alwaysAllow }),
             },
           });
         });

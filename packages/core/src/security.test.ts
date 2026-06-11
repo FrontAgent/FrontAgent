@@ -149,6 +149,67 @@ describe('SecurityManager', () => {
   const security = new SecurityManager();
 
   // -------------------------------------------------------------------------
+  // Declarative permission rules
+  // -------------------------------------------------------------------------
+  describe('permission rules', () => {
+    it('deny rules reject before any other evaluation and beat allow rules', () => {
+      const result = security.evaluate({
+        toolName: 'run_command',
+        args: { command: 'pnpm test:dangerous' },
+        projectRoot,
+        security: {
+          permissions: {
+            allow: ['run_command(pnpm test:*)'],
+            deny: ['run_command(pnpm test:dangerous)'],
+          },
+        },
+      });
+      expect(result.decision).toBe('deny');
+      expect(result.reasonCode).toBe('permission_rule_denied');
+      expect(result.provenance[0]).toMatchObject({ source: 'user', ruleId: 'permissions.deny' });
+    });
+
+    it('allow rules upgrade would-be ask decisions to allow', () => {
+      const askResult = security.evaluate({
+        toolName: 'run_command',
+        args: { command: 'pnpm exec custom-script' },
+        projectRoot,
+      });
+      expect(askResult.decision).toBe('ask');
+
+      const result = security.evaluate({
+        toolName: 'run_command',
+        args: { command: 'pnpm exec custom-script' },
+        projectRoot,
+        security: { permissions: { allow: ['run_command(pnpm exec *)'] } },
+      });
+      expect(result.decision).toBe('allow');
+      expect(result.reasonCode).toBe('permission_rule_allowed');
+      expect(result.provenance[0]).toMatchObject({ source: 'user', ruleId: 'permissions.allow' });
+    });
+
+    it('allow rules cannot bypass built-in hard denies', () => {
+      const result = security.evaluate({
+        toolName: 'run_command',
+        args: { command: 'rm -rf /' },
+        projectRoot,
+        security: { permissions: { allow: ['run_command(rm -rf /)'] } },
+      });
+      expect(result.decision).toBe('deny');
+    });
+
+    it('falls back to the builtin pipeline when no rule matches', () => {
+      const result = security.evaluate({
+        toolName: 'run_command',
+        args: { command: 'pnpm exec custom-script' },
+        projectRoot,
+        security: { permissions: { allow: ['run_command(npm *)'] } },
+      });
+      expect(result.decision).toBe('ask');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Read-only tools
   // -------------------------------------------------------------------------
   describe('read-only tools', () => {

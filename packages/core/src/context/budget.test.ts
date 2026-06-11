@@ -5,6 +5,7 @@ import {
   compactMessageHistory,
   isCompactedSummaryMessage,
   type PromptZone,
+  serializeZones,
   truncateWithMarker,
 } from './budget.js';
 
@@ -95,8 +96,21 @@ describe('applyZoneBudgets', () => {
       totalBudget: 2000,
     });
     // totalBudget 约束最终序列化结果，包括 zone 之间的 '\n' 分隔符
-    const serialized = result.map((zone) => zone.content).join('\n');
-    expect(serialized.length).toBeLessThanOrEqual(2000);
+    expect(serializeZones(result).length).toBeLessThanOrEqual(2000);
+  });
+
+  it('converges below a total budget smaller than the separator cost', () => {
+    const input = zones({ rules: 1000, instructions: 1000, memory: 1000, context: 1000 });
+    const config = {
+      zoneBudgets: { rules: 5000, instructions: 5000, memory: 5000, context: 5000 },
+    };
+
+    // 4 个 zone、3 个分隔符：totalBudget 小于分隔符总成本时，
+    // 空 zone 不参与序列化，最终结果仍收敛在预算内
+    for (const totalBudget of [2, 1, 0]) {
+      const result = applyZoneBudgets(input, { ...config, totalBudget });
+      expect(serializeZones(result).length).toBeLessThanOrEqual(totalBudget);
+    }
   });
 });
 

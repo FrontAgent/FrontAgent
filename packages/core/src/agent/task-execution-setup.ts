@@ -1,5 +1,6 @@
 import type { SDDPromptGenerator } from '@frontagent/sdd';
 import type { AgentTask, SDDConfig } from '@frontagent/shared';
+import { loadProjectInstructions } from '../context/project-instructions.js';
 import type { ContextManager } from '../context.js';
 import type { Executor } from '../executor.js';
 import type { MemoryStore } from '../memory/index.js';
@@ -71,6 +72,11 @@ export async function prepareTaskExecutionSetup({
   deps.memoryStore.resetSession();
   const preload = deps.preloadMemory ?? preloadMemoryDefault;
   preload(deps.memoryDeps, task.id, context);
+
+  context.collectedContext.projectInstructions = loadProjectInstructions({
+    projectRoot: deps.config.projectRoot,
+    cwd: process.cwd(),
+  });
 
   if (deps.promptGenerator) {
     const constitutionPrompt = deps.workflowIntegration?.getConstitutionPrompt();

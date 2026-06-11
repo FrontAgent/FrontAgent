@@ -14,6 +14,7 @@ import {
   type ContextBudgetConfig,
   compactMessageHistory,
   type PromptZone,
+  serializeZones,
 } from './budget.js';
 import { serializeProjectFactsForLLM } from './fact-serializer.js';
 import {
@@ -244,15 +245,23 @@ export class ContextManager {
     const context = this.contexts.get(taskId);
     if (!context) {
       // rules-only 回退路径同样受 rules 预算约束，不能绕过截断
-      return applyZoneBudgets([{ name: 'rules', content: sddPrompt }], this.budgetConfig)
-        .map((zone) => zone.content)
-        .join('\n');
+      return serializeZones(
+        applyZoneBudgets([{ name: 'rules', content: sddPrompt }], this.budgetConfig),
+      );
     }
 
     const zones: PromptZone[] = [];
 
     // --- Zone 1: Rules (SDD constraints) ---
     zones.push({ name: 'rules', content: sddPrompt });
+
+    // --- Zone 1.5: Project instructions (layered AGENTS.md/CLAUDE.md, soft guidance) ---
+    if (context.collectedContext.projectInstructions) {
+      zones.push({
+        name: 'instructions',
+        content: `\n${context.collectedContext.projectInstructions}`,
+      });
+    }
 
     // --- Zone 2: Memory (durable cross-session knowledge) ---
     if (context.collectedContext.memoryContext) {
@@ -290,9 +299,7 @@ export class ContextManager {
       zones.push({ name: 'context', content: contextParts.join('\n') });
     }
 
-    return applyZoneBudgets(zones, this.budgetConfig)
-      .map((zone) => zone.content)
-      .join('\n');
+    return serializeZones(applyZoneBudgets(zones, this.budgetConfig));
   }
 
   /**
