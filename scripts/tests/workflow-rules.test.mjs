@@ -290,9 +290,14 @@ test('package exposes required OSS Harness scripts', () => {
   );
   assert.equal(
     pkg.scripts['quality:ci'],
-    'pnpm lint && pnpm typecheck && pnpm test && pnpm test:workflows && pnpm build',
+    'pnpm lint && pnpm typecheck && pnpm test && pnpm test:workflows && pnpm build:verify',
   );
   assert.equal(pkg.scripts['quality:local'], 'pnpm contract:local && pnpm quality:ci');
+  assert.equal(pkg.scripts['build:verify'], 'turbo build && node build.mjs');
+  assert.equal(
+    pkg.scripts.build,
+    'pnpm build:verify && node scripts/sync-vscode-version.mjs && pnpm --dir apps/vscode package',
+  );
 });
 
 test('hook files exist and invoke intended quality gates', () => {
@@ -347,9 +352,12 @@ test('CI and contract guard target develop and call named quality scripts', () =
   assert.match(ci, /branches:\s*\[develop\]/u);
   assert.match(ci, /node-version:\s*\[20,\s*22\]/u);
   assert.match(ci, /pnpm quality:ci/u);
+  assert.match(ci, /\n\s+package:\n/u);
+  assert.match(ci, /run: pnpm build\n/u);
   assert.match(ci, /\n\s+ci:\n\s+name:\s+CI\n/u);
-  assert.match(ci, /\n\s+needs:\s+check\n/u);
+  assert.match(ci, /\n\s+needs:\s+\[check,\s*package\]\n/u);
   assert.match(ci, /needs\.check\.result/u);
+  assert.match(ci, /needs\.package\.result/u);
   assert.match(contractGuard, /branches:\s*\[develop\]/u);
   assert.match(contractGuard, /pnpm contract:gitnexus/u);
   assert.match(contractGuard, /GITNEXUS_IMPACT_SUMMARY/u);
