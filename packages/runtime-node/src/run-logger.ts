@@ -15,6 +15,8 @@ export interface RunLoggerOptions {
   model: string;
   baseURL?: string;
   options: Record<string, unknown>;
+  /** Cap on bytes queued in the write stream before entries are dropped (default 4 MB). */
+  maxBufferedBytes?: number;
 }
 
 export interface RunLogger {
@@ -23,8 +25,12 @@ export interface RunLogger {
   event(event: AgentEvent): void;
   result(result: AgentExecutionResult): void;
   error(error: unknown): void;
-  close(): void;
+  /** Resolves once all buffered entries and the final marker are flushed to disk. */
+  close(): Promise<void>;
 }
+
+/** Default cap on bytes queued in the run-log write stream. */
+const DEFAULT_MAX_BUFFERED_LOG_BYTES = 4 * 1024 * 1024;
 
 function timestampForPath(date = new Date()): string {
   return date
@@ -118,11 +124,13 @@ function summarizeEvent(event: AgentEvent): unknown {
 
 class FileRunLogger implements RunLogger {
   private closed = false;
+  private droppedEntries = 0;
   private readonly stream: WriteStream;
 
   constructor(
     readonly path: string,
     header: Record<string, unknown>,
+    private readonly maxBufferedBytes: number = DEFAULT_MAX_BUFFERED_LOG_BYTES,
   ) {
     mkdirSync(dirname(path), { recursive: true });
     this.stream = createWriteStream(path, { flags: 'a', encoding: 'utf8' });
@@ -138,9 +146,28 @@ class FileRunLogger implements RunLogger {
     );
   }
 
+  /**
+   * Drops entries instead of queueing once the stream buffers more than
+   * maxBufferedBytes, so a producer that outruns the disk (e.g. high-frequency
+   * stream_token events on a slow mount) cannot grow memory without bound.
+   * Dropped entries are surfaced as a summary line once the buffer recovers.
+   */
   private write(kind: string, payload: unknown): void {
     if (this.closed) return;
+    if (this.stream.writableLength > this.maxBufferedBytes) {
+      this.droppedEntries += 1;
+      return;
+    }
+    this.writeDroppedSummary();
     this.stream.write(`[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`);
+  }
+
+  private writeDroppedSummary(): void {
+    if (this.droppedEntries === 0) return;
+    this.stream.write(
+      `[${timestampForLine()}] dropped ${this.droppedEntries} log entries while the write buffer was saturated\n\n`,
+    );
+    this.droppedEntries = 0;
   }
 
   console(level: 'log' | 'warn' | 'error', args: unknown[]): void {
@@ -159,13 +186,18 @@ class FileRunLogger implements RunLogger {
     this.write('error', error);
   }
 
-  close(): void {
-    if (this.closed) return;
+  close(): Promise<void> {
+    if (this.closed) return Promise.resolve();
     this.closed = true;
+    this.writeDroppedSummary();
     // end() writes the final marker after all buffered entries, preserving
-    // order, then closes the fd. Pending writes keep the event loop alive,
-    // so a normal CLI exit still flushes the full log.
-    this.stream.end(`[${timestampForLine()}] closed\n`);
+    // order, then closes the fd. The returned promise resolves on 'close'
+    // (also emitted when the stream is destroyed by an error), so callers
+    // can await the flush before reading or publishing the log file.
+    return new Promise((resolve) => {
+      this.stream.once('close', () => resolve());
+      this.stream.end(`[${timestampForLine()}] closed\n`);
+    });
   }
 }
 
@@ -173,14 +205,18 @@ export function createRunLogger(options: RunLoggerOptions): RunLogger | null {
   if (!options.enabled) return null;
 
   const path = resolveRunLogPath(options.projectRoot, options.logFile);
-  return new FileRunLogger(path, {
-    task: options.task,
-    projectRoot: options.projectRoot,
-    provider: options.provider,
-    model: options.model,
-    baseURL: options.baseURL ?? '(default)',
-    options: options.options,
-  });
+  return new FileRunLogger(
+    path,
+    {
+      task: options.task,
+      projectRoot: options.projectRoot,
+      provider: options.provider,
+      model: options.model,
+      baseURL: options.baseURL ?? '(default)',
+      options: options.options,
+    },
+    options.maxBufferedBytes,
+  );
 }
 
 export function installRunConsoleFilter(debug: boolean, logger: RunLogger | null): () => void {
