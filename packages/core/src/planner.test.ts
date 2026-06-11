@@ -176,6 +176,45 @@ describe('Planner LLM-based plan generation', () => {
     expect(createStep).toBeDefined();
   });
 
+  it('injects project instructions into the planning prompt context', async () => {
+    const planner = createPlanner({ useLLM: true });
+    const calls: Array<{ context: string }> = [];
+    mockLLMGeneratePlan(planner, async (input) => {
+      calls.push(input as { context: string });
+      return {
+        summary: '创建工具函数',
+        steps: [
+          {
+            description: '读取目标目录',
+            action: 'list_directory',
+            tool: 'list_directory',
+            phase: '阶段1-分析',
+            params: defaultParams({ path: 'src/utils' }),
+            reasoning: '了解目录结构',
+            needsCodeGeneration: false,
+          },
+        ],
+        risks: [],
+        alternatives: [],
+      };
+    });
+
+    await planner.plan(
+      createTask({ type: 'create' }),
+      emptyContext({
+        projectInstructions: '## 项目指令 (Project Instructions)\nAlways use pnpm.',
+        memoryContext: '## Memory\nKnown facts',
+      }),
+      [],
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].context).toContain('Always use pnpm.');
+    expect(calls[0].context.indexOf('Always use pnpm.')).toBeLessThan(
+      calls[0].context.indexOf('Known facts'),
+    );
+  });
+
   it('falls back to rule-based planning when LLM throws an error', async () => {
     const planner = createPlanner({ useLLM: true });
     mockLLMGeneratePlan(planner, async () => {
