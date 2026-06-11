@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentSessionSnapshot } from '@frontagent/core';
@@ -129,6 +129,30 @@ describe('session store', () => {
     }
     expect(listSessionRecords(projectRoot).map((r) => r.sessionId)).toEqual(['session-good']);
     expect(findLatestResumableSession(projectRoot)?.sessionId).toBe('session-good');
+  });
+
+  it('rejects session ids containing path fragments', () => {
+    const record = makeRecord({ sessionId: 'session-good' });
+    saveSessionRecord(projectRoot, record);
+
+    for (const evil of ['../session-good', 'a/b', '..\\x', '', '  ', 'id.with.dots', '..']) {
+      expect(loadSessionRecord(projectRoot, evil)).toBeUndefined();
+    }
+
+    // save 对非法 id 直接拒绝，不产生 sessions 目录外的写入
+    saveSessionRecord(projectRoot, { ...record, sessionId: '../escape' });
+    expect(existsSync(join(projectRoot, '.frontagent', 'escape.json'))).toBe(false);
+    expect(existsSync(join(projectRoot, 'escape.json'))).toBe(false);
+  });
+
+  it('writes atomically and leaves no temp files behind', () => {
+    const record = makeRecord({ sessionId: 'session-atomic' });
+    saveSessionRecord(projectRoot, record);
+    saveSessionRecord(projectRoot, { ...record, status: 'completed' });
+
+    const files = readdirSync(getSessionsDir(projectRoot));
+    expect(files).toEqual(['session-atomic.json']);
+    expect(loadSessionRecord(projectRoot, 'session-atomic')?.status).toBe('completed');
   });
 
   it('lists sessions newest-first and finds the latest resumable one', () => {

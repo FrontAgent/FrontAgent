@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import type { AgentSessionSnapshot } from '@frontagent/core';
 
@@ -28,14 +36,30 @@ export function createSessionId(): string {
   return `session-${Date.now()}-${randomUUID().slice(0, 8)}`;
 }
 
+/**
+ * sessionId 是用户输入边界（fa run --resume <id>）：只接受内部生成格式的
+ * 字符集，杜绝路径分隔符与 ..，使读写永远落在 sessions 目录内。
+ */
+export function isSafeSessionId(sessionId: unknown): sessionId is string {
+  return typeof sessionId === 'string' && /^[A-Za-z0-9_-]+$/.test(sessionId);
+}
+
 export function saveSessionRecord(projectRoot: string, record: SessionRecord): void {
+  if (!isSafeSessionId(record.sessionId)) return;
+
   const dir = getSessionsDir(projectRoot);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, `${record.sessionId}.json`),
-    `${JSON.stringify(record, null, 2)}\n`,
-    'utf-8',
-  );
+
+  // 原子落盘：先写同目录临时文件再 rename，崩溃/中断不会破坏上一份完整快照
+  const targetPath = join(dir, `${record.sessionId}.json`);
+  const tmpPath = join(dir, `.${record.sessionId}.${randomUUID().slice(0, 8)}.tmp`);
+  try {
+    writeFileSync(tmpPath, `${JSON.stringify(record, null, 2)}\n`, 'utf-8');
+    renameSync(tmpPath, targetPath);
+  } catch (error) {
+    rmSync(tmpPath, { force: true });
+    throw error;
+  }
 }
 
 const SESSION_STATUSES: ReadonlySet<string> = new Set(['running', 'completed', 'failed']);
@@ -48,7 +72,7 @@ function isValidSessionRecord(value: unknown): value is SessionRecord {
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Partial<SessionRecord>;
 
-  if (typeof record.sessionId !== 'string' || record.sessionId === '') return false;
+  if (!isSafeSessionId(record.sessionId)) return false;
   if (typeof record.status !== 'string' || !SESSION_STATUSES.has(record.status)) return false;
   if (typeof record.createdAt !== 'string' || typeof record.updatedAt !== 'string') return false;
 
@@ -89,6 +113,8 @@ export function loadSessionRecord(
   projectRoot: string,
   sessionId: string,
 ): SessionRecord | undefined {
+  if (!isSafeSessionId(sessionId)) return undefined;
+
   const path = join(getSessionsDir(projectRoot), `${sessionId}.json`);
   try {
     if (!existsSync(path)) return undefined;
