@@ -176,6 +176,35 @@ describe('runHeadlessCommand', () => {
     expect(taskOptions.projectRoot).toBe(process.cwd());
   });
 
+  it('does not leak CLI-only options into the runtime call', async () => {
+    const { deps, runTask } = makeDeps(makeResult());
+
+    await runHeadlessCommand(
+      'build it',
+      { nonInteractive: true, output: 'json', sdd: 'sdd.yaml', model: 'gpt-test' },
+      deps,
+    );
+
+    const taskOptions = runTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(taskOptions).not.toHaveProperty('nonInteractive');
+    expect(taskOptions).not.toHaveProperty('output');
+    expect(taskOptions).not.toHaveProperty('sdd');
+    // runtime 真正消费的字段仍然在
+    expect(taskOptions.model).toBe('gpt-test');
+    expect(taskOptions.sddPath).toBe('sdd.yaml');
+  });
+
+  it('fails fast with exit code 1 on an invalid --output value', async () => {
+    const { deps, runTask, stdoutLines, stderrLines } = makeDeps(makeResult());
+
+    const exitCode = await runHeadlessCommand('build it', { output: 'jsn' }, deps);
+
+    expect(exitCode).toBe(1);
+    expect(runTask).not.toHaveBeenCalled();
+    expect(stdoutLines).toHaveLength(0);
+    expect(stderrLines[0]).toContain('无效的 --output 取值');
+  });
+
   it('prints a human summary in text mode', async () => {
     const { deps, stdoutLines, stderrLines } = makeDeps(makeResult());
 

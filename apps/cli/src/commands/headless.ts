@@ -81,14 +81,31 @@ const defaultDeps: HeadlessRunDeps = {
   stderr: (line) => process.stderr.write(`${line}\n`),
 };
 
-/** 返回进程退出码（0 成功，1 失败/被拒中止） */
+const OUTPUT_FORMATS = new Set(['text', 'json']);
+
+/** CLI-only 选项不进入 runtime 调用边界，避免跨层契约漂移 */
+const CLI_ONLY_OPTION_KEYS = new Set(['nonInteractive', 'output', 'sdd']);
+
+function stripCliOnlyOptions(options: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(options).filter(([key]) => !CLI_ONLY_OPTION_KEYS.has(key)),
+  );
+}
+
+/** 返回进程退出码（0 成功，1 失败/被拒中止/参数非法） */
 export async function runHeadlessCommand(
   task: string,
   options: Record<string, unknown>,
   deps: HeadlessRunDeps = defaultDeps,
 ): Promise<number> {
   const projectRoot = process.cwd();
-  const outputJson = options.output === 'json';
+  const outputFormat = (options.output as string | undefined) ?? 'text';
+  if (!OUTPUT_FORMATS.has(outputFormat)) {
+    // 拼写错误不静默退回 text：CI 的 JSON 消费者需要明确失败
+    deps.stderr(`无效的 --output 取值：${outputFormat}（支持 text/json）`);
+    return 1;
+  }
+  const outputJson = outputFormat === 'json';
   const deniedApprovals: DeniedApproval[] = [];
   let runLogPath: string | null = null;
 
@@ -102,7 +119,7 @@ export async function runHeadlessCommand(
 
   try {
     const result = await deps.runTask({
-      ...options,
+      ...stripCliOnlyOptions(options),
       projectRoot,
       task,
       sddPath: options.sdd as string | undefined,
