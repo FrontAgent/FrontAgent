@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AgentTask } from '@frontagent/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '../types.js';
@@ -30,7 +33,13 @@ function makeContext() {
   };
 }
 
-function makeSetupDeps({ ragEnabled = true }: { ragEnabled?: boolean } = {}) {
+function makeSetupDeps({
+  ragEnabled = true,
+  projectRoot = '/repo',
+}: {
+  ragEnabled?: boolean;
+  projectRoot?: string;
+} = {}) {
   const events: AgentEvent[] = [];
   const statusUpdates: Array<{ label: string; operation?: string; detail?: string }> = [];
   const context = makeContext();
@@ -82,7 +91,7 @@ function makeSetupDeps({ ragEnabled = true }: { ragEnabled?: boolean } = {}) {
     workflowIntegration,
     deps: {
       config: {
-        projectRoot: '/repo',
+        projectRoot,
         llm: { provider: 'openai' as const, model: 'gpt-4', apiKey: 'test' },
         rag: ragEnabled
           ? { repoUrl: 'https://example.test/rag.git' }
@@ -169,6 +178,45 @@ describe('prepareTaskExecutionSetup', () => {
       ['检测开发服务器端口', '检测开发服务器端口'],
       ['检索知识库', 'RAG 检索'],
     ]);
+  });
+
+  it('loads layered AGENTS.md project instructions into the collected context', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'fa-setup-instructions-'));
+    writeFileSync(join(projectRoot, 'AGENTS.md'), 'Always use pnpm in this repo.');
+    const setup = makeSetupDeps({ projectRoot });
+
+    try {
+      await prepareTaskExecutionSetup({
+        task: makeTask(),
+        originalTaskDescription: 'Original task',
+        skillContext: undefined,
+        matchedSkillNames: [],
+        deps: setup.deps,
+      });
+
+      const instructions = (setup.context.collectedContext as { projectInstructions?: string })
+        .projectInstructions;
+      expect(instructions).toContain('## 项目指令 (Project Instructions)');
+      expect(instructions).toContain('Always use pnpm in this repo.');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves project instructions unset when no instruction files exist', async () => {
+    const setup = makeSetupDeps();
+
+    await prepareTaskExecutionSetup({
+      task: makeTask(),
+      originalTaskDescription: 'Original task',
+      skillContext: undefined,
+      matchedSkillNames: [],
+      deps: setup.deps,
+    });
+
+    expect(
+      (setup.context.collectedContext as { projectInstructions?: string }).projectInstructions,
+    ).toBeUndefined();
   });
 
   it('keeps sanitized empty task descriptions from replacing the original and suppresses rag events when disabled', async () => {
