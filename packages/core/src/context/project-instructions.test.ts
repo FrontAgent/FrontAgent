@@ -129,6 +129,38 @@ describe('project-instructions', () => {
     expect(sources[0].content.startsWith('x'.repeat(100))).toBe(true);
   });
 
+  it('reads only the byte cap from very large files', () => {
+    // 4MB 文件、64 字节上限：截断结果只含上限范围内的内容
+    writeFileSync(join(projectRoot, 'AGENTS.md'), 'y'.repeat(4 * 1024 * 1024));
+
+    const sources = discoverProjectInstructionSources({
+      projectRoot,
+      globalConfigDir: globalDir,
+      maxBytesPerFile: 64,
+    });
+
+    expect(sources).toHaveLength(1);
+    expect(sources[0].truncated).toBe(true);
+    expect(sources[0].content.startsWith('y'.repeat(64))).toBe(true);
+    expect(sources[0].content).not.toContain('y'.repeat(65));
+  });
+
+  it('drops a multibyte character split by the byte cap instead of emitting garbage', () => {
+    // 每个 '指' 占 3 字节；上限 8 字节会把第三个字符切成半个
+    writeFileSync(join(projectRoot, 'AGENTS.md'), '指指指指');
+
+    const sources = discoverProjectInstructionSources({
+      projectRoot,
+      globalConfigDir: globalDir,
+      maxBytesPerFile: 8,
+    });
+
+    expect(sources).toHaveLength(1);
+    expect(sources[0].truncated).toBe(true);
+    expect(sources[0].content.startsWith('指指')).toBe(true);
+    expect(sources[0].content).not.toContain('�');
+  });
+
   it('formats a prompt zone with SDD-precedence note and source paths', () => {
     writeFileSync(join(globalDir, 'AGENTS.md'), 'global rules');
     writeFileSync(join(projectRoot, 'AGENTS.md'), 'repo rules');

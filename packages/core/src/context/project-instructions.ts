@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
@@ -36,6 +36,21 @@ export interface ProjectInstructionSource {
   truncated: boolean;
 }
 
+/**
+ * 读取文件的前 maxBytes 字节，不把超大文件整体载入内存。
+ * 多字节 UTF-8 字符被截断点切开时，去掉结尾产生的 replacement character。
+ */
+function readFileHead(filePath: string, maxBytes: number): string {
+  const fd = openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(maxBytes);
+    const bytesRead = readSync(fd, buffer, 0, maxBytes, 0);
+    return buffer.subarray(0, bytesRead).toString('utf-8').replace(/�+$/, '');
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function readInstructionFile(
   dir: string,
   level: ProjectInstructionSource['level'],
@@ -44,12 +59,15 @@ function readInstructionFile(
   for (const fileName of INSTRUCTION_FILE_NAMES) {
     const filePath = join(dir, fileName);
     try {
-      if (!existsSync(filePath) || !statSync(filePath).isFile()) continue;
-      const raw = readFileSync(filePath, 'utf-8');
-      const truncated = Buffer.byteLength(raw, 'utf-8') > maxBytes;
+      if (!existsSync(filePath)) continue;
+      const stats = statSync(filePath);
+      if (!stats.isFile()) continue;
+
+      // 超限时只读取上限范围，避免把超大文件整体载入 plan/execute 关键路径
+      const truncated = stats.size > maxBytes;
       const content = truncated
-        ? `${Buffer.from(raw, 'utf-8').subarray(0, maxBytes).toString('utf-8')}\n\n[已截断：文件超过 ${maxBytes} 字节上限]`
-        : raw;
+        ? `${readFileHead(filePath, maxBytes)}\n\n[已截断：文件超过 ${maxBytes} 字节上限]`
+        : readFileSync(filePath, 'utf-8');
       const trimmed = content.trim();
       if (!trimmed) continue;
       return { path: filePath, level, content: trimmed, truncated };
