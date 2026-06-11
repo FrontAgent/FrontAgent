@@ -11,7 +11,7 @@ import {
   type LLMBackend,
 } from '@frontagent/core';
 import { createShellMCPClient } from '@frontagent/mcp-shell';
-import type { ApprovalRequest, TaskType } from '@frontagent/shared';
+import type { ApprovalRequest, SecurityApprovalResponse, TaskType } from '@frontagent/shared';
 import {
   getDefaultRagCacheDir,
   parseTaskType,
@@ -29,6 +29,7 @@ import {
   type SessionStatus,
   saveSessionRecord,
 } from './session-store.js';
+import { appendAllowRuleToSettings, loadProjectSettings } from './settings.js';
 
 export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   projectRoot: string;
@@ -50,7 +51,7 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   resumeSession?: string | boolean;
   onRunLogPath?: (path: string | null) => void;
   onEvent?: (event: AgentEvent) => void;
-  onApprovalRequest?: (request: ApprovalRequest) => Promise<boolean>;
+  onApprovalRequest?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;
   /** 可选的 executor step trace 回调，用于性能分析 */
   onStepTrace?: (trace: ExecutorStepTrace) => void;
 }
@@ -140,7 +141,9 @@ export async function runFrontAgentTask(
       mode: resolved.securityMode,
       interactive: Boolean(options.onApprovalRequest),
       auditEnabled: true,
+      permissions: loadProjectSettings(projectRoot).permissions,
       approvalHandler: options.onApprovalRequest,
+      onPersistAllowRule: (rule) => appendAllowRuleToSettings(projectRoot, rule),
     },
     subAgents: options.codeQualityIsolationMode
       ? {
@@ -367,7 +370,9 @@ export async function planFrontAgentTask(
       mode: resolved.securityMode,
       interactive: Boolean(options.onApprovalRequest),
       auditEnabled: true,
+      permissions: loadProjectSettings(projectRoot).permissions,
       approvalHandler: options.onApprovalRequest,
+      onPersistAllowRule: (rule) => appendAllowRuleToSettings(projectRoot, rule),
     },
     subAgents: options.codeQualityIsolationMode
       ? {

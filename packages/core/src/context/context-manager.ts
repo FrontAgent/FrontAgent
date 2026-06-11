@@ -228,6 +228,11 @@ export class ContextManager {
     // --- Zone 1: Rules (SDD constraints) ---
     zones.push(sddPrompt);
 
+    // --- Zone 1.5: Project instructions (layered AGENTS.md/CLAUDE.md, soft guidance) ---
+    if (context.collectedContext.projectInstructions) {
+      zones.push(`\n${context.collectedContext.projectInstructions}`);
+    }
+
     // --- Zone 2: Memory (durable cross-session knowledge) ---
     if (context.collectedContext.memoryContext) {
       zones.push(`\n${context.collectedContext.memoryContext}`);

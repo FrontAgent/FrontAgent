@@ -34,7 +34,7 @@ export interface PendingApproval {
   reasonCode: string;
   message: string;
   argsSummary: string;
-  resolve: (approved: boolean) => void;
+  resolve: (approved: boolean, alwaysAllow?: boolean) => void;
 }
 
 export interface RagMatch {
@@ -217,14 +217,14 @@ export function createStore() {
     setState({ phases, currentPhase: nextActive });
   }
 
-  function resolveApproval(approvalId: string, approved: boolean): boolean {
+  function resolveApproval(approvalId: string, approved: boolean, alwaysAllow = false): boolean {
     const current = state.approval;
     if (!current || current.approvalId !== approvalId) {
       return false;
     }
 
     setState({ approval: null });
-    current.resolve(approved);
+    current.resolve(approved, alwaysAllow);
     return true;
   }
 

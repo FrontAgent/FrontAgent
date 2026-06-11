@@ -123,6 +123,44 @@ describe('PhaseRunner', () => {
       expect(next.status).toBe('completed');
     });
 
+    it('unblocks dependents that appear before their completed dependency (sequential)', async () => {
+      // 依赖方排在已完成依赖之前：预登记保证依赖检查不受顺序影响
+      const next = makeStep({ stepId: 's2', dependencies: ['s1'] });
+      const done = makeStep({ stepId: 's1', status: 'completed' });
+      const deps = makeDeps();
+      const runner = new PhaseRunner(deps);
+
+      await runner.executeSinglePhaseWithRecovery(
+        makePhaseGroup([next, done]),
+        makeContext(),
+        new Set(),
+        [],
+        {},
+      );
+
+      expect(deps.executeStep).toHaveBeenCalledTimes(1);
+      expect(deps.executeStep).toHaveBeenCalledWith(next, expect.anything());
+      expect(next.status).toBe('completed');
+    });
+
+    it('unblocks dependents that appear before their completed dependency (parallel)', async () => {
+      const next = makeStep({ stepId: 's2', dependencies: ['s1'] });
+      const done = makeStep({ stepId: 's1', status: 'completed' });
+      const deps = makeDeps({ parallelExecution: true });
+      const runner = new PhaseRunner(deps);
+
+      await runner.executeSinglePhaseWithRecovery(
+        makePhaseGroup([next, done]),
+        makeContext(),
+        new Set(),
+        [],
+        {},
+      );
+
+      expect(deps.executeStep).toHaveBeenCalledTimes(1);
+      expect(next.status).toBe('completed');
+    });
+
     it('skips steps with unmet dependencies', async () => {
       const step = makeStep({ stepId: 's1', dependencies: ['missing-dep'] });
       const deps = makeDeps();

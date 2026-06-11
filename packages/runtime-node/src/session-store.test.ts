@@ -131,6 +131,29 @@ describe('session store', () => {
     expect(findLatestResumableSession(projectRoot)?.sessionId).toBe('session-good');
   });
 
+  it('rejects steps missing execution-contract fields', () => {
+    const base = makeRecord({ sessionId: 'ignored' });
+    const goodStep = base.snapshot.plan.steps[0];
+    const brokenSteps: Array<[string, unknown]> = [
+      ['step-no-deps', { ...goodStep, dependencies: undefined }],
+      ['step-no-params', { ...goodStep, params: undefined }],
+      ['step-no-validation', { ...goodStep, validation: undefined }],
+      ['step-no-tool', { ...goodStep, tool: undefined }],
+      ['step-bad-deps', { ...goodStep, dependencies: [42] }],
+    ];
+
+    mkdirSync(getSessionsDir(projectRoot), { recursive: true });
+    for (const [id, step] of brokenSteps) {
+      const record = {
+        ...base,
+        sessionId: id,
+        snapshot: { ...base.snapshot, plan: { ...base.snapshot.plan, steps: [step] } },
+      };
+      writeFileSync(join(getSessionsDir(projectRoot), `${id}.json`), JSON.stringify(record));
+      expect(loadSessionRecord(projectRoot, id)).toBeUndefined();
+    }
+  });
+
   it('rejects session ids containing path fragments', () => {
     const record = makeRecord({ sessionId: 'session-good' });
     saveSessionRecord(projectRoot, record);

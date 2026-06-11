@@ -59,6 +59,14 @@ export class PhaseRunner {
         `[Executor]    - ${s.stepId}: ${s.description} (deps: [${s.dependencies.join(', ') || 'none'}])`,
       );
     }
+    // 会话恢复：先把本 phase 所有已完成步骤预登记到完成集合，
+    // 依赖检查才不受 step 在 phase 内的排列顺序影响
+    for (const step of phaseSteps) {
+      if (step.status === 'completed') {
+        completedStepIds.add(step.stepId);
+      }
+    }
+
     this.deps.debugLog(
       `[Executor] 📊 Already completed steps: [${Array.from(completedStepIds).join(', ') || 'none'}]`,
     );

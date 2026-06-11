@@ -94,6 +94,20 @@ describe('createAgent', () => {
     expect(agent.getSessionSnapshot()).toBeUndefined();
   });
 
+  it('accepts declarative permission rules and a persist callback in security config', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      security: {
+        interactive: true,
+        permissions: { allow: ['run_command(pnpm test:*)'], deny: ['run_command(rm *)'] },
+        approvalHandler: async () => ({ approved: true, alwaysAllow: true }),
+        onPersistAllowRule: () => {},
+      },
+    });
+    expect(agent).toBeDefined();
+  });
+
   it('returns planner and executor skill snapshots', () => {
     const agent = createAgent({
       projectRoot: '/test',

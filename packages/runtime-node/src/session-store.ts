@@ -94,17 +94,33 @@ function isValidSessionRecord(value: unknown): value is SessionRecord {
   }
   if (typeof snapshot.plan !== 'object' || snapshot.plan === null) return false;
   if (!Array.isArray(snapshot.plan.steps)) return false;
+  if (snapshot.plan.steps.some((step) => !isValidExecutionStep(step))) return false;
+
+  return true;
+}
+
+/**
+ * 执行器消费 step 的最小运行契约：缺少 dependencies/params 等字段的
+ * 损坏快照在加载阶段被丢弃，而不是在 phase runner 里抛执行期异常。
+ */
+function isValidExecutionStep(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const step = value as Record<string, unknown>;
+
+  if (typeof step.stepId !== 'string' || step.stepId === '') return false;
+  if (typeof step.description !== 'string') return false;
+  if (typeof step.action !== 'string' || typeof step.tool !== 'string') return false;
+  if (typeof step.params !== 'object' || step.params === null || Array.isArray(step.params)) {
+    return false;
+  }
   if (
-    snapshot.plan.steps.some(
-      (step) =>
-        typeof step !== 'object' ||
-        step === null ||
-        typeof (step as { stepId?: unknown }).stepId !== 'string' ||
-        typeof (step as { status?: unknown }).status !== 'string',
-    )
+    !Array.isArray(step.dependencies) ||
+    step.dependencies.some((dep) => typeof dep !== 'string')
   ) {
     return false;
   }
+  if (!Array.isArray(step.validation)) return false;
+  if (typeof step.status !== 'string') return false;
 
   return true;
 }

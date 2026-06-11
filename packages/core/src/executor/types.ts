@@ -3,6 +3,7 @@ import type {
   ApprovalRequest,
   ExecutionStep,
   SDDConfig,
+  SecurityApprovalResponse,
   SecurityConfig,
   SecurityDecision,
 } from '@frontagent/shared';
@@ -33,7 +34,9 @@ export interface ExecutorConfig {
   onStreamToken?: (token: string, stepId: string) => void;
   security?: SecurityConfig;
   sddConfig?: SDDConfig;
-  approvalHandler?: (request: ApprovalRequest) => Promise<boolean>;
+  approvalHandler?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;
+  /** 用户选择"始终允许"时的规则持久化回调 */
+  onPersistAllowRule?: (rule: string) => void;
   onSecurityDecision?: (decision: SecurityDecision) => void;
   trace?: ExecutorTraceConfig;
   executionEngine?: 'native' | 'langgraph';

@@ -8,6 +8,7 @@ import { SDDParser, SDDPromptGenerator } from '@frontagent/sdd';
 import type { AgentTask, ExecutionPlan, SDDConfig, ValidationResult } from '@frontagent/shared';
 import { generateId, logger } from '@frontagent/shared';
 import { type A2AAgent, InMemoryA2ABus } from '../a2a.js';
+import { loadProjectInstructions } from '../context/project-instructions.js';
 import { ContextManager } from '../context.js';
 import { Executor, type MCPClient } from '../executor.js';
 import { LLMService } from '../llm.js';
@@ -109,6 +110,7 @@ export class FrontAgent {
       security: config.security,
       sddConfig: this.sddConfig,
       approvalHandler: config.security?.approvalHandler,
+      onPersistAllowRule: config.security?.onPersistAllowRule,
       onSecurityDecision: (decision) => {
         this.emit({ type: 'security_decision', decision });
       },
@@ -420,6 +422,11 @@ export class FrontAgent {
       this.memoryStore.resetSession();
       preloadMemory(this.memoryDeps, task.id, context);
 
+      context.collectedContext.projectInstructions = loadProjectInstructions({
+        projectRoot: this.config.projectRoot,
+        cwd: process.cwd(),
+      });
+
       if (this.promptGenerator) {
         const constitutionPrompt = this.workflowIntegration?.getConstitutionPrompt();
         if (constitutionPrompt) {
@@ -467,6 +474,7 @@ export class FrontAgent {
           skillContext,
           matchedSkillNames,
           memoryContext: context.collectedContext.memoryContext,
+          projectInstructions: context.collectedContext.projectInstructions,
           filesense: this.config.filesense,
         },
         this.contextManager.getMessages(task.id),
@@ -487,6 +495,7 @@ export class FrontAgent {
             skillContext: context.collectedContext.skillContext,
             matchedSkillNames: context.collectedContext.matchedSkillNames,
             memoryContext: context.collectedContext.memoryContext,
+            projectInstructions: context.collectedContext.projectInstructions,
             filesense: this.config.filesense,
           },
           this.contextManager.getMessages(task.id),
@@ -636,6 +645,7 @@ export class FrontAgent {
             skillContext,
             matchedSkillNames,
             memoryContext: context.collectedContext.memoryContext,
+            projectInstructions: context.collectedContext.projectInstructions,
             filesense: this.config.filesense,
           },
           this.contextManager.getMessages(task.id),
@@ -656,6 +666,7 @@ export class FrontAgent {
               skillContext: context.collectedContext.skillContext,
               matchedSkillNames: context.collectedContext.matchedSkillNames,
               memoryContext: context.collectedContext.memoryContext,
+              projectInstructions: context.collectedContext.projectInstructions,
               filesense: this.config.filesense,
             },
             this.contextManager.getMessages(task.id),
