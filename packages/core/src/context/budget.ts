@@ -74,9 +74,15 @@ export interface PromptZone {
 }
 
 /**
- * 应用 zone 预算：先按各 zone 独立预算截断，再在总预算下按优先级收缩
+ * 应用 zone 预算：先按各 zone 独立预算截断，再在总预算下按优先级收缩。
+ * totalBudget 约束的是最终序列化结果——zone 间的拼接分隔符成本
+ * （separatorLength * (zones - 1)）计入总量。
  */
-export function applyZoneBudgets(zones: PromptZone[], config?: ContextBudgetConfig): PromptZone[] {
+export function applyZoneBudgets(
+  zones: PromptZone[],
+  config?: ContextBudgetConfig,
+  separatorLength = 1,
+): PromptZone[] {
   const budgets = { ...DEFAULT_ZONE_BUDGETS, ...config?.zoneBudgets };
 
   let result = zones.map((zone) => ({
@@ -87,8 +93,10 @@ export function applyZoneBudgets(zones: PromptZone[], config?: ContextBudgetConf
   const totalBudget = config?.totalBudget;
   if (totalBudget === undefined) return result;
 
+  const separatorCost = Math.max(zones.length - 1, 0) * separatorLength;
+
   for (const shrinkTarget of ZONE_SHRINK_ORDER) {
-    const total = result.reduce((sum, zone) => sum + zone.content.length, 0);
+    const total = result.reduce((sum, zone) => sum + zone.content.length, 0) + separatorCost;
     if (total <= totalBudget) break;
 
     const overflow = total - totalBudget;

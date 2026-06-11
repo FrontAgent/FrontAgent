@@ -283,6 +283,29 @@ describe('ContextManager', () => {
       expect(prompt).toContain('Create file');
     });
 
+    it('keeps the final serialized prompt within the total budget', () => {
+      const manager = new ContextManager({
+        budget: {
+          zoneBudgets: { rules: 5000, memory: 5000 },
+          totalBudget: 400,
+        },
+      });
+      manager.createContext(makeTask({ id: 't1' }));
+      const ctx = manager.getContext('t1')!;
+      ctx.collectedContext.memoryContext = 'm'.repeat(1000);
+      const prompt = manager.buildSystemPrompt('t1', 'r'.repeat(1000));
+      expect(prompt.length).toBeLessThanOrEqual(400);
+    });
+
+    it('applies the rules budget even when the task context is missing', () => {
+      const manager = new ContextManager({
+        budget: { zoneBudgets: { rules: 80 } },
+      });
+      const prompt = manager.buildSystemPrompt('nonexistent', 'r'.repeat(500));
+      expect(prompt.length).toBeLessThanOrEqual(80);
+      expect(prompt).toContain('[已截断：rules zone 超出 80 字符预算]');
+    });
+
     it('truncates over-budget zones with explicit markers', () => {
       const manager = new ContextManager({
         budget: { zoneBudgets: { memory: 50 } },

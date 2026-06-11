@@ -88,6 +88,16 @@ describe('applyZoneBudgets', () => {
     });
     expect(totalLength(result)).toBeLessThanOrEqual(100);
   });
+
+  it('counts join separators against the total budget', () => {
+    const result = applyZoneBudgets(zones({ rules: 800, memory: 800, context: 800 }), {
+      zoneBudgets: { rules: 5000, memory: 5000, context: 5000 },
+      totalBudget: 2000,
+    });
+    // totalBudget 约束最终序列化结果，包括 zone 之间的 '\n' 分隔符
+    const serialized = result.map((zone) => zone.content).join('\n');
+    expect(serialized.length).toBeLessThanOrEqual(2000);
+  });
 });
 
 describe('compactMessageHistory', () => {

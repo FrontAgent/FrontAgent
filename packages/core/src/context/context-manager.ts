@@ -243,7 +243,10 @@ export class ContextManager {
   buildSystemPrompt(taskId: string, sddPrompt: string): string {
     const context = this.contexts.get(taskId);
     if (!context) {
-      return sddPrompt;
+      // rules-only 回退路径同样受 rules 预算约束，不能绕过截断
+      return applyZoneBudgets([{ name: 'rules', content: sddPrompt }], this.budgetConfig)
+        .map((zone) => zone.content)
+        .join('\n');
     }
 
     const zones: PromptZone[] = [];
