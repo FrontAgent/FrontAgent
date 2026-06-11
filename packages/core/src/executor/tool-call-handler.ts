@@ -53,6 +53,8 @@ export class ExecutorToolCallHandler {
 
     const hookBlock = await this.runPreToolUseHook(toolName, args);
     if (hookBlock) {
+      // postToolUse 观察包括 pre-hook 拦截在内的每一种结果
+      await this.runPostToolUseHook(toolName, args, false, hookBlock);
       return { result: { success: false, error: hookBlock }, successful: false };
     }
 
@@ -78,12 +80,26 @@ export class ExecutorToolCallHandler {
     }
 
     const successful = this.isSuccessfulToolResult(result);
-    await this.runPostToolUseHook(toolName, args, successful);
+    await this.runPostToolUseHook(
+      toolName,
+      args,
+      successful,
+      successful ? undefined : this.extractToolResultError(result),
+    );
 
     return {
       result,
       successful,
     };
+  }
+
+  /** 从规范化工具结果中提取失败原因，供 postToolUse 观察 */
+  private extractToolResultError(result: unknown): string | undefined {
+    if (typeof result !== 'object' || result === null) return undefined;
+    const resultObj = result as { error?: unknown; message?: unknown };
+    if (typeof resultObj.error === 'string' && resultObj.error) return resultObj.error;
+    if (typeof resultObj.message === 'string' && resultObj.message) return resultObj.message;
+    return undefined;
   }
 
   /** 返回拦截原因；不拦截时返回 undefined。hook 自身异常按不拦截处理 */

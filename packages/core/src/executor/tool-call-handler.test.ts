@@ -62,6 +62,55 @@ describe('ExecutorToolCallHandler lifecycle hooks', () => {
     });
   });
 
+  it('fires postToolUse with the block reason when preToolUse blocks', async () => {
+    const postToolUse = vi.fn(async () => {});
+    const { handler } = makeHandler({
+      lifecycleHooks: {
+        preToolUse: async () => ({ block: true, reason: 'policy says no' }),
+        postToolUse,
+      },
+    });
+
+    await handler.callTool('read_file', { path: 'a.ts' });
+
+    expect(postToolUse).toHaveBeenCalledWith({
+      event: 'postToolUse',
+      toolName: 'read_file',
+      args: { path: 'a.ts' },
+      success: false,
+      error: expect.stringContaining('policy says no'),
+    });
+  });
+
+  it('passes the tool failure error to postToolUse', async () => {
+    const postToolUse = vi.fn(async () => {});
+    const callTool = vi.fn(async () => ({ success: false, error: 'disk on fire' }));
+    const client: MCPClient = { callTool, listTools: async () => [] };
+    const config = {
+      projectRoot: '/tmp/frontagent-project',
+      security: { interactive: false },
+      lifecycleHooks: { postToolUse },
+    } as unknown as ExecutorConfig;
+    const handler = new ExecutorToolCallHandler({
+      config,
+      mcpClients: new Map([['file', client]]),
+      toolToClient: new Map([['read_file', 'file']]),
+      nowMs: () => 0,
+      getCurrentBrowserUrl: () => undefined,
+    });
+
+    const result = await handler.callTool('read_file', { path: 'a.ts' });
+
+    expect(result.successful).toBe(false);
+    expect(postToolUse).toHaveBeenCalledWith({
+      event: 'postToolUse',
+      toolName: 'read_file',
+      args: { path: 'a.ts' },
+      success: false,
+      error: 'disk on fire',
+    });
+  });
+
   it('treats a throwing preToolUse hook as non-blocking', async () => {
     const { handler, callTool } = makeHandler({
       lifecycleHooks: {

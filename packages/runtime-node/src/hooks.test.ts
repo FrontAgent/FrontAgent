@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -67,6 +67,26 @@ describe('runHookCommand', () => {
   it('kills the command on timeout', async () => {
     const result = await runHookCommand('sleep 5', {}, 200, process.cwd());
     expect(result.timedOut).toBe(true);
+  });
+
+  it('kills the whole process group on timeout so descendants stop too', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fa-hook-kill-'));
+    const marker = join(dir, 'survivor.txt');
+    try {
+      const result = await runHookCommand(
+        `(sleep 1; echo survived > "${marker}") & sleep 5`,
+        {},
+        200,
+        dir,
+      );
+      expect(result.timedOut).toBe(true);
+
+      // 后代若未被随进程组终止，会在 ~1s 后写出 marker 文件
+      await new Promise((resolveSleep) => setTimeout(resolveSleep, 1500));
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

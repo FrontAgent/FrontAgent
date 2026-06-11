@@ -207,22 +207,28 @@ export async function runFrontAgentTask(
     options.onEvent?.(event);
   });
 
-  // taskComplete hooks：任务结束事件触发，失败仅记录不影响结果
+  // taskComplete hooks：任务结束事件触发，失败仅记录不影响结果；
+  // promise 收集到 pending 列表，在任务收尾阶段 drain，保证返回前执行完并写入运行日志
+  const pendingTaskCompleteHooks: Promise<void>[] = [];
   agent.addEventListener((event) => {
     if (event.type === 'task_completed') {
-      void runTaskCompleteHooks(hooksInput, {
-        event: 'taskComplete',
-        taskId: event.result.taskId,
-        success: event.result.success,
-        error: event.result.error,
-      }).catch((error) => runLogger?.error(error));
+      pendingTaskCompleteHooks.push(
+        runTaskCompleteHooks(hooksInput, {
+          event: 'taskComplete',
+          taskId: event.result.taskId,
+          success: event.result.success,
+          error: event.result.error,
+        }).catch((error) => runLogger?.error(error)),
+      );
     } else if (event.type === 'task_failed') {
-      void runTaskCompleteHooks(hooksInput, {
-        event: 'taskComplete',
-        taskId: '',
-        success: false,
-        error: event.error,
-      }).catch((error) => runLogger?.error(error));
+      pendingTaskCompleteHooks.push(
+        runTaskCompleteHooks(hooksInput, {
+          event: 'taskComplete',
+          taskId: '',
+          success: false,
+          error: event.error,
+        }).catch((error) => runLogger?.error(error)),
+      );
     }
   });
 
@@ -261,6 +267,8 @@ export async function runFrontAgentTask(
       validations: [],
     };
   } finally {
+    // 任务返回前 drain taskComplete hooks，保证执行与运行日志记录完成
+    await Promise.allSettled(pendingTaskCompleteHooks);
     try {
       options.onEvent?.({
         type: 'status_update',

@@ -49,6 +49,22 @@ function normalizeCommands(value: string | string[] | undefined): string[] {
   return commands.filter((command) => typeof command === 'string' && command.trim() !== '');
 }
 
+/** 超时后等待 close 确认清理的兜底毫秒数 */
+const KILL_GRACE_MS = 1_000;
+
+function killHookProcessTree(child: ReturnType<typeof spawn>): void {
+  // detached 模式下 shell 是进程组组长，杀整个进程组以终止其后代
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+      return;
+    } catch {
+      // 进程组可能已退出，回退到直接 kill
+    }
+  }
+  child.kill('SIGKILL');
+}
+
 export function runHookCommand(
   command: string,
   payload: unknown,
@@ -57,16 +73,23 @@ export function runHookCommand(
 ): Promise<HookExecution> {
   return new Promise((resolvePromise) => {
     const startedAt = Date.now();
-    const child = spawn(command, { shell: true, cwd, stdio: ['pipe', 'ignore', 'pipe'] });
+    const child = spawn(command, {
+      shell: true,
+      cwd,
+      stdio: ['pipe', 'ignore', 'pipe'],
+      detached: process.platform !== 'win32',
+    });
 
     let stderr = '';
     let timedOut = false;
     let settled = false;
+    let graceTimer: NodeJS.Timeout | undefined;
 
     const settle = (exitCode: number | null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (graceTimer) clearTimeout(graceTimer);
       resolvePromise({
         command,
         exitCode,
@@ -78,8 +101,9 @@ export function runHookCommand(
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
-      settle(null);
+      killHookProcessTree(child);
+      // 等 close 事件确认清理完成；若进程组迟迟不退出则兜底 settle
+      graceTimer = setTimeout(() => settle(null), KILL_GRACE_MS);
     }, timeoutMs);
 
     child.stderr?.on('data', (chunk: Buffer) => {
@@ -89,7 +113,7 @@ export function runHookCommand(
       stderr += String(error);
       settle(null);
     });
-    child.on('close', (code) => settle(code));
+    child.on('close', (code) => settle(timedOut ? null : code));
 
     child.stdin?.on('error', () => {});
     child.stdin?.end(JSON.stringify(payload));
