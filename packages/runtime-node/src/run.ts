@@ -240,7 +240,7 @@ export async function runFrontAgentTask(
       options.onEvent?.({ type: 'status_update', label: '收尾完成' });
       runLogger?.event({ type: 'status_update', label: '收尾完成' });
       restoreConsole();
-      runLogger?.close();
+      await runLogger?.close();
     }
   }
 }
@@ -408,7 +408,7 @@ export async function planFrontAgentTask(
       options.onEvent?.({ type: 'status_update', label: '收尾完成' });
       runLogger?.event({ type: 'status_update', label: '收尾完成' });
       restoreConsole();
-      runLogger?.close();
+      await runLogger?.close();
     }
   }
 }

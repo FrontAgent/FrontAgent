@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { inspect } from 'node:util';
 import type { AgentEvent, AgentExecutionResult } from '@frontagent/core';
@@ -15,6 +15,8 @@ export interface RunLoggerOptions {
   model: string;
   baseURL?: string;
   options: Record<string, unknown>;
+  /** Cap on bytes queued in the write stream before entries are dropped (default 4 MB). */
+  maxBufferedBytes?: number;
 }
 
 export interface RunLogger {
@@ -23,8 +25,12 @@ export interface RunLogger {
   event(event: AgentEvent): void;
   result(result: AgentExecutionResult): void;
   error(error: unknown): void;
-  close(): void;
+  /** Resolves once all buffered entries and the final marker are flushed to disk. */
+  close(): Promise<void>;
 }
+
+/** Default cap on bytes queued in the run-log write stream. */
+const DEFAULT_MAX_BUFFERED_LOG_BYTES = 4 * 1024 * 1024;
 
 function timestampForPath(date = new Date()): string {
   return date
@@ -118,32 +124,62 @@ function summarizeEvent(event: AgentEvent): unknown {
 
 class FileRunLogger implements RunLogger {
   private closed = false;
+  private droppedEntries = 0;
+  private closePromise?: Promise<void>;
+  private readonly stream: WriteStream;
 
   constructor(
     readonly path: string,
     header: Record<string, unknown>,
+    private readonly maxBufferedBytes: number = DEFAULT_MAX_BUFFERED_LOG_BYTES,
   ) {
     mkdirSync(dirname(path), { recursive: true });
-    appendFileSync(
-      this.path,
+    this.stream = createWriteStream(path, { flags: 'a', encoding: 'utf8' });
+    // Disk failures (ENOSPC, EACCES, ...) must not crash the agent run; an
+    // unhandled 'error' event on the stream would. Disable further logging instead.
+    this.stream.on('error', () => {
+      this.closed = true;
+    });
+    this.stream.write(
       ['# FrontAgent Run Log', `startedAt: ${timestampForLine()}`, stringify(header), ''].join(
         '\n',
       ),
-      'utf8',
     );
   }
 
-  private write(kind: string, payload: unknown): void {
+  /**
+   * Droppable entries are discarded instead of queued once the stream buffers
+   * more than maxBufferedBytes, so a producer that outruns the disk (e.g.
+   * high-frequency stream_token events on a slow mount) cannot grow memory
+   * without bound. Only low-value high-frequency entries are droppable —
+   * terminal diagnostics (result, error, console.error, non-stream events)
+   * are always written. Dropped entries are surfaced as a summary line once
+   * the buffer recovers or the logger closes.
+   */
+  private write(kind: string, payload: unknown, droppable = false): void {
     if (this.closed) return;
-    appendFileSync(this.path, `[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`, 'utf8');
+    if (droppable && this.stream.writableLength > this.maxBufferedBytes) {
+      this.droppedEntries += 1;
+      return;
+    }
+    this.writeDroppedSummary();
+    this.stream.write(`[${timestampForLine()}] ${kind}\n${stringify(payload)}\n\n`);
+  }
+
+  private writeDroppedSummary(): void {
+    if (this.droppedEntries === 0) return;
+    this.stream.write(
+      `[${timestampForLine()}] dropped ${this.droppedEntries} log entries while the write buffer was saturated\n\n`,
+    );
+    this.droppedEntries = 0;
   }
 
   console(level: 'log' | 'warn' | 'error', args: unknown[]): void {
-    this.write(`console.${level}`, formatConsoleArgs(args));
+    this.write(`console.${level}`, formatConsoleArgs(args), level !== 'error');
   }
 
   event(event: AgentEvent): void {
-    this.write(`event.${event.type}`, summarizeEvent(event));
+    this.write(`event.${event.type}`, summarizeEvent(event), event.type === 'stream_token');
   }
 
   result(result: AgentExecutionResult): void {
@@ -154,10 +190,24 @@ class FileRunLogger implements RunLogger {
     this.write('error', error);
   }
 
-  close(): void {
-    if (this.closed) return;
-    appendFileSync(this.path, `[${timestampForLine()}] closed\n`, 'utf8');
+  close(): Promise<void> {
+    // Every close() call must resolve only once the log is flushed, so
+    // repeated calls during the flush share the first call's promise.
+    if (this.closePromise) return this.closePromise;
+    // closed without a closePromise means the stream errored and was
+    // auto-destroyed; there is nothing left to flush.
+    if (this.closed) return Promise.resolve();
     this.closed = true;
+    this.writeDroppedSummary();
+    // end() writes the final marker after all buffered entries, preserving
+    // order, then closes the fd. The promise resolves on 'close' (also
+    // emitted when the stream is destroyed by an error), so callers can
+    // await the flush before reading or publishing the log file.
+    this.closePromise = new Promise((resolve) => {
+      this.stream.once('close', () => resolve());
+      this.stream.end(`[${timestampForLine()}] closed\n`);
+    });
+    return this.closePromise;
   }
 }
 
@@ -165,14 +215,18 @@ export function createRunLogger(options: RunLoggerOptions): RunLogger | null {
   if (!options.enabled) return null;
 
   const path = resolveRunLogPath(options.projectRoot, options.logFile);
-  return new FileRunLogger(path, {
-    task: options.task,
-    projectRoot: options.projectRoot,
-    provider: options.provider,
-    model: options.model,
-    baseURL: options.baseURL ?? '(default)',
-    options: options.options,
-  });
+  return new FileRunLogger(
+    path,
+    {
+      task: options.task,
+      projectRoot: options.projectRoot,
+      provider: options.provider,
+      model: options.model,
+      baseURL: options.baseURL ?? '(default)',
+      options: options.options,
+    },
+    options.maxBufferedBytes,
+  );
 }
 
 export function installRunConsoleFilter(debug: boolean, logger: RunLogger | null): () => void {
