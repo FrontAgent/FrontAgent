@@ -20,6 +20,7 @@ import type {
   CodeQualityReviewRequest,
   CodeQualityReviewResponse,
 } from './code-quality-subagent.js';
+import { BoundedStreamBuffer, DEFAULT_MAX_WORKER_IO_BYTES } from './worker-io-limits.js';
 
 interface WorkerInput {
   request: A2ARequest<CodeQualityReviewRequest>;
@@ -65,6 +66,8 @@ export interface ProcessIsolatedCodeQualitySubAgentOptions {
   timeoutMs?: number;
   debug?: boolean;
   workerPath?: string;
+  /** Max bytes buffered from worker stdout/stderr each (default 4 MB). */
+  maxOutputBytes?: number;
 }
 
 export class ProcessIsolatedCodeQualitySubAgent
@@ -81,6 +84,7 @@ export class ProcessIsolatedCodeQualitySubAgent
   private readonly timeoutMs: number;
   private readonly debug: boolean;
   private readonly workerPath: string;
+  private readonly maxOutputBytes: number;
 
   constructor(options: ProcessIsolatedCodeQualitySubAgentOptions) {
     this.llmConfig = options.llmConfig;
@@ -91,6 +95,7 @@ export class ProcessIsolatedCodeQualitySubAgent
     this.timeoutMs = options.timeoutMs ?? 120000;
     this.debug = options.debug ?? false;
     this.workerPath = options.workerPath ?? resolveDefaultWorkerPath();
+    this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_WORKER_IO_BYTES;
   }
 
   async handleRequest(
@@ -118,8 +123,8 @@ export class ProcessIsolatedCodeQualitySubAgent
         env: process.env,
       });
 
-      let stdout = '';
-      let stderr = '';
+      const stdoutBuffer = new BoundedStreamBuffer(this.maxOutputBytes);
+      const stderrBuffer = new BoundedStreamBuffer(this.maxOutputBytes);
       let settled = false;
 
       const complete = (result: A2AResponse<CodeQualityReviewResponse>) => {
@@ -139,12 +144,29 @@ export class ProcessIsolatedCodeQualitySubAgent
         );
       }, this.timeoutMs);
 
+      const failOnOutputOverflow = (
+        streamName: 'stdout' | 'stderr',
+        buffer: BoundedStreamBuffer,
+      ) => {
+        child.kill('SIGKILL');
+        complete(
+          this.errorResponse(
+            request,
+            `Code-quality worker ${streamName} exceeded ${this.maxOutputBytes} bytes; worker killed. Output tail: ${buffer.tail()}`,
+          ),
+        );
+      };
+
       child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf-8');
+        if (!stdoutBuffer.append(chunk)) {
+          failOnOutputOverflow('stdout', stdoutBuffer);
+        }
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString('utf-8');
+        if (!stderrBuffer.append(chunk)) {
+          failOnOutputOverflow('stderr', stderrBuffer);
+        }
       });
 
       child.on('error', (error) => {
@@ -157,21 +179,24 @@ export class ProcessIsolatedCodeQualitySubAgent
         if (settled) return;
 
         // Worker may still emit a structured error response even with non-zero exit code.
-        const parsed = this.parseWorkerResponse(stdout);
+        const parsed = this.parseWorkerResponse(stdoutBuffer.text);
         if (parsed) {
           complete(parsed);
           return;
         }
 
         if (code !== 0) {
-          const details = stderr.trim() || stdout.trim() || 'Unknown worker error';
+          const details =
+            stderrBuffer.text.trim() || stdoutBuffer.text.trim() || 'Unknown worker error';
           complete(
             this.errorResponse(request, `Code-quality worker exited with code ${code}: ${details}`),
           );
           return;
         }
 
-        const debugDetails = [stderr.trim(), stdout.trim()].filter(Boolean).join('\n');
+        const debugDetails = [stderrBuffer.text.trim(), stdoutBuffer.text.trim()]
+          .filter(Boolean)
+          .join('\n');
         complete(
           this.errorResponse(
             request,

@@ -13,6 +13,7 @@ import {
   type CodeQualityReviewResponse,
   CodeQualitySubAgent,
 } from './code-quality-subagent.js';
+import { DEFAULT_MAX_WORKER_IO_BYTES, readStreamWithLimit } from './worker-io-limits.js';
 
 interface WorkerInput {
   request: A2ARequest<CodeQualityReviewRequest>;
@@ -32,18 +33,6 @@ console.log = (...args: unknown[]) => {
   const text = args.map((arg) => String(arg)).join(' ');
   process.stderr.write(`${text}\n`);
 };
-
-async function readStdin(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let raw = '';
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', (chunk) => {
-      raw += chunk;
-    });
-    process.stdin.on('end', () => resolve(raw));
-    process.stdin.on('error', reject);
-  });
-}
 
 function buildErrorResponse(
   request: A2ARequest<CodeQualityReviewRequest> | undefined,
@@ -68,7 +57,7 @@ async function main(): Promise<void> {
   let request: A2ARequest<CodeQualityReviewRequest> | undefined;
 
   try {
-    const raw = await readStdin();
+    const raw = await readStreamWithLimit(process.stdin, DEFAULT_MAX_WORKER_IO_BYTES);
     const input = JSON.parse(raw) as WorkerInput;
     request = input.request;
 
