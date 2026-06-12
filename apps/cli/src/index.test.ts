@@ -102,7 +102,7 @@ describe('CLI command router', () => {
     const { stdout, stderr } = await parseWithCapturedOutput(program, ['--help']);
 
     expect(stdout).toContain('FrontAgent');
-    expect(stdout).toContain('run [options] <task>');
+    expect(stdout).toContain('run [options] [task]');
     expect(stderr).toBe('');
     expectNoHandlerCalls(handlers);
   });

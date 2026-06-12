@@ -5,6 +5,7 @@ import {
   type AgentEvent,
   type AgentExecutionResult,
   type AgentPlanResult,
+  type AgentSessionSnapshot,
   createAgent,
   type ExecutorStepTrace,
   type LLMBackend,
@@ -20,6 +21,14 @@ import {
 } from './config.js';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-clients.js';
 import { createRunLogger, installRunConsoleFilter } from './run-logger.js';
+import {
+  createSessionId,
+  findLatestResumableSession,
+  listSessionRecords,
+  loadSessionRecord,
+  type SessionStatus,
+  saveSessionRecord,
+} from './session-store.js';
 import { appendAllowRuleToSettings, loadProjectSettings } from './settings.js';
 
 export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
@@ -38,6 +47,8 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   streamShellOutput?: boolean;
   llmBackend?: LLMBackend;
   signal?: AbortSignal;
+  /** 恢复会话：true 恢复最近未完成会话，字符串恢复指定 sessionId */
+  resumeSession?: string | boolean;
   onRunLogPath?: (path: string | null) => void;
   onEvent?: (event: AgentEvent) => void;
   onApprovalRequest?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;
@@ -190,12 +201,68 @@ export async function runFrontAgentTask(
     options.onEvent?.(event);
   });
 
+  // 会话持久化：步骤推进时写入快照，任务结束时落最终状态
+  const sessionState = {
+    sessionId: createSessionId(),
+    createdAt: new Date().toISOString(),
+  };
+  const persistSession = (status: SessionStatus) => {
+    try {
+      const snapshot = agent.getSessionSnapshot();
+      if (!snapshot) return;
+      saveSessionRecord(projectRoot, {
+        sessionId: sessionState.sessionId,
+        status,
+        createdAt: sessionState.createdAt,
+        updatedAt: new Date().toISOString(),
+        snapshot,
+      });
+    } catch (error) {
+      runLogger?.error(error);
+    }
+  };
+  agent.addEventListener((event) => {
+    if (
+      event.type === 'planning_completed' ||
+      event.type === 'step_completed' ||
+      event.type === 'step_failed'
+    ) {
+      persistSession('running');
+    } else if (event.type === 'task_completed') {
+      persistSession(event.result.success ? 'completed' : 'failed');
+    } else if (event.type === 'task_failed') {
+      persistSession('failed');
+    }
+  });
+
   try {
+    let resumeSnapshot: AgentSessionSnapshot | undefined;
+    if (options.resumeSession) {
+      const record =
+        typeof options.resumeSession === 'string'
+          ? loadSessionRecord(projectRoot, options.resumeSession)
+          : findLatestResumableSession(projectRoot);
+      if (!record) {
+        const available = listSessionRecords(projectRoot)
+          .slice(0, 10)
+          .map((item) => `${item.sessionId} (${item.status})`);
+        throw new Error(
+          available.length > 0
+            ? `未找到可恢复的会话。可用会话：${available.join('，')}`
+            : '未找到可恢复的会话：当前项目没有已保存的会话。',
+        );
+      }
+      sessionState.sessionId = record.sessionId;
+      sessionState.createdAt = record.createdAt;
+      resumeSnapshot = record.snapshot;
+    }
+
     const result = await agent.execute(options.task, {
       type: parseTaskType(String(options.type ?? 'query')),
       relevantFiles: options.files,
       browserUrl: options.url,
       signal: options.signal,
+      resume: resumeSnapshot,
     });
     const formattedResult: AgentExecutionResult = {
       ...result,

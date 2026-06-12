@@ -35,6 +35,7 @@ import type {
   AgentEventListener,
   AgentExecutionResult,
   AgentPlanResult,
+  AgentSessionSnapshot,
   ProjectFactsUpdate,
 } from '../types.js';
 import { WorkflowIntegration } from '../workflow-integration.js';
@@ -546,15 +547,21 @@ export class FrontAgent {
       relevantFiles?: string[];
       browserUrl?: string;
       signal?: AbortSignal;
+      /** 会话恢复：跳过规划，从快照中的第一个未完成步骤继续 */
+      resume?: AgentSessionSnapshot;
     },
   ): Promise<AgentExecutionResult> {
     const startTime = Date.now();
     this.factsUpdateFlusher.reset();
     this.lastAnswerGenerationError = undefined;
     this.lastLlmFailureError = undefined;
-    const skillResolution = this.skillContentResolver?.resolveForTask(taskDescription);
-    const resolvedTaskDescription =
-      skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
+    const resume = options?.resume;
+    const skillResolution = resume
+      ? undefined
+      : this.skillContentResolver?.resolveForTask(taskDescription);
+    const resolvedTaskDescription = resume
+      ? resume.taskDescription
+      : skillResolution?.sanitizedTaskDescription?.trim() || taskDescription;
     const skillContext = skillResolution?.promptContext;
     const matchedSkillNames = skillResolution?.matchedSkills.map((skill) => skill.name) ?? [];
 
@@ -564,12 +571,12 @@ export class FrontAgent {
 
     const task: AgentTask = {
       id: generateId('task'),
-      type: options?.type ?? 'query',
+      type: resume?.taskType ?? options?.type ?? 'query',
       description: resolvedTaskDescription,
       context: {
         workingDirectory: this.config.projectRoot,
-        relevantFiles: options?.relevantFiles,
-        browserUrl: options?.browserUrl,
+        relevantFiles: resume?.relevantFiles ?? options?.relevantFiles,
+        browserUrl: resume?.browserUrl ?? options?.browserUrl,
       },
     };
 
@@ -580,86 +587,109 @@ export class FrontAgent {
       this.throwIfAborted(options?.signal);
       this.currentTaskId = task.id;
 
-      const setup = await prepareTaskExecutionSetup({
-        task,
-        originalTaskDescription: taskDescription,
-        skillContext,
-        matchedSkillNames,
-        deps: {
-          config: this.config,
-          sddConfig: this.sddConfig,
-          contextManager: this.contextManager,
-          memoryStore: this.memoryStore,
-          memoryDeps: this.memoryDeps,
-          promptGenerator: this.promptGenerator,
-          workflowIntegration: this.workflowIntegration,
-          planningDeps: {
-            executor: this.executor,
-            ragDeps: this.ragDeps,
-            emitStatus: this.emitStatus.bind(this),
-            debugLog: this.debugLog.bind(this),
-            debugWarn: this.debugWarn.bind(this),
-          },
-          emit: this.emit.bind(this),
-          emitStatus: this.emitStatus.bind(this),
-        },
-      });
-      const { context, planningPreparation } = setup;
+      let executionPlan: ExecutionPlan;
 
-      this.emit({ type: 'planning_started' });
-      this.emitStatus('生成执行计划', 'LLM 规划');
+      if (resume) {
+        this.emitStatus('恢复会话快照', '恢复会话快照');
+        const context = this.contextManager.createContext(task, this.sddConfig);
+        if (resume.factsSnapshot) {
+          this.contextManager.replaceFactsFromSnapshot(task.id, resume.factsSnapshot);
+        }
+        context.messages.push(...resume.messages);
+        // 恢复跨步骤文件上下文：后续代码生成步骤才能看到原运行中已读取的内容
+        for (const [filePath, content] of Object.entries(resume.files ?? {})) {
+          context.collectedContext.files.set(filePath, content);
+        }
 
-      const planResult = await this.planner.plan(
-        task,
-        {
-          files: context.collectedContext.files,
-          pageStructure: context.collectedContext.pageStructure,
-          ragResults: planningPreparation.ragResults,
-          projectStructure: planningPreparation.projectStructure,
-          devServerPort: planningPreparation.devServerPort,
+        // 已完成步骤保留，running/failed 重置为 pending 以便重试
+        executionPlan = {
+          ...resume.plan,
+          steps: resume.plan.steps.map((step) =>
+            step.status === 'completed' ? step : { ...step, status: 'pending' as const },
+          ),
+        };
+      } else {
+        const setup = await prepareTaskExecutionSetup({
+          task,
+          originalTaskDescription: taskDescription,
           skillContext,
           matchedSkillNames,
-          memoryContext: context.collectedContext.memoryContext,
-          projectInstructions: context.collectedContext.projectInstructions,
-          filesense: this.config.filesense,
-        },
-        this.contextManager.getMessages(task.id),
-      );
-      this.rememberPlannerFallback(planResult.fallbackReason);
+          deps: {
+            config: this.config,
+            sddConfig: this.sddConfig,
+            contextManager: this.contextManager,
+            memoryStore: this.memoryStore,
+            memoryDeps: this.memoryDeps,
+            promptGenerator: this.promptGenerator,
+            workflowIntegration: this.workflowIntegration,
+            planningDeps: {
+              executor: this.executor,
+              ragDeps: this.ragDeps,
+              emitStatus: this.emitStatus.bind(this),
+              debugLog: this.debugLog.bind(this),
+              debugWarn: this.debugWarn.bind(this),
+            },
+            emit: this.emit.bind(this),
+            emitStatus: this.emitStatus.bind(this),
+          },
+        });
+        const { context, planningPreparation } = setup;
 
-      if (planResult.needsMoreContext && planResult.contextRequests) {
-        this.emitStatus('补充规划上下文', '读取更多上下文');
-        await this.gatherContext(task.id, planResult.contextRequests);
+        this.emit({ type: 'planning_started' });
+        this.emitStatus('生成执行计划', 'LLM 规划');
 
-        this.emitStatus('重新生成执行计划', 'LLM 重新规划');
-        const retryResult = await this.planner.plan(
+        const planResult = await this.planner.plan(
           task,
           {
             files: context.collectedContext.files,
             pageStructure: context.collectedContext.pageStructure,
-            ragResults: context.collectedContext.ragResults,
-            skillContext: context.collectedContext.skillContext,
-            matchedSkillNames: context.collectedContext.matchedSkillNames,
+            ragResults: planningPreparation.ragResults,
+            projectStructure: planningPreparation.projectStructure,
+            devServerPort: planningPreparation.devServerPort,
+            skillContext,
+            matchedSkillNames,
             memoryContext: context.collectedContext.memoryContext,
             projectInstructions: context.collectedContext.projectInstructions,
             filesense: this.config.filesense,
           },
           this.contextManager.getMessages(task.id),
         );
-        this.rememberPlannerFallback(retryResult.fallbackReason);
+        this.rememberPlannerFallback(planResult.fallbackReason);
 
-        if (!retryResult.plan) {
-          throw new Error(retryResult.rejectionReason ?? '无法生成执行计划');
+        if (planResult.needsMoreContext && planResult.contextRequests) {
+          this.emitStatus('补充规划上下文', '读取更多上下文');
+          await this.gatherContext(task.id, planResult.contextRequests);
+
+          this.emitStatus('重新生成执行计划', 'LLM 重新规划');
+          const retryResult = await this.planner.plan(
+            task,
+            {
+              files: context.collectedContext.files,
+              pageStructure: context.collectedContext.pageStructure,
+              ragResults: context.collectedContext.ragResults,
+              skillContext: context.collectedContext.skillContext,
+              matchedSkillNames: context.collectedContext.matchedSkillNames,
+              memoryContext: context.collectedContext.memoryContext,
+              projectInstructions: context.collectedContext.projectInstructions,
+              filesense: this.config.filesense,
+            },
+            this.contextManager.getMessages(task.id),
+          );
+          this.rememberPlannerFallback(retryResult.fallbackReason);
+
+          if (!retryResult.plan) {
+            throw new Error(retryResult.rejectionReason ?? '无法生成执行计划');
+          }
+
+          planResult.plan = retryResult.plan;
         }
 
-        planResult.plan = retryResult.plan;
-      }
+        if (!planResult.plan) {
+          throw new Error(planResult.rejectionReason ?? '无法生成执行计划');
+        }
 
-      if (!planResult.plan) {
-        throw new Error(planResult.rejectionReason ?? '无法生成执行计划');
+        executionPlan = planResult.plan;
       }
-
-      const executionPlan = planResult.plan;
 
       this.contextManager.setPlan(task.id, executionPlan);
       this.emit({ type: 'planning_completed', plan: executionPlan });
@@ -818,6 +848,27 @@ export class FrontAgent {
 
   private async enqueueFactsUpdate(taskId: string, update: ProjectFactsUpdate): Promise<void> {
     await this.factsUpdateFlusher.enqueue(taskId, update);
+  }
+
+  /**
+   * 导出当前任务的可恢复会话快照；无运行中任务或尚未生成计划时返回 undefined
+   */
+  getSessionSnapshot(): AgentSessionSnapshot | undefined {
+    if (!this.currentTaskId) return undefined;
+    const context = this.contextManager.getContext(this.currentTaskId);
+    if (!context?.plan) return undefined;
+
+    return {
+      taskId: this.currentTaskId,
+      taskDescription: context.task.description,
+      taskType: context.task.type,
+      relevantFiles: context.task.context?.relevantFiles,
+      browserUrl: context.task.context?.browserUrl,
+      plan: context.plan,
+      messages: [...context.messages],
+      factsSnapshot: this.contextManager.exportFactsSnapshot(this.currentTaskId),
+      files: Object.fromEntries(context.collectedContext.files),
+    };
   }
 
   getSDDConfig(): SDDConfig | undefined {

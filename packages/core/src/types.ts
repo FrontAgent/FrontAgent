@@ -66,6 +66,23 @@ export interface AgentPlanResult {
   duration: number;
 }
 
+/**
+ * 可恢复的会话快照：计划、消息历史与事实快照的可序列化集合。
+ * 既是运行期导出的格式，也是 execute 恢复时的输入。
+ */
+export interface AgentSessionSnapshot {
+  taskId: string;
+  taskDescription: string;
+  taskType: AgentTask['type'];
+  relevantFiles?: string[];
+  browserUrl?: string;
+  plan: ExecutionPlan;
+  messages: Message[];
+  factsSnapshot?: ProjectFactsSnapshot;
+  /** 已读取文件内容（collectedContext.files），跨步骤代码生成上下文的载体 */
+  files?: Record<string, string>;
+}
+
 export interface AgentSecurityConfig extends SecurityConfig {
   /** Human approval surface for ask decisions. Missing handler makes ask fail closed. */
   approvalHandler?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;

@@ -7,4 +7,5 @@ export * from './run.js';
 export * from './run-logger.js';
 export * from './sampling-llm.js';
 export * from './sdd.js';
+export * from './session-store.js';
 export * from './settings.js';
