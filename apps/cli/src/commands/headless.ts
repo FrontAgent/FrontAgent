@@ -9,7 +9,7 @@
 import type { AgentEvent, AgentExecutionResult } from '@frontagent/runtime-node';
 import { runFrontAgentTask } from '@frontagent/runtime-node';
 
-export interface DeniedApproval {
+export interface SecurityDenial {
   toolName: string;
   reasonCode: string;
   message: string;
@@ -29,13 +29,28 @@ export interface HeadlessResultPayload {
     status: string;
     error?: string;
   }>;
-  deniedApprovals: DeniedApproval[];
+  /** 已完成的产物文件路径（create_file/apply_patch 的目标） */
+  artifacts: string[];
+  /** 所有被安全管线拒绝的调用（含 fail-closed 审批与显式 deny 规则） */
+  securityDenials: SecurityDenial[];
   runLogPath: string | null;
+}
+
+const ARTIFACT_ACTIONS = new Set(['create_file', 'apply_patch']);
+
+function collectArtifacts(result: AgentExecutionResult): string[] {
+  const artifacts = new Set<string>();
+  for (const step of result.executedSteps ?? []) {
+    if (step.status !== 'completed' || !ARTIFACT_ACTIONS.has(step.action)) continue;
+    const path = (step.params as { path?: unknown } | undefined)?.path;
+    if (typeof path === 'string' && path) artifacts.add(path);
+  }
+  return Array.from(artifacts);
 }
 
 export function buildHeadlessPayload(
   result: AgentExecutionResult,
-  deniedApprovals: DeniedApproval[],
+  securityDenials: SecurityDenial[],
   runLogPath: string | null,
 ): HeadlessResultPayload {
   return {
@@ -52,16 +67,17 @@ export function buildHeadlessPayload(
       status: step.status,
       error: step.result?.error,
     })),
-    deniedApprovals,
+    artifacts: collectArtifacts(result),
+    securityDenials,
     runLogPath,
   };
 }
 
-export function collectDeniedApproval(event: AgentEvent, sink: DeniedApproval[]): void {
+/** 记录所有 deny 决策：fail-closed 审批、显式 deny 规则等失败原因都进结果文档 */
+export function collectSecurityDenial(event: AgentEvent, sink: SecurityDenial[]): void {
   if (event.type !== 'security_decision') return;
   const decision = event.decision;
   if (decision.decision !== 'deny') return;
-  if (decision.reasonCode !== 'security_approval_unavailable') return;
   sink.push({
     toolName: decision.toolName,
     reasonCode: decision.reasonCode,
@@ -106,7 +122,7 @@ export async function runHeadlessCommand(
     return 1;
   }
   const outputJson = outputFormat === 'json';
-  const deniedApprovals: DeniedApproval[] = [];
+  const securityDenials: SecurityDenial[] = [];
   let runLogPath: string | null = null;
 
   // JSON 模式下 stdout 只承载最终结果文档：运行期不仅重定向 console，
@@ -138,7 +154,7 @@ export async function runHeadlessCommand(
       onRunLogPath: (path) => {
         runLogPath = path;
       },
-      onEvent: (event) => collectDeniedApproval(event, deniedApprovals),
+      onEvent: (event) => collectSecurityDenial(event, securityDenials),
       // 不提供 onApprovalRequest：未被规则放行的敏感调用 fail-closed 拒绝
     });
   } catch (error) {
@@ -157,7 +173,7 @@ export async function runHeadlessCommand(
     process.stdout.write = originalStdoutWrite;
   }
 
-  const payload = buildHeadlessPayload(result, deniedApprovals, runLogPath);
+  const payload = buildHeadlessPayload(result, securityDenials, runLogPath);
   if (outputJson) {
     deps.stdout(JSON.stringify(payload));
   } else {
@@ -165,8 +181,8 @@ export async function runHeadlessCommand(
       payload.success ? '✅ 任务执行成功' : `❌ 任务失败：${payload.error ?? '未知错误'}`,
     );
     if (payload.output) deps.stdout(payload.output);
-    if (deniedApprovals.length > 0) {
-      deps.stderr(`被拒绝的敏感调用：${deniedApprovals.map((d) => d.toolName).join(', ')}`);
+    if (securityDenials.length > 0) {
+      deps.stderr(`被安全管线拒绝的调用：${securityDenials.map((d) => d.toolName).join(', ')}`);
     }
   }
   return payload.success ? 0 : 1;
