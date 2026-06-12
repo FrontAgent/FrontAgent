@@ -267,20 +267,24 @@ describe('runFrontAgentTask orchestration', () => {
     expect(statuses).toContain('failed');
   });
 
-  it('drains hooks then persists the final status before the logger closes', async () => {
+  it('drains taskComplete hooks before the logger closes, and persists the final status', async () => {
     await runWith(baseOptions(), (agent) => {
       agent.emit({ type: 'task_completed', result: SUCCESS_RESULT } as AgentEvent);
       for (const d of pendingHookDeferreds) d.resolve();
       agent.resolveExecute(SUCCESS_RESULT);
     });
 
-    // Session persistence (completed) happens during event dispatch, before the
-    // finally-block hook drain + logger close.
-    const persistIdx = order.indexOf('persist:completed');
-    const closeIdx = order.indexOf('logger.close');
-    expect(persistIdx).toBeGreaterThanOrEqual(0);
-    expect(persistIdx).toBeLessThan(closeIdx);
-    expect(order.indexOf('hook.settled')).toBeLessThan(closeIdx);
+    // The contractual finally-block ordering (Issue #308): the pending
+    // taskComplete hooks are drained before runLogger.close() is awaited.
+    expect(order.indexOf('hook.settled')).toBeLessThan(order.indexOf('logger.close'));
+    // The final 'completed' status is persisted. NOTE: in the current run.ts,
+    // session persistence is driven by the terminal-event listener (i.e. during
+    // agent.execute dispatch), not by the finally block — so we assert that the
+    // final status is recorded, but deliberately do NOT pin its position relative
+    // to logger.close(). If persistence ever moves into the finally block after
+    // close (per the Issue's idealized "logger closed → session persisted"
+    // wording), this test must keep passing.
+    expect(order).toContain('persist:completed');
   });
 
   it('routes enableProjectHooks into shouldEnableProjectHooks gating', async () => {
