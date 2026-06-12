@@ -339,6 +339,20 @@ describe('runHeadlessCommand', () => {
     }
   });
 
+  it('restores the exact process.stdout.write identity after both modes', async () => {
+    const before = process.stdout.write;
+
+    const json = makeDeps(makeResult());
+    await runHeadlessCommand('build it', { output: 'json' }, json.deps);
+    expect(process.stdout.write).toBe(before);
+
+    const text = makeDeps(makeResult());
+    await runHeadlessCommand('build it', { output: 'text' }, text.deps);
+    // text 模式从不改写全局函数，身份保持严格相等
+    expect(process.stdout.write).toBe(before);
+    expect(console.log).toBe(console.log);
+  });
+
   it('returns exit code 1 when the task fails', async () => {
     const { deps, stdoutLines } = makeDeps(makeResult({ success: false, error: 'step failed' }));
 

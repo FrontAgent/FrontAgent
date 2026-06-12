@@ -179,13 +179,15 @@ export async function runHeadlessCommand(
   // JSON 模式下 stdout 只承载最终结果文档：运行期不仅重定向 console，
   // 还拦截 process.stdout.write 本身——runtime/工具/第三方库的直接
   // stdout 写入全部转到 stderr。任务结束、流恢复之后才输出最终文档。
+  // 保存未绑定的原始引用：恢复时保持函数身份不变，
+  // 且只在 JSON 模式实际改写后恢复，text 模式不触碰全局函数
   const originalConsole = {
     log: console.log,
     info: console.info,
     warn: console.warn,
     debug: console.debug,
   };
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalStdoutWrite = process.stdout.write;
   if (outputJson) {
     console.log = (...args: unknown[]) => console.error(...args);
     console.info = (...args: unknown[]) => console.error(...args);
@@ -225,11 +227,13 @@ export async function runHeadlessCommand(
       validations: [],
     };
   } finally {
-    console.log = originalConsole.log;
-    console.info = originalConsole.info;
-    console.warn = originalConsole.warn;
-    console.debug = originalConsole.debug;
-    process.stdout.write = originalStdoutWrite;
+    if (outputJson) {
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.warn = originalConsole.warn;
+      console.debug = originalConsole.debug;
+      process.stdout.write = originalStdoutWrite;
+    }
   }
 
   const payload = buildHeadlessPayload(result, deniedApprovals, runLogPath);
