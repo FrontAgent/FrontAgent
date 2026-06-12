@@ -155,7 +155,10 @@ export function listSessionRecords(projectRoot: string): SessionRecord[] {
   return records.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-/** 最近一个未完成（running）的会话；completed/failed 不参与默认恢复 */
+/**
+ * 最近一个可恢复的会话：只有 completed 被排除——
+ * 中断（running）与失败（failed）的最新快照都可以用 --resume 继续
+ */
 export function findLatestResumableSession(projectRoot: string): SessionRecord | undefined {
-  return listSessionRecords(projectRoot).find((record) => record.status === 'running');
+  return listSessionRecords(projectRoot).find((record) => record.status !== 'completed');
 }

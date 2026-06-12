@@ -213,4 +213,26 @@ describe('session store', () => {
     saveSessionRecord(projectRoot, makeRecord({ status: 'completed' }));
     expect(findLatestResumableSession(projectRoot)).toBeUndefined();
   });
+
+  it('resumes the most recent failed session by default', () => {
+    saveSessionRecord(
+      projectRoot,
+      makeRecord({
+        sessionId: 'session-completed',
+        status: 'completed',
+        updatedAt: '2026-06-12T10:00:00.000Z',
+      }),
+    );
+    saveSessionRecord(
+      projectRoot,
+      makeRecord({
+        sessionId: 'session-failed',
+        status: 'failed',
+        updatedAt: '2026-06-12T09:00:00.000Z',
+      }),
+    );
+
+    // 失败任务留下的最新快照默认可恢复；只有 completed 被排除
+    expect(findLatestResumableSession(projectRoot)?.sessionId).toBe('session-failed');
+  });
 });
