@@ -9,6 +9,13 @@ import type {
   ProjectFactsUpdate,
   RagContextMatch,
 } from '../types.js';
+import {
+  applyZoneBudgets,
+  type ContextBudgetConfig,
+  compactMessageHistory,
+  type PromptZone,
+  serializeZones,
+} from './budget.js';
 import { serializeProjectFactsForLLM } from './fact-serializer.js';
 import {
   exportProjectFactsSnapshot,
@@ -22,8 +29,17 @@ import { updateModuleDependencyGraphFromToolResult } from './module-dependency-g
 /**
  * 上下文管理器
  */
+export interface ContextManagerOptions {
+  budget?: ContextBudgetConfig;
+}
+
 export class ContextManager {
   private contexts: Map<string, AgentContext> = new Map();
+  private readonly budgetConfig?: ContextBudgetConfig;
+
+  constructor(options?: ContextManagerOptions) {
+    this.budgetConfig = options?.budget;
+  }
 
   /**
    * 创建新的上下文
@@ -186,12 +202,20 @@ export class ContextManager {
   }
 
   /**
-   * 添加消息
+   * 添加消息；超过阈值时把较早的消息压缩为摘要
    */
   addMessage(taskId: string, message: Message): void {
     const context = this.contexts.get(taskId);
-    if (context) {
-      context.messages.push(message);
+    if (!context) return;
+
+    context.messages.push(message);
+
+    const compaction = compactMessageHistory(
+      context.messages,
+      this.budgetConfig?.historyCompaction,
+    );
+    if (compaction.compacted) {
+      context.messages = compaction.messages;
     }
   }
 
@@ -220,22 +244,36 @@ export class ContextManager {
   buildSystemPrompt(taskId: string, sddPrompt: string): string {
     const context = this.contexts.get(taskId);
     if (!context) {
-      return sddPrompt;
+      // rules-only 回退路径同样受 rules 预算约束，不能绕过截断
+      return serializeZones(
+        applyZoneBudgets([{ name: 'rules', content: sddPrompt }], this.budgetConfig),
+      );
     }
 
-    const zones: string[] = [];
+    const zones: PromptZone[] = [];
 
     // --- Zone 1: Rules (SDD constraints) ---
-    zones.push(sddPrompt);
+    zones.push({ name: 'rules', content: sddPrompt });
+
+    // --- Zone 1.5: Project instructions (layered AGENTS.md/CLAUDE.md, soft guidance) ---
+    if (context.collectedContext.projectInstructions) {
+      zones.push({
+        name: 'instructions',
+        content: `\n${context.collectedContext.projectInstructions}`,
+      });
+    }
 
     // --- Zone 2: Memory (durable cross-session knowledge) ---
     if (context.collectedContext.memoryContext) {
-      zones.push(`\n${context.collectedContext.memoryContext}`);
+      zones.push({ name: 'memory', content: `\n${context.collectedContext.memoryContext}` });
     }
 
     // --- Zone 2.5: Filesense (directory structure awareness) ---
     if (context.collectedContext.filesenseContext) {
-      zones.push(`\n## 目录导航 (Filesense)\n${context.collectedContext.filesenseContext}`);
+      zones.push({
+        name: 'filesense',
+        content: `\n## 目录导航 (Filesense)\n${context.collectedContext.filesenseContext}`,
+      });
     }
 
     // --- Zone 3: Context (dynamic per-task data) ---
@@ -258,10 +296,10 @@ export class ContextManager {
     }
 
     if (contextParts.length > 0) {
-      zones.push(contextParts.join('\n'));
+      zones.push({ name: 'context', content: contextParts.join('\n') });
     }
 
-    return zones.join('\n');
+    return serializeZones(applyZoneBudgets(zones, this.budgetConfig));
   }
 
   /**
@@ -581,6 +619,6 @@ export class ContextManager {
 /**
  * 创建上下文管理器实例
  */
-export function createContextManager(): ContextManager {
-  return new ContextManager();
+export function createContextManager(options?: ContextManagerOptions): ContextManager {
+  return new ContextManager(options);
 }

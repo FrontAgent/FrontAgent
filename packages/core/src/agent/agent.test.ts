@@ -86,6 +86,32 @@ describe('createAgent', () => {
     agent.removeEventListener(listener);
   });
 
+  it('accepts context budget configuration', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      contextBudget: {
+        zoneBudgets: { memory: 8000 },
+        historyCompaction: { threshold: 30, keepRecent: 10 },
+      },
+    });
+    expect(agent).toBeDefined();
+  });
+
+  it('accepts declarative permission rules and a persist callback in security config', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      security: {
+        interactive: true,
+        permissions: { allow: ['run_command(pnpm test:*)'], deny: ['run_command(rm *)'] },
+        approvalHandler: async () => ({ approved: true, alwaysAllow: true }),
+        onPersistAllowRule: () => {},
+      },
+    });
+    expect(agent).toBeDefined();
+  });
+
   it('returns planner and executor skill snapshots', () => {
     const agent = createAgent({
       projectRoot: '/test',

@@ -16,6 +16,8 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
       const lower = input.toLowerCase();
       if (lower === 'y') {
         store.resolveApproval(approval.approvalId, true);
+      } else if (lower === 'a') {
+        store.resolveApproval(approval.approvalId, true, true);
       } else if (lower === 'n' || input === '\r' || input === '\n') {
         store.resolveApproval(approval.approvalId, false);
       }
@@ -46,6 +48,11 @@ export function ApprovalPrompt({ store }: ApprovalPromptProps) {
             <Text bold color="green">
               y
             </Text>
+            <Text dimColor>/</Text>
+            <Text bold color="cyan">
+              a
+            </Text>
+            <Text dimColor>(始终允许)</Text>
             <Text dimColor>/</Text>
             <Text bold color="red">
               N

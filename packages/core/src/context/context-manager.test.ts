@@ -224,6 +224,34 @@ describe('ContextManager', () => {
     });
   });
 
+  describe('message history compaction', () => {
+    it('compacts older messages past the threshold while keeping recent turns', () => {
+      const manager = new ContextManager({
+        budget: { historyCompaction: { threshold: 10, keepRecent: 4 } },
+      });
+      manager.createContext(makeTask({ id: 't1' }));
+      manager.addMessage('t1', { role: 'system', content: 'sdd prompt' });
+      for (let i = 0; i < 15; i++) {
+        manager.addMessage('t1', { role: 'user', content: `message ${i}` });
+      }
+
+      const messages = manager.getMessages('t1');
+      expect(messages.length).toBeLessThan(16);
+      expect(messages[0].content).toBe('sdd prompt');
+      expect(messages[1].content).toContain('## 历史消息摘要');
+      expect(messages.at(-1)?.content).toBe('message 14');
+    });
+
+    it('does not compact below the threshold', () => {
+      const manager = new ContextManager();
+      manager.createContext(makeTask({ id: 't1' }));
+      for (let i = 0; i < 5; i++) {
+        manager.addMessage('t1', { role: 'user', content: `message ${i}` });
+      }
+      expect(manager.getMessages('t1')).toHaveLength(5);
+    });
+  });
+
   describe('buildSystemPrompt', () => {
     it('returns sddPrompt when context not found', () => {
       const manager = new ContextManager();
@@ -253,6 +281,53 @@ describe('ContextManager', () => {
       const prompt = manager.buildSystemPrompt('t1', 'rules');
       expect(prompt).toContain('已执行的步骤');
       expect(prompt).toContain('Create file');
+    });
+
+    it('keeps the final serialized prompt within the total budget', () => {
+      const manager = new ContextManager({
+        budget: {
+          zoneBudgets: { rules: 5000, memory: 5000 },
+          totalBudget: 400,
+        },
+      });
+      manager.createContext(makeTask({ id: 't1' }));
+      const ctx = manager.getContext('t1')!;
+      ctx.collectedContext.memoryContext = 'm'.repeat(1000);
+      const prompt = manager.buildSystemPrompt('t1', 'r'.repeat(1000));
+      expect(prompt.length).toBeLessThanOrEqual(400);
+    });
+
+    it('applies the rules budget even when the task context is missing', () => {
+      const manager = new ContextManager({
+        budget: { zoneBudgets: { rules: 80 } },
+      });
+      const prompt = manager.buildSystemPrompt('nonexistent', 'r'.repeat(500));
+      expect(prompt.length).toBeLessThanOrEqual(80);
+      expect(prompt).toContain('[已截断：rules zone 超出 80 字符预算]');
+    });
+
+    it('truncates over-budget zones with explicit markers', () => {
+      const manager = new ContextManager({
+        budget: { zoneBudgets: { memory: 50 } },
+      });
+      manager.createContext(makeTask({ id: 't1' }));
+      const ctx = manager.getContext('t1')!;
+      ctx.collectedContext.memoryContext = `## Memory\n${'m'.repeat(500)}`;
+      const prompt = manager.buildSystemPrompt('t1', 'rules');
+      expect(prompt).toContain('[已截断：memory zone 超出 50 字符预算]');
+      expect(prompt).toContain('rules');
+    });
+
+    it('includes project instructions zone after rules and before memory', () => {
+      const manager = new ContextManager();
+      manager.createContext(makeTask({ id: 't1' }));
+      const ctx = manager.getContext('t1')!;
+      ctx.collectedContext.projectInstructions = '## 项目指令 (Project Instructions)\nUse pnpm';
+      ctx.collectedContext.memoryContext = '## Memory\nKnown facts';
+      const prompt = manager.buildSystemPrompt('t1', 'SDD rules');
+      expect(prompt).toContain('Use pnpm');
+      expect(prompt.indexOf('SDD rules')).toBeLessThan(prompt.indexOf('Use pnpm'));
+      expect(prompt.indexOf('Use pnpm')).toBeLessThan(prompt.indexOf('Known facts'));
     });
 
     it('includes memory context when set', () => {
