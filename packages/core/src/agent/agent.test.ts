@@ -98,6 +98,14 @@ describe('createAgent', () => {
     expect(agent).toBeDefined();
   });
 
+  it('returns undefined session snapshot when no task is running', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+    });
+    expect(agent.getSessionSnapshot()).toBeUndefined();
+  });
+
   it('accepts context budget configuration', () => {
     const agent = createAgent({
       projectRoot: '/test',
@@ -145,6 +153,53 @@ describe('createAgent', () => {
     const failed = events.find((event) => event.type === 'task_failed');
     expect(failed?.taskId).toBeTruthy();
     expect(failed?.taskId).toBe(started?.task?.id);
+  });
+
+  it('restores file context from a resume snapshot and skips completed steps', async () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+    });
+
+    let midRunSnapshot: ReturnType<typeof agent.getSessionSnapshot>;
+    agent.addEventListener((event) => {
+      if (event.type === 'planning_completed') {
+        midRunSnapshot = agent.getSessionSnapshot();
+      }
+    });
+
+    // 计划里所有步骤均已完成：无需 MCP client，任何真实执行都会抛错
+    const result = await agent.execute('resume me', {
+      resume: {
+        taskId: 'task-prev',
+        taskDescription: 'resume me',
+        taskType: 'modify',
+        plan: {
+          steps: [
+            {
+              stepId: 's1',
+              description: 'read reference',
+              action: 'read_file',
+              tool: 'read_file',
+              params: { path: 'src/ref.ts' },
+              dependencies: [],
+              validation: [],
+              status: 'completed',
+            },
+          ],
+          reasoning: 'plan',
+          estimatedDuration: 1000,
+        },
+        messages: [{ role: 'user', content: 'earlier turn' }],
+        files: { 'src/ref.ts': 'export const REF = 1;' },
+      },
+    });
+
+    // 已完成步骤被跳过（未注册任何 MCP client 仍成功），文件上下文已恢复
+    expect(result.success).toBe(true);
+    expect(result.executedSteps[0]?.status).toBe('completed');
+    expect(midRunSnapshot?.files).toMatchObject({ 'src/ref.ts': 'export const REF = 1;' });
+    expect(midRunSnapshot?.messages.some((m) => m.content === 'earlier turn')).toBe(true);
   });
 
   it('returns planner and executor skill snapshots', () => {

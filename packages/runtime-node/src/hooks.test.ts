@@ -97,6 +97,19 @@ describe('runHookCommand', () => {
     expect(result.exitCode).toBe(0);
   });
 
+  it('caps stderr accumulation while the command is still running', async () => {
+    // 持续产出 ~2MB stderr 的命令：采集必须在 data handler 内有界
+    const result = await runHookCommand(
+      'i=0; while [ $i -lt 2000 ]; do printf "%01000d" 0 >&2; i=$((i+1)); done; exit 3',
+      {},
+      10_000,
+      process.cwd(),
+    );
+
+    expect(result.exitCode).toBe(3);
+    expect(result.stderr.length).toBeLessThanOrEqual(4000);
+  });
+
   it('kills the command on timeout', async () => {
     const result = await runHookCommand('sleep 5', {}, 200, process.cwd());
     expect(result.timedOut).toBe(true);

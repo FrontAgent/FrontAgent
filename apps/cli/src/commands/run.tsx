@@ -33,6 +33,12 @@ function isDebugEnabled(value: unknown): boolean {
 }
 
 export default async function runCommand(task: string, options: Record<string, unknown>) {
+  if (options.nonInteractive) {
+    const { runHeadlessCommand } = await import('./headless.js');
+    process.exitCode = await runHeadlessCommand(task, options);
+    return;
+  }
+
   const projectRoot = process.cwd();
   const sddPath = resolve(projectRoot, options.sdd as string);
   const debug = isDebugEnabled(options.debug);
@@ -62,6 +68,7 @@ export default async function runCommand(task: string, options: Record<string, u
       url: options.url as string | undefined,
       runLog: options.runLog as boolean | undefined,
       enableProjectHooks: options.enableHooks as boolean | undefined,
+      resumeSession: options.resume as string | boolean | undefined,
       filterConsole: true,
       debug,
       onRunLogPath: (runLogPath) => {

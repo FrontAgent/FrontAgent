@@ -102,7 +102,7 @@ describe('CLI command router', () => {
     const { stdout, stderr } = await parseWithCapturedOutput(program, ['--help']);
 
     expect(stdout).toContain('FrontAgent');
-    expect(stdout).toContain('run [options] <task>');
+    expect(stdout).toContain('run [options] [task]');
     expect(stderr).toBe('');
     expectNoHandlerCalls(handlers);
   });
@@ -154,6 +154,23 @@ describe('CLI command router', () => {
     expect(handlers.prompt).not.toHaveBeenCalled();
     expect(handlers.mcpServe).not.toHaveBeenCalled();
     expect(handlers.info).not.toHaveBeenCalled();
+  });
+
+  it('routes fa run --non-interactive --output json flags to the run handler', async () => {
+    const run = vi.fn(async (_task: string, _options: Record<string, unknown>) => {});
+    const handlers = createHandlerSpies({ run });
+    const program = createCliProgram({ version: '1.2.3', handlers });
+
+    await program.parseAsync(
+      ['node', 'fa', 'run', 'ship it', '--non-interactive', '--output', 'json'],
+      { from: 'node' },
+    );
+
+    expect(run).toHaveBeenCalledOnce();
+    expect(run.mock.calls[0]?.[1]).toMatchObject({
+      nonInteractive: true,
+      output: 'json',
+    });
   });
 
   it('keeps production version and help paths cheap after extension command registration', async () => {

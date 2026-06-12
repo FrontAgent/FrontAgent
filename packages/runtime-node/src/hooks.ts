@@ -79,6 +79,9 @@ function normalizeCommands(value: string | string[] | undefined): string[] {
 /** 超时后等待 close 确认清理的兜底毫秒数 */
 const KILL_GRACE_MS = 1_000;
 
+/** stderr 采集上限（字符）：在 data handler 内增量截断，运行期内存有界 */
+const STDERR_CAP = 4_000;
+
 function killHookProcessTree(child: ReturnType<typeof spawn>): void {
   if (!child.pid) {
     child.kill('SIGKILL');
@@ -136,7 +139,7 @@ export function runHookCommand(
       resolvePromise({
         command,
         exitCode,
-        stderr: stderr.slice(0, 4000),
+        stderr,
         timedOut,
         durationMs: Date.now() - startedAt,
       });
@@ -150,7 +153,9 @@ export function runHookCommand(
     }, timeoutMs);
 
     child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf-8');
+      // 增量截断：达到上限后丢弃后续 chunk，避免长时间运行的 hook 撑爆内存
+      if (stderr.length >= STDERR_CAP) return;
+      stderr += chunk.toString('utf-8').slice(0, STDERR_CAP - stderr.length);
     });
     child.on('error', (error) => {
       stderr += String(error);

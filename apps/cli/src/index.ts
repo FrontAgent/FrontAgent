@@ -117,7 +117,10 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
   program
     .command('run')
     .description('运行 Agent 任务')
-    .argument('<task>', '任务描述')
+    .argument('[task]', '任务描述（使用 --resume 恢复会话时可省略）')
+    .option('--resume [sessionId]', '恢复最近未完成的会话，或指定 sessionId 恢复')
+    .option('--non-interactive', '无头模式：不渲染 TUI、不弹审批，未放行的敏感调用直接拒绝', false)
+    .option('--output <format>', '结果输出格式 (text/json)；json 时 stdout 只输出结果文档', 'text')
     .option(
       '--enable-hooks',
       '启用项目内 .frontagent/settings.json 的生命周期 hooks（默认关闭，仓库配置不自动执行 shell）',
@@ -364,7 +367,10 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
     .option('--no-run-log', '关闭默认运行日志')
     .option('--debug', '启用调试模式', false)
     .action(async (task, options) => {
-      await handlers.run(task, options);
+      if (!task && !options.resume) {
+        throw new Error('缺少任务描述：请提供 <task> 参数，或使用 --resume 恢复会话。');
+      }
+      await handlers.run(task ?? '', options);
     });
 
   // ── mcp serve ──────────────────────────────────────────────────────

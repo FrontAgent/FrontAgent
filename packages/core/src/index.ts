@@ -116,6 +116,7 @@ export type {
   AgentLifecycleHooks,
   AgentPlanResult,
   AgentSecurityConfig,
+  AgentSessionSnapshot,
   ContextInfo,
   ContextRequest,
   ExecutorOutput,
