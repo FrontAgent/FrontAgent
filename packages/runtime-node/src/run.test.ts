@@ -197,7 +197,7 @@ async function runWith(
 }
 
 describe('runFrontAgentTask orchestration', () => {
-  it('drains taskComplete hooks before closing the run logger on success', async () => {
+  it('enforces the full shutdown ordering on the success path: hooks drained → logger closed → session persisted', async () => {
     const result = await runWith(baseOptions(), (agent) => {
       agent.emit({ type: 'task_completed', result: SUCCESS_RESULT } as AgentEvent);
       // The hook drain promise is now pending; resolve it slightly later so the
@@ -210,13 +210,22 @@ describe('runFrontAgentTask orchestration', () => {
 
     expect(result.success).toBe(true);
     expect(runTaskCompleteHooks).toHaveBeenCalledTimes(1);
-    // Ordering: the pending hook settles, THEN the logger is closed.
-    expect(order.indexOf('hook.settled')).toBeLessThan(order.indexOf('logger.close'));
     expect(loggerClose).toHaveBeenCalledTimes(1);
     expect(webClose).toHaveBeenCalledTimes(1);
+
+    // Issue #308 acceptance ordering: taskComplete hooks drained, THEN the run
+    // logger is closed, THEN the FINAL session status is persisted. The final
+    // persist is the last persist:* entry (an earlier one is written by the
+    // terminal-event listener during dispatch).
+    const hookIdx = order.indexOf('hook.settled');
+    const closeIdx = order.indexOf('logger.close');
+    const finalPersistIdx = order.lastIndexOf('persist:completed');
+    expect(hookIdx).toBeGreaterThanOrEqual(0);
+    expect(hookIdx).toBeLessThan(closeIdx);
+    expect(closeIdx).toBeLessThan(finalPersistIdx);
   });
 
-  it('awaits runLogger.close() in the finally path when execute throws', async () => {
+  it('enforces the full shutdown ordering when execute throws: hooks drained → logger closed → failed session persisted', async () => {
     const result = await runWith(baseOptions(), (agent) => {
       // task_failed fires, enqueueing a taskComplete hook, then execute rejects.
       agent.emit({ type: 'task_failed', error: 'boom', taskId: 't-err' } as AgentEvent);
@@ -229,8 +238,27 @@ describe('runFrontAgentTask orchestration', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('boom');
     expect(runTaskCompleteHooks).toHaveBeenCalledTimes(1);
-    expect(order.indexOf('hook.settled')).toBeLessThan(order.indexOf('logger.close'));
     expect(loggerClose).toHaveBeenCalledTimes(1);
+
+    const hookIdx = order.indexOf('hook.settled');
+    const closeIdx = order.indexOf('logger.close');
+    const finalPersistIdx = order.lastIndexOf('persist:failed');
+    expect(hookIdx).toBeLessThan(closeIdx);
+    expect(closeIdx).toBeLessThan(finalPersistIdx);
+  });
+
+  it('persists a terminal failed status after close even when execute throws without emitting a terminal event', async () => {
+    // No task_failed/task_completed event is emitted; execute simply rejects.
+    // The finally block must still persist a terminal (failed) status so the
+    // session never stays stuck at "running".
+    await runWith(baseOptions(), (agent) => {
+      agent.rejectExecute(new Error('crash before any terminal event'));
+    });
+
+    const statuses = saveSessionRecord.mock.calls.map((c) => c[1].status);
+    expect(statuses).toEqual(['failed']);
+    // And it is written after the logger closes.
+    expect(order.indexOf('logger.close')).toBeLessThan(order.lastIndexOf('persist:failed'));
   });
 
   it('persists session snapshots on planning, step, and terminal events', async () => {
@@ -252,8 +280,10 @@ describe('runFrontAgentTask orchestration', () => {
     });
 
     const statuses = saveSessionRecord.mock.calls.map((c) => c[1].status);
-    // planning_completed, step_completed, step_failed → running; task_completed → completed
-    expect(statuses).toEqual(['running', 'running', 'running', 'completed']);
+    // planning_completed, step_completed, step_failed → running (listener);
+    // task_completed → completed (listener); then the finally block re-persists
+    // the final completed status after the logger closes.
+    expect(statuses).toEqual(['running', 'running', 'running', 'completed', 'completed']);
   });
 
   it('persists a failed status on task_failed', async () => {
@@ -265,26 +295,6 @@ describe('runFrontAgentTask orchestration', () => {
 
     const statuses = saveSessionRecord.mock.calls.map((c) => c[1].status);
     expect(statuses).toContain('failed');
-  });
-
-  it('drains taskComplete hooks before the logger closes, and persists the final status', async () => {
-    await runWith(baseOptions(), (agent) => {
-      agent.emit({ type: 'task_completed', result: SUCCESS_RESULT } as AgentEvent);
-      for (const d of pendingHookDeferreds) d.resolve();
-      agent.resolveExecute(SUCCESS_RESULT);
-    });
-
-    // The contractual finally-block ordering (Issue #308): the pending
-    // taskComplete hooks are drained before runLogger.close() is awaited.
-    expect(order.indexOf('hook.settled')).toBeLessThan(order.indexOf('logger.close'));
-    // The final 'completed' status is persisted. NOTE: in the current run.ts,
-    // session persistence is driven by the terminal-event listener (i.e. during
-    // agent.execute dispatch), not by the finally block — so we assert that the
-    // final status is recorded, but deliberately do NOT pin its position relative
-    // to logger.close(). If persistence ever moves into the finally block after
-    // close (per the Issue's idealized "logger closed → session persisted"
-    // wording), this test must keep passing.
-    expect(order).toContain('persist:completed');
   });
 
   it('routes enableProjectHooks into shouldEnableProjectHooks gating', async () => {

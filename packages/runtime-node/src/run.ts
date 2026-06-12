@@ -283,6 +283,9 @@ export async function runFrontAgentTask(
       runLogger?.error(error);
     }
   };
+  // 收尾阶段要落的最终状态：默认 failed，使 execute 直接抛出（未发出终止事件）时
+  // 会话仍被标记为终止态而非永远停留在 running。
+  let finalSessionStatus: SessionStatus = 'failed';
   agent.addEventListener((event) => {
     if (
       event.type === 'planning_completed' ||
@@ -291,8 +294,10 @@ export async function runFrontAgentTask(
     ) {
       persistSession('running');
     } else if (event.type === 'task_completed') {
-      persistSession(event.result.success ? 'completed' : 'failed');
+      finalSessionStatus = event.result.success ? 'completed' : 'failed';
+      persistSession(finalSessionStatus);
     } else if (event.type === 'task_failed') {
+      finalSessionStatus = 'failed';
       persistSession('failed');
     }
   });
@@ -375,6 +380,9 @@ export async function runFrontAgentTask(
       runLogger?.event({ type: 'status_update', label: '收尾完成' });
       restoreConsole();
       await runLogger?.close();
+      // 终止顺序：taskComplete hooks drain → runLogger.close() → 持久化最终会话状态。
+      // 在 logger 关闭后落最终状态，并保证即便 execute 直接抛出也写入终止态。
+      persistSession(finalSessionStatus);
     }
   }
 }
