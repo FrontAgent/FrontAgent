@@ -228,10 +228,14 @@ export async function runFrontAgentTask(
   });
 
   // taskComplete hooks：任务结束事件触发，失败仅记录不影响结果；
-  // promise 收集到 pending 列表，在任务收尾阶段 drain，保证返回前执行完并写入运行日志
+  // promise 收集到 pending 列表，在任务收尾阶段 drain，保证返回前执行完并写入运行日志。
+  // task_failed 事件本身不带 taskId，从 task_started 捕获真实任务标识。
   const pendingTaskCompleteHooks: Promise<void>[] = [];
+  let currentTaskId = '';
   agent.addEventListener((event) => {
-    if (event.type === 'task_completed') {
+    if (event.type === 'task_started') {
+      currentTaskId = event.task.id;
+    } else if (event.type === 'task_completed') {
       pendingTaskCompleteHooks.push(
         runTaskCompleteHooks(hooksInput, {
           event: 'taskComplete',
@@ -244,7 +248,7 @@ export async function runFrontAgentTask(
       pendingTaskCompleteHooks.push(
         runTaskCompleteHooks(hooksInput, {
           event: 'taskComplete',
-          taskId: '',
+          taskId: currentTaskId,
           success: false,
           error: event.error,
         }).catch((error) => runLogger?.error(error)),

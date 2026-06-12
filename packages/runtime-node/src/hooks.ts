@@ -80,16 +80,32 @@ function normalizeCommands(value: string | string[] | undefined): string[] {
 const KILL_GRACE_MS = 1_000;
 
 function killHookProcessTree(child: ReturnType<typeof spawn>): void {
-  // detached 模式下 shell 是进程组组长，杀整个进程组以终止其后代
-  if (process.platform !== 'win32' && child.pid) {
+  if (!child.pid) {
+    child.kill('SIGKILL');
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    // Windows 没有进程组语义：用 taskkill /T 递归终止整棵进程树
     try {
-      process.kill(-child.pid, 'SIGKILL');
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+      });
+      killer.on('error', () => child.kill('SIGKILL'));
       return;
     } catch {
-      // 进程组可能已退出，回退到直接 kill
+      child.kill('SIGKILL');
+      return;
     }
   }
-  child.kill('SIGKILL');
+
+  // POSIX：detached 模式下 shell 是进程组组长，杀整个进程组以终止其后代
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch {
+    // 进程组可能已退出，回退到直接 kill
+    child.kill('SIGKILL');
+  }
 }
 
 export function runHookCommand(
