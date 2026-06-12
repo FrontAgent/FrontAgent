@@ -94,6 +94,18 @@ describe('createAgent', () => {
     expect(agent.getSessionSnapshot()).toBeUndefined();
   });
 
+  it('accepts context budget configuration', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      contextBudget: {
+        zoneBudgets: { memory: 8000 },
+        historyCompaction: { threshold: 30, keepRecent: 10 },
+      },
+    });
+    expect(agent).toBeDefined();
+  });
+
   it('accepts declarative permission rules and a persist callback in security config', () => {
     const agent = createAgent({
       projectRoot: '/test',

@@ -73,7 +73,7 @@ export class FrontAgent {
 
   constructor(config: AgentConfig) {
     this.config = config;
-    this.contextManager = new ContextManager();
+    this.contextManager = new ContextManager({ budget: config.contextBudget });
     this.factsUpdateFlusher = new FactsUpdateFlusher({
       contextManager: this.contextManager,
       debugLog: this.debugLog.bind(this),
