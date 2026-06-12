@@ -596,6 +596,10 @@ export class FrontAgent {
           this.contextManager.replaceFactsFromSnapshot(task.id, resume.factsSnapshot);
         }
         context.messages.push(...resume.messages);
+        // 恢复跨步骤文件上下文：后续代码生成步骤才能看到原运行中已读取的内容
+        for (const [filePath, content] of Object.entries(resume.files ?? {})) {
+          context.collectedContext.files.set(filePath, content);
+        }
 
         // 已完成步骤保留，running/failed 重置为 pending 以便重试
         executionPlan = {
@@ -863,6 +867,7 @@ export class FrontAgent {
       plan: context.plan,
       messages: [...context.messages],
       factsSnapshot: this.contextManager.exportFactsSnapshot(this.currentTaskId),
+      files: Object.fromEntries(context.collectedContext.files),
     };
   }
 

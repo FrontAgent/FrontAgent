@@ -79,6 +79,8 @@ export interface AgentSessionSnapshot {
   plan: ExecutionPlan;
   messages: Message[];
   factsSnapshot?: ProjectFactsSnapshot;
+  /** 已读取文件内容（collectedContext.files），跨步骤代码生成上下文的载体 */
+  files?: Record<string, string>;
 }
 
 export interface AgentSecurityConfig extends SecurityConfig {

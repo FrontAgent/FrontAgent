@@ -96,6 +96,11 @@ function isValidSessionRecord(value: unknown): value is SessionRecord {
   if (!Array.isArray(snapshot.plan.steps)) return false;
   if (snapshot.plan.steps.some((step) => !isValidExecutionStep(step))) return false;
 
+  if (snapshot.files !== undefined) {
+    if (typeof snapshot.files !== 'object' || snapshot.files === null) return false;
+    if (Object.values(snapshot.files).some((content) => typeof content !== 'string')) return false;
+  }
+
   return true;
 }
 

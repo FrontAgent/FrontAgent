@@ -154,6 +154,29 @@ describe('session store', () => {
     }
   });
 
+  it('round-trips snapshot files and rejects malformed file maps', () => {
+    const withFiles = makeRecord({
+      sessionId: 'session-files',
+      snapshot: makeSnapshot({ files: { 'src/a.ts': 'content-a' } }),
+    });
+    saveSessionRecord(projectRoot, withFiles);
+    expect(loadSessionRecord(projectRoot, 'session-files')?.snapshot.files).toEqual({
+      'src/a.ts': 'content-a',
+    });
+
+    // files 取值必须是字符串：损坏形态在加载期被拒
+    const broken = {
+      ...makeRecord({ sessionId: 'session-bad-files' }),
+      snapshot: { ...makeSnapshot(), files: { 'src/a.ts': 42 } },
+    };
+    mkdirSync(getSessionsDir(projectRoot), { recursive: true });
+    writeFileSync(
+      join(getSessionsDir(projectRoot), 'session-bad-files.json'),
+      JSON.stringify(broken),
+    );
+    expect(loadSessionRecord(projectRoot, 'session-bad-files')).toBeUndefined();
+  });
+
   it('rejects session ids containing path fragments', () => {
     const record = makeRecord({ sessionId: 'session-good' });
     saveSessionRecord(projectRoot, record);
