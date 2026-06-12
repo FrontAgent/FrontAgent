@@ -307,6 +307,7 @@ function createRunCommandSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
     requiredParams: ['command'],
     shouldSkipToolError: ({ errorMsg, params }) => {
       const command = typeof params.command === 'string' ? params.command.toLowerCase() : '';
+      // Multi-word patterns keep plain substring matching.
       const criticalCommandPatterns = [
         'npm install',
         'pnpm install',
@@ -316,18 +317,21 @@ function createRunCommandSkill(runtime: ExecutorSkillRuntime): ExecutorActionSki
         'pnpm build',
         'yarn build',
         'npm run typecheck',
-        'tsc',
-        'tsc --noEmit',
         'npm run dev',
         'pnpm dev',
         'yarn dev',
         'npm run start',
         'pnpm start',
       ];
+      // Bare single-token commands need word-boundary matching so that
+      // `npx tsc` / `tsc --noEmit` are critical but `cat tsconfig.json` is not.
+      // (`\btsc\b` cannot match inside `tsconfig`: the `tsc` there is followed
+      // by the word character `o`, so no trailing boundary exists.)
+      const criticalCommandTokenPatterns = [/\btsc\b/];
 
-      const isCriticalCommand = criticalCommandPatterns.some((pattern) =>
-        command.includes(pattern.toLowerCase()),
-      );
+      const isCriticalCommand =
+        criticalCommandPatterns.some((pattern) => command.includes(pattern.toLowerCase())) ||
+        criticalCommandTokenPatterns.some((pattern) => pattern.test(command));
 
       if (isCriticalCommand) {
         if (runtime.debug) {
