@@ -110,6 +110,7 @@ export class FrontAgent {
       security: config.security,
       sddConfig: this.sddConfig,
       approvalHandler: config.security?.approvalHandler,
+      lifecycleHooks: config.lifecycleHooks,
       onPersistAllowRule: config.security?.onPersistAllowRule,
       onSecurityDecision: (decision) => {
         this.emit({ type: 'security_decision', decision });
@@ -525,7 +526,7 @@ export class FrontAgent {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.emit({ type: 'task_failed', error: errorMessage });
+      this.emit({ type: 'task_failed', error: errorMessage, taskId: task.id });
       return {
         success: false,
         taskId: task.id,
@@ -756,7 +757,7 @@ export class FrontAgent {
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.emit({ type: 'task_failed', error: errorMessage });
+      this.emit({ type: 'task_failed', error: errorMessage, taskId: task.id });
 
       return {
         success: false,

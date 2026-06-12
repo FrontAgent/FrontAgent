@@ -51,17 +51,34 @@ export class ExecutorToolCallHandler {
       console.log(`[Executor] Calling tool: ${toolName}`, args);
     }
 
+    const hookBlock = await this.runPreToolUseHook(toolName, args);
+    if (hookBlock) {
+      // postToolUse 观察包括 pre-hook 拦截在内的每一种结果
+      await this.runPostToolUseHook(toolName, args, false, hookBlock);
+      return { result: { success: false, error: hookBlock }, successful: false };
+    }
+
     const security = await this.enforceSecurity(toolName, args);
     if (!security.allowed) {
       const result = {
         success: false,
         error: security.error,
       };
+      await this.runPostToolUseHook(toolName, args, false, security.error);
       return { result, successful: false };
     }
 
     const mcpStart = this.nowMs();
-    const result = await client.callTool(toolName, security.args);
+    let result: unknown;
+    try {
+      result = await client.callTool(toolName, security.args);
+    } catch (error) {
+      // MCP 调用抛异常的 outcome 同样要被 postToolUse 观察，再保持异常传播；
+      // 已进入执行阶段，上报的是实际执行的参数（security.args）
+      const message = error instanceof Error ? error.message : String(error);
+      await this.runPostToolUseHook(toolName, security.args, false, message);
+      throw error;
+    }
     const mcpDurationMs = this.nowMs() - mcpStart;
     if (typeof result === 'object' && result !== null) {
       (result as Record<string, unknown>).__toolDurationMs = mcpDurationMs;
@@ -71,10 +88,68 @@ export class ExecutorToolCallHandler {
       console.log('[Executor] Tool result:', result);
     }
 
+    // postToolUse 观察实际执行的参数：安全层可能改写过 args
+    const successful = this.isSuccessfulToolResult(result);
+    await this.runPostToolUseHook(
+      toolName,
+      security.args,
+      successful,
+      successful ? undefined : this.extractToolResultError(result),
+    );
+
     return {
       result,
-      successful: this.isSuccessfulToolResult(result),
+      successful,
     };
+  }
+
+  /** 从规范化工具结果中提取失败原因，供 postToolUse 观察 */
+  private extractToolResultError(result: unknown): string | undefined {
+    if (typeof result !== 'object' || result === null) return undefined;
+    const resultObj = result as { error?: unknown; message?: unknown };
+    if (typeof resultObj.error === 'string' && resultObj.error) return resultObj.error;
+    if (typeof resultObj.message === 'string' && resultObj.message) return resultObj.message;
+    return undefined;
+  }
+
+  /** 返回拦截原因；不拦截时返回 undefined。hook 自身异常按不拦截处理 */
+  private async runPreToolUseHook(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<string | undefined> {
+    const hook = this.config.lifecycleHooks?.preToolUse;
+    if (!hook) return undefined;
+
+    try {
+      const decision = await hook({ event: 'preToolUse', toolName, args });
+      if (decision.block) {
+        return `preToolUse hook blocked ${toolName}${decision.reason ? `: ${decision.reason}` : ''}`;
+      }
+    } catch (error) {
+      // hook 基础设施故障 fail-open，但必须默认可见，便于发现策略 hook 失效
+      console.warn(`[Executor] preToolUse hook errored (non-blocking) for ${toolName}:`, error);
+    }
+    return undefined;
+  }
+
+  private async runPostToolUseHook(
+    toolName: string,
+    args: Record<string, unknown>,
+    success: boolean,
+    error?: string,
+  ): Promise<void> {
+    const hook = this.config.lifecycleHooks?.postToolUse;
+    if (!hook) return;
+
+    try {
+      await hook({ event: 'postToolUse', toolName, args, success, error });
+    } catch (hookError) {
+      // 同上：postToolUse 故障默认记录，不中断任务
+      console.warn(
+        `[Executor] postToolUse hook errored (non-blocking) for ${toolName}:`,
+        hookError,
+      );
+    }
   }
 
   isSuccessfulToolResult(result: unknown): boolean {

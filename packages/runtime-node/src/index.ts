@@ -1,6 +1,7 @@
 export type { AgentEvent, AgentExecutionResult } from '@frontagent/core';
 export type { ApprovalRequest } from '@frontagent/shared';
 export * from './config.js';
+export * from './hooks.js';
 export * from './mcp-clients.js';
 export * from './mcp-server.js';
 export * from './run.js';

@@ -50,6 +50,8 @@ export interface AgentConfig {
   memory?: MemoryConfig;
   /** 工具执行安全控制面配置 */
   security?: AgentSecurityConfig;
+  /** 生命周期 hooks（preToolUse/postToolUse 拦截点） */
+  lifecycleHooks?: AgentLifecycleHooks;
   /** 上下文预算与历史压缩配置 */
   contextBudget?: import('./context/budget.js').ContextBudgetConfig;
   /** 调试模式 */
@@ -88,6 +90,37 @@ export interface AgentSecurityConfig extends SecurityConfig {
   approvalHandler?: (request: ApprovalRequest) => Promise<boolean | SecurityApprovalResponse>;
   /** 用户选择"始终允许"时的规则持久化回调 */
   onPersistAllowRule?: (rule: string) => void;
+}
+
+/** preToolUse hook 的载荷 */
+export interface PreToolUseHookPayload {
+  event: 'preToolUse';
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+/** postToolUse hook 的载荷 */
+export interface PostToolUseHookPayload {
+  event: 'postToolUse';
+  toolName: string;
+  args: Record<string, unknown>;
+  success: boolean;
+  error?: string;
+}
+
+/** preToolUse hook 的裁决；block 为 true 时工具调用被拦截 */
+export interface PreToolUseHookDecision {
+  block: boolean;
+  reason?: string;
+}
+
+/**
+ * 生命周期 hooks：宿主（runtime/CLI/VS Code）提供回调实现，
+ * core 在工具调用前后触发。taskComplete 由宿主监听 task 事件实现。
+ */
+export interface AgentLifecycleHooks {
+  preToolUse?: (payload: PreToolUseHookPayload) => Promise<PreToolUseHookDecision>;
+  postToolUse?: (payload: PostToolUseHookPayload) => Promise<void>;
 }
 
 /**
@@ -761,7 +794,7 @@ export type AgentEvent =
   | { type: 'rollback_started'; snapshotId: string }
   | { type: 'rollback_completed'; snapshotId: string }
   | { type: 'task_completed'; result: AgentExecutionResult }
-  | { type: 'task_failed'; error: string };
+  | { type: 'task_failed'; error: string; taskId?: string };
 
 /**
  * 事件监听器

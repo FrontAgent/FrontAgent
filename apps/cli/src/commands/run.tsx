@@ -67,6 +67,7 @@ export default async function runCommand(task: string, options: Record<string, u
       files: options.files as string[] | undefined,
       url: options.url as string | undefined,
       runLog: options.runLog as boolean | undefined,
+      enableProjectHooks: options.enableHooks as boolean | undefined,
       resumeSession: options.resume as string | boolean | undefined,
       filterConsole: true,
       debug,

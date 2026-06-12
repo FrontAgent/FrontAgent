@@ -8,6 +8,7 @@ import type {
   SecurityDecision,
 } from '@frontagent/shared';
 import type { LLMService } from '../llm.js';
+import type { AgentLifecycleHooks } from '../types.js';
 
 export interface MCPClient {
   callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
@@ -38,6 +39,8 @@ export interface ExecutorConfig {
   /** 用户选择"始终允许"时的规则持久化回调 */
   onPersistAllowRule?: (rule: string) => void;
   onSecurityDecision?: (decision: SecurityDecision) => void;
+  /** 生命周期 hooks：preToolUse 可拦截调用，postToolUse 仅观察 */
+  lifecycleHooks?: AgentLifecycleHooks;
   trace?: ExecutorTraceConfig;
   executionEngine?: 'native' | 'langgraph';
   langGraph?: {

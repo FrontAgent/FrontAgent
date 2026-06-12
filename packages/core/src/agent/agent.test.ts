@@ -86,6 +86,18 @@ describe('createAgent', () => {
     agent.removeEventListener(listener);
   });
 
+  it('accepts lifecycle hooks configuration', () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      lifecycleHooks: {
+        preToolUse: async () => ({ block: false }),
+        postToolUse: async () => {},
+      },
+    });
+    expect(agent).toBeDefined();
+  });
+
   it('returns undefined session snapshot when no task is running', () => {
     const agent = createAgent({
       projectRoot: '/test',
@@ -118,6 +130,29 @@ describe('createAgent', () => {
       },
     });
     expect(agent).toBeDefined();
+  });
+
+  it('emits task_failed with the failing task id', async () => {
+    const agent = createAgent({
+      projectRoot: '/test',
+      llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+    });
+
+    const events: Array<{ type: string; taskId?: string; task?: { id: string } }> = [];
+    agent.addEventListener((event) => {
+      events.push(event as (typeof events)[number]);
+    });
+
+    // 已中止的 signal 让 execute 在 try 块内立即失败，无需 LLM/MCP
+    const controller = new AbortController();
+    controller.abort();
+    const result = await agent.execute('noop task', { signal: controller.signal });
+
+    expect(result.success).toBe(false);
+    const started = events.find((event) => event.type === 'task_started');
+    const failed = events.find((event) => event.type === 'task_failed');
+    expect(failed?.taskId).toBeTruthy();
+    expect(failed?.taskId).toBe(started?.task?.id);
   });
 
   it('restores file context from a resume snapshot and skips completed steps', async () => {

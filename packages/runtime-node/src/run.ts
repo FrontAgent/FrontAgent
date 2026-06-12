@@ -19,6 +19,13 @@ import {
   resolveBuiltInSkillRoots,
   resolveRuntimeConfig,
 } from './config.js';
+import {
+  type CreateLifecycleHooksInput,
+  createAgentLifecycleHooks,
+  loadHooksSettings,
+  runTaskCompleteHooks,
+  shouldEnableProjectHooks,
+} from './hooks.js';
 import { FileMCPClient, MemoryMCPClient, WebMCPClient } from './mcp-clients.js';
 import { createRunLogger, installRunConsoleFilter } from './run-logger.js';
 import {
@@ -47,6 +54,12 @@ export interface RunFrontAgentTaskOptions extends RuntimeConfigInput {
   streamShellOutput?: boolean;
   llmBackend?: LLMBackend;
   signal?: AbortSignal;
+  /**
+   * 显式启用项目内 .frontagent/settings.json 的 hooks（默认关闭）。
+   * 仓库提交的配置不应自动获得本机 shell 执行能力；
+   * 也可用 FRONTAGENT_ENABLE_PROJECT_HOOKS=1 启用。
+   */
+  enableProjectHooks?: boolean;
   /** 恢复会话：true 恢复最近未完成会话，字符串恢复指定 sessionId */
   resumeSession?: string | boolean;
   onRunLogPath?: (path: string | null) => void;
@@ -124,6 +137,29 @@ export async function runFrontAgentTask(
     : () => {};
   const webClient = new WebMCPClient();
 
+  // 项目 hooks 默认不执行：仓库提交的 settings 不应自动获得 shell 执行能力
+  const projectHooksEnabled = shouldEnableProjectHooks(options.enableProjectHooks);
+  const hooksInput: CreateLifecycleHooksInput = {
+    projectRoot,
+    settings: projectHooksEnabled ? loadHooksSettings(projectRoot) : undefined,
+    onHookExecuted: (hookEvent, execution) => {
+      runLogger?.event({
+        type: 'status_update',
+        label: `hook:${hookEvent}`,
+        operation: execution.command,
+        detail: `exit=${execution.exitCode}${execution.timedOut ? ' (timeout)' : ''} ${execution.durationMs}ms`,
+      });
+    },
+  };
+  if (!projectHooksEnabled && loadHooksSettings(projectRoot)) {
+    runLogger?.event({
+      type: 'status_update',
+      label: 'hooks 未启用',
+      operation:
+        '检测到 .frontagent/settings.json 的 hooks 配置；如需启用请使用 --enable-hooks 或 FRONTAGENT_ENABLE_PROJECT_HOOKS=1',
+    });
+  }
+
   const config: AgentConfig = {
     projectRoot,
     sddPath: existsSync(sddPath) ? sddPath : undefined,
@@ -145,6 +181,7 @@ export async function runFrontAgentTask(
       approvalHandler: options.onApprovalRequest,
       onPersistAllowRule: (rule) => appendAllowRuleToSettings(projectRoot, rule),
     },
+    lifecycleHooks: createAgentLifecycleHooks(hooksInput),
     subAgents: options.codeQualityIsolationMode
       ? {
           codeQualityEvaluator: {
@@ -199,6 +236,31 @@ export async function runFrontAgentTask(
   agent.addEventListener((event) => {
     runLogger?.event(event);
     options.onEvent?.(event);
+  });
+
+  // taskComplete hooks：任务结束事件触发，失败仅记录不影响结果；
+  // promise 收集到 pending 列表，在任务收尾阶段 drain，保证返回前执行完并写入运行日志
+  const pendingTaskCompleteHooks: Promise<void>[] = [];
+  agent.addEventListener((event) => {
+    if (event.type === 'task_completed') {
+      pendingTaskCompleteHooks.push(
+        runTaskCompleteHooks(hooksInput, {
+          event: 'taskComplete',
+          taskId: event.result.taskId,
+          success: event.result.success,
+          error: event.result.error,
+        }).catch((error) => runLogger?.error(error)),
+      );
+    } else if (event.type === 'task_failed') {
+      pendingTaskCompleteHooks.push(
+        runTaskCompleteHooks(hooksInput, {
+          event: 'taskComplete',
+          taskId: event.taskId ?? '',
+          success: false,
+          error: event.error,
+        }).catch((error) => runLogger?.error(error)),
+      );
+    }
   });
 
   // 会话持久化：步骤推进时写入快照，任务结束时落最终状态
@@ -292,6 +354,8 @@ export async function runFrontAgentTask(
       validations: [],
     };
   } finally {
+    // 任务返回前 drain taskComplete hooks，保证执行与运行日志记录完成
+    await Promise.allSettled(pendingTaskCompleteHooks);
     try {
       options.onEvent?.({
         type: 'status_update',
