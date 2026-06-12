@@ -210,6 +210,32 @@ describe('buildHeadlessPayload denial merging', () => {
       'tests failed: 3 assertions',
     );
   });
+
+  it('classifies a top-level result.error denial when no failed step carries it', () => {
+    const result = makeResult({
+      success: false,
+      executedSteps: [],
+      error: 'Security policy denied run_command: dangerous shell command blocked',
+    });
+
+    const payload = buildHeadlessPayload(result, [], null);
+
+    expect(payload.deniedApprovals).toEqual([
+      {
+        toolName: 'run_command',
+        reasonCode: 'security_policy_denied',
+        message: 'Security policy denied run_command: dangerous shell command blocked',
+      },
+    ]);
+
+    // 非安全类的顶层错误不混入
+    const plain = buildHeadlessPayload(
+      makeResult({ success: false, executedSteps: [], error: 'LLM 请求失败：404 Not Found。' }),
+      [],
+      null,
+    );
+    expect(plain.deniedApprovals).toEqual([]);
+  });
 });
 
 describe('collectDeniedApproval', () => {
@@ -289,6 +315,7 @@ describe('runHeadlessCommand', () => {
           // 模拟 runtime/工具/第三方库绕过 console 的直接 stdout 写入
           process.stdout.write('runtime noise that would break jq\n');
           console.log('console noise');
+          console.debug('debug noise also writes stdout in node');
           return makeResult();
         }),
         stdout: (line: string) => sink.push(line),

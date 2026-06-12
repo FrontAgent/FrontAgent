@@ -94,6 +94,12 @@ function mergeDenialsFromResult(
 ): DeniedApproval[] {
   const merged = [...eventDenials];
   const seen = new Set(merged.map((d) => `${d.toolName}\u0000${d.message}`));
+  const push = (toolName: string, reasonCode: string, message: string) => {
+    const key = `${toolName}\u0000${message}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push({ toolName, reasonCode, message });
+  };
 
   for (const step of result.executedSteps ?? []) {
     if (step.status !== 'failed') continue;
@@ -101,10 +107,18 @@ function mergeDenialsFromResult(
     if (typeof error !== 'string' || !error) continue;
     const match = STEP_DENIAL_PATTERNS.find(({ pattern }) => pattern.test(error));
     if (!match) continue;
-    const key = `${step.tool}\u0000${error}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push({ toolName: step.tool, reasonCode: match.reasonCode, message: error });
+    push(step.tool, match.reasonCode, error);
+  }
+
+  // 顶层 result.error 形状的 fail-closed 拒绝同样回填（无 step 维度时的兜底）
+  if (typeof result.error === 'string' && result.error) {
+    const match = STEP_DENIAL_PATTERNS.find(({ pattern }) => pattern.test(result.error as string));
+    if (match) {
+      const toolMatch = (result.error as string).match(
+        /(?:Security policy denied|Security approval rejected for|preToolUse hook blocked) (\S+?)[:\s]/,
+      );
+      push(toolMatch?.[1] ?? 'unknown', match.reasonCode, result.error as string);
+    }
   }
 
   return merged;
@@ -165,12 +179,19 @@ export async function runHeadlessCommand(
   // JSON 模式下 stdout 只承载最终结果文档：运行期不仅重定向 console，
   // 还拦截 process.stdout.write 本身——runtime/工具/第三方库的直接
   // stdout 写入全部转到 stderr。任务结束、流恢复之后才输出最终文档。
-  const originalConsole = { log: console.log, info: console.info, warn: console.warn };
+  const originalConsole = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    debug: console.debug,
+  };
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   if (outputJson) {
     console.log = (...args: unknown[]) => console.error(...args);
     console.info = (...args: unknown[]) => console.error(...args);
     console.warn = (...args: unknown[]) => console.error(...args);
+    // console.debug 在 Node 中同样写 stdout
+    console.debug = (...args: unknown[]) => console.error(...args);
     process.stdout.write = ((...args: Parameters<typeof process.stdout.write>) =>
       process.stderr.write(...args)) as typeof process.stdout.write;
   }
@@ -207,6 +228,7 @@ export async function runHeadlessCommand(
     console.log = originalConsole.log;
     console.info = originalConsole.info;
     console.warn = originalConsole.warn;
+    console.debug = originalConsole.debug;
     process.stdout.write = originalStdoutWrite;
   }
 
