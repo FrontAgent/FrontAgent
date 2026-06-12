@@ -777,7 +777,7 @@ export type AgentEvent =
   | { type: 'rollback_started'; snapshotId: string }
   | { type: 'rollback_completed'; snapshotId: string }
   | { type: 'task_completed'; result: AgentExecutionResult }
-  | { type: 'task_failed'; error: string };
+  | { type: 'task_failed'; error: string; taskId?: string };
 
 /**
  * 事件监听器
