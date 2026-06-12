@@ -209,6 +209,45 @@ describe('createAgentLifecycleHooks', () => {
     expect(decision?.reason).toContain('超时');
   });
 
+  it('still blocks on non-zero exit when the log callback throws', async () => {
+    const hooks = createAgentLifecycleHooks({
+      projectRoot: process.cwd(),
+      settings: { preToolUse: 'echo "forbidden" >&2; exit 1' },
+      onHookExecuted: () => {
+        throw new Error('run log write failed');
+      },
+    });
+
+    const decision = await hooks?.preToolUse?.({
+      event: 'preToolUse',
+      toolName: 'run_command',
+      args: {},
+    });
+
+    // 记录回调抛错不能把策略阻断变成 fail-open
+    expect(decision?.block).toBe(true);
+    expect(decision?.reason).toContain('forbidden');
+  });
+
+  it('still blocks on timeout when the log callback throws', async () => {
+    const hooks = createAgentLifecycleHooks({
+      projectRoot: process.cwd(),
+      settings: { preToolUse: 'sleep 5', timeoutMs: 200 },
+      onHookExecuted: () => {
+        throw new Error('run log write failed');
+      },
+    });
+
+    const decision = await hooks?.preToolUse?.({
+      event: 'preToolUse',
+      toolName: 'run_command',
+      args: {},
+    });
+
+    expect(decision?.block).toBe(true);
+    expect(decision?.reason).toContain('超时');
+  });
+
   it('runs postToolUse commands without blocking semantics', async () => {
     const onHookExecuted = vi.fn();
     const hooks = createAgentLifecycleHooks({

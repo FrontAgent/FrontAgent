@@ -182,6 +182,14 @@ export function createAgentLifecycleHooks(
   if (!settings) return undefined;
 
   const runCommand = input.runCommand ?? runHookCommand;
+  // 记录回调是可选观测副作用：它的异常不能改变策略裁决
+  const record = (event: string, execution: HookExecution) => {
+    try {
+      input.onHookExecuted?.(event, execution);
+    } catch {
+      // 运行日志写入失败不影响 hook 语义
+    }
+  };
   const timeoutMs = normalizeHookTimeout(settings.timeoutMs);
   const preCommands = normalizeCommands(settings.preToolUse);
   const postCommands = normalizeCommands(settings.postToolUse);
@@ -193,7 +201,7 @@ export function createAgentLifecycleHooks(
     hooks.preToolUse = async (payload) => {
       for (const command of preCommands) {
         const execution = await runCommand(command, payload, timeoutMs, input.projectRoot);
-        input.onHookExecuted?.('preToolUse', execution);
+        record('preToolUse', execution);
         if (execution.timedOut) {
           return { block: true, reason: `hook 超时（${timeoutMs}ms）：${command}` };
         }
@@ -216,7 +224,7 @@ export function createAgentLifecycleHooks(
     hooks.postToolUse = async (payload) => {
       for (const command of postCommands) {
         const execution = await runCommand(command, payload, timeoutMs, input.projectRoot);
-        input.onHookExecuted?.('postToolUse', execution);
+        record('postToolUse', execution);
       }
     };
   }
@@ -235,6 +243,10 @@ export async function runTaskCompleteHooks(
 
   for (const command of commands) {
     const execution = await runCommand(command, payload, timeoutMs, input.projectRoot);
-    input.onHookExecuted?.('taskComplete', execution);
+    try {
+      input.onHookExecuted?.('taskComplete', execution);
+    } catch {
+      // 记录失败不中断后续 hook 命令
+    }
   }
 }
