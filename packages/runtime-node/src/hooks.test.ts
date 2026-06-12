@@ -166,6 +166,33 @@ describe('createAgentLifecycleHooks', () => {
     expect(decision).toEqual({ block: false });
   });
 
+  it('fails open when the hook command cannot start (infra failure)', async () => {
+    const onHookExecuted = vi.fn();
+    const hooks = createAgentLifecycleHooks({
+      projectRoot: process.cwd(),
+      settings: { preToolUse: 'whatever' },
+      onHookExecuted,
+      // 模拟 spawn 失败：exitCode null 且非超时
+      runCommand: async (command) => ({
+        command,
+        exitCode: null,
+        stderr: 'spawn ENOENT',
+        timedOut: false,
+        durationMs: 1,
+      }),
+    });
+
+    const decision = await hooks?.preToolUse?.({
+      event: 'preToolUse',
+      toolName: 'run_command',
+      args: {},
+    });
+
+    // 基础设施故障不是策略拒绝：fail-open 且已记录
+    expect(decision).toEqual({ block: false });
+    expect(onHookExecuted).toHaveBeenCalledOnce();
+  });
+
   it('blocks when a preToolUse command times out', async () => {
     const hooks = createAgentLifecycleHooks({
       projectRoot: process.cwd(),

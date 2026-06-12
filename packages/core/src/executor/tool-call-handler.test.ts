@@ -149,6 +149,30 @@ describe('ExecutorToolCallHandler lifecycle hooks', () => {
     });
   });
 
+  it('reports the actually executed args (security-rewritten) to postToolUse', async () => {
+    const postToolUse = vi.fn(async () => {});
+    const { handler } = makeHandler({
+      security: { interactive: true },
+      approvalHandler: async () => true,
+      lifecycleHooks: { postToolUse },
+    });
+
+    // run_command 走审批：安全层会在 args 上追加 __frontagentSecurityApproved
+    await handler.callTool('run_command', { command: 'pnpm exec custom-script' });
+
+    expect(postToolUse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'postToolUse',
+        toolName: 'run_command',
+        success: true,
+        args: expect.objectContaining({
+          command: 'pnpm exec custom-script',
+          __frontagentSecurityApproved: true,
+        }),
+      }),
+    );
+  });
+
   it('treats a throwing preToolUse hook as non-blocking', async () => {
     const { handler, callTool } = makeHandler({
       lifecycleHooks: {

@@ -52,6 +52,8 @@ export interface AgentConfig {
   security?: AgentSecurityConfig;
   /** 生命周期 hooks（preToolUse/postToolUse 拦截点） */
   lifecycleHooks?: AgentLifecycleHooks;
+  /** 上下文预算与历史压缩配置 */
+  contextBudget?: import('./context/budget.js').ContextBudgetConfig;
   /** 调试模式 */
   debug?: boolean;
   /** 可选的执行器 trace 钩子，用于性能分析 */

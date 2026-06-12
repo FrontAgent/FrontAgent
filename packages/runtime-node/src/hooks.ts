@@ -168,6 +168,8 @@ export interface CreateLifecycleHooksInput {
   settings?: HooksSettings;
   /** 每次 hook 执行后的记录回调（写入运行日志） */
   onHookExecuted?: (event: string, execution: HookExecution) => void;
+  /** 测试可注入的命令执行器 */
+  runCommand?: typeof runHookCommand;
 }
 
 /**
@@ -179,6 +181,7 @@ export function createAgentLifecycleHooks(
   const settings = input.settings;
   if (!settings) return undefined;
 
+  const runCommand = input.runCommand ?? runHookCommand;
   const timeoutMs = normalizeHookTimeout(settings.timeoutMs);
   const preCommands = normalizeCommands(settings.preToolUse);
   const postCommands = normalizeCommands(settings.postToolUse);
@@ -189,10 +192,14 @@ export function createAgentLifecycleHooks(
   if (preCommands.length > 0) {
     hooks.preToolUse = async (payload) => {
       for (const command of preCommands) {
-        const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);
+        const execution = await runCommand(command, payload, timeoutMs, input.projectRoot);
         input.onHookExecuted?.('preToolUse', execution);
         if (execution.timedOut) {
           return { block: true, reason: `hook 超时（${timeoutMs}ms）：${command}` };
+        }
+        if (execution.exitCode === null) {
+          // spawn 失败等基础设施故障不是策略拒绝：fail-open，仅记录
+          continue;
         }
         if (execution.exitCode !== 0) {
           return {
@@ -208,7 +215,7 @@ export function createAgentLifecycleHooks(
   if (postCommands.length > 0) {
     hooks.postToolUse = async (payload) => {
       for (const command of postCommands) {
-        const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);
+        const execution = await runCommand(command, payload, timeoutMs, input.projectRoot);
         input.onHookExecuted?.('postToolUse', execution);
       }
     };
@@ -222,11 +229,12 @@ export async function runTaskCompleteHooks(
   input: CreateLifecycleHooksInput,
   payload: { event: 'taskComplete'; taskId: string; success: boolean; error?: string },
 ): Promise<void> {
+  const runCommand = input.runCommand ?? runHookCommand;
   const commands = normalizeCommands(input.settings?.taskComplete);
   const timeoutMs = normalizeHookTimeout(input.settings?.timeoutMs);
 
   for (const command of commands) {
-    const execution = await runHookCommand(command, payload, timeoutMs, input.projectRoot);
+    const execution = await runCommand(command, payload, timeoutMs, input.projectRoot);
     input.onHookExecuted?.('taskComplete', execution);
   }
 }

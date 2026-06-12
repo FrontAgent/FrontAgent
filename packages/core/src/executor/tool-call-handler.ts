@@ -73,9 +73,10 @@ export class ExecutorToolCallHandler {
     try {
       result = await client.callTool(toolName, security.args);
     } catch (error) {
-      // MCP 调用抛异常的 outcome 同样要被 postToolUse 观察，再保持异常传播
+      // MCP 调用抛异常的 outcome 同样要被 postToolUse 观察，再保持异常传播；
+      // 已进入执行阶段，上报的是实际执行的参数（security.args）
       const message = error instanceof Error ? error.message : String(error);
-      await this.runPostToolUseHook(toolName, args, false, message);
+      await this.runPostToolUseHook(toolName, security.args, false, message);
       throw error;
     }
     const mcpDurationMs = this.nowMs() - mcpStart;
@@ -87,10 +88,11 @@ export class ExecutorToolCallHandler {
       console.log('[Executor] Tool result:', result);
     }
 
+    // postToolUse 观察实际执行的参数：安全层可能改写过 args
     const successful = this.isSuccessfulToolResult(result);
     await this.runPostToolUseHook(
       toolName,
-      args,
+      security.args,
       successful,
       successful ? undefined : this.extractToolResultError(result),
     );
