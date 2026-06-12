@@ -119,6 +119,8 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
     .description('运行 Agent 任务')
     .argument('[task]', '任务描述（使用 --resume 恢复会话时可省略）')
     .option('--resume [sessionId]', '恢复最近未完成的会话，或指定 sessionId 恢复')
+    .option('--non-interactive', '无头模式：不渲染 TUI、不弹审批，未放行的敏感调用直接拒绝', false)
+    .option('--output <format>', '结果输出格式 (text/json)；json 时 stdout 只输出结果文档', 'text')
     .option('-s, --sdd <path>', 'SDD 配置文件路径', 'sdd.yaml')
     .option('-t, --type <type>', '任务类型 (create/modify/query/debug/refactor/test)', 'query')
     .option('-f, --files <files...>', '相关文件列表')

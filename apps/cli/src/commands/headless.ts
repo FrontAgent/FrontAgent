@@ -1,0 +1,258 @@
+/**
+ * `fa run --non-interactive` — 无头执行路径（CI 友好）。
+ *
+ * 不渲染 TUI、不弹审批：敏感工具调用在没有审批通道时由安全管线
+ * fail-closed 拒绝并记录。`--output json` 时 stdout 只输出一份
+ * 机器可解析的结果文档，运行期日志全部走 stderr；退出码 0 表示成功。
+ */
+
+import type { AgentEvent, AgentExecutionResult } from '@frontagent/runtime-node';
+import { runFrontAgentTask } from '@frontagent/runtime-node';
+
+export interface DeniedApproval {
+  toolName: string;
+  reasonCode: string;
+  message: string;
+}
+
+export interface HeadlessResultPayload {
+  success: boolean;
+  taskId: string;
+  output?: string;
+  error?: string;
+  durationMs: number;
+  steps: Array<{
+    stepId: string;
+    description: string;
+    action: string;
+    tool: string;
+    status: string;
+    error?: string;
+  }>;
+  /** 已完成的产物文件路径（create_file/apply_patch 的目标） */
+  artifacts: string[];
+  /** 所有被安全管线拒绝的调用（含 fail-closed 审批与显式 deny 规则） */
+  deniedApprovals: DeniedApproval[];
+  runLogPath: string | null;
+}
+
+const ARTIFACT_ACTIONS = new Set(['create_file', 'apply_patch']);
+
+function collectArtifacts(result: AgentExecutionResult): string[] {
+  const artifacts = new Set<string>();
+  for (const step of result.executedSteps ?? []) {
+    if (step.status !== 'completed' || !ARTIFACT_ACTIONS.has(step.action)) continue;
+    const path = (step.params as { path?: unknown } | undefined)?.path;
+    if (typeof path === 'string' && path) artifacts.add(path);
+  }
+  return Array.from(artifacts);
+}
+
+export function buildHeadlessPayload(
+  result: AgentExecutionResult,
+  deniedApprovals: DeniedApproval[],
+  runLogPath: string | null,
+): HeadlessResultPayload {
+  return {
+    success: result.success,
+    taskId: result.taskId,
+    output: result.output,
+    error: result.error,
+    durationMs: result.duration,
+    steps: (result.executedSteps ?? []).map((step) => ({
+      stepId: step.stepId,
+      description: step.description,
+      action: step.action,
+      tool: step.tool,
+      status: step.status,
+      error: step.result?.error,
+    })),
+    artifacts: collectArtifacts(result),
+    deniedApprovals: mergeDenialsFromResult(result, deniedApprovals),
+    runLogPath,
+  };
+}
+
+/** 失败步骤错误信息中的安全拒绝特征 → reasonCode 映射 */
+const STEP_DENIAL_PATTERNS: Array<{ pattern: RegExp; reasonCode: string }> = [
+  {
+    pattern: /no interactive approval channel is available/,
+    reasonCode: 'security_approval_unavailable',
+  },
+  { pattern: /^Security approval rejected for /, reasonCode: 'rejected_by_user' },
+  { pattern: /^Security policy denied /, reasonCode: 'security_policy_denied' },
+  { pattern: /^preToolUse hook blocked /, reasonCode: 'pre_tool_use_hook_blocked' },
+];
+
+/**
+ * 把执行结果里失败步骤携带的安全拒绝合并进拒绝集合：
+ * 事件流是主来源，结果对象兜底（两者并集，按 toolName+message 去重）。
+ */
+function mergeDenialsFromResult(
+  result: AgentExecutionResult,
+  eventDenials: DeniedApproval[],
+): DeniedApproval[] {
+  const merged = [...eventDenials];
+  const seen = new Set(merged.map((d) => `${d.toolName}\u0000${d.message}`));
+  const push = (toolName: string, reasonCode: string, message: string) => {
+    const key = `${toolName}\u0000${message}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push({ toolName, reasonCode, message });
+  };
+
+  for (const step of result.executedSteps ?? []) {
+    if (step.status !== 'failed') continue;
+    const error = step.result?.error;
+    if (typeof error !== 'string' || !error) continue;
+    const match = STEP_DENIAL_PATTERNS.find(({ pattern }) => pattern.test(error));
+    if (!match) continue;
+    push(step.tool, match.reasonCode, error);
+  }
+
+  // 顶层 result.error 形状的 fail-closed 拒绝同样回填（无 step 维度时的兜底）
+  if (typeof result.error === 'string' && result.error) {
+    const match = STEP_DENIAL_PATTERNS.find(({ pattern }) => pattern.test(result.error as string));
+    if (match) {
+      const toolMatch = (result.error as string).match(
+        /(?:Security policy denied|Security approval rejected for|preToolUse hook blocked) (\S+?)[:\s]/,
+      );
+      push(toolMatch?.[1] ?? 'unknown', match.reasonCode, result.error as string);
+    }
+  }
+
+  return merged;
+}
+
+/** 记录所有 deny 决策：fail-closed 审批、显式 deny 规则等失败原因都进结果文档 */
+export function collectDeniedApproval(event: AgentEvent, sink: DeniedApproval[]): void {
+  if (event.type !== 'security_decision') return;
+  const decision = event.decision;
+  if (decision.decision !== 'deny') return;
+  sink.push({
+    toolName: decision.toolName,
+    reasonCode: decision.reasonCode,
+    message: decision.message,
+  });
+}
+
+export interface HeadlessRunDeps {
+  runTask: typeof runFrontAgentTask;
+  stdout: (line: string) => void;
+  stderr: (line: string) => void;
+}
+
+const defaultDeps: HeadlessRunDeps = {
+  runTask: runFrontAgentTask,
+  stdout: (line) => process.stdout.write(`${line}\n`),
+  stderr: (line) => process.stderr.write(`${line}\n`),
+};
+
+const OUTPUT_FORMATS = new Set(['text', 'json']);
+
+/** CLI-only 选项不进入 runtime 调用边界，避免跨层契约漂移 */
+const CLI_ONLY_OPTION_KEYS = new Set(['nonInteractive', 'output', 'sdd']);
+
+function stripCliOnlyOptions(options: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(options).filter(([key]) => !CLI_ONLY_OPTION_KEYS.has(key)),
+  );
+}
+
+/** 返回进程退出码（0 成功，1 失败/被拒中止/参数非法） */
+export async function runHeadlessCommand(
+  task: string,
+  options: Record<string, unknown>,
+  deps: HeadlessRunDeps = defaultDeps,
+): Promise<number> {
+  const projectRoot = process.cwd();
+  const outputFormat = (options.output as string | undefined) ?? 'text';
+  if (!OUTPUT_FORMATS.has(outputFormat)) {
+    // 拼写错误不静默退回 text：CI 的 JSON 消费者需要明确失败
+    deps.stderr(`无效的 --output 取值：${outputFormat}（支持 text/json）`);
+    return 1;
+  }
+  const outputJson = outputFormat === 'json';
+  const deniedApprovals: DeniedApproval[] = [];
+  let runLogPath: string | null = null;
+
+  // JSON 模式下 stdout 只承载最终结果文档：运行期不仅重定向 console，
+  // 还拦截 process.stdout.write 本身——runtime/工具/第三方库的直接
+  // stdout 写入全部转到 stderr。任务结束、流恢复之后才输出最终文档。
+  // 保存未绑定的原始引用：恢复时保持函数身份不变，
+  // 且只在 JSON 模式实际改写后恢复，text 模式不触碰全局函数
+  const originalConsole = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    debug: console.debug,
+  };
+  const originalStdoutWrite = process.stdout.write;
+  if (outputJson) {
+    console.log = (...args: unknown[]) => console.error(...args);
+    console.info = (...args: unknown[]) => console.error(...args);
+    console.warn = (...args: unknown[]) => console.error(...args);
+    // console.debug 在 Node 中同样写 stdout
+    console.debug = (...args: unknown[]) => console.error(...args);
+    process.stdout.write = ((...args: Parameters<typeof process.stdout.write>) =>
+      process.stderr.write(...args)) as typeof process.stdout.write;
+  }
+
+  let result: AgentExecutionResult;
+  try {
+    result = await deps.runTask({
+      ...stripCliOnlyOptions(options),
+      projectRoot,
+      task,
+      sddPath: options.sdd as string | undefined,
+      type: options.type as string | undefined,
+      files: options.files as string[] | undefined,
+      url: options.url as string | undefined,
+      runLog: options.runLog as boolean | undefined,
+      filterConsole: false,
+      debug: isDebugEnabled(options.debug),
+      onRunLogPath: (path) => {
+        runLogPath = path;
+      },
+      onEvent: (event) => collectDeniedApproval(event, deniedApprovals),
+      // 不提供 onApprovalRequest：未被规则放行的敏感调用 fail-closed 拒绝
+    });
+  } catch (error) {
+    result = {
+      success: false,
+      taskId: '',
+      executedSteps: [],
+      error: error instanceof Error ? error.message : String(error),
+      duration: 0,
+      validations: [],
+    };
+  } finally {
+    if (outputJson) {
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.warn = originalConsole.warn;
+      console.debug = originalConsole.debug;
+      process.stdout.write = originalStdoutWrite;
+    }
+  }
+
+  const payload = buildHeadlessPayload(result, deniedApprovals, runLogPath);
+  if (outputJson) {
+    deps.stdout(JSON.stringify(payload));
+  } else {
+    deps.stdout(
+      payload.success ? '✅ 任务执行成功' : `❌ 任务失败：${payload.error ?? '未知错误'}`,
+    );
+    if (payload.output) deps.stdout(payload.output);
+    if (payload.deniedApprovals.length > 0) {
+      deps.stderr(
+        `被安全管线拒绝的调用：${payload.deniedApprovals.map((d) => d.toolName).join(', ')}`,
+      );
+    }
+  }
+  return payload.success ? 0 : 1;
+}
+
+function isDebugEnabled(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1';
+}
