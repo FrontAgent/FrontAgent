@@ -2,10 +2,10 @@ import type { AgentEvent, AgentExecutionResult } from '@frontagent/runtime-node'
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildHeadlessPayload,
-  collectSecurityDenial,
+  collectDeniedApproval,
+  type DeniedApproval,
   type HeadlessRunDeps,
   runHeadlessCommand,
-  type SecurityDenial,
 } from './headless.js';
 
 function makeResult(overrides: Partial<AgentExecutionResult> = {}): AgentExecutionResult {
@@ -62,7 +62,7 @@ function makeDeps(result: AgentExecutionResult | Error) {
 
 describe('buildHeadlessPayload', () => {
   it('maps the execution result into a machine-parseable document', () => {
-    const denied: SecurityDenial[] = [
+    const denied: DeniedApproval[] = [
       { toolName: 'run_command', reasonCode: 'security_approval_unavailable', message: 'denied' },
     ];
     const payload = buildHeadlessPayload(makeResult(), denied, '/tmp/run.log');
@@ -84,7 +84,7 @@ describe('buildHeadlessPayload', () => {
         error: undefined,
       },
     ]);
-    expect(payload.securityDenials).toBe(denied);
+    expect(payload.deniedApprovals).toEqual(denied);
   });
 
   it('collects completed file-producing steps as artifacts', () => {
@@ -139,9 +139,82 @@ describe('buildHeadlessPayload', () => {
   });
 });
 
-describe('collectSecurityDenial', () => {
+describe('buildHeadlessPayload denial merging', () => {
+  it('merges security denials found in failed step errors and dedupes against events', () => {
+    const result = makeResult({
+      success: false,
+      executedSteps: [
+        {
+          stepId: 's1',
+          description: 'blocked write',
+          action: 'create_file',
+          tool: 'create_file',
+          params: { path: '.env' },
+          dependencies: [],
+          validation: [],
+          status: 'failed',
+          result: {
+            success: false,
+            duration: 1,
+            error: 'Security policy denied create_file: sensitive path',
+          },
+        },
+        {
+          stepId: 's2',
+          description: 'needs approval',
+          action: 'run_command',
+          tool: 'run_command',
+          params: { command: 'rm -rf dist' },
+          dependencies: [],
+          validation: [],
+          status: 'failed',
+          result: {
+            success: false,
+            duration: 1,
+            error: 'Approval is required but no interactive approval channel is available.',
+          },
+        },
+        {
+          stepId: 's3',
+          description: 'ordinary failure',
+          action: 'run_command',
+          tool: 'run_command',
+          params: { command: 'pnpm test' },
+          dependencies: [],
+          validation: [],
+          status: 'failed',
+          result: { success: false, duration: 1, error: 'tests failed: 3 assertions' },
+        },
+      ],
+    });
+
+    // 事件流已捕获 s2 的拒绝：结果合并时按 toolName+message 去重
+    const fromEvents: DeniedApproval[] = [
+      {
+        toolName: 'run_command',
+        reasonCode: 'security_approval_unavailable',
+        message: 'Approval is required but no interactive approval channel is available.',
+      },
+    ];
+
+    const payload = buildHeadlessPayload(result, fromEvents, null);
+
+    expect(payload.deniedApprovals).toHaveLength(2);
+    expect(payload.deniedApprovals).toContainEqual({
+      toolName: 'create_file',
+      reasonCode: 'security_policy_denied',
+      message: 'Security policy denied create_file: sensitive path',
+    });
+    // 普通失败步骤不混入拒绝集合
+    expect(payload.deniedApprovals.map((d) => d.message)).not.toContain(
+      'tests failed: 3 assertions',
+    );
+  });
+});
+
+describe('collectDeniedApproval', () => {
   it('collects every deny decision regardless of reason', () => {
-    const sink: SecurityDenial[] = [];
+    const sink: DeniedApproval[] = [];
     const base = {
       riskLevel: 'high' as const,
       message: 'msg',
@@ -150,21 +223,21 @@ describe('collectSecurityDenial', () => {
       provenance: [],
     };
 
-    collectSecurityDenial(
+    collectDeniedApproval(
       {
         type: 'security_decision',
         decision: { ...base, decision: 'deny', reasonCode: 'security_approval_unavailable' },
       },
       sink,
     );
-    collectSecurityDenial(
+    collectDeniedApproval(
       {
         type: 'security_decision',
         decision: { ...base, decision: 'deny', reasonCode: 'dangerous_shell_command' },
       },
       sink,
     );
-    collectSecurityDenial(
+    collectDeniedApproval(
       {
         type: 'security_decision',
         decision: { ...base, decision: 'allow', reasonCode: 'read_tool_allowed' },
@@ -190,7 +263,7 @@ describe('runHeadlessCommand', () => {
     expect(stdoutLines).toHaveLength(1);
     const payload = JSON.parse(stdoutLines[0]);
     expect(payload.success).toBe(true);
-    expect(payload.securityDenials).toHaveLength(1);
+    expect(payload.deniedApprovals).toHaveLength(1);
     // 不提供审批通道：敏感调用 fail-closed
     expect(runTask.mock.calls[0][0].onApprovalRequest).toBeUndefined();
   });
