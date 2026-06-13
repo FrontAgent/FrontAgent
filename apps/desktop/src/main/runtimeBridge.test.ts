@@ -135,6 +135,30 @@ describe('createRuntimeBridge', () => {
     expect(bridge.activeRunCount()).toBe(0);
   });
 
+  it('releases an in-flight approval wait on cancelTask so the run can unwind', async () => {
+    let approved: boolean | undefined;
+    // Runtime blocks on the approval promise — exactly the case where only
+    // aborting the signal would leave the run (and its cleanup) hanging.
+    const { bridge } = harness(async ({ onApprovalRequest }) => {
+      approved = await onApprovalRequest?.(approval('apv-1'));
+    });
+
+    bridge.runTask({ task: 't', workspacePath: '/w' });
+    await tick();
+    expect(bridge.activeRunCount()).toBe(1);
+
+    bridge.cancelTask('R1');
+    await tick();
+
+    expect(approved).toBe(false); // approval wait was released as denied
+    expect(bridge.activeRunCount()).toBe(0); // run unwound and was dropped
+
+    // A decision arriving after cancel is ignored (no late resolution).
+    bridge.respondApproval({ runId: 'R1', approvalId: 'apv-1', approved: true });
+    await tick();
+    expect(approved).toBe(false);
+  });
+
   it('forwards a task_failed event when the runtime throws', async () => {
     const { bridge, sent } = harness(async () => {
       throw new Error('boom');

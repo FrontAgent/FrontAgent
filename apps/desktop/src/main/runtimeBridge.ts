@@ -111,7 +111,15 @@ export function createRuntimeBridge(deps: RuntimeBridgeDeps): RuntimeBridge {
     },
 
     cancelTask(runId) {
-      runs.get(runId)?.controller.abort();
+      const active = runs.get(runId);
+      if (!active) return;
+      active.controller.abort();
+      // Release any in-flight approval wait so the runtime can unwind from its
+      // `await onApprovalRequest(...)` and observe the abort. Without this the
+      // run promise would hang on the unresolved approval and its `.finally`
+      // cleanup (which drops the run) would never execute.
+      for (const resolve of active.pendingApprovals.values()) resolve(false);
+      active.pendingApprovals.clear();
     },
 
     activeRunCount: () => runs.size,
