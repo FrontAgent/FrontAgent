@@ -1,7 +1,13 @@
 import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { logger } from '@frontagent/shared';
-import { type CoreMessage, generateObject, generateText, type LanguageModel, streamText } from 'ai';
+import {
+  generateObject,
+  generateText,
+  type LanguageModel,
+  type ModelMessage,
+  streamText,
+} from 'ai';
 import type { z } from 'zod';
 import type { LLMConfig, Message } from '../types.js';
 import {
@@ -122,7 +128,10 @@ export class LLMService {
     switch (provider) {
       case 'openai': {
         const openai = createOpenAI({ apiKey: key, baseURL: endpoint });
-        return openai(modelName);
+        // AI SDK v5: the callable provider defaults to the Responses API.
+        // Use .chat() explicitly to keep Chat Completions behavior for
+        // OpenAI-compatible baseURLs (normalizeProviderBaseURL strips /chat/completions).
+        return openai.chat(modelName);
       }
       case 'anthropic': {
         const betaHeaders: string[] = [];
@@ -148,7 +157,7 @@ export class LLMService {
     }
   }
 
-  private convertMessages(messages: Message[]): CoreMessage[] {
+  private convertMessages(messages: Message[]): ModelMessage[] {
     return messages.map((msg) => ({
       role: msg.role as 'system' | 'user' | 'assistant',
       content: msg.content,
@@ -162,7 +171,7 @@ export class LLMService {
     topK?: number;
   }) {
     return {
-      maxTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
+      maxOutputTokens: options.maxTokens ?? this.config.maxTokens ?? 4096,
       temperature: options.temperature ?? this.config.temperature ?? 0.7,
       topP: options.topP ?? this.config.topP,
       topK: options.topK ?? this.config.topK,
