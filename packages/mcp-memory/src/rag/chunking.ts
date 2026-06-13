@@ -150,7 +150,7 @@ function createSemanticBlocks(
   return blocks;
 }
 
-function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean {
+export function isSemanticBoundaryLine(trimmedLine: string, extension: string): boolean {
   if (!trimmedLine) {
     return false;
   }
