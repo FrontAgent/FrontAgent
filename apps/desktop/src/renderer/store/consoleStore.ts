@@ -102,9 +102,16 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
     },
     async respondApproval(approvalId, approved, note) {
       if (!currentRunId) return;
+      const pending = state.pendingApprovals.find((a) => a.approvalId === approvalId);
       // Optimistically clear the approval from the queue, then notify main.
       set(resolveApproval(state, approvalId, approved));
-      await bridge.respondApproval({ runId: currentRunId, approvalId, approved, note });
+      try {
+        await bridge.respondApproval({ runId: currentRunId, approvalId, approved, note });
+      } catch {
+        // The decision did not reach main — restore the approval so the user
+        // can retry instead of losing a pending gate.
+        if (pending) set(addApprovalRequest(state, pending));
+      }
     },
     dispose() {
       offEvent();

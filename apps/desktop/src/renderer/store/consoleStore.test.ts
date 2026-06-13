@@ -16,6 +16,7 @@ function createControllableBridge(runId: string, opts: { defer?: boolean } = {})
   const agentListeners = new Set<(e: { runId: string; event: AgentEvent }) => void>();
   const approvalListeners = new Set<(e: { runId: string; request: ApprovalRequest }) => void>();
   const responded: ApprovalDecisionInput[] = [];
+  let rejectRespond = false;
   let runTaskCalls = 0;
   let settle: () => void = () => {};
   let fail: (error: unknown) => void = () => {};
@@ -32,6 +33,7 @@ function createControllableBridge(runId: string, opts: { defer?: boolean } = {})
     },
     async cancelTask() {},
     async respondApproval(input) {
+      if (rejectRespond) throw new Error('IPC down');
       responded.push(input);
     },
     async getSettings() {
@@ -51,6 +53,9 @@ function createControllableBridge(runId: string, opts: { defer?: boolean } = {})
   return {
     bridge,
     responded,
+    setRejectRespond: (value: boolean) => {
+      rejectRespond = value;
+    },
     runTaskCalls: () => runTaskCalls,
     settleRun: () => settle(),
     failRun: (error: unknown) => fail(error),
@@ -172,6 +177,22 @@ describe('consoleStore run isolation', () => {
     ctl.settleRun();
     await Promise.all([first, second]);
     expect(ctl.runTaskCalls()).toBe(1);
+    store.dispose();
+  });
+
+  it('restores the pending approval when respondApproval fails to reach main', async () => {
+    const ctl = createControllableBridge('R1');
+    const store = createConsoleStore(ctl.bridge);
+    await store.runTask({ task: 't', workspacePath: '/w' });
+    ctl.emitApproval('R1', approval('apv-1'));
+    expect(store.getState().pendingApprovals).toHaveLength(1);
+
+    ctl.setRejectRespond(true);
+    await store.respondApproval('apv-1', true);
+
+    // Optimistic clear was rolled back so the user can retry the gate.
+    expect(store.getState().pendingApprovals.map((a) => a.approvalId)).toEqual(['apv-1']);
+    expect(ctl.responded).toHaveLength(0);
     store.dispose();
   });
 
