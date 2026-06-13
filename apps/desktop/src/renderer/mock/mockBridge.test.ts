@@ -1,0 +1,94 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createConsoleStore } from '../store/consoleStore.js';
+import { createMockBridge } from './mockBridge.js';
+
+describe('mock bridge driving the console store', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('replays the scripted run into phase lanes and pauses on an approval', async () => {
+    const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
+
+    await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
+    await vi.advanceTimersByTimeAsync(12_000);
+
+    const state = store.getState();
+    expect(state.task).toContain('深色模式');
+    expect(state.phases.map((p) => p.name)).toEqual(['实现', '验证']);
+    // The 实现 phase ran two steps to completion.
+    const impl = state.phases.find((p) => p.name === '实现');
+    expect(impl?.status).toBe('completed');
+    expect(impl?.steps.every((s) => s.status === 'completed')).toBe(true);
+    // The run is paused on a pending approval, not yet terminal.
+    expect(state.pendingApprovals).toHaveLength(1);
+    expect(state.status).toBe('running');
+
+    store.dispose();
+  });
+
+  it('completes the run when the approval is granted', async () => {
+    const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
+    await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
+    await vi.advanceTimersByTimeAsync(12_000);
+
+    const approvalId = store.getState().pendingApprovals[0]?.approvalId;
+    expect(approvalId).toBeTruthy();
+
+    await store.respondApproval(approvalId as string, true);
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    const state = store.getState();
+    expect(state.pendingApprovals).toHaveLength(0);
+    expect(state.status).toBe('completed');
+    expect(state.result?.success).toBe(true);
+    store.dispose();
+  });
+
+  it('resets state when a new run starts after a previous run finished', async () => {
+    const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
+
+    // First run to completion.
+    await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
+    await vi.advanceTimersByTimeAsync(12_000);
+    await store.respondApproval(store.getState().pendingApprovals[0]?.approvalId as string, true);
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(store.getState().status).toBe('completed');
+
+    // Second run: the store resets and enters 'planning' before any event
+    // arrives (so the composer stays disabled through the launch window).
+    await store.runTask({ task: 'again', workspacePath: '/tmp/demo' });
+    const reset = store.getState();
+    expect(reset.status).toBe('planning');
+    expect(reset.result).toBeUndefined();
+    expect(reset.pendingApprovals).toHaveLength(0);
+    expect(reset.phases).toHaveLength(0);
+    expect(reset.log).toHaveLength(0);
+
+    // And the fresh run rebuilds cleanly with no leftovers from the first.
+    await vi.advanceTimersByTimeAsync(12_000);
+    const second = store.getState();
+    expect(second.phases.map((p) => p.name)).toEqual(['实现', '验证']);
+    expect(second.pendingApprovals).toHaveLength(1);
+    expect(second.result).toBeUndefined();
+    store.dispose();
+  });
+
+  it('fails the run when the approval is rejected', async () => {
+    const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
+    await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
+    await vi.advanceTimersByTimeAsync(12_000);
+
+    const approvalId = store.getState().pendingApprovals[0]?.approvalId as string;
+    await store.respondApproval(approvalId, false);
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    const state = store.getState();
+    expect(state.status).toBe('failed');
+    expect(state.pendingApprovals).toHaveLength(0);
+    store.dispose();
+  });
+});

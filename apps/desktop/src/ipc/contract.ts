@@ -87,6 +87,16 @@ export interface ApprovalRequestEnvelope {
  * Renderer code depends only on this interface.
  */
 export interface FrontAgentBridge {
+  /**
+   * Start a task.
+   *
+   * **Timing contract:** the returned promise MUST resolve with the `runId`
+   * *before* any {@link AgentEventEnvelope} or {@link ApprovalRequestEnvelope}
+   * for that run is pushed. The renderer store gates incoming envelopes on the
+   * resolved active `runId`; any envelope delivered before resolution is
+   * dropped. PR3's Electron main/preload implementation must therefore reply to
+   * the `RunTask` invoke first, then begin streaming the run's events.
+   */
   runTask(req: RunTaskRequest): Promise<RunTaskResponse>;
   cancelTask(runId: string): Promise<void>;
   respondApproval(input: ApprovalDecisionInput): Promise<void>;
