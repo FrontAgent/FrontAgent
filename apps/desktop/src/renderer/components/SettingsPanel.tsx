@@ -32,7 +32,8 @@ export function SettingsPanel({ bridge }: { bridge: FrontAgentBridge }) {
     <div className="settings">
       <h2>设置</h2>
       <p className="hint">
-        凭据与默认值在本机保存（PR3 接入安全存储）。Base URL 留空使用 provider 默认。
+        设置仅在本会话内保存（刷新后不保留）；本机安全存储与持久化在 PR3 接入。Base URL 留空使用
+        provider 默认。
       </p>
       {FIELDS.map((field) => (
         <div className="setting-group" key={field.key}>
