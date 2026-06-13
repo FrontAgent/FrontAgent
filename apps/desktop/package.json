@@ -6,18 +6,24 @@
   "type": "module",
   "main": "./dist/electron/main.js",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "dev": "vite",
+    "build": "vite build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@frontagent/core": "workspace:*",
-    "@frontagent/shared": "workspace:*"
+    "@frontagent/shared": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
     "typescript": "^6.0.3",
+    "vite": "^7.1.0",
     "vitest": "^4.1.7"
   }
 }
