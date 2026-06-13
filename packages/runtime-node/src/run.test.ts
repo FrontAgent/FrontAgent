@@ -261,6 +261,19 @@ describe('runFrontAgentTask orchestration', () => {
     expect(order.indexOf('logger.close')).toBeLessThan(order.lastIndexOf('persist:failed'));
   });
 
+  it('persists a terminal completed status when execute resolves successfully without emitting a terminal event', async () => {
+    // execute() resolves success but emits no task_completed event. The final
+    // status must be derived from the result (completed), never the failed
+    // default — otherwise a successful run would be mis-persisted as failed.
+    await runWith(baseOptions(), (agent) => {
+      agent.resolveExecute(SUCCESS_RESULT);
+    });
+
+    const statuses = saveSessionRecord.mock.calls.map((c) => c[1].status);
+    expect(statuses).toEqual(['completed']);
+    expect(order.indexOf('logger.close')).toBeLessThan(order.lastIndexOf('persist:completed'));
+  });
+
   it('persists session snapshots on planning, step, and terminal events', async () => {
     await runWith(baseOptions(), (agent) => {
       agent.emit({ type: 'planning_completed', plan: { steps: [] } } as unknown as AgentEvent);

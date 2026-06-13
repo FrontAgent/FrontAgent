@@ -283,9 +283,10 @@ export async function runFrontAgentTask(
       runLogger?.error(error);
     }
   };
-  // 收尾阶段要落的最终状态：默认 failed，使 execute 直接抛出（未发出终止事件）时
-  // 会话仍被标记为终止态而非永远停留在 running。
-  let finalSessionStatus: SessionStatus = 'failed';
+  // 收尾阶段要落的最终状态。保持 undefined 直到从终止事件、execute 返回结果或
+  // catch 分支派生出确定终态——避免在“成功但未发出终止事件”时误标为 failed，
+  // 也保证 execute 直接抛出时仍写入终止态而非永远停留在 running。
+  let finalSessionStatus: SessionStatus | undefined;
   agent.addEventListener((event) => {
     if (
       event.type === 'planning_completed' ||
@@ -340,9 +341,12 @@ export async function runFrontAgentTask(
         debug,
       }),
     };
+    // 终止事件未派发时，从实际执行结果派生终态（成功 → completed）。
+    finalSessionStatus ??= result.success ? 'completed' : 'failed';
     runLogger?.result(formattedResult);
     return formattedResult;
   } catch (error) {
+    finalSessionStatus = 'failed';
     runLogger?.error(error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
@@ -381,8 +385,8 @@ export async function runFrontAgentTask(
       restoreConsole();
       await runLogger?.close();
       // 终止顺序：taskComplete hooks drain → runLogger.close() → 持久化最终会话状态。
-      // 在 logger 关闭后落最终状态，并保证即便 execute 直接抛出也写入终止态。
-      persistSession(finalSessionStatus);
+      // 仅在已派生出确定终态时写入，避免覆盖事件 listener 已落的正确状态或误标 failed。
+      if (finalSessionStatus) persistSession(finalSessionStatus);
     }
   }
 }
