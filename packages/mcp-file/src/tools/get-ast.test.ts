@@ -53,68 +53,83 @@ afterEach(() => {
   roots = [];
 });
 
+// ts-morph 28's first getAST call pays the full Project + type-checker
+// cold-start cost (the returnType assertion forces getReturnType().getText()
+// type resolution). On cold CI runners this exceeds vitest's 5000ms default
+// and flakes the matrix non-deterministically, so give the getAST-invoking
+// smoke cases a generous explicit timeout. See issue #321.
+const TS_MORPH_COLD_START_TIMEOUT_MS = 20_000;
+
 describe('getAST (ts-morph smoke test)', () => {
-  it('extracts imports, exports, functions, classes, interfaces and type aliases from a .ts file', async () => {
-    const root = makeRoot();
-    writeFileSync(join(root, 'sample.ts'), TS_FIXTURE, 'utf-8');
+  it(
+    'extracts imports, exports, functions, classes, interfaces and type aliases from a .ts file',
+    async () => {
+      const root = makeRoot();
+      writeFileSync(join(root, 'sample.ts'), TS_FIXTURE, 'utf-8');
 
-    const result = await getAST({ path: 'sample.ts' }, root);
+      const result = await getAST({ path: 'sample.ts' }, root);
 
-    expect(result.success).toBe(true);
+      expect(result.success).toBe(true);
 
-    // getImportDeclarations / getNamedImports / getNamespaceImport /
-    // getDefaultImport / getModuleSpecifierValue / getStartLineNumber
-    expect(result.imports).toHaveLength(3);
-    const [named, namespace, def] = result.imports ?? [];
-    expect(named.moduleSpecifier).toBe('node:path');
-    expect(named.namedImports).toEqual(['join']);
-    expect(named.line).toBe(1);
-    expect(namespace.namespaceImport).toBe('fs');
-    expect(def.defaultImport).toBe('os');
+      // getImportDeclarations / getNamedImports / getNamespaceImport /
+      // getDefaultImport / getModuleSpecifierValue / getStartLineNumber
+      expect(result.imports).toHaveLength(3);
+      const [named, namespace, def] = result.imports ?? [];
+      expect(named.moduleSpecifier).toBe('node:path');
+      expect(named.namedImports).toEqual(['join']);
+      expect(named.line).toBe(1);
+      expect(namespace.namespaceImport).toBe('fs');
+      expect(def.defaultImport).toBe('os');
 
-    // getExportedDeclarations: ReadonlyMap iterated by key
-    expect(result.exports).toEqual(
-      expect.arrayContaining(['PI', 'greet', 'Greeter', 'GreetOptions', 'GreetResult']),
-    );
+      // getExportedDeclarations: ReadonlyMap iterated by key
+      expect(result.exports).toEqual(
+        expect.arrayContaining(['PI', 'greet', 'Greeter', 'GreetOptions', 'GreetResult']),
+      );
 
-    // getFunctions / isAsync / isExported / getParameters /
-    // getType().getText() / getReturnType().getText()
-    const greet = result.functions?.find((f) => f.name === 'greet');
-    expect(greet).toBeDefined();
-    expect(greet?.isAsync).toBe(true);
-    expect(greet?.isExported).toBe(true);
-    expect(greet?.parameters?.[0]).toContain('name: string');
-    // Loose match: type TEXT rendering may legitimately vary across TS engines
-    expect(greet?.returnType).toContain('Promise<string>');
+      // getFunctions / isAsync / isExported / getParameters /
+      // getType().getText() / getReturnType().getText()
+      const greet = result.functions?.find((f) => f.name === 'greet');
+      expect(greet).toBeDefined();
+      expect(greet?.isAsync).toBe(true);
+      expect(greet?.isExported).toBe(true);
+      expect(greet?.parameters?.[0]).toContain('name: string');
+      // Loose match: type TEXT rendering may legitimately vary across TS engines
+      expect(greet?.returnType).toContain('Promise<string>');
 
-    // getClasses / getInterfaces / getTypeAliases
-    expect(result.classes).toEqual([
-      expect.objectContaining({ name: 'Greeter', isExported: true }),
-    ]);
-    expect(result.interfaces).toEqual([
-      expect.objectContaining({ name: 'GreetOptions', isExported: true }),
-    ]);
-    expect(result.types).toEqual([
-      expect.objectContaining({ name: 'GreetResult', isExported: true }),
-    ]);
-  });
+      // getClasses / getInterfaces / getTypeAliases
+      expect(result.classes).toEqual([
+        expect.objectContaining({ name: 'Greeter', isExported: true }),
+      ]);
+      expect(result.interfaces).toEqual([
+        expect.objectContaining({ name: 'GreetOptions', isExported: true }),
+      ]);
+      expect(result.types).toEqual([
+        expect.objectContaining({ name: 'GreetResult', isExported: true }),
+      ]);
+    },
+    TS_MORPH_COLD_START_TIMEOUT_MS,
+  );
 
-  it('detects arrow-function, function-declaration and class React components in a .tsx file', async () => {
-    const root = makeRoot();
-    writeFileSync(join(root, 'components.tsx'), TSX_FIXTURE, 'utf-8');
+  it(
+    'detects arrow-function, function-declaration and class React components in a .tsx file',
+    async () => {
+      const root = makeRoot();
+      writeFileSync(join(root, 'components.tsx'), TSX_FIXTURE, 'utf-8');
 
-    const result = await getAST({ path: 'components.tsx' }, root);
+      const result = await getAST({ path: 'components.tsx' }, root);
 
-    expect(result.success).toBe(true);
-    const componentNames = (result.components ?? []).map((c) => c.name);
-    // Button: getVariableDeclarations + getInitializer + SyntaxKind.ArrowFunction
-    expect(componentNames).toContain('Button');
-    // Card: getFunctions + getBody() JSX heuristic (exercises jsx: 2 parsing)
-    expect(componentNames).toContain('Card');
-    // Panel: getClasses + getExtends
-    expect(componentNames).toContain('Panel');
-    expect(result.components?.find((c) => c.name === 'Panel')?.type).toBe('class');
-  });
+      expect(result.success).toBe(true);
+      const componentNames = (result.components ?? []).map((c) => c.name);
+      // Button: getVariableDeclarations + getInitializer + SyntaxKind.ArrowFunction
+      expect(componentNames).toContain('Button');
+      // Card: getFunctions + getBody() JSX heuristic (exercises jsx: 2 parsing)
+      expect(componentNames).toContain('Card');
+      // Panel: getClasses + getExtends
+      expect(componentNames).toContain('Panel');
+      expect(result.components?.find((c) => c.name === 'Panel')?.type).toBe('class');
+    },
+    TS_MORPH_COLD_START_TIMEOUT_MS,
+  );
 
   it('rejects unsupported file extensions', async () => {
     const root = makeRoot();
