@@ -12,11 +12,14 @@ import { createConsoleStore } from './consoleStore.js';
  * stale/interleaved runs. `runTask` can be deferred so the launch window
  * (before the new run id resolves) is observable.
  */
-function createControllableBridge(runId: string, opts: { defer?: boolean } = {}) {
+function createControllableBridge(
+  runId: string,
+  opts: { defer?: boolean; deferRespond?: boolean } = {},
+) {
   const agentListeners = new Set<(e: { runId: string; event: AgentEvent }) => void>();
   const approvalListeners = new Set<(e: { runId: string; request: ApprovalRequest }) => void>();
   const responded: ApprovalDecisionInput[] = [];
-  let rejectRespond = false;
+  let activeRunId = runId;
   let runTaskCalls = 0;
   let settle: () => void = () => {};
   let fail: (error: unknown) => void = () => {};
@@ -24,16 +27,20 @@ function createControllableBridge(runId: string, opts: { defer?: boolean } = {})
     settle = resolve;
     fail = reject;
   });
+  let failRespondGate: (error: unknown) => void = () => {};
+  const respondGate = new Promise<void>((_, reject) => {
+    failRespondGate = reject;
+  });
 
   const bridge: FrontAgentBridge = {
     async runTask() {
       runTaskCalls += 1;
       if (opts.defer) await gate;
-      return { runId };
+      return { runId: activeRunId };
     },
     async cancelTask() {},
     async respondApproval(input) {
-      if (rejectRespond) throw new Error('IPC down');
+      if (opts.deferRespond) await respondGate; // rejected by failRespond()
       responded.push(input);
     },
     async getSettings() {
@@ -53,9 +60,10 @@ function createControllableBridge(runId: string, opts: { defer?: boolean } = {})
   return {
     bridge,
     responded,
-    setRejectRespond: (value: boolean) => {
-      rejectRespond = value;
+    setRunId: (id: string) => {
+      activeRunId = id;
     },
+    failRespond: (error: unknown) => failRespondGate(error),
     runTaskCalls: () => runTaskCalls,
     settleRun: () => settle(),
     failRun: (error: unknown) => fail(error),
@@ -181,18 +189,53 @@ describe('consoleStore run isolation', () => {
   });
 
   it('restores the pending approval when respondApproval fails to reach main', async () => {
-    const ctl = createControllableBridge('R1');
+    const ctl = createControllableBridge('R1', { deferRespond: true });
     const store = createConsoleStore(ctl.bridge);
     await store.runTask({ task: 't', workspacePath: '/w' });
     ctl.emitApproval('R1', approval('apv-1'));
     expect(store.getState().pendingApprovals).toHaveLength(1);
 
-    ctl.setRejectRespond(true);
-    await store.respondApproval('apv-1', true);
+    const pending = store.respondApproval('apv-1', true);
+    expect(store.getState().pendingApprovals).toHaveLength(0); // optimistic clear
+    ctl.failRespond(new Error('IPC down'));
+    await pending;
 
-    // Optimistic clear was rolled back so the user can retry the gate.
+    // Same run, so the cleared approval is rolled back for the user to retry.
     expect(store.getState().pendingApprovals.map((a) => a.approvalId)).toEqual(['apv-1']);
-    expect(ctl.responded).toHaveLength(0);
+    store.dispose();
+  });
+
+  it('does not send a decision for an approval that is not pending (idempotent on double click)', async () => {
+    const ctl = createControllableBridge('R1');
+    const store = createConsoleStore(ctl.bridge);
+    await store.runTask({ task: 't', workspacePath: '/w' });
+    ctl.emitApproval('R1', approval('apv-1'));
+
+    await store.respondApproval('apv-1', true);
+    await store.respondApproval('apv-1', true); // stale double-click
+    await store.respondApproval('missing', false); // unknown id
+
+    expect(ctl.responded).toHaveLength(1); // only the first, real decision was sent
+    store.dispose();
+  });
+
+  it('does not restore a stale approval into a new run when the failed send resolves late', async () => {
+    const ctl = createControllableBridge('R1', { deferRespond: true });
+    const store = createConsoleStore(ctl.bridge);
+    await store.runTask({ task: 't', workspacePath: '/w' });
+    ctl.emitApproval('R1', approval('apv-1'));
+
+    const pending = store.respondApproval('apv-1', true); // decisionRunId = R1, awaits gate
+
+    // A new run starts before the (doomed) approval send settles.
+    ctl.setRunId('R2');
+    await store.runTask({ task: 'again', workspacePath: '/w' });
+
+    ctl.failRespond(new Error('IPC down'));
+    await pending;
+
+    // The R1 approval must not leak back into the R2 run's state.
+    expect(store.getState().pendingApprovals).toHaveLength(0);
     store.dispose();
   });
 

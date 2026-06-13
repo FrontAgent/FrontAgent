@@ -103,14 +103,19 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
     async respondApproval(approvalId, approved, note) {
       if (!currentRunId) return;
       const pending = state.pendingApprovals.find((a) => a.approvalId === approvalId);
+      // Only act on an approval still in the queue, so a double-click or a
+      // stale handler can't resend the same decision.
+      if (!pending) return;
+      const decisionRunId = currentRunId;
       // Optimistically clear the approval from the queue, then notify main.
       set(resolveApproval(state, approvalId, approved));
       try {
-        await bridge.respondApproval({ runId: currentRunId, approvalId, approved, note });
+        await bridge.respondApproval({ runId: decisionRunId, approvalId, approved, note });
       } catch {
         // The decision did not reach main — restore the approval so the user
-        // can retry instead of losing a pending gate.
-        if (pending) set(addApprovalRequest(state, pending));
+        // can retry. Only if we're still on the same run: a new run may have
+        // started during the await, and we must not leak a stale approval into it.
+        if (currentRunId === decisionRunId) set(addApprovalRequest(state, pending));
       }
     },
     dispose() {
