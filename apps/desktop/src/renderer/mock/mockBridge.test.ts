@@ -44,6 +44,34 @@ describe('mock bridge driving the console store', () => {
     store.dispose();
   });
 
+  it('resets state when a new run starts after a previous run finished', async () => {
+    const store = createConsoleStore(createMockBridge());
+
+    // First run to completion.
+    await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
+    await vi.advanceTimersByTimeAsync(12_000);
+    await store.respondApproval(store.getState().pendingApprovals[0]?.approvalId as string, true);
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(store.getState().status).toBe('completed');
+
+    // Second run: the store eagerly resets before any event arrives.
+    await store.runTask({ task: 'again', workspacePath: '/tmp/demo' });
+    const reset = store.getState();
+    expect(reset.status).toBe('idle');
+    expect(reset.result).toBeUndefined();
+    expect(reset.pendingApprovals).toHaveLength(0);
+    expect(reset.phases).toHaveLength(0);
+    expect(reset.log).toHaveLength(0);
+
+    // And the fresh run rebuilds cleanly with no leftovers from the first.
+    await vi.advanceTimersByTimeAsync(12_000);
+    const second = store.getState();
+    expect(second.phases.map((p) => p.name)).toEqual(['实现', '验证']);
+    expect(second.pendingApprovals).toHaveLength(1);
+    expect(second.result).toBeUndefined();
+    store.dispose();
+  });
+
   it('fails the run when the approval is rejected', async () => {
     const store = createConsoleStore(createMockBridge());
     await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });

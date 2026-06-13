@@ -60,6 +60,11 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
       return () => listeners.delete(listener);
     },
     async runTask(req) {
+      // Reset immediately so a re-run never shows the previous run's phases,
+      // log, tokens or pending approvals during the gap before `task_started`
+      // arrives (the reducer also resets on task_started; this is the eager UI
+      // clear).
+      set(initialConsoleState);
       const { runId } = await bridge.runTask(req);
       currentRunId = runId;
     },

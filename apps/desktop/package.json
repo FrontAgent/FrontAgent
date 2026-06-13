@@ -13,6 +13,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@fontsource/chakra-petch": "^5.2.0",
+    "@fontsource/ibm-plex-mono": "^5.2.0",
+    "@fontsource/ibm-plex-sans": "^5.2.0",
     "@frontagent/core": "workspace:*",
     "@frontagent/shared": "workspace:*",
     "react": "^19.2.0",
