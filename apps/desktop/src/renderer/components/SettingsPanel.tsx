@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import type { DesktopSettings, FrontAgentBridge } from '../../ipc/contract.js';
+import { useSettings } from '../store/useSettings.js';
 
 const FIELDS: { key: keyof DesktopSettings; label: string; placeholder: string }[] = [
   { key: 'provider', label: 'Provider', placeholder: 'anthropic' },
@@ -9,31 +9,33 @@ const FIELDS: { key: keyof DesktopSettings; label: string; placeholder: string }
 ];
 
 export function SettingsPanel({ bridge }: { bridge: FrontAgentBridge }) {
-  const [settings, setSettings] = useState<DesktopSettings | null>(null);
-  const [saved, setSaved] = useState(false);
+  const { state, update, save, retryLoad } = useSettings(bridge);
 
-  useEffect(() => {
-    bridge.getSettings().then(setSettings);
-  }, [bridge]);
+  if (state.status === 'loading') return <div className="settings">加载中…</div>;
 
-  if (!settings) return <div className="settings">加载中…</div>;
+  if (state.status === 'load-error' || !state.settings) {
+    return (
+      <div className="settings">
+        <h2>设置</h2>
+        <div className="settings-error" role="alert">
+          无法加载设置：{state.error ?? '未知错误'}
+        </div>
+        <button type="button" className="btn btn-primary" onClick={retryLoad}>
+          重试
+        </button>
+      </div>
+    );
+  }
 
-  const update = (key: keyof DesktopSettings, value: string) => {
-    setSettings({ ...settings, [key]: value });
-    setSaved(false);
-  };
-
-  const save = async () => {
-    await bridge.saveSettings(settings);
-    setSaved(true);
-  };
+  const { settings, status, saved, error } = state;
+  const saving = status === 'saving';
 
   return (
     <div className="settings">
       <h2>设置</h2>
       <p className="hint">
-        设置仅在本会话内保存（刷新后不保留）；本机安全存储与持久化在 PR3 接入。Base URL 留空使用
-        provider 默认。
+        设置持久化到本机用户目录（app.getPath('userData')/settings.json）。Base URL 留空使用
+        provider 默认；API Key 从环境变量读取。
       </p>
       {FIELDS.map((field) => (
         <div className="setting-group" key={field.key}>
@@ -42,12 +44,18 @@ export function SettingsPanel({ bridge }: { bridge: FrontAgentBridge }) {
             id={field.key}
             value={settings[field.key] ?? ''}
             placeholder={field.placeholder}
+            disabled={saving}
             onChange={(e) => update(field.key, e.target.value)}
           />
         </div>
       ))}
-      <button type="button" className="btn btn-primary" onClick={save}>
-        保存设置
+      {status === 'save-error' ? (
+        <div className="settings-error" role="alert">
+          保存失败：{error ?? '未知错误'}
+        </div>
+      ) : null}
+      <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
+        {saving ? '保存中…' : status === 'save-error' ? '重试保存' : '保存设置'}
         {saved ? <span className="settings-saved">✓ 已保存</span> : null}
       </button>
     </div>

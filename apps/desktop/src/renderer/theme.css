@@ -740,6 +740,22 @@ body::before {
   color: var(--teal);
   margin-left: 12px;
 }
+.settings-error {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--coral);
+  background: var(--coral-glow);
+  border: 1px solid var(--coral);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  margin-bottom: 20px;
+}
+.settings input:disabled,
+.settings .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* scrollbars */
 ::-webkit-scrollbar {
