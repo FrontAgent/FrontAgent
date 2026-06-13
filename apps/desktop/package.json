@@ -1,0 +1,23 @@
+{
+  "name": "@frontagent/desktop",
+  "version": "2.1.1",
+  "description": "FrontAgent desktop app (Electron) — standalone GUI entry point reusing the Node runtime spine",
+  "private": true,
+  "type": "module",
+  "main": "./dist/electron/main.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@frontagent/core": "workspace:*",
+    "@frontagent/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}
