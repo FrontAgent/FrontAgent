@@ -179,6 +179,21 @@ describe('consoleStore run isolation', () => {
     store.dispose();
   });
 
+  it('does not start a second run after runId resolves but before the first event', async () => {
+    const ctl = createControllableBridge('R1'); // runTask resolves immediately; no events emitted
+    const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
+
+    await store.runTask({ task: 't', workspacePath: '/w' });
+    // runId has resolved but no agent event has arrived yet.
+    expect(store.getState().status).toBe('planning'); // store is busy
+    expect(store.isLaunching()).toBe(false);
+
+    await store.runTask({ task: 'again', workspacePath: '/w' });
+    expect(ctl.runTaskCalls()).toBe(1); // second launch rejected — single active run
+    store.dispose();
+  });
+
   it('does not start a second run while a launch is in flight', async () => {
     const ctl = createControllableBridge('R1', { defer: true });
     const store = createConsoleStore(ctl.bridge);
@@ -236,7 +251,9 @@ describe('consoleStore run isolation', () => {
 
     const pending = store.respondApproval('apv-1', true); // decisionRunId = R1, awaits gate
 
-    // A new run starts before the (doomed) approval send settles.
+    // R1 ends, then a new run starts before the (doomed) approval send settles.
+    // (The single-active-run guard requires R1 to be terminal before R2 starts.)
+    ctl.emitEvent('R1', { type: 'task_failed', error: '中断' });
     ctl.setRunId('R2');
     await store.runTask({ task: 'again', workspacePath: '/w' });
 

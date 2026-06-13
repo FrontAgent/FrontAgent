@@ -91,9 +91,13 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
       };
     },
     async runTask(req) {
-      // Reject re-entrant launches: the composer is disabled while launching,
-      // but guard here too so a fast double-click can't start two runs.
-      if (launching) return;
+      // Busy when a launch is in flight OR a run has started and not yet
+      // terminated — including the window after `runId` resolves but before the
+      // first event arrives. Reject re-entry so the single-active-run model
+      // can't fan out into multiple real backend tasks on a fast double-click.
+      const hasActiveRun =
+        currentRunId !== undefined && state.status !== 'completed' && state.status !== 'failed';
+      if (launching || hasActiveRun) return;
       const seq = ++launchSeq;
       // Atomically invalidate the old run BEFORE clearing state, so a late
       // envelope from the previous run can't slip through the `runId` gate and
@@ -105,6 +109,9 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
         const { runId } = await bridge.runTask(req);
         if (seq !== launchSeq) return; // superseded by a newer launch
         currentRunId = runId;
+        // Enter 'planning' immediately so the composer stays disabled through
+        // the window between runId resolution and the first agent event.
+        set({ ...initialConsoleState, status: 'planning' });
       } catch (error) {
         if (seq === launchSeq) {
           // Leave the UI in an explainable failed state; the old run stays

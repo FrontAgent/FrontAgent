@@ -57,10 +57,11 @@ describe('mock bridge driving the console store', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     expect(store.getState().status).toBe('completed');
 
-    // Second run: the store eagerly resets before any event arrives.
+    // Second run: the store resets and enters 'planning' before any event
+    // arrives (so the composer stays disabled through the launch window).
     await store.runTask({ task: 'again', workspacePath: '/tmp/demo' });
     const reset = store.getState();
-    expect(reset.status).toBe('idle');
+    expect(reset.status).toBe('planning');
     expect(reset.result).toBeUndefined();
     expect(reset.pendingApprovals).toHaveLength(0);
     expect(reset.phases).toHaveLength(0);
