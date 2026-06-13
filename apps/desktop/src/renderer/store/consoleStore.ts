@@ -55,23 +55,40 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
     emit();
   };
 
-  // Listeners fold only envelopes for the active run, so a previous/cancelled
-  // run's late events or approvals can never pollute the current console.
-  const offEvent = bridge.onAgentEvent(({ runId, event }) => {
-    if (runId !== currentRunId) return;
-    set(consoleReducer(state, event));
-  });
-  const offApproval = bridge.onApprovalRequested(({ runId, request }) => {
-    if (runId !== currentRunId) return;
-    set(addApprovalRequest(state, request));
-  });
+  // Bridge subscription is attached lazily on the first `subscribe` and torn
+  // down on the last unsubscribe — NOT at construction. Constructing the store
+  // is side-effect-free, so a render discarded by React StrictMode (whose
+  // effects/cleanup never run) cannot leak bridge listeners.
+  let detachBridge: (() => void) | null = null;
+  const attachBridge = () => {
+    if (detachBridge) return;
+    // Listeners fold only envelopes for the active run, so a previous/cancelled
+    // run's late events or approvals can never pollute the current console.
+    const offEvent = bridge.onAgentEvent(({ runId, event }) => {
+      if (runId !== currentRunId) return;
+      set(consoleReducer(state, event));
+    });
+    const offApproval = bridge.onApprovalRequested(({ runId, request }) => {
+      if (runId !== currentRunId) return;
+      set(addApprovalRequest(state, request));
+    });
+    detachBridge = () => {
+      offEvent();
+      offApproval();
+      detachBridge = null;
+    };
+  };
 
   return {
     getState: () => state,
     isLaunching: () => launching,
     subscribe(listener) {
+      if (listeners.size === 0) attachBridge();
       listeners.add(listener);
-      return () => listeners.delete(listener);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) detachBridge?.();
+      };
     },
     async runTask(req) {
       // Reject re-entrant launches: the composer is disabled while launching,
@@ -119,8 +136,7 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
       }
     },
     dispose() {
-      offEvent();
-      offApproval();
+      detachBridge?.();
       listeners.clear();
     },
   };

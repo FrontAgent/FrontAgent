@@ -60,6 +60,7 @@ function createControllableBridge(
   return {
     bridge,
     responded,
+    activeListenerCount: () => agentListeners.size + approvalListeners.size,
     setRunId: (id: string) => {
       activeRunId = id;
     },
@@ -111,6 +112,7 @@ describe('consoleStore run isolation', () => {
   it('ignores agent events from a run that is not the active one', async () => {
     const ctl = createControllableBridge('R1');
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
     await store.runTask({ task: 't', workspacePath: '/w' });
 
     ctl.emitEvent('OLD', stepStarted('s9', '旧阶段'));
@@ -124,6 +126,7 @@ describe('consoleStore run isolation', () => {
   it('ignores approval requests from a stale run and does not repoint the active run', async () => {
     const ctl = createControllableBridge('R1');
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
     await store.runTask({ task: 't', workspacePath: '/w' });
 
     ctl.emitApproval('OLD', approval('old-apv'));
@@ -137,6 +140,7 @@ describe('consoleStore run isolation', () => {
   it('routes respondApproval to the active run even after interleaved stale envelopes', async () => {
     const ctl = createControllableBridge('R1');
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
     await store.runTask({ task: 't', workspacePath: '/w' });
 
     ctl.emitApproval('R1', approval('apv-1'));
@@ -154,6 +158,7 @@ describe('consoleStore run isolation', () => {
   it('drops late envelopes from a prior run during the launch window (before runTask resolves)', async () => {
     const ctl = createControllableBridge('R2', { defer: true });
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
 
     const launch = store.runTask({ task: 't', workspacePath: '/w' });
     expect(store.isLaunching()).toBe(true);
@@ -177,6 +182,7 @@ describe('consoleStore run isolation', () => {
   it('does not start a second run while a launch is in flight', async () => {
     const ctl = createControllableBridge('R1', { defer: true });
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
 
     const first = store.runTask({ task: 't', workspacePath: '/w' });
     const second = store.runTask({ task: 't again', workspacePath: '/w' }); // re-entrant click
@@ -191,6 +197,7 @@ describe('consoleStore run isolation', () => {
   it('restores the pending approval when respondApproval fails to reach main', async () => {
     const ctl = createControllableBridge('R1', { deferRespond: true });
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
     await store.runTask({ task: 't', workspacePath: '/w' });
     ctl.emitApproval('R1', approval('apv-1'));
     expect(store.getState().pendingApprovals).toHaveLength(1);
@@ -208,6 +215,7 @@ describe('consoleStore run isolation', () => {
   it('does not send a decision for an approval that is not pending (idempotent on double click)', async () => {
     const ctl = createControllableBridge('R1');
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
     await store.runTask({ task: 't', workspacePath: '/w' });
     ctl.emitApproval('R1', approval('apv-1'));
 
@@ -222,6 +230,7 @@ describe('consoleStore run isolation', () => {
   it('does not restore a stale approval into a new run when the failed send resolves late', async () => {
     const ctl = createControllableBridge('R1', { deferRespond: true });
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
     await store.runTask({ task: 't', workspacePath: '/w' });
     ctl.emitApproval('R1', approval('apv-1'));
 
@@ -242,6 +251,7 @@ describe('consoleStore run isolation', () => {
   it('returns to an explainable failed state and stops accepting envelopes when runTask rejects', async () => {
     const ctl = createControllableBridge('R1', { defer: true });
     const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
 
     const launch = store.runTask({ task: 't', workspacePath: '/w' });
     ctl.failRun(new Error('IPC down'));
@@ -256,5 +266,29 @@ describe('consoleStore run isolation', () => {
     ctl.emitEvent('R1', stepStarted('s1', '实现'));
     expect(store.getState().phases).toHaveLength(0);
     store.dispose();
+  });
+});
+
+describe('consoleStore bridge-listener lifecycle', () => {
+  it('does not subscribe to the bridge until the first subscribe (StrictMode-safe construction)', () => {
+    const ctl = createControllableBridge('R1');
+    // Constructing the store must be side-effect-free: a render discarded by
+    // React StrictMode (whose effect cleanup never runs) must not leak listeners.
+    const store = createConsoleStore(ctl.bridge);
+    expect(ctl.activeListenerCount()).toBe(0);
+
+    const unsubscribe = store.subscribe(() => {});
+    expect(ctl.activeListenerCount()).toBeGreaterThan(0); // attached lazily on first subscribe
+
+    unsubscribe();
+    expect(ctl.activeListenerCount()).toBe(0); // detached on last unsubscribe
+  });
+
+  it('leaves no bridge listeners after a subscribe/dispose cycle', () => {
+    const ctl = createControllableBridge('R1');
+    const store = createConsoleStore(ctl.bridge);
+    store.subscribe(() => {});
+    store.dispose();
+    expect(ctl.activeListenerCount()).toBe(0);
   });
 });

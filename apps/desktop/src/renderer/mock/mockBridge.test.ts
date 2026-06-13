@@ -8,6 +8,7 @@ describe('mock bridge driving the console store', () => {
 
   it('replays the scripted run into phase lanes and pauses on an approval', async () => {
     const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
 
     await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
     await vi.advanceTimersByTimeAsync(12_000);
@@ -28,6 +29,7 @@ describe('mock bridge driving the console store', () => {
 
   it('completes the run when the approval is granted', async () => {
     const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
     await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
     await vi.advanceTimersByTimeAsync(12_000);
 
@@ -46,6 +48,7 @@ describe('mock bridge driving the console store', () => {
 
   it('resets state when a new run starts after a previous run finished', async () => {
     const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
 
     // First run to completion.
     await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
@@ -74,6 +77,7 @@ describe('mock bridge driving the console store', () => {
 
   it('fails the run when the approval is rejected', async () => {
     const store = createConsoleStore(createMockBridge());
+    store.subscribe(() => {});
     await store.runTask({ task: 'demo', workspacePath: '/tmp/demo' });
     await vi.advanceTimersByTimeAsync(12_000);
 
