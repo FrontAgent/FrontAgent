@@ -4,10 +4,13 @@
   "description": "FrontAgent desktop app (Electron) — standalone GUI entry point reusing the Node runtime spine",
   "private": true,
   "type": "module",
-  "main": "./dist/electron/main.js",
+  "main": "./dist/electron/main.mjs",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"vite --port 5173 --strictPort\" \"node electron.build.mjs && cross-env ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
+    "dev:renderer": "vite",
+    "build": "tsc --noEmit && vite build && node electron.build.mjs",
+    "build:electron": "node electron.build.mjs",
+    "start": "electron .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
@@ -17,6 +20,7 @@
     "@fontsource/ibm-plex-mono": "^5.2.0",
     "@fontsource/ibm-plex-sans": "^5.2.0",
     "@frontagent/core": "workspace:*",
+    "@frontagent/runtime-node": "workspace:*",
     "@frontagent/shared": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -25,6 +29,10 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^42.4.0",
+    "esbuild": "^0.25.0",
     "typescript": "^6.0.3",
     "vite": "^7.1.0",
     "vitest": "^4.1.7"
