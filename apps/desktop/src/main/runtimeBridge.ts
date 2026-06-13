@@ -68,21 +68,29 @@ export function createRuntimeBridge(deps: RuntimeBridgeDeps): RuntimeBridge {
       // before any event is forwarded — the FrontAgentBridge.runTask timing
       // contract the renderer store relies on (see contract.ts).
       queueMicrotask(() => {
-        void deps
-          .run({
-            task: req.task,
-            projectRoot: req.workspacePath,
-            files: req.relevantFiles,
-            url: req.browserUrl,
-            signal: active.controller.signal,
-            onEvent: (event) => deps.send(IpcPush.AgentEvent, { runId, event }),
-            onApprovalRequest: (request) =>
-              new Promise<boolean>((resolve) => {
-                active.pendingApprovals.set(request.approvalId, resolve);
-                deps.send(IpcPush.ApprovalRequested, { runId, request });
-              }),
-          })
+        // `Promise.resolve().then(run)` so a runner that throws *synchronously*
+        // (before returning its promise) still becomes a rejection we handle,
+        // rather than escaping the microtask uncaught.
+        Promise.resolve()
+          .then(() =>
+            deps.run({
+              task: req.task,
+              projectRoot: req.workspacePath,
+              files: req.relevantFiles,
+              url: req.browserUrl,
+              signal: active.controller.signal,
+              onEvent: (event) => deps.send(IpcPush.AgentEvent, { runId, event }),
+              onApprovalRequest: (request) =>
+                new Promise<boolean>((resolve) => {
+                  active.pendingApprovals.set(request.approvalId, resolve);
+                  deps.send(IpcPush.ApprovalRequested, { runId, request });
+                }),
+            }),
+          )
           .catch((error) => {
+            // A rejection from user cancellation is not a task failure — the
+            // runtime commonly rejects with an AbortError once the signal fires.
+            if (active.controller.signal.aborted || isAbortError(error)) return;
             deps.send(IpcPush.AgentEvent, {
               runId,
               event: {
@@ -124,4 +132,8 @@ export function createRuntimeBridge(deps: RuntimeBridgeDeps): RuntimeBridge {
 
     activeRunCount: () => runs.size,
   };
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }

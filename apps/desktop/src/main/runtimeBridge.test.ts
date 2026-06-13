@@ -172,4 +172,37 @@ describe('createRuntimeBridge', () => {
     expect((failed?.payload.event as { error: string }).error).toContain('boom');
     expect(bridge.activeRunCount()).toBe(0);
   });
+
+  it('forwards task_failed when the runtime throws synchronously', async () => {
+    // Runner throws before returning a promise — must still be surfaced.
+    const { bridge, sent } = harness((() => {
+      throw new Error('sync boom');
+    }) as RuntimeRunner);
+
+    bridge.runTask({ task: 't', workspacePath: '/w' });
+    await tick();
+
+    const failed = sent.find((s) => s.payload.event?.type === 'task_failed');
+    expect((failed?.payload.event as { error: string } | undefined)?.error).toContain('sync boom');
+    expect(bridge.activeRunCount()).toBe(0);
+  });
+
+  it('does not report a cancellation (abort rejection) as task_failed', async () => {
+    const { bridge, sent } = harness(
+      ({ signal }) =>
+        new Promise<void>((_, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('The operation was aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    bridge.runTask({ task: 't', workspacePath: '/w' });
+    await tick();
+    bridge.cancelTask('R1');
+    await tick();
+
+    expect(sent.some((s) => s.payload.event?.type === 'task_failed')).toBe(false);
+    expect(bridge.activeRunCount()).toBe(0); // still cleaned up
+  });
 });
