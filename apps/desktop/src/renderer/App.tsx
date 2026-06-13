@@ -11,8 +11,8 @@ type View = 'console' | 'settings';
 
 export function App({ bridge }: { bridge: FrontAgentBridge }) {
   const [view, setView] = useState<View>('console');
-  const { state, runTask, respondApproval } = useConsoleState(bridge);
-  const running = state.status === 'running' || state.status === 'planning';
+  const { state, launching, runTask, respondApproval } = useConsoleState(bridge);
+  const running = launching || state.status === 'running' || state.status === 'planning';
 
   return (
     <div className="shell">
