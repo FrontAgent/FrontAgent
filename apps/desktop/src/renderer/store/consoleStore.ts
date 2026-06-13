@@ -44,12 +44,16 @@ export function createConsoleStore(bridge: FrontAgentBridge): ConsoleStore {
     emit();
   };
 
+  // `currentRunId` is established authoritatively by `runTask` (the invoke
+  // returns the id before the main process streams). Listeners only fold
+  // envelopes for the active run, so a previous run's late events or approvals
+  // can never pollute the current one.
   const offEvent = bridge.onAgentEvent(({ runId, event }) => {
-    currentRunId = runId;
+    if (runId !== currentRunId) return;
     set(consoleReducer(state, event));
   });
   const offApproval = bridge.onApprovalRequested(({ runId, request }) => {
-    currentRunId = runId;
+    if (runId !== currentRunId) return;
     set(addApprovalRequest(state, request));
   });
 
