@@ -8,12 +8,14 @@ export function TaskComposer({
   disabled: boolean;
   onRun: (req: RunTaskRequest) => void;
 }) {
-  const [task, setTask] = useState('为登录页添加深色模式切换');
-  const [workspacePath, setWorkspacePath] = useState('~/projects/login-page');
-  const [browserUrl, setBrowserUrl] = useState('http://localhost:5173');
+  const [task, setTask] = useState('');
+  const [workspacePath, setWorkspacePath] = useState('');
+  const [browserUrl, setBrowserUrl] = useState('');
+
+  const canRun = task.trim().length > 0 && workspacePath.trim().length > 0;
 
   const submit = () => {
-    if (disabled || task.trim().length === 0) return;
+    if (disabled || !canRun) return;
     onRun({ task: task.trim(), workspacePath, browserUrl: browserUrl || undefined });
   };
 
@@ -30,13 +32,28 @@ export function TaskComposer({
       <div className="composer-row">
         <div className="field">
           <label htmlFor="ws">工作区</label>
-          <input id="ws" value={workspacePath} onChange={(e) => setWorkspacePath(e.target.value)} />
+          <input
+            id="ws"
+            value={workspacePath}
+            onChange={(e) => setWorkspacePath(e.target.value)}
+            placeholder="~/projects/your-app"
+          />
         </div>
         <div className="field">
           <label htmlFor="url">URL</label>
-          <input id="url" value={browserUrl} onChange={(e) => setBrowserUrl(e.target.value)} />
+          <input
+            id="url"
+            value={browserUrl}
+            onChange={(e) => setBrowserUrl(e.target.value)}
+            placeholder="http://localhost:5173（可选）"
+          />
         </div>
-        <button type="button" className="btn btn-primary" disabled={disabled} onClick={submit}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={disabled || !canRun}
+          onClick={submit}
+        >
           {disabled ? '执行中…' : '运行任务 ⌘↵'}
         </button>
       </div>
