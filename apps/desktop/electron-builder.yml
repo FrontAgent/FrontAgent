@@ -1,0 +1,42 @@
+# electron-builder config for @frontagent/desktop.
+#
+# Scope (Issue #339, first increment): give the desktop client a distribution
+# path symmetric with the CLI esbuild bundle and the VSCode VSIX. CI builds the
+# `--dir` target — an unpacked, UNSIGNED app directory (no installer, no code
+# signing) — which is the fastest target that proves the pipeline packages the
+# renderer + esbuilt main/preload + the Node runtime spine on its ubuntu runner.
+#
+# Deferred to a maintainer-led release Issue (need secrets + multi-OS runners):
+# signed multi-platform installers (mac dmg / win nsis / linux AppImage) and
+# notarization. The platform `target` entries below name the eventual installer
+# formats so that work has a home, but `--dir` ignores them.
+appId: ai.frontagent.desktop
+productName: FrontAgent
+# Pin the Linux executable name so CI launches a known binary deterministically
+# (the linux-unpacked root also holds helper executables like chrome-sandbox).
+executableName: frontagent
+directories:
+  output: release
+# Built by `pnpm --filter @frontagent/desktop build` before packaging:
+#   dist/renderer      → vite renderer bundle (index.html + assets, base './')
+#   dist/electron      → esbuilt main.mjs (ESM) + preload.cjs (CJS)
+# Production dependencies (the @frontagent runtime spine) are collected by
+# electron-builder automatically; main.mjs requires them at launch because
+# electron.build.mjs keeps node_modules external.
+files:
+  - dist/**
+  - package.json
+# The JS runtime spine has no native node addons, so skip the electron-ABI
+# rebuild: keeps CI fast and frees the runner from a native build toolchain.
+npmRebuild: false
+# Keep the packaged app unpacked (no app.asar) for this verification slice: CI
+# asserts the packaged renderer + main/preload directly with `test -f` /
+# `node --check`, and an unpacked tree is trivially inspectable. asar packing is
+# part of the deferred maintainer-led release hardening (with installers/signing).
+asar: false
+linux:
+  target: AppImage
+mac:
+  target: dmg
+win:
+  target: nsis

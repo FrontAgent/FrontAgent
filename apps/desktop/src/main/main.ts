@@ -17,9 +17,13 @@ import { registerIpcHandlers } from './ipcHandlers.js';
 import { createRuntimeBridge, type RuntimeRunOptions } from './runtimeBridge.js';
 import { createFileSettingsIO } from './runtimeIO.js';
 import { loadSettings, saveSettings } from './settingsStore.js';
+import { installSmokeProbe } from './smokeProbe.js';
 
 /** Set by `pnpm dev:app` so the window loads the live Vite server in development. */
 const RENDERER_DEV_URL = process.env.ELECTRON_RENDERER_URL;
+
+/** Set by CI's packaging smoke to assert the packaged app boots + wires the bridge. */
+const SMOKE = Boolean(process.env.FRONTAGENT_SMOKE);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -56,6 +60,9 @@ function createMainWindow(): BrowserWindow {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
   });
+  if (SMOKE) {
+    installSmokeProbe(win, { exit: (code) => app.exit(code), log: (m) => console.log(m) });
+  }
   loadRenderer(win);
   mainWindow = win;
   return win;

@@ -11,6 +11,9 @@ build/
 *.tsbuildinfo
 *.vsix
 
+# electron-builder packaged output (apps/desktop)
+release/
+
 # IDE
 .idea/
 .vscode/

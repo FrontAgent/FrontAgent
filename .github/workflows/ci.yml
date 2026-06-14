@@ -44,6 +44,43 @@ jobs:
       - name: Package VSIX
         run: pnpm build
 
+      # Unsigned, host-platform (--dir) packaging of the Electron desktop app —
+      # symmetric with the CLI bundle and the VSIX above. Run via pnpm so
+      # electron-builder detects pnpm and collects the symlinked workspace
+      # runtime spine. Signed multi-platform installers are a maintainer-led
+      # follow-up (need secrets + multi-OS runners). See Issue #339.
+      - name: Package desktop app (unsigned --dir)
+        run: pnpm --filter @frontagent/desktop package
+
+      # Assert the packaged app actually contains the renderer + esbuilt
+      # main/preload (not just that an output dir exists): `node --check` proves
+      # the two bundles are present and valid JS, and the renderer entry HTML is
+      # bundled where main.mjs loads it from.
+      - name: Verify desktop package contents (renderer + main + preload)
+        run: |
+          app=apps/desktop/release/linux-unpacked/resources/app
+          test -f "$app/dist/renderer/index.html"
+          node --check "$app/dist/electron/main.mjs"
+          node --check "$app/dist/electron/preload.cjs"
+
+      # Launch the *packaged* app headlessly (#339 acceptance): proves it boots,
+      # the renderer loads from the packaged dist/, and the sandboxed preload's
+      # contextBridge exposes a wired `window.frontagent`. It only reaches
+      # did-finish-load if main.mjs imported the runtime spine at launch, so this
+      # also validates electron-builder packaged the symlinked workspace deps
+      # correctly. The probe (FRONTAGENT_SMOKE) exits 0/1; xvfb-run propagates it.
+      # --no-sandbox: CI's unpacked chrome-sandbox lacks the SUID bit; the
+      # contextBridge wiring under test is unaffected.
+      - name: Smoke-launch packaged desktop app (xvfb)
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          # Explicit, deterministic binary (electron-builder executableName), not
+          # the first `find` hit — linux-unpacked also holds helper executables.
+          bin=apps/desktop/release/linux-unpacked/frontagent
+          test -x "$bin"
+          echo "Launching packaged app: $bin"
+          FRONTAGENT_SMOKE=1 xvfb-run -a "$bin" --no-sandbox
+
   ci:
     name: CI
     runs-on: ubuntu-latest
@@ -58,7 +95,7 @@ jobs:
           fi
 
           if [ "${{ needs.package.result }}" != "success" ]; then
-            echo "VSIX packaging check failed."
+            echo "Packaging check failed (VSIX and/or desktop app)."
             exit 1
           fi
 

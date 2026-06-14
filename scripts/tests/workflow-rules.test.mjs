@@ -354,6 +354,19 @@ test('CI and contract guard target develop and call named quality scripts', () =
   assert.match(ci, /pnpm quality:ci/u);
   assert.match(ci, /\n\s+package:\n/u);
   assert.match(ci, /run: pnpm build\n/u);
+  // The package job also packages the Electron desktop app (unsigned --dir),
+  // run via pnpm so electron-builder detects pnpm + the workspace spine, then
+  // asserts the packaged renderer + main/preload are present and valid.
+  assert.match(ci, /run: pnpm --filter @frontagent\/desktop package\n/u);
+  assert.match(ci, /test -f "\$app\/dist\/renderer\/index\.html"/u);
+  assert.match(ci, /node --check "\$app\/dist\/electron\/main\.mjs"/u);
+  assert.match(ci, /node --check "\$app\/dist\/electron\/preload\.cjs"/u);
+  // Headless launch smoke: launch a deterministic binary (not the first `find`
+  // hit) and assert the packaged app boots and wires window.frontagent.
+  assert.match(ci, /bin=apps\/desktop\/release\/linux-unpacked\/frontagent/u);
+  assert.match(ci, /test -x "\$bin"/u);
+  assert.match(ci, /FRONTAGENT_SMOKE=1 xvfb-run -a "\$bin" --no-sandbox/u);
+  assert.doesNotMatch(ci, /find apps\/desktop\/release.*head -1/u);
   assert.match(ci, /\n\s+ci:\n\s+name:\s+CI\n/u);
   assert.match(ci, /\n\s+needs:\s+\[check,\s*package\]\n/u);
   assert.match(ci, /needs\.check\.result/u);
@@ -361,6 +374,29 @@ test('CI and contract guard target develop and call named quality scripts', () =
   assert.match(contractGuard, /branches:\s*\[develop\]/u);
   assert.match(contractGuard, /pnpm contract:gitnexus/u);
   assert.match(contractGuard, /GITNEXUS_IMPACT_SUMMARY/u);
+});
+
+test('desktop app has an unsigned electron-builder packaging path', () => {
+  const pkg = JSON.parse(readFileSync('apps/desktop/package.json', 'utf8'));
+  const config = readFileSync('apps/desktop/electron-builder.yml', 'utf8');
+
+  // A `package` script symmetric with the CLI bundle and the VSCode VSIX:
+  // build first, then an unsigned host-platform (--dir) electron-builder run.
+  assert.equal(pkg.scripts.package, 'pnpm run clean && pnpm run build && electron-builder --dir');
+  assert.match(pkg.devDependencies['electron-builder'], /^\^?26\./u);
+  // The packaged output dir is gitignored, so clean must drop it too.
+  assert.equal(pkg.scripts.clean, 'rm -rf dist release');
+
+  // No native node addons in the JS runtime spine → skip the electron-ABI
+  // rebuild so CI needs no native toolchain.
+  assert.match(config, /npmRebuild:\s*false/u);
+  assert.match(config, /output:\s*release/u);
+  // Unpacked (no asar) so CI verifies the packaged files directly.
+  assert.match(config, /asar:\s*false/u);
+  // Deterministic Linux binary name for the CI smoke launch.
+  assert.match(config, /executableName:\s*frontagent/u);
+  // Packages the renderer + esbuilt main/preload produced by `build`.
+  assert.match(config, /dist\/\*\*/u);
 });
 
 test('PR template contains enforced GitNexus summary fields', () => {

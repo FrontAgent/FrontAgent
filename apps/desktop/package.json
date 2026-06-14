@@ -3,6 +3,7 @@
   "version": "2.1.1",
   "description": "FrontAgent desktop app (Electron) — standalone GUI entry point reusing the Node runtime spine",
   "private": true,
+  "author": "FrontAgent",
   "type": "module",
   "main": "./dist/electron/main.mjs",
   "scripts": {
@@ -10,10 +11,11 @@
     "dev:renderer": "vite",
     "build": "tsc --noEmit && vite build && node electron.build.mjs",
     "build:electron": "node electron.build.mjs",
+    "package": "pnpm run clean && pnpm run build && electron-builder --dir",
     "start": "electron .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist release"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.2.0",
@@ -32,6 +34,7 @@
     "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
     "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
     "typescript": "^6.0.3",
     "vite": "^7.1.0",
