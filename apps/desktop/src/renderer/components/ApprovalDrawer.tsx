@@ -8,7 +8,7 @@ export function ApprovalDrawer({
   onDecide: (approvalId: string, approved: boolean) => void;
 }) {
   return (
-    <div className="approval">
+    <section className="approval" aria-label={`需要审批：${request.toolName}`}>
       <div className="approval-head">
         ⚠ 需要审批 · {request.toolName}
         <span className="risk">{request.riskLevel}</span>
@@ -31,6 +31,6 @@ export function ApprovalDrawer({
           批准
         </button>
       </div>
-    </div>
+    </section>
   );
 }

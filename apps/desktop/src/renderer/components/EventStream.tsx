@@ -32,7 +32,14 @@ export function EventStream({
         </div>
       ) : null}
 
-      <div className="stream-log" ref={logRef}>
+      <div
+        className="stream-log"
+        ref={logRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="遥测流"
+      >
         {state.log.length === 0 ? (
           <div className="log-line" data-l="info">
             <span className="log-text" style={{ color: 'var(--ink-faint)' }}>

@@ -10,8 +10,8 @@ const LABELS: Record<RunStatus, string> = {
 
 export function StatusPill({ status }: { status: RunStatus }) {
   return (
-    <span className="status-pill" data-status={status}>
-      <span className="beacon" />
+    <span className="status-pill" data-status={status} role="status" aria-live="polite">
+      <span className="beacon" aria-hidden="true" />
       {LABELS[status]}
     </span>
   );

@@ -24,22 +24,24 @@ export function App({ bridge }: { bridge: FrontAgentBridge }) {
             <small>Console</small>
           </div>
         </div>
-        <nav className="nav">
+        <nav className="nav" aria-label="主导航">
           <button
             type="button"
             className="nav-item"
             data-active={view === 'console'}
+            aria-current={view === 'console' ? 'page' : undefined}
             onClick={() => setView('console')}
           >
-            <span className="nav-dot" /> 任务控制台
+            <span className="nav-dot" aria-hidden="true" /> 任务控制台
           </button>
           <button
             type="button"
             className="nav-item"
             data-active={view === 'settings'}
+            aria-current={view === 'settings' ? 'page' : undefined}
             onClick={() => setView('settings')}
           >
-            <span className="nav-dot" /> 设置
+            <span className="nav-dot" aria-hidden="true" /> 设置
           </button>
         </nav>
         <div className="rail-foot">
