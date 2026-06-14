@@ -269,6 +269,7 @@ export class FrontAgent {
       'scroll',
       'screenshot',
       'wait_for_selector',
+      'web_fetch',
     ];
     for (const tool of tools) {
       this.executor.registerToolMapping(tool, 'web');

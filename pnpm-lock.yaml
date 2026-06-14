@@ -377,6 +377,9 @@ importers:
       '@frontagent/mcp-web':
         specifier: workspace:*
         version: link:../mcp-web
+      '@frontagent/mcp-web-fetch':
+        specifier: workspace:*
+        version: link:../mcp-web-fetch
       '@frontagent/sdd':
         specifier: workspace:*
         version: link:../sdd

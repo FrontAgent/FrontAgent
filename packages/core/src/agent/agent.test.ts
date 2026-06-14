@@ -1,5 +1,6 @@
 import type { ExecutionStep } from '@frontagent/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Executor } from '../executor.js';
 import { createAgent } from './agent.js';
 import { generateOutput } from './answer-generation.js';
 
@@ -211,5 +212,27 @@ describe('createAgent', () => {
     const executorSnap = agent.getExecutorSkillSnapshot();
     expect(plannerSnap.taskSkills).toBeInstanceOf(Array);
     expect(executorSnap.actionSkills).toBeInstanceOf(Array);
+  });
+});
+
+describe('registerWebTools routing contract', () => {
+  it('routes web_fetch and the browser tools to the web client', () => {
+    const spy = vi.spyOn(Executor.prototype, 'registerToolMapping');
+    try {
+      const agent = createAgent({
+        projectRoot: '/test',
+        llm: { provider: 'openai', model: 'gpt-4', apiKey: 'test-key' },
+      });
+      agent.registerWebTools();
+      const webTools = spy.mock.calls
+        .filter(([, client]) => client === 'web')
+        .map(([tool]) => tool);
+      // web_fetch must route to the same 'web' client as the browser tools so
+      // the executor can dispatch it to WebMCPClient.callTool.
+      expect(webTools).toContain('web_fetch');
+      expect(webTools).toContain('browser_navigate');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

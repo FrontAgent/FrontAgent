@@ -13,6 +13,7 @@ const ACTION_ENUM = [
   'browser_click',
   'browser_type',
   'browser_screenshot',
+  'web_fetch',
 ] as const;
 
 const STEP_PARAMS_SCHEMA = z

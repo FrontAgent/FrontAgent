@@ -129,6 +129,7 @@ export async function generatePlanInTwoPhases(
 - **browser_navigate**: 浏览器访问URL（⚠️ 使用上下文中提供的"开发服务器端口"）
 - **browser_screenshot**: 页面截图
 - **get_page_structure**: 获取页面DOM结构
+- **web_fetch**: 抓取 URL 网页内容并清洗为纯文本（HTML→text），用于查阅库/框架文档、API 参考等外部资料
 
 ${PROGRESSIVE_EXPLORATION_PROTOCOL}
 
@@ -271,6 +272,7 @@ ${options.skillContext ?? '无已激活内容技能'}
   如果上下文中提供了端口信息，使用 http://localhost:{端口}/
 - **browser_screenshot**: params 可选 fullPage: true
 - **get_page_structure**: params 可为空对象
+- **web_fetch**: params 需要 url
 
 # 重要提示
 - create_file 和 apply_patch 必须设置 needsCodeGeneration: true
@@ -422,6 +424,7 @@ async function generatePlanSinglePhase(
 - **browser_navigate**: { url: "地址" }
 - **browser_screenshot**: { fullPage: true }
 - **get_page_structure**: {}
+- **web_fetch**: { url: "地址" }
 
 ${PROGRESSIVE_EXPLORATION_PROTOCOL}
 

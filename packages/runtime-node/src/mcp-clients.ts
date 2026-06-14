@@ -21,6 +21,7 @@ import {
   type RagQueryParams,
 } from '@frontagent/mcp-memory';
 import { type BrowserManager, createBrowserManager } from '@frontagent/mcp-web';
+import { handleWebFetchTool } from '@frontagent/mcp-web-fetch';
 
 export class FileMCPClient implements MCPClient {
   private readonly snapshotManager: SnapshotManager;
@@ -143,6 +144,8 @@ export class WebMCPClient implements MCPClient {
         const { selector, timeout } = args as { selector: string; timeout?: number };
         return this.browserManager.waitForSelector(selector, timeout);
       }
+      case 'web_fetch':
+        return handleWebFetchTool(name, args);
       default:
         throw new Error(`Unknown web tool: ${name}`);
     }
@@ -159,6 +162,11 @@ export class WebMCPClient implements MCPClient {
       { name: 'browser_scroll', description: '滚动页面' },
       { name: 'browser_screenshot', description: '截取页面截图' },
       { name: 'browser_wait_for_selector', description: '等待元素出现' },
+      {
+        name: 'web_fetch',
+        description:
+          '抓取 URL 网页内容并清洗为可读文本（HTML→text），用于查阅文档/API 参考；内置 SSRF 防护',
+      },
     ];
   }
 
