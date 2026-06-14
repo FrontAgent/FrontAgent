@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { Message } from '../types.js';
-import { PROGRESSIVE_EXPLORATION_PROTOCOL } from './prompts.js';
+import { EXTERNAL_KNOWLEDGE_PROTOCOL, PROGRESSIVE_EXPLORATION_PROTOCOL } from './prompts.js';
 import type { GeneratedPlan } from './schemas.js';
 import { GeneratedPlanSchema, PlanOutlineSchema, StepExpansionSchema } from './schemas.js';
 
@@ -132,6 +132,8 @@ export async function generatePlanInTwoPhases(
 - **web_fetch**: 抓取 URL 网页内容并清洗为纯文本（HTML→text），用于查阅库/框架文档、API 参考等外部资料
 
 ${PROGRESSIVE_EXPLORATION_PROTOCOL}
+
+${EXTERNAL_KNOWLEDGE_PROTOCOL}
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}
@@ -427,6 +429,8 @@ async function generatePlanSinglePhase(
 - **web_fetch**: { url: "地址" }
 
 ${PROGRESSIVE_EXPLORATION_PROTOCOL}
+
+${EXTERNAL_KNOWLEDGE_PROTOCOL}
 
 # SDD 约束
 ${options.sddConstraints ?? '无特殊约束'}

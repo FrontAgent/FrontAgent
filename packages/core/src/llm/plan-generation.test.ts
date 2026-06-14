@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PlanGenerationDeps } from './plan-generation.js';
 import { generatePlan, generatePlanInTwoPhases, normalizePlan } from './plan-generation.js';
+import { EXTERNAL_KNOWLEDGE_PROTOCOL } from './prompts.js';
 
 const noopDeps: PlanGenerationDeps = {
   debugLog: () => {},
@@ -567,5 +568,86 @@ describe('generatePlan', () => {
     );
     expect(result.summary).toBe('Fallback summary');
     expect(result.steps).toHaveLength(1);
+  });
+});
+
+describe('EXTERNAL_KNOWLEDGE_PROTOCOL', () => {
+  it('encodes the verify-before-assume discipline and the anti-over-fetch guard', () => {
+    // 不熟悉 / 版本特定 / 最近才出现 -> 先 web_fetch 查阅权威来源。
+    expect(EXTERNAL_KNOWLEDGE_PROTOCOL).toContain('不熟悉');
+    expect(EXTERNAL_KNOWLEDGE_PROTOCOL).toContain('版本特定');
+    expect(EXTERNAL_KNOWLEDGE_PROTOCOL).toContain('最近才出现');
+    expect(EXTERNAL_KNOWLEDGE_PROTOCOL).toContain('web_fetch');
+    // 反向约束：稳定/熟知的知识无需 fetch。
+    expect(EXTERNAL_KNOWLEDGE_PROTOCOL).toContain('无需 web_fetch');
+    expect(EXTERNAL_KNOWLEDGE_PROTOCOL).toMatch(/已经熟知且稳定/);
+  });
+});
+
+describe('external-knowledge protocol injection into planner system prompts', () => {
+  it('injects the protocol into the two-phase outline system prompt', async () => {
+    const outline = {
+      summary: 'Protocol injection summary',
+      stepOutlines: [
+        { description: 'Inspect repo', action: 'list_directory', phase: '阶段1-分析' },
+      ],
+      risks: [],
+      alternatives: [],
+    };
+    const detail = {
+      steps: [
+        makeDetailStep({
+          description: 'Inspect repo',
+          action: 'list_directory',
+          tool: 'list_directory',
+          phase: '阶段1-分析',
+        }),
+      ],
+    };
+
+    const generateObject = vi.fn().mockResolvedValueOnce(outline).mockResolvedValueOnce(detail);
+    const { deps } = buildDeps(generateObject);
+
+    await generatePlanInTwoPhases(baseOptions, deps);
+
+    const outlineSystem = generateObject.mock.calls[0][0].system as string;
+    expect(outlineSystem).toContain(EXTERNAL_KNOWLEDGE_PROTOCOL);
+    expect(outlineSystem).toContain('不熟悉');
+    expect(outlineSystem).toContain('无需 web_fetch');
+  });
+
+  it('injects the protocol into the single-phase system prompt (via fallback path)', async () => {
+    const fallbackPlan = {
+      summary: 'Single-phase summary',
+      steps: [
+        makeDetailStep({
+          description: 'Single-phase step',
+          action: 'list_directory',
+          tool: 'list_directory',
+          phase: '阶段1-分析',
+        }),
+      ],
+      risks: [],
+      alternatives: [],
+    };
+
+    let call = 0;
+    const generateObject = vi.fn().mockImplementation(async () => {
+      call += 1;
+      // Force the two-phase outline to fail so generatePlan falls back to single-phase.
+      if (call === 1) {
+        throw new Error('outline generation failed');
+      }
+      return fallbackPlan;
+    });
+    const { deps } = buildDeps(generateObject);
+
+    await generatePlan(baseOptions, deps);
+
+    // The single-phase generator issues the second generateObject call.
+    const singlePhaseSystem = generateObject.mock.calls[1][0].system as string;
+    expect(singlePhaseSystem).toContain(EXTERNAL_KNOWLEDGE_PROTOCOL);
+    expect(singlePhaseSystem).toContain('版本特定');
+    expect(singlePhaseSystem).toContain('无需 web_fetch');
   });
 });
