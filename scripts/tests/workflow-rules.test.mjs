@@ -463,6 +463,20 @@ test('README links the current FrontAgent planner Hugging Face collection', () =
   assert.doesNotMatch(readme, /https:\/\/huggingface\.co\/ceilf6\/frontagent-planner-7B-lora/u);
 });
 
+test('README documents the desktop client as a supported usage path', () => {
+  const readme = readFileSync('README.md', 'utf8');
+  const readmeCn = readFileSync('docs/README-CN.md', 'utf8');
+
+  // Three usage paths (CLI / VS Code / Desktop), not two.
+  assert.match(readme, /## Three Ways to Use FrontAgent/u);
+  assert.match(readme, /\*\*Desktop App\*\*/u);
+  assert.match(readmeCn, /## 三种使用方式/u);
+  // Both downloadable-release and local-build paths are documented.
+  assert.match(readme, /frontagent-desktop-\$\{version\}-\$\{os\}-\$\{arch\}\.zip/u);
+  assert.match(readme, /pnpm --filter @frontagent\/desktop package/u);
+  assert.match(readmeCn, /pnpm --filter @frontagent\/desktop package/u);
+});
+
 test('local Claude state markdown remains ignored', () => {
   assert.doesNotThrow(() =>
     execFileSync('git', ['check-ignore', '-q', '.claude/repo-evolver.local.md']),

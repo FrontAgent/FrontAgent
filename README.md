@@ -49,14 +49,24 @@ The repository is currently aligned on `frontagent@2.1.1` for both the npm CLI p
 - Quality gates: `pnpm quality:predev`, `pnpm quality:precommit`, `pnpm quality:ci`, and `pnpm quality:local` combine contract checks, linting, typechecking, tests, workflow tests, and build verification.
 - v2.1.1 focus: smaller agent/executor/context/Filesense/memory/runtime/webview modules, hardened VS Code webview nonce generation, restored GitNexus contract checks, and expanded focused tests.
 
-## Two Ways to Use FrontAgent
+## Three Ways to Use FrontAgent
 
-FrontAgent now supports both terminal-first and VS Code desktop workflows:
+FrontAgent supports terminal, VS Code, and standalone desktop workflows:
 
 - **CLI**: use `fa init`, `fa run`, RAG commands, Skill Lab, and automation-friendly workflows directly from your terminal.
 - **VS Code Extension**: use the FrontAgent sidebar task console to run tasks, attach the current file or selection, provide a browser URL, review phase/step progress, approve sensitive actions, initialize/validate SDD, and open run logs from inside VS Code.
+- **Desktop App**: a standalone Electron GUI (`apps/desktop`) that reuses the same Node runtime spine — a Task Console for launching tasks, watching live phase/step telemetry, and approving sensitive actions, plus a Settings panel for the LLM provider/model.
 
 Install the VS Code extension from the Marketplace by searching for `FrontAgent` or the extension id `ceilf6.frontagent`.
+
+### Desktop App
+
+The desktop client is a sandboxed Electron window wired to the real runtime (`window.frontagent` → IPC → `runFrontAgentTask`); it persists settings under your OS user-data directory and degrades gracefully if the runtime is unavailable.
+
+- **Download**: grab the unsigned per-platform archive `frontagent-desktop-${version}-${os}-${arch}.zip` from the [GitHub Releases](https://github.com/FrontAgent/FrontAgent/releases) page (published automatically for each `v*` tag), unzip, and launch the `frontagent` executable. The LLM API key is read from the environment (`PROVIDER_API_KEY` / `API_KEY`); set provider/model/base URL in the in-app Settings panel.
+- **Build locally**: `pnpm --filter @frontagent/desktop package` produces an unpacked app under `apps/desktop/release/`, and `pnpm --filter @frontagent/desktop dev` runs it against the Vite dev server. The `release` script (`pnpm --filter @frontagent/desktop run release`) produces the distributable zip.
+
+> Desktop archives are currently unsigned; code signing, notarization, and native installers (dmg/nsis/AppImage) are planned follow-ups.
 
 ## CLI Quick Start
 

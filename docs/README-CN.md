@@ -49,14 +49,24 @@ FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在�
 - 质量门禁：`pnpm quality:predev`、`pnpm quality:precommit`、`pnpm quality:ci` 和 `pnpm quality:local` 会组合执行 contract 检查、lint、typecheck、测试、workflow 测试与构建验证。
 - v2.1.1 重点：拆小 agent/executor/context/Filesense/memory/runtime/webview 模块，加固 VS Code webview nonce 生成，恢复 GitNexus contract checks，并扩展 focused tests。
 
-## 两种使用方式
+## 三种使用方式
 
-FrontAgent 现在同时支持命令行和 VS Code 桌面插件两种使用方式：
+FrontAgent 支持终端、VS Code 与独立桌面三种使用方式：
 
 - **CLI**：在终端里使用 `fa init`、`fa run`、RAG 命令、Skill Lab，以及适合自动化脚本的工作流。
 - **VS Code 插件**：在 Activity Bar 打开 FrontAgent 侧边栏任务台，直接运行任务、附加当前文件或选区、填写浏览器 URL、查看阶段/步骤进度、审批敏感操作、初始化/校验 SDD，并在 VS Code 内打开运行日志。
+- **桌面客户端**：独立的 Electron GUI（`apps/desktop`），复用同一套 Node 运行时脊柱——任务控制台用于发起任务、实时查看阶段/步骤遥测、审批敏感操作，并提供设置面板配置 LLM provider/model。
 
 你可以在 VS Code Marketplace 搜索 `FrontAgent`，或使用插件 ID `ceilf6.frontagent` 安装。
+
+### 桌面客户端
+
+桌面客户端是一个 sandboxed Electron 窗口，接到真实运行时（`window.frontagent` → IPC → `runFrontAgentTask`）；设置持久化到本机用户数据目录，运行时不可用时优雅降级。
+
+- **下载**：在 [GitHub Releases](https://github.com/FrontAgent/FrontAgent/releases) 页面下载对应平台的未签名压缩包 `frontagent-desktop-${version}-${os}-${arch}.zip`（每个 `v*` tag 自动发布），解压后运行 `frontagent` 可执行文件。LLM API Key 从环境变量读取（`PROVIDER_API_KEY` / `API_KEY`）；provider/model/base URL 在应用内设置面板配置。
+- **本地构建**：`pnpm --filter @frontagent/desktop package` 在 `apps/desktop/release/` 下产出未打包的应用；`pnpm --filter @frontagent/desktop dev` 对接 Vite 开发服务器运行；`pnpm --filter @frontagent/desktop run release` 产出可分发 zip。
+
+> 桌面压缩包目前未签名；代码签名、公证与原生安装器（dmg/nsis/AppImage）为后续计划。
 
 ## CLI 快速开始
 
