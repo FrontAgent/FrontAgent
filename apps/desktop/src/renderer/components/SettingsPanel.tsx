@@ -56,8 +56,10 @@ export function SettingsPanel({ bridge }: { bridge: FrontAgentBridge }) {
       ) : null}
       <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
         {saving ? '保存中…' : status === 'save-error' ? '重试保存' : '保存设置'}
-        {saved ? <span className="settings-saved">✓ 已保存</span> : null}
       </button>
+      <span className="settings-saved" role="status" aria-live="polite">
+        {saved ? '✓ 已保存' : ''}
+      </span>
     </div>
   );
 }

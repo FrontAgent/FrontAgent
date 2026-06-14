@@ -738,6 +738,8 @@ body::before {
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--teal);
+}
+.settings-saved:not(:empty) {
   margin-left: 12px;
 }
 .settings-error {
