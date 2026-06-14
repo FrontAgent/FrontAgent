@@ -17,6 +17,8 @@ productName: FrontAgent
 executableName: frontagent
 directories:
   output: release
+# Downloadable archive naming for GitHub Release assets (Issue #341).
+artifactName: frontagent-desktop-${version}-${os}-${arch}.${ext}
 # Built by `pnpm --filter @frontagent/desktop build` before packaging:
 #   dist/renderer      → vite renderer bundle (index.html + assets, base './')
 #   dist/electron      → esbuilt main.mjs (ESM) + preload.cjs (CJS)
@@ -34,9 +36,12 @@ npmRebuild: false
 # `node --check`, and an unpacked tree is trivially inspectable. asar packing is
 # part of the deferred maintainer-led release hardening (with installers/signing).
 asar: false
+# Each platform ships an unsigned downloadable zip (Issue #341). Installers
+# (AppImage / dmg / nsis) and signing/notarization are the deferred maintainer-led
+# release-hardening follow-up; zip needs no secrets and builds on all 3 runners.
 linux:
-  target: AppImage
+  target: zip
 mac:
-  target: dmg
+  target: zip
 win:
-  target: nsis
+  target: zip

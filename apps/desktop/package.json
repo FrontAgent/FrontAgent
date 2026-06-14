@@ -12,6 +12,7 @@
     "build": "tsc --noEmit && vite build && node electron.build.mjs",
     "build:electron": "node electron.build.mjs",
     "package": "pnpm run clean && pnpm run build && electron-builder --dir",
+    "release": "pnpm run build && electron-builder --publish never",
     "start": "electron .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

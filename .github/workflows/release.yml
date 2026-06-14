@@ -1,0 +1,82 @@
+name: Release Desktop
+
+# Builds the desktop client into downloadable, unsigned zip archives for each OS
+# and attaches them to the GitHub Release on version tags (Issue #341).
+#
+# Triggers:
+#   - push tag `v*`     → build all 3 OS zips, then a single publish job attaches
+#                         them to the tag's GitHub Release
+#   - pull_request      → build all 3 OS zips as workflow artifacts (no publish),
+#                         so the release path is verified on the PR that changes it
+#   - workflow_dispatch → manual build (artifacts only), for ad-hoc verification
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'apps/desktop/**'
+      - '.github/workflows/release.yml'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+# Least privilege by default; only the publish job widens to write Releases.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build the desktop package AND its workspace deps (core/shared/runtime-node)
+      # via turbo's dependency graph, so the desktop tsc build resolves their
+      # types — a desktop-only build can't, since the spine isn't prebuilt on CI.
+      - name: Build desktop and workspace deps
+        run: pnpm exec turbo build --filter=@frontagent/desktop
+
+      # electron-builder produces the per-platform zip (electron-builder.yml
+      # target: zip). --publish never: assets are attached by the publish job.
+      - name: Build desktop zip
+        run: pnpm --filter @frontagent/desktop run release
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: apps/desktop/release/*.zip
+          if-no-files-found: error
+
+  publish:
+    # A single job attaches every platform's zip to the Release, so the three
+    # matrix builds never race to create/update the same Release. Tags only.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all platform zips
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-zips
+          merge-multiple: true
+
+      - name: Attach zips to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-zips/*.zip
