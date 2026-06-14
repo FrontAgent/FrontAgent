@@ -81,3 +81,5 @@ models/frontagent-planner/data/*
 models/frontagent-planner/output*/
 .gitnexus
 .codegraphcontext/
+
+CLAUDE-FABLE-5.md
