@@ -769,3 +769,43 @@ body::before {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ---------------------------------------------------------------------------
+   Accessibility — keyboard focus visibility + reduced motion
+   ------------------------------------------------------------------------ */
+
+/* A clear amber ring for keyboard users on interactive controls that otherwise
+   have no visible focus state. :focus-visible keeps pointer clicks quiet. */
+.nav-item:focus-visible,
+.btn:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* Field controls reset the default outline on :focus with no replacement; restore
+   a visible ring for keyboard focus (equal specificity, declared later wins).
+   :is(input, textarea, select) so any control inside a field is covered, not just
+   today's text inputs. (The main composer textarea keeps its amber border/glow.) */
+.field :is(input, textarea, select):focus-visible,
+.setting-group :is(input, textarea, select):focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
+/* Honor users who prefer reduced motion: drop looping/entrance animations
+   (pulse, rise, spin, fade) and collapse transitions to near-instant. The
+   universal reset must win over the specific per-element animation rules, so
+   !important is required here (canonical reduced-motion pattern). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion reset must override specific animation rules */
+    animation-duration: 0.001ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: stop infinite loops (pulse/spin) for reduced-motion users */
+    animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion reset must override specific transition rules */
+    transition-duration: 0.001ms !important;
+  }
+}

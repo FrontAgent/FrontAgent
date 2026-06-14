@@ -43,11 +43,9 @@ export function App({ bridge }: { bridge: FrontAgentBridge }) {
           </button>
         </nav>
         <div className="rail-foot">
-          v2.1.1 · electron
+          v{__APP_VERSION__} · electron
           <br />
           spine · runtime-node
-          <br />
-          mock bridge · PR2
         </div>
       </aside>
 
