@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { ConsoleState } from '../../state/executionReducer.js';
 import { ApprovalDrawer } from './ApprovalDrawer.js';
 
+const SCROLL_BOTTOM_THRESHOLD = 32;
+
 export function EventStream({
   state,
   onApproval,
@@ -10,10 +12,19 @@ export function EventStream({
   onApproval: (approvalId: string, approved: boolean) => void;
 }) {
   const logRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const activeTokens = state.activeStepId ? state.tokensByStep[state.activeStepId] : undefined;
+
+  const handleLogScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+    stickToBottomRef.current = scrollHeight - scrollTop - clientHeight <= SCROLL_BOTTOM_THRESHOLD;
+  };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-scroll on every appended log line
   useEffect(() => {
+    if (!stickToBottomRef.current) {
+      return;
+    }
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [state.log.length, activeTokens]);
 
@@ -39,6 +50,7 @@ export function EventStream({
         aria-live="polite"
         aria-relevant="additions"
         aria-label="遥测流"
+        onScroll={handleLogScroll}
       >
         {state.log.length === 0 ? (
           <div className="log-line" data-l="info">
