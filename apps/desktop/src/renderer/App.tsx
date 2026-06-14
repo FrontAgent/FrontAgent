@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FrontAgentBridge } from '../ipc/contract.js';
 import { EventStream } from './components/EventStream.js';
 import { ExecutionTimeline } from './components/ExecutionTimeline.js';
@@ -11,8 +11,23 @@ type View = 'console' | 'settings';
 
 export function App({ bridge }: { bridge: FrontAgentBridge }) {
   const [view, setView] = useState<View>('console');
+  const [defaultWorkspacePath, setDefaultWorkspacePath] = useState('');
   const { state, launching, runTask, respondApproval } = useConsoleState(bridge);
   const running = launching || state.status === 'running' || state.status === 'planning';
+
+  useEffect(() => {
+    if (view !== 'console') return;
+    let active = true;
+    bridge
+      .getSettings()
+      .then((s) => {
+        if (active) setDefaultWorkspacePath(s.defaultWorkspacePath ?? '');
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [bridge, view]);
 
   return (
     <div className="shell">
@@ -61,7 +76,11 @@ export function App({ bridge }: { bridge: FrontAgentBridge }) {
         {view === 'console' ? (
           <div className="console">
             <section className="timeline-col">
-              <TaskComposer disabled={running} onRun={runTask} />
+              <TaskComposer
+                disabled={running}
+                onRun={runTask}
+                defaultWorkspacePath={defaultWorkspacePath}
+              />
               <ExecutionTimeline phases={state.phases} activeStepId={state.activeStepId} />
             </section>
             <EventStream state={state} onApproval={respondApproval} />

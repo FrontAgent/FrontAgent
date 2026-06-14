@@ -1,16 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RunTaskRequest } from '../../ipc/contract.js';
 
 export function TaskComposer({
   disabled,
   onRun,
+  defaultWorkspacePath,
 }: {
   disabled: boolean;
   onRun: (req: RunTaskRequest) => void;
+  defaultWorkspacePath?: string;
 }) {
   const [task, setTask] = useState('');
   const [workspacePath, setWorkspacePath] = useState('');
   const [browserUrl, setBrowserUrl] = useState('');
+  const workspaceEdited = useRef(false);
+
+  useEffect(() => {
+    if (!workspaceEdited.current) {
+      setWorkspacePath(defaultWorkspacePath ?? '');
+    }
+  }, [defaultWorkspacePath]);
 
   const canRun = task.trim().length > 0 && workspacePath.trim().length > 0;
 
@@ -35,7 +44,10 @@ export function TaskComposer({
           <input
             id="ws"
             value={workspacePath}
-            onChange={(e) => setWorkspacePath(e.target.value)}
+            onChange={(e) => {
+              workspaceEdited.current = true;
+              setWorkspacePath(e.target.value);
+            }}
             placeholder="~/projects/your-app"
           />
         </div>
