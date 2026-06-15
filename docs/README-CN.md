@@ -1254,6 +1254,13 @@ pnpm clean
 - 代码审查模式
 - 增量更新模式
 
+## 友情链接
+
+- [iOfficeAI/AionUi](https://github.com/iOfficeAI/AionUi)
+- [zhu1090093659/deepseek-pp](https://github.com/zhu1090093659/deepseek-pp)
+- [taichuy/1flowbase](https://github.com/taichuy/1flowbase)
+- [yejiming/MuseAI](https://github.com/yejiming/MuseAI)
+
 ## 贡献
 
 欢迎贡献！提交 issue、bug 或建议：
