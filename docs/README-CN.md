@@ -8,13 +8,22 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
 
-> 面向前端工程的企业级 AI Agent 系统 — 以 SDD 为约束、通过 MCP 控制感知与执行
+> 面向前端工程的企业级 AI 编程 Agent 与 MCP 自动化系统 — 以 Specification Driven Development (SDD) 约束规划、代码生成、浏览器感知执行与仓库工作流
 
 [English README](../README.md) | [快速开始](QUICKSTART.md) | [架构](architecture.md) | [设计文档](design.md)
 
-FrontAgent 是一个专为前端工程设计的 AI Agent 系统，解决了在真实工程场景中部署 agent 时遇到的核心问题：
+FrontAgent 是一个开源前端 AI 编程 Agent，面向真实前端工程场景，支持通过 Agent CLI、VS Code AI 插件、桌面客户端、本地 MCP Server、RAG 规划、浏览器感知自动化与 SDD 护栏来构建、修改、验证和交付 Web 应用。
 
 > **蒸馏 Planner 模型**：FrontAgent 的 Planner 阶段已蒸馏为 Hugging Face Planner 资产，统一收录在 [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent)。在支持的 Qwen Coder 基座模型上加载已发布 adapter，即可直接生成前端执行计划，无需调用大型 LLM API。训练流程、提示词、评估脚本和 Hugging Face 发布元数据位于 [models/frontagent-planner](../models/frontagent-planner)。
+
+如果你正在寻找前端 AI Agent，FrontAgent 适合这些场景：
+
+- 基于结构化执行计划生成和重构 React、TypeScript、Vite、Tailwind CSS 与现代 Web UI 代码。
+- 作为 AI Agent CLI、VS Code AI 插件、桌面 Agent 应用，或 Claude Desktop、Cursor、Codex 等 MCP Host 可接入的 stdio MCP Server。
+- 结合仓库级 RAG、Filesense 导航、事实记忆与模块依赖跟踪，减少路径幻觉和上下文遗漏。
+- 在显式安全控制下执行浏览器感知验证、页面检查、Shell 命令和 git/gh 仓库工作流。
+- 用 Specification Driven Development (SDD)、最小补丁、自愈式错误恢复和质量门禁约束生产级前端团队的 AI 编程流程。
+- 使用 Hugging Face 上的 Qwen Coder 蒸馏 Planner 模型，在本地或低成本场景中生成前端执行计划。
 
 - ✅ **两阶段架构** — 规划与执行分离，避免 JSON 解析错误并支持动态代码生成
 - ✅ **分阶段执行** — 步骤按阶段分组，支持阶段内错误恢复
@@ -1253,6 +1262,16 @@ pnpm clean
 - 自定义 MCP 服务支持
 - 代码审查模式
 - 增量更新模式
+
+## 友情链接
+
+- [Linux.do](https://linux.do/) - 学 AI，上 L 站。
+- [Aionui](https://github.com/iOfficeAI/AionUi) - 手机远程控制 AI 干活，token 依赖患者福音。
+- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) - 专为 AI 智能体设计的 Office 套件。
+- [deepseek-pp](https://github.com/zhu1090093659/deepseek-pp) - DeepSeek 网页对话浏览器扩展插件。
+- [MuseAI](https://github.com/yejiming/MuseAI) - 本地 AI 伴侣、文字冒险与穿书互动应用。
+- [RedBox](https://github.com/Jamailar/RedBox) - 面向小红书创作者的本地化 AI 创作工作台。
+- [1flowbase](https://github.com/taichuy/1flowbase) - 多模型工作流虚拟模型网关，可发布 OpenAI/Claude 兼容端点并查看 trace、token、延迟和成本。
 
 ## 贡献
 

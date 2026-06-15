@@ -8,13 +8,22 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
 
-> Enterprise-grade AI Agent System - Constrained by SDD, Powered by MCP for Controlled Perception and Execution
+> Enterprise-grade frontend AI coding agent and MCP-powered automation system - constrained by Specification Driven Development (SDD) for controlled planning, code generation, browser-aware execution, and repository workflows
 
 [中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md)
 
-FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
+FrontAgent is an open-source AI coding agent for frontend engineering. It helps teams build, modify, validate, and ship web applications through an agentic CLI, VS Code extension, desktop app, local MCP server, RAG planning, browser-aware automation, and SDD guardrails.
 
 > **Distilled Planner Models**: FrontAgent's Planner stage has been distilled into Hugging Face planner assets collected under [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent). Load the published adapters on their supported Qwen Coder base models to generate frontend execution plans directly, without calling large LLM APIs. The training workflow, prompts, evaluation scripts, and Hugging Face release metadata live in [models/frontagent-planner](models/frontagent-planner).
+
+Use FrontAgent when you need a frontend AI agent that can:
+
+- Generate and refactor React, TypeScript, Vite, Tailwind CSS, and modern web UI code from structured execution plans.
+- Run as an AI agent CLI, VS Code AI extension, desktop agent app, or stdio MCP server for Claude Desktop, Cursor, Codex, and other MCP hosts.
+- Combine repository-aware RAG, Filesense navigation, facts memory, and module dependency tracking to reduce path hallucinations.
+- Execute browser-aware validation, page inspection, shell commands, and git/gh repository workflows behind explicit safety controls.
+- Enforce Specification Driven Development (SDD), minimal patches, self-healing error recovery, and quality gates for production frontend teams.
+- Use distilled Qwen Coder planner models from Hugging Face for local or lower-cost frontend execution planning.
 
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
@@ -151,10 +160,7 @@ Most MCP hosts use the same `mcpServers` shape. Start with the simple config:
   "mcpServers": {
     "frontagent": {
       "command": "fa",
-      "args": [
-        "mcp",
-        "serve"
-      ]
+      "args": ["mcp", "serve"]
     }
   }
 }
@@ -179,11 +185,7 @@ which fa
   "mcpServers": {
     "frontagent": {
       "command": "/opt/homebrew/bin/node",
-      "args": [
-        "/opt/homebrew/bin/fa",
-        "mcp",
-        "serve"
-      ]
+      "args": ["/opt/homebrew/bin/fa", "mcp", "serve"]
     }
   }
 }
@@ -213,10 +215,7 @@ For direct LLM fallback, pass environment variables through the host config:
   "mcpServers": {
     "frontagent": {
       "command": "fa",
-      "args": [
-        "mcp",
-        "serve"
-      ],
+      "args": ["mcp", "serve"],
       "env": {
         "PROVIDER": "openai",
         "BASE_URL": "https://api.openai.com/v1",
@@ -416,6 +415,7 @@ fa skill promote frontend-design 20260331T120000Z
 ```
 
 The current Skill Lab flow supports two eval tracks for content skills:
+
 - Trigger evals: whether the skill activates correctly.
 - Behavior evals: whether the final output quality passes binary checks.
 
@@ -615,6 +615,7 @@ const projectStructure = await scanProjectFiles();
 ```
 
 **Benefits**:
+
 - ✅ **Accurate File Paths** - LLM knows existing files and generates correct relative paths
 - ✅ **Reduced Hallucination** - Fewer "file not found" errors
 - ✅ **Better Context** - Planner understands the project structure before planning
@@ -637,6 +638,7 @@ const devServerPort = await detectDevServerPort();
 ```
 
 **Benefits**:
+
 - ✅ **Automatic Port Discovery** - No manual port configuration needed
 - ✅ **Framework Awareness** - Recognizes different framework defaults
 - ✅ **Browser Testing** - Correct port used for browser validation tasks
@@ -648,6 +650,7 @@ const devServerPort = await detectDevServerPort();
 FrontAgent uses an innovative two-stage architecture that completely solves JSON parsing errors when generating large amounts of code:
 
 #### Stage 1: Planner
+
 - **Input**: User task + SDD constraints + project context + project file list (NEW!)
 - **Output**: Structured execution plan (descriptions only, no code)
 - **Tech**: Uses `generateObject` to produce Zod Schema-compliant JSON
@@ -671,12 +674,14 @@ FrontAgent uses an innovative two-stage architecture that completely solves JSON
 ```
 
 #### Stage 2: Executor
+
 - **Input**: Structured execution plan
 - **Process**: Execute each step in the plan sequentially
 - **Code Generation**: When encountering `needsCodeGeneration: true`, dynamically generate code using `generateText`
 - **Tech**: Use MCP tools for file operations, command execution, etc.
 
 **Advantages**:
+
 1. ✅ Completely avoid JSON parsing errors (code not in JSON)
 2. ✅ Better controllability (each step validated individually)
 3. ✅ Support large projects (no JSON size limit)
@@ -728,6 +733,7 @@ The execution plan is automatically divided into multiple phases, each focused o
 ```
 
 **Advantages**:
+
 - 🎯 **Clear Execution Flow** - Each phase has a clear objective
 - 🔄 **Intra-Phase Error Recovery** - Errors automatically fixed within phases
 - 📊 **Better Progress Tracking** - Users see which phase is currently executing
@@ -767,6 +773,7 @@ Error: Cannot apply patch: file not found in context: src/App.tsx
 ```
 
 **Features**:
+
 - 🔍 **Smart Error Analysis** - LLM understands error causes and finds root issues
 - 🛠️ **Auto-Generate Fixes** - No manual intervention needed
 - 📝 **Common Error Patterns** - Built-in handling for common errors
@@ -803,21 +810,22 @@ FrontAgent adds a dedicated `skills` layer in Planner to encapsulate reusable pl
 - Supports runtime extension via API:
 
 ```typescript
-import { createAgent, type TaskPlanningSkill } from '@frontagent/core';
+import { createAgent, type TaskPlanningSkill } from "@frontagent/core";
 
 const agent = createAgent(config);
 
 const customSkill: TaskPlanningSkill = {
-  name: 'task.security-audit',
-  supports: (task) => task.type === 'debug' && task.description.includes('security'),
+  name: "task.security-audit",
+  supports: (task) =>
+    task.type === "debug" && task.description.includes("security"),
   plan: ({ stepFactory }) => [
     stepFactory.createStep({
-      description: 'Scan for security-sensitive patterns',
-      action: 'search_code',
-      tool: 'search_code',
+      description: "Scan for security-sensitive patterns",
+      action: "search_code",
+      tool: "search_code",
       params: {
-        pattern: 'eval|innerHTML|dangerouslySetInnerHTML',
-        filePattern: 'src/**/*.{ts,tsx,js,jsx}',
+        pattern: "eval|innerHTML|dangerouslySetInnerHTML",
+        filePattern: "src/**/*.{ts,tsx,js,jsx}",
       },
     }),
   ],
@@ -827,13 +835,13 @@ agent.registerTaskSkill(customSkill);
 console.log(agent.getPlannerSkillSnapshot());
 
 agent.registerExecutorActionSkill({
-  name: 'action.run-command.noncritical-policy',
-  action: 'run_command',
+  name: "action.run-command.noncritical-policy",
+  action: "run_command",
   shouldSkipToolError: ({ errorMsg, params }) => {
-    if (typeof params.command === 'string' && params.command.includes('echo')) {
+    if (typeof params.command === "string" && params.command.includes("echo")) {
       return true;
     }
-    return errorMsg.includes('already exists');
+    return errorMsg.includes("already exists");
   },
 });
 console.log(agent.getExecutorSkillSnapshot());
@@ -844,6 +852,7 @@ console.log(agent.getExecutorSkillSnapshot());
 Traditional agents use logs as context, leading to information redundancy and inaccuracy. FrontAgent uses a structured "facts" system:
 
 **Traditional approach (log-based)**:
+
 ```
 Executed operation log:
 1. Attempted to read src/App.tsx - failed
@@ -854,6 +863,7 @@ Executed operation log:
 ```
 
 **FrontAgent approach (facts-based)**:
+
 ```yaml
 ## File System State
 
@@ -896,6 +906,7 @@ react-router-dom, axios
 ```
 
 **Advantages**:
+
 - 📊 **Structured Information** - Clear state categories (filesystem, dependencies, module graph, project state)
 - 🎯 **Deduplication** - Automatic deduplication using Set/Map
 - 💡 **Context Awareness** - LLM knows which files exist/don't exist
@@ -953,10 +964,10 @@ The system prompt is now structured into three independent zones, each with its 
 const agent = createAgent({
   // ...other config
   memory: {
-    enabled: true,                // default: true
-    preloadBudgetChars: 8000,     // max chars injected at startup
-    recallBudgetChars: 2000,      // max chars per code-gen recall
-    maxTopicFiles: 10,            // max topic files loaded at startup
+    enabled: true, // default: true
+    preloadBudgetChars: 8000, // max chars injected at startup
+    recallBudgetChars: 2000, // max chars per code-gen recall
+    maxTopicFiles: 10, // max topic files loaded at startup
   },
 });
 ```
@@ -1087,6 +1098,7 @@ fa run "Create an e-commerce frontend project using React + TypeScript + Vite + 
 ```
 
 Agent will automatically:
+
 1. Analyze project requirements
 2. Generate execution plan
 3. Create package.json and config files
@@ -1100,6 +1112,7 @@ fa run "Modify vite.config.ts to add path alias configuration"
 ```
 
 Agent will:
+
 1. Read existing vite.config.ts
 2. Understand current configuration
 3. Generate new config code
@@ -1112,6 +1125,7 @@ fa run "Add user authentication feature, including login, registration, and toke
 ```
 
 Agent will:
+
 1. Analyze existing project structure
 2. Plan files to create
 3. Generate auth-related components
@@ -1125,6 +1139,7 @@ fa run "Analyze and optimize homepage loading performance"
 ```
 
 Agent will:
+
 1. Read relevant component code
 2. Analyze performance issues
 3. Propose optimization solutions
@@ -1137,6 +1152,7 @@ fa run "Add route configuration in App.tsx"
 ```
 
 Execution process shows self-healing:
+
 ```
 Phase 1: Analysis Phase
   ✓ Step 1: Read package.json
@@ -1158,6 +1174,7 @@ Phase 3: Validation Phase
 ```
 
 **Key Features**:
+
 - 🎯 **Phase-Based Execution** - Clear execution phases (Analysis, Creation, Validation)
 - 🔄 **Auto-Fix** - Detected file not read, auto-insert read step
 - 📊 **Facts Tracking** - System knows which files are read/unread
@@ -1174,6 +1191,7 @@ fa run "Implement user profile page and open PR" \
 ```
 
 Notes:
+
 - `--engine langgraph` enables graph-based phase orchestration
 - `--langgraph-checkpoint` enables in-memory checkpointing for the run
 - After acceptance passes, repository management phase can run `git/gh` actions
@@ -1182,15 +1200,15 @@ Notes:
 
 ### Required Configuration
 
-| Variable | Description | Example Value |
-|---------|-------------|---------------|
-| `PROVIDER` | LLM provider | `openai` or `anthropic` |
-| `API_KEY` | API key | `sk-...` |
-| `MODEL` | Model name | `gpt-4` or `claude-sonnet-4-20250514` |
-| `BASE_URL` | API endpoint | `https://api.openai.com/v1` |
-| `EXECUTION_ENGINE` | Execution engine | `native` or `langgraph` |
-| `LANGGRAPH_CHECKPOINT` | Enable LangGraph checkpoint | `true` / `false` |
-| `MAX_RECOVERY_ATTEMPTS` | Max recovery attempts per phase | `3` |
+| Variable                | Description                     | Example Value                         |
+| ----------------------- | ------------------------------- | ------------------------------------- |
+| `PROVIDER`              | LLM provider                    | `openai` or `anthropic`               |
+| `API_KEY`               | API key                         | `sk-...`                              |
+| `MODEL`                 | Model name                      | `gpt-4` or `claude-sonnet-4-20250514` |
+| `BASE_URL`              | API endpoint                    | `https://api.openai.com/v1`           |
+| `EXECUTION_ENGINE`      | Execution engine                | `native` or `langgraph`               |
+| `LANGGRAPH_CHECKPOINT`  | Enable LangGraph checkpoint     | `true` / `false`                      |
+| `MAX_RECOVERY_ATTEMPTS` | Max recovery attempts per phase | `3`                                   |
 
 ### OpenAI Configuration Example
 
@@ -1229,6 +1247,7 @@ pnpm clean
 ## Roadmap
 
 ### Completed ✅
+
 - [x] Two-stage agent architecture (Planner + Executor)
 - [x] Phase-based execution
 - [x] Tool Error Feedback Loop (self-healing)
@@ -1256,15 +1275,27 @@ pnpm clean
 - [x] **OSS Harness quality gates** -- Bootstrap, local contract, precommit, CI, GitNexus, and workflow-rule checks
 
 ### In Progress 🚧
+
 - [ ] Enhanced SDD constraints (finer-grained rule control)
 
 ### Planned 📋
+
 - [ ] Memory-driven pattern learning (auto-extract coding conventions from past tasks)
 - [ ] GUI agent auto-testing (Playwright-based)
 - [ ] Multi-agent collaboration (decompose large tasks)
 - [ ] Custom MCP server support (user-defined tools)
 - [ ] Code review mode (auto-check code quality)
 - [ ] Incremental update mode (only modify necessary parts)
+
+## Friendly Links
+
+- [Linux.do](https://linux.do/) - Chinese AI learning and developer community.
+- [Aionui](https://github.com/iOfficeAI/AionUi) - Mobile remote-control UI for letting AI agents operate tasks from a phone.
+- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) - Office suite designed for AI agents.
+- [deepseek-pp](https://github.com/zhu1090093659/deepseek-pp) - Browser extension for DeepSeek web conversations.
+- [MuseAI](https://github.com/yejiming/MuseAI) - Local AI companion, text adventure, and interactive fiction app.
+- [RedBox](https://github.com/Jamailar/RedBox) - Local AI creation workspace for Xiaohongshu creators.
+- [1flowbase](https://github.com/taichuy/1flowbase) - Virtual model gateway for publishing multi-model workflows as OpenAI/Claude-compatible endpoints, with trace, token, latency, and cost visibility.
 
 ## Contributing
 
@@ -1279,7 +1310,6 @@ Welcome to contribute! Submit issues, bugs, or suggestions:
 ## License
 
 MIT
-
 
 Contributions are welcome! Please feel free to submit issues, bug reports, or suggestions.
 
