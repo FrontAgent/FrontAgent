@@ -8,13 +8,22 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
 
-> Enterprise-grade AI Agent System - Constrained by SDD, Powered by MCP for Controlled Perception and Execution
+> Enterprise-grade frontend AI coding agent and MCP-powered automation system - constrained by Specification Driven Development (SDD) for controlled planning, code generation, browser-aware execution, and repository workflows
 
 [中文文档](docs/README-CN.md) | [Quick Start](docs/QUICKSTART.md) | [Architecture](docs/architecture.md) | [Design Doc](docs/design.md)
 
-FrontAgent is an AI Agent system designed specifically for frontend engineering, addressing core challenges faced when deploying agents in real-world engineering scenarios:
+FrontAgent is an open-source AI coding agent for frontend engineering. It helps teams build, modify, validate, and ship web applications through an agentic CLI, VS Code extension, desktop app, local MCP server, RAG planning, browser-aware automation, and SDD guardrails.
 
 > **Distilled Planner Models**: FrontAgent's Planner stage has been distilled into Hugging Face planner assets collected under [FrontAgent: Frontend Engineering Agent](https://hf.co/collections/ceilf6/frontagent-frontend-engineering-agent). Load the published adapters on their supported Qwen Coder base models to generate frontend execution plans directly, without calling large LLM APIs. The training workflow, prompts, evaluation scripts, and Hugging Face release metadata live in [models/frontagent-planner](models/frontagent-planner).
+
+Use FrontAgent when you need a frontend AI agent that can:
+
+- Generate and refactor React, TypeScript, Vite, Tailwind CSS, and modern web UI code from structured execution plans.
+- Run as an AI agent CLI, VS Code AI extension, desktop agent app, or stdio MCP server for Claude Desktop, Cursor, Codex, and other MCP hosts.
+- Combine repository-aware RAG, Filesense navigation, facts memory, and module dependency tracking to reduce path hallucinations.
+- Execute browser-aware validation, page inspection, shell commands, and git/gh repository workflows behind explicit safety controls.
+- Enforce Specification Driven Development (SDD), minimal patches, self-healing error recovery, and quality gates for production frontend teams.
+- Use distilled Qwen Coder planner models from Hugging Face for local or lower-cost frontend execution planning.
 
 - ✅ **Two-Stage Architecture** - Separate planning and execution to avoid JSON parsing errors and enable dynamic code generation
 - ✅ **Phase-Based Execution** - Steps grouped by phases with error recovery within each phase
