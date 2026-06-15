@@ -1271,7 +1271,7 @@ pnpm clean
 - [deepseek-pp](https://github.com/zhu1090093659/deepseek-pp) - DeepSeek 网页对话浏览器扩展插件。
 - [MuseAI](https://github.com/yejiming/MuseAI) - 本地 AI 伴侣、文字冒险与穿书互动应用。
 - [RedBox](https://github.com/Jamailar/RedBox) - 面向小红书创作者的本地化 AI 创作工作台。
-- [taichuy/1flowbase](https://github.com/taichuy/1flowbase) - 多模型工作流虚拟模型网关，可发布 OpenAI/Claude 兼容端点并查看 trace、token、延迟和成本。
+- [1flowbase](https://github.com/taichuy/1flowbase) - 多模型工作流虚拟模型网关，可发布 OpenAI/Claude 兼容端点并查看 trace、token、延迟和成本。
 
 ## 贡献
 
