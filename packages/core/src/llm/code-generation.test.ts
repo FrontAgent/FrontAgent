@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseTypeScriptErrors } from './code-generation.js';
+import {
+  generateCodeForFile,
+  generateModifiedCode,
+  parseTypeScriptErrors,
+} from './code-generation.js';
+import { EXTERNAL_KNOWLEDGE_PROTOCOL } from './prompts.js';
 
 describe('parseTypeScriptErrors', () => {
   it('parses standard tsc error format (parentheses)', () => {
@@ -84,5 +89,77 @@ describe('parseTypeScriptErrors', () => {
       },
     ];
     expect(parseTypeScriptErrors(steps)).toHaveLength(1);
+  });
+});
+
+// The two system prompts below are constructed as local `system` strings inside the
+// generate* functions and never returned. These tests reveal them by capturing the
+// `system` argument passed to the mocked `generateText` dependency, then asserting the
+// external-knowledge discipline is present, mirroring how iteration 17 covered the
+// planner prompts for the same protocol.
+describe('code-generation system prompts', () => {
+  const PROTOCOL_KEY_PHRASES = [
+    '不熟悉',
+    '版本特定',
+    '最近才出现',
+    'web_fetch',
+    '权威来源',
+    '无需 web_fetch',
+    '已经熟知且稳定',
+  ];
+
+  function makeDeps(captureSystem: { value?: string }) {
+    return {
+      debugLog: () => {},
+      debugWarn: () => {},
+      debugError: () => {},
+      generateText: async (options: { system?: string }) => {
+        captureSystem.value = options.system;
+        return 'export const placeholder = 1;';
+      },
+      // generateObject is unused by generateCodeForFile / generateModifiedCode.
+      generateObject: async () => {
+        throw new Error('generateObject should not be called here');
+      },
+    };
+  }
+
+  it('generateCodeForFile injects EXTERNAL_KNOWLEDGE_PROTOCOL into its system prompt', async () => {
+    const captured: { value?: string } = {};
+    await generateCodeForFile(
+      {
+        task: 'add a chart',
+        filePath: 'src/chart.tsx',
+        codeDescription: 'render a bar chart',
+        context: '',
+        language: 'typescript',
+      },
+      makeDeps(captured),
+    );
+
+    const system = captured.value ?? '';
+    expect(system).toContain(EXTERNAL_KNOWLEDGE_PROTOCOL);
+    for (const phrase of PROTOCOL_KEY_PHRASES) {
+      expect(system).toContain(phrase);
+    }
+  });
+
+  it('generateModifiedCode injects EXTERNAL_KNOWLEDGE_PROTOCOL into its system prompt', async () => {
+    const captured: { value?: string } = {};
+    await generateModifiedCode(
+      {
+        originalCode: 'export const a = 1;',
+        changeDescription: 'rename to b',
+        filePath: 'src/util.ts',
+        language: 'typescript',
+      },
+      makeDeps(captured),
+    );
+
+    const system = captured.value ?? '';
+    expect(system).toContain(EXTERNAL_KNOWLEDGE_PROTOCOL);
+    for (const phrase of PROTOCOL_KEY_PHRASES) {
+      expect(system).toContain(phrase);
+    }
   });
 });
