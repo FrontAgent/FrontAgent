@@ -1,6 +1,10 @@
 import type { z } from 'zod';
 import type { Message } from '../types.js';
-import { EXTERNAL_KNOWLEDGE_PROTOCOL, SECURITY_DISCIPLINE } from './prompts.js';
+import {
+  CODE_MINIMALISM_DISCIPLINE,
+  EXTERNAL_KNOWLEDGE_PROTOCOL,
+  SECURITY_DISCIPLINE,
+} from './prompts.js';
 import type { ErrorRecoveryPlan } from './schemas.js';
 import { ErrorRecoveryPlanSchema } from './schemas.js';
 
@@ -107,7 +111,9 @@ ${
 
 ${EXTERNAL_KNOWLEDGE_PROTOCOL}
 
-${SECURITY_DISCIPLINE}`;
+${SECURITY_DISCIPLINE}
+
+${CODE_MINIMALISM_DISCIPLINE}`;
 
   const messages: Message[] = [
     {
@@ -174,7 +180,9 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
 
 ${EXTERNAL_KNOWLEDGE_PROTOCOL}
 
-${SECURITY_DISCIPLINE}`;
+${SECURITY_DISCIPLINE}
+
+${CODE_MINIMALISM_DISCIPLINE}`;
 
   const messages: Message[] = [
     {

@@ -4,7 +4,11 @@ import {
   generateModifiedCode,
   parseTypeScriptErrors,
 } from './code-generation.js';
-import { EXTERNAL_KNOWLEDGE_PROTOCOL, SECURITY_DISCIPLINE } from './prompts.js';
+import {
+  CODE_MINIMALISM_DISCIPLINE,
+  EXTERNAL_KNOWLEDGE_PROTOCOL,
+  SECURITY_DISCIPLINE,
+} from './prompts.js';
 
 describe('parseTypeScriptErrors', () => {
   it('parses standard tsc error format (parentheses)', () => {
@@ -122,6 +126,16 @@ describe('code-generation system prompts', () => {
     '与应用面相称',
   ];
 
+  // Code-minimalism / anti-gold-plating discipline (Issue #367): each of the four
+  // disciplines maps to a distinct anchor phrase so prompt-copy tweaks don't make
+  // these assertions over-fragile (per the #367 repo-guard suggestion).
+  const MINIMALISM_KEY_PHRASES = [
+    '过早的抽象', // ① no speculative abstraction
+    '系统边界', // ② only validate at system boundaries
+    '默认不写注释', // ③ minimal comments
+    '顺手改进', // ④ no scope creep
+  ];
+
   function makeDeps(captureSystem: { value?: string }) {
     return {
       debugLog: () => {},
@@ -212,6 +226,45 @@ describe('code-generation system prompts', () => {
     const system = captured.value ?? '';
     expect(system).toContain(SECURITY_DISCIPLINE);
     for (const phrase of SECURITY_KEY_PHRASES) {
+      expect(system).toContain(phrase);
+    }
+  });
+
+  it('generateCodeForFile injects CODE_MINIMALISM_DISCIPLINE into its system prompt', async () => {
+    const captured: { value?: string } = {};
+    await generateCodeForFile(
+      {
+        task: 'add a small util',
+        filePath: 'src/util.ts',
+        codeDescription: 'format a date',
+        context: '',
+        language: 'typescript',
+      },
+      makeDeps(captured),
+    );
+
+    const system = captured.value ?? '';
+    expect(system).toContain(CODE_MINIMALISM_DISCIPLINE);
+    for (const phrase of MINIMALISM_KEY_PHRASES) {
+      expect(system).toContain(phrase);
+    }
+  });
+
+  it('generateModifiedCode injects CODE_MINIMALISM_DISCIPLINE into its system prompt', async () => {
+    const captured: { value?: string } = {};
+    await generateModifiedCode(
+      {
+        originalCode: 'export const a = 1;',
+        changeDescription: 'add a field',
+        filePath: 'src/util.ts',
+        language: 'typescript',
+      },
+      makeDeps(captured),
+    );
+
+    const system = captured.value ?? '';
+    expect(system).toContain(CODE_MINIMALISM_DISCIPLINE);
+    for (const phrase of MINIMALISM_KEY_PHRASES) {
       expect(system).toContain(phrase);
     }
   });
