@@ -21,11 +21,18 @@ describe('buildCodeQualityLlmReviewPrompt', () => {
     expect(result.system).toBe(
       [
         'You are a strict code quality review sub-agent.',
-        'Evaluate generated code against SDD constraints and maintainability.',
+        'Evaluate generated code against SDD constraints, maintainability, and security.',
+        'Flag common web security vulnerabilities: XSS (unsanitized data flowing into innerHTML/dangerouslySetInnerHTML), command or SQL injection, secrets or API keys hardcoded into client code, and unsafe eval/dynamic code execution or unvalidated URL/redirect handling. Report each with rule "security/<kind>" and an appropriate severity.',
         'Output only actionable issues.',
-        'Set severity=error only for clear correctness or hard-constraint violations.',
+        'Set severity=error only for clear correctness, hard-constraint, or clear security violations.',
       ].join(' '),
     );
+    // Security review dimension (Issue #369): the review sub-agent must actively
+    // flag the same vulnerability classes the codegen discipline avoids (#366),
+    // closing the generate-safely + review-for-safety loop.
+    for (const phrase of ['security', 'XSS', 'injection', 'secrets', 'eval']) {
+      expect(result.system).toContain(phrase);
+    }
     expect(result.userPrompt).toContain('Task ID: task-123');
     expect(result.userPrompt).toContain('Phase: implement');
     expect(result.userPrompt).toContain('No SDD config provided.');
