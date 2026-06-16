@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { Message } from '../types.js';
-import { EXTERNAL_KNOWLEDGE_PROTOCOL } from './prompts.js';
+import { EXTERNAL_KNOWLEDGE_PROTOCOL, SECURITY_DISCIPLINE } from './prompts.js';
 import type { ErrorRecoveryPlan } from './schemas.js';
 import { ErrorRecoveryPlanSchema } from './schemas.js';
 
@@ -105,7 +105,9 @@ ${
 - 使用 TypeScript 类型
 - 按 codeDescription 要求实现
 
-${EXTERNAL_KNOWLEDGE_PROTOCOL}`;
+${EXTERNAL_KNOWLEDGE_PROTOCOL}
+
+${SECURITY_DISCIPLINE}`;
 
   const messages: Message[] = [
     {
@@ -170,7 +172,9 @@ ${options.skillContext ? `\n# 内容技能\n${options.skillContext}` : ''}
 - 确保语法正确
 - 保留未修改的代码
 
-${EXTERNAL_KNOWLEDGE_PROTOCOL}`;
+${EXTERNAL_KNOWLEDGE_PROTOCOL}
+
+${SECURITY_DISCIPLINE}`;
 
   const messages: Message[] = [
     {

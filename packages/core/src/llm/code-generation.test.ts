@@ -4,7 +4,7 @@ import {
   generateModifiedCode,
   parseTypeScriptErrors,
 } from './code-generation.js';
-import { EXTERNAL_KNOWLEDGE_PROTOCOL } from './prompts.js';
+import { EXTERNAL_KNOWLEDGE_PROTOCOL, SECURITY_DISCIPLINE } from './prompts.js';
 
 describe('parseTypeScriptErrors', () => {
   it('parses standard tsc error format (parentheses)', () => {
@@ -108,6 +108,20 @@ describe('code-generation system prompts', () => {
     '已经熟知且稳定',
   ];
 
+  // Security-engineering discipline (Issue #365): the codegen prompts must also
+  // carry the SECURITY_DISCIPLINE so generated/modified frontend code avoids the
+  // common vulnerability classes, plus the reverse constraint that guards against
+  // over-engineering security for trivial UI.
+  const SECURITY_KEY_PHRASES = [
+    'XSS',
+    'dangerouslySetInnerHTML',
+    '注入',
+    '密钥',
+    'eval',
+    '立即修正',
+    '与应用面相称',
+  ];
+
   function makeDeps(captureSystem: { value?: string }) {
     return {
       debugLog: () => {},
@@ -159,6 +173,45 @@ describe('code-generation system prompts', () => {
     const system = captured.value ?? '';
     expect(system).toContain(EXTERNAL_KNOWLEDGE_PROTOCOL);
     for (const phrase of PROTOCOL_KEY_PHRASES) {
+      expect(system).toContain(phrase);
+    }
+  });
+
+  it('generateCodeForFile injects SECURITY_DISCIPLINE into its system prompt', async () => {
+    const captured: { value?: string } = {};
+    await generateCodeForFile(
+      {
+        task: 'add a comment box',
+        filePath: 'src/Comments.tsx',
+        codeDescription: 'render user-submitted comments',
+        context: '',
+        language: 'typescript',
+      },
+      makeDeps(captured),
+    );
+
+    const system = captured.value ?? '';
+    expect(system).toContain(SECURITY_DISCIPLINE);
+    for (const phrase of SECURITY_KEY_PHRASES) {
+      expect(system).toContain(phrase);
+    }
+  });
+
+  it('generateModifiedCode injects SECURITY_DISCIPLINE into its system prompt', async () => {
+    const captured: { value?: string } = {};
+    await generateModifiedCode(
+      {
+        originalCode: 'export const a = 1;',
+        changeDescription: 'render an external url',
+        filePath: 'src/util.ts',
+        language: 'typescript',
+      },
+      makeDeps(captured),
+    );
+
+    const system = captured.value ?? '';
+    expect(system).toContain(SECURITY_DISCIPLINE);
+    for (const phrase of SECURITY_KEY_PHRASES) {
       expect(system).toContain(phrase);
     }
   });
