@@ -105,15 +105,15 @@ Visuals:
 
 Purpose: connect MCP to practical engineering reliability.
 
-### Beat 5: Repository Intelligence, 22-26s
+### Beat 5: Quality Gates, 22-26s
 
-Message: "GitNexus 和质量门禁检查影响面，避免一改全崩。"
+Message: "质量门禁检查结果，失败就回到计划修复。"
 
 Visuals:
 
-- Dependency graph lights up from one changed node.
-- Quality gate indicators switch from pending to pass.
-- Caption: "改之前看影响，交付前跑门禁"
+- Quality gate rows light up in sequence.
+- Failed-check repair loop is visible as a controlled workflow.
+- Caption: "过了门禁再交付"
 
 Purpose: show production workflow credibility.
 
@@ -140,8 +140,8 @@ Primary caption sequence:
 6. SDD 先定边界
 7. MCP 控制感知与执行
 8. 浏览器感知 + 最小补丁 + 质量门禁
-9. 改之前看影响
-10. 交付前跑校验
+9. 交付前跑门禁
+10. 失败回到计划
 11. 把 AI 编程关进工程护栏
 12. GitHub: ceilf6/FrontAgent
 
@@ -169,7 +169,7 @@ Motion:
 
 - Fast cuts in the first 3 seconds.
 - Snap-to-grid transitions for SDD and MCP beats.
-- Smooth graph illumination for GitNexus beat.
+- Smooth gate illumination for the quality beat.
 - Final CTA should hold long enough to read.
 
 ## HyperFrames Project Design
@@ -185,10 +185,12 @@ marketing/hyperframes/frontagent-douyin-promo/
     02-product.html
     03-sdd.html
     04-mcp.html
-    05-gitnexus.html
+    05-quality-gates.html
     06-cta.html
   assets/
     icon.png
+    bgm.m4a
+    bgm-captions.vtt
   dist/
     frontagent-douyin-promo.mp4
 ```
@@ -205,7 +207,7 @@ Use plain HTML/CSS for the first implementation unless a specific beat clearly r
 - Logo reveal
 - SDD blueprint cards
 - MCP tool rails
-- Dependency graph pulses
+- Quality gate rows pulse
 - CTA lockup
 
 If GSAP is used, the timeline must be paused and registered for deterministic seekable rendering according to HyperFrames expectations. Avoid wall-clock-only animations that could preview differently from rendered frames.
@@ -222,6 +224,8 @@ Generated assets:
 - `docs/marketing/frontagent-douyin-video.md`
 - HyperFrames HTML/CSS files
 - Project-local `assets/icon.png`
+- Project-local original BGM `assets/bgm.m4a`
+- Project-local BGM caption cue `assets/bgm-captions.vtt`
 - Rendered MP4 in `dist/`
 
 No generated binary should be committed until size and repository policy are checked. If the MP4 is large, keep it as a local artifact and commit only the source project plus docs.
@@ -268,4 +272,3 @@ The work is complete when:
 - If rendering succeeds, the MP4 path and basic media properties are reported.
 - If rendering cannot complete locally, the source project remains runnable and the missing dependency or command failure is documented.
 - Existing `.gitnexus` working tree changes are not reverted, staged, or committed unless explicitly requested by the maintainer.
-

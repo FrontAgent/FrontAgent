@@ -68,8 +68,8 @@ FrontAgent 不是聊天式代码助手。
 先用 SDD 定边界：技术栈、目录结构、禁止改动、质量规则。
 再用 MCP 控制感知和执行：读文件、打补丁、看浏览器、跑校验。
 
-改之前，用 GitNexus 看影响面。
-交付前，跑质量门禁。
+交付前，先过 lint、typecheck、test。
+失败就回到计划，重新修。
 
 FrontAgent，把 AI 编程关进工程护栏。
 开源可试。
@@ -86,8 +86,8 @@ FrontAgent，把 AI 编程关进工程护栏。
 8. 前端工程 Agent
 9. SDD 先定边界
 10. MCP 控制感知与执行
-11. 改之前看影响
-12. 交付前跑门禁
+11. 交付前跑门禁
+12. 失败回到计划
 13. 把 AI 编程关进工程护栏
 14. GitHub: ceilf6/FrontAgent
 
@@ -99,12 +99,12 @@ FrontAgent，把 AI 编程关进工程护栏。
 | 3-8s | Product reveal | FrontAgent logo resolves from code fragments | 前端工程 Agent |
 | 8-15s | SDD | Blueprint panel locks project rules into place | 先有规格，再让 AI 动手 |
 | 15-22s | MCP | Files, Browser, Shell, Git rails feed a protected pipeline | 不靠猜，靠工具确认 |
-| 22-26s | GitNexus | Impact graph lights up before quality gates pass | 改之前看影响 |
+| 22-26s | Quality gates | Validation rows pass in sequence, with failed checks looping back to the plan | 过了门禁再交付 |
 | 26-30s | CTA | Logo, repo name, npm install command | 开源可试 |
 
 ## Douyin Post Copy
 
-AI 编程不是不能用，问题是不能让它乱猜。FrontAgent 用 SDD、MCP、浏览器感知、GitNexus 影响分析和质量门禁，把前端 AI Agent 放进真实工程约束里。
+AI 编程不是不能用，问题是不能让它乱猜。FrontAgent 用 SDD、MCP、浏览器感知、RAG 上下文和质量门禁，把前端 AI Agent 放进真实工程约束里。
 
 ## Titles
 
@@ -131,7 +131,7 @@ Expected: the document exists and contains `## 30-Second Voiceover`.
 Run:
 
 ```bash
-rg -n "FrontAgent|SDD|MCP|GitNexus|Douyin" docs/marketing/frontagent-douyin-video.md
+rg -n "FrontAgent|SDD|MCP|RAG|Douyin" docs/marketing/frontagent-douyin-video.md
 ```
 
 Expected: output includes lines from the positioning, storyboard, and post copy sections.
@@ -142,6 +142,8 @@ Expected: output includes lines from the positioning, storyboard, and post copy 
 - Create: `marketing/hyperframes/frontagent-douyin-promo/meta.json`
 - Create: `marketing/hyperframes/frontagent-douyin-promo/index.html`
 - Create: `marketing/hyperframes/frontagent-douyin-promo/assets/icon.png`
+- Create: `marketing/hyperframes/frontagent-douyin-promo/assets/bgm.m4a`
+- Create: `marketing/hyperframes/frontagent-douyin-promo/assets/bgm-captions.vtt`
 - Create: `marketing/hyperframes/frontagent-douyin-promo/README.md`
 
 - [ ] **Step 1: Create project directories**
@@ -194,6 +196,8 @@ Create `marketing/hyperframes/frontagent-douyin-promo/index.html` as one root co
 - CSS-only seek-safe visual design
 - no external network assets
 - project-local image reference `assets/icon.png`
+- project-local audio reference `assets/bgm.m4a`
+- project-local audio caption cue `assets/bgm-captions.vtt`
 
 Required scene timing:
 
@@ -202,11 +206,11 @@ hook: 0-3s
 product: 3-8s
 sdd: 8-15s
 mcp: 15-22s
-gitnexus: 22-26s
+quality-gates: 22-26s
 cta: 26-30s
 ```
 
-Expected: the file contains `AI 会乱猜`, `SDD 先定边界`, `MCP 控制感知与执行`, `GitNexus`, and `npm install -g frontagent`.
+Expected: the file contains `AI 会乱猜`, `SDD 先定边界`, `MCP 控制感知与执行`, `Quality Gates`, and `npm install -g frontagent`.
 
 - [ ] **Step 5: Create the project README**
 
@@ -395,4 +399,3 @@ Expected: commit succeeds. If pre-commit runs full quality gates, record the res
 - The plan keeps generated MP4 output local because `dist/` is ignored.
 - The plan names exact files and commands.
 - The plan includes fallback behavior for missing Node.js 22 or FFmpeg.
-

@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FrontAgent Douyin Promo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0f14;
+        --panel: rgba(15, 24, 34, 0.92);
+        --panel-strong: rgba(20, 34, 48, 0.96);
+        --line: rgba(126, 231, 255, 0.28);
+        --blue: #49d9ff;
+        --blue-strong: #00b7ff;
+        --green: #45f39a;
+        --red: #ff4d5d;
+        --amber: #f3c44d;
+        --text: #f6fbff;
+        --muted: #9eb4c4;
+        --code: #cdeeff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: var(--bg);
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      #stage {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background:
+          linear-gradient(rgba(73, 217, 255, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(73, 217, 255, 0.06) 1px, transparent 1px),
+          #0b0f14;
+        background-size:
+          72px 72px,
+          72px 72px,
+          100% 100%;
+      }
+
+      #stage::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(6, 11, 18, 0.12), rgba(6, 11, 18, 0.88)),
+          repeating-linear-gradient(
+            0deg,
+            rgba(255, 255, 255, 0.035),
+            rgba(255, 255, 255, 0.035) 1px,
+            transparent 1px,
+            transparent 5px
+          );
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        padding: 132px 86px 148px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        color: var(--text);
+        opacity: 0;
+        z-index: 2;
+      }
+
+      .safe-bottom {
+        position: absolute;
+        left: 86px;
+        right: 86px;
+        bottom: 120px;
+        z-index: 4;
+      }
+
+      .eyebrow {
+        width: max-content;
+        max-width: 100%;
+        padding: 14px 22px;
+        border: 1px solid var(--line);
+        background: rgba(73, 217, 255, 0.08);
+        color: var(--blue);
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .headline {
+        margin: 34px 0 0;
+        font-size: 94px;
+        line-height: 1.02;
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+
+      .headline .accent {
+        color: var(--blue);
+      }
+
+      .subtitle {
+        margin: 32px 0 0;
+        color: var(--muted);
+        font-size: 34px;
+        line-height: 1.42;
+        font-weight: 700;
+      }
+
+      .caption {
+        display: inline-flex;
+        align-items: center;
+        width: max-content;
+        max-width: 100%;
+        min-height: 82px;
+        padding: 0 30px;
+        border: 1px solid rgba(246, 251, 255, 0.18);
+        background: rgba(7, 13, 20, 0.82);
+        color: var(--text);
+        box-shadow: 0 20px 64px rgba(0, 0, 0, 0.28);
+        font-size: 38px;
+        font-weight: 900;
+        letter-spacing: 0;
+      }
+
+      .code-card,
+      .panel {
+        border: 1px solid rgba(126, 231, 255, 0.26);
+        background: var(--panel);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+      }
+
+      .code-card {
+        padding: 28px;
+        font-family: monospace;
+        color: var(--code);
+        font-size: 28px;
+        line-height: 1.5;
+      }
+
+      .code-line {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        white-space: nowrap;
+      }
+
+      .code-line + .code-line {
+        margin-top: 16px;
+      }
+
+      .status-dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: var(--red);
+        box-shadow: 0 0 22px rgba(255, 77, 93, 0.75);
+        flex: 0 0 auto;
+      }
+
+      .status-dot.ok {
+        background: var(--green);
+        box-shadow: 0 0 22px rgba(69, 243, 154, 0.75);
+      }
+
+      .status-dot.warn {
+        background: var(--amber);
+        box-shadow: 0 0 22px rgba(243, 196, 77, 0.65);
+      }
+
+      .hook {
+        animation: scene-hook 30s linear both;
+      }
+
+      .product {
+        animation: scene-product 30s linear both;
+      }
+
+      .sdd {
+        animation: scene-sdd 30s linear both;
+      }
+
+      .mcp {
+        animation: scene-mcp 30s linear both;
+      }
+
+      .gates {
+        animation: scene-gates 30s linear both;
+      }
+
+      .cta {
+        animation: scene-cta 30s linear both;
+      }
+
+      .hook-stack {
+        display: grid;
+        gap: 22px;
+        transform: rotate(-2deg);
+        animation: glitch-in 2.4s ease both;
+      }
+
+      .hook .headline {
+        color: var(--red);
+        text-shadow: 0 0 32px rgba(255, 77, 93, 0.52);
+        animation: punch 0.55s ease both 1.15s;
+      }
+
+      .hook .code-card:nth-child(2) {
+        margin-left: 52px;
+      }
+
+      .hook .code-card:nth-child(3) {
+        margin-left: 104px;
+      }
+
+      .product-logo-row {
+        display: flex;
+        align-items: center;
+        gap: 34px;
+        animation: rise 0.9s ease both 3.18s;
+      }
+
+      .product-logo {
+        width: 172px;
+        height: 172px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 36px rgba(73, 217, 255, 0.38));
+      }
+
+      .brand-name {
+        font-size: 96px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .surface-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-top: 76px;
+      }
+
+      .surface {
+        min-height: 168px;
+        padding: 28px 24px;
+        border: 1px solid rgba(126, 231, 255, 0.24);
+        background: rgba(73, 217, 255, 0.07);
+        animation: tile-pop 0.65s ease both;
+      }
+
+      .surface:nth-child(1) {
+        animation-delay: 3.9s;
+      }
+
+      .surface:nth-child(2) {
+        animation-delay: 4.15s;
+      }
+
+      .surface:nth-child(3) {
+        animation-delay: 4.4s;
+      }
+
+      .surface strong {
+        display: block;
+        font-size: 38px;
+      }
+
+      .surface span {
+        display: block;
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      .blueprint {
+        display: grid;
+        gap: 22px;
+        margin-top: 64px;
+      }
+
+      .rule {
+        display: grid;
+        grid-template-columns: 292px 1fr 92px;
+        column-gap: 24px;
+        align-items: center;
+        min-height: 92px;
+        padding: 0 28px;
+        border: 1px solid rgba(126, 231, 255, 0.24);
+        background: rgba(8, 18, 27, 0.84);
+        font-size: 28px;
+        font-weight: 850;
+        animation: lock-row 0.6s ease both;
+      }
+
+      .rule:nth-child(1) {
+        animation-delay: 8.65s;
+      }
+
+      .rule:nth-child(2) {
+        animation-delay: 8.95s;
+      }
+
+      .rule:nth-child(3) {
+        animation-delay: 9.25s;
+      }
+
+      .rule:nth-child(4) {
+        animation-delay: 9.55s;
+      }
+
+      .rule code {
+        color: var(--blue);
+        font-family: monospace;
+        font-size: 24px;
+        white-space: nowrap;
+      }
+
+      .lock {
+        justify-self: end;
+        color: var(--green);
+      }
+
+      .pipeline {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+        margin-top: 58px;
+      }
+
+      .rail {
+        display: grid;
+        grid-template-columns: 160px 1fr 74px;
+        align-items: center;
+        min-height: 104px;
+        padding: 0 26px;
+        border: 1px solid rgba(126, 231, 255, 0.22);
+        background: rgba(10, 19, 28, 0.86);
+        animation: rail-slide 0.6s ease both;
+      }
+
+      .rail:nth-child(1) {
+        animation-delay: 15.6s;
+      }
+
+      .rail:nth-child(2) {
+        animation-delay: 15.9s;
+      }
+
+      .rail:nth-child(3) {
+        animation-delay: 16.2s;
+      }
+
+      .rail:nth-child(4) {
+        animation-delay: 16.5s;
+      }
+
+      .rail-label {
+        color: var(--blue);
+        font-size: 32px;
+        font-weight: 950;
+      }
+
+      .rail-action {
+        color: var(--text);
+        font-size: 28px;
+        font-weight: 800;
+      }
+
+      .rail-check {
+        color: var(--green);
+        font-size: 36px;
+        font-weight: 950;
+      }
+
+      .tree-card {
+        margin-top: 34px;
+        padding: 26px 28px;
+        border-left: 4px solid var(--blue);
+        background: rgba(73, 217, 255, 0.06);
+        color: var(--muted);
+        font-family: monospace;
+        font-size: 24px;
+        line-height: 1.5;
+        animation: fade-up 0.7s ease both 17.2s;
+      }
+
+      .gate-stack {
+        display: grid;
+        gap: 20px;
+        margin-top: 58px;
+      }
+
+      .gate-step {
+        display: grid;
+        grid-template-columns: 92px 1fr 116px;
+        column-gap: 26px;
+        align-items: center;
+        min-height: 124px;
+        padding: 0 28px;
+        border: 1px solid rgba(69, 243, 154, 0.35);
+        background:
+          linear-gradient(90deg, rgba(69, 243, 154, 0.14), transparent 42%),
+          rgba(8, 18, 27, 0.88);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.22);
+      }
+
+      .step-index {
+        color: var(--green);
+        font-family: monospace;
+        font-size: 30px;
+        font-weight: 950;
+      }
+
+      .step-copy strong,
+      .step-copy span {
+        display: block;
+      }
+
+      .step-copy strong {
+        color: var(--text);
+        font-size: 34px;
+        font-weight: 950;
+      }
+
+      .step-copy span {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 24px;
+        font-weight: 800;
+      }
+
+      .gate-status {
+        justify-self: end;
+        color: var(--green);
+        font-size: 26px;
+        font-weight: 950;
+      }
+
+      .cta {
+        text-align: center;
+        align-items: center;
+      }
+
+      .cta-card {
+        width: 100%;
+        padding: 80px 60px 72px;
+        border: 1px solid rgba(126, 231, 255, 0.26);
+        background: rgba(8, 16, 24, 0.88);
+        box-shadow: 0 34px 90px rgba(0, 0, 0, 0.38);
+        animation: final-lock 0.8s ease both 26.1s;
+      }
+
+      .cta-logo {
+        display: block;
+        width: 196px;
+        height: 196px;
+        margin: 0 auto 34px;
+        background: url("assets/icon.png") center / contain no-repeat;
+        filter: drop-shadow(0 0 44px rgba(73, 217, 255, 0.38));
+      }
+
+      .cta-title {
+        font-size: 84px;
+        font-weight: 950;
+        line-height: 1.02;
+      }
+
+      .cta-copy {
+        margin: 30px auto 0;
+        max-width: 780px;
+        color: var(--muted);
+        font-size: 34px;
+        line-height: 1.38;
+        font-weight: 800;
+      }
+
+      .install {
+        margin: 46px auto 0;
+        width: max-content;
+        max-width: 100%;
+        padding: 24px 30px;
+        border: 1px solid rgba(126, 231, 255, 0.36);
+        background: rgba(73, 217, 255, 0.08);
+        color: var(--blue);
+        font-family: monospace;
+        font-size: 30px;
+        font-weight: 850;
+      }
+
+      .repo {
+        margin-top: 28px;
+        color: var(--text);
+        font-size: 31px;
+        font-weight: 900;
+      }
+
+      .timeline-driven .scene,
+      .timeline-driven .hook-stack,
+      .timeline-driven .hook .headline,
+      .timeline-driven .product-logo-row,
+      .timeline-driven .surface,
+      .timeline-driven .rule,
+      .timeline-driven .rail,
+      .timeline-driven .tree-card,
+      .timeline-driven .gate-step,
+      .timeline-driven .cta-card {
+        animation: none;
+      }
+
+      @keyframes scene-hook {
+        0%,
+        9.9% {
+          opacity: 1;
+        }
+        10%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes scene-product {
+        0%,
+        9.9% {
+          opacity: 0;
+        }
+        10%,
+        26.5% {
+          opacity: 1;
+        }
+        26.6%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes scene-sdd {
+        0%,
+        26.5% {
+          opacity: 0;
+        }
+        26.6%,
+        49.9% {
+          opacity: 1;
+        }
+        50%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes scene-mcp {
+        0%,
+        49.9% {
+          opacity: 0;
+        }
+        50%,
+        73.2% {
+          opacity: 1;
+        }
+        73.3%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes scene-gates {
+        0%,
+        73.2% {
+          opacity: 0;
+        }
+        73.3%,
+        86.5% {
+          opacity: 1;
+        }
+        86.6%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes scene-cta {
+        0%,
+        86.5% {
+          opacity: 0;
+        }
+        86.6%,
+        100% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes glitch-in {
+        0% {
+          opacity: 0;
+          transform: translateX(-70px) rotate(-4deg);
+          filter: blur(8px);
+        }
+        38% {
+          opacity: 1;
+          transform: translateX(28px) rotate(-1deg);
+          filter: blur(0);
+        }
+        55% {
+          transform: translateX(-18px) rotate(-3deg);
+        }
+        100% {
+          transform: translateX(0) rotate(-2deg);
+        }
+      }
+
+      @keyframes punch {
+        from {
+          transform: scale(0.92);
+        }
+        to {
+          transform: scale(1);
+        }
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(48px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes tile-pop {
+        from {
+          opacity: 0;
+          transform: translateY(44px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes lock-row {
+        from {
+          opacity: 0;
+          transform: translateX(-54px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes rail-slide {
+        from {
+          opacity: 0;
+          transform: translateX(64px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes fade-up {
+        from {
+          opacity: 0;
+          transform: translateY(24px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes node-pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 20px rgba(73, 217, 255, 0.16);
+        }
+        50% {
+          box-shadow: 0 0 42px rgba(73, 217, 255, 0.48);
+        }
+      }
+
+      @keyframes edge-light {
+        from {
+          opacity: 0;
+          clip-path: inset(0 100% 0 0);
+        }
+        to {
+          opacity: 0.76;
+          clip-path: inset(0 0 0 0);
+        }
+      }
+
+      @keyframes final-lock {
+        from {
+          opacity: 0;
+          transform: translateY(50px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="stage"
+      data-composition-id="frontagent-douyin-promo"
+      data-start="0"
+      data-duration="30"
+      data-width="1080"
+        data-height="1920"
+        data-fps="30"
+      >
+      <audio
+        id="bgm-track"
+        class="clip"
+        src="assets/bgm.m4a"
+        data-start="0"
+        data-duration="30"
+        data-media-start="0"
+        data-volume="0.16"
+        data-track-index="0"
+        preload="auto"
+      >
+        <track
+          kind="captions"
+          src="assets/bgm-captions.vtt"
+          srclang="zh-CN"
+          label="BGM cue"
+          default
+        />
+      </audio>
+
+      <section
+        id="scene-hook"
+        class="scene clip hook"
+        data-start="0"
+        data-duration="3"
+        data-track-index="1"
+      >
+        <div class="hook-stack">
+          <div class="code-card">
+            <div class="code-line">
+              <span class="status-dot"></span>
+              import Button from "@/ui/ButtonGhost"
+            </div>
+          </div>
+          <div class="code-card">
+            <div class="code-line">
+              <span class="status-dot"></span>
+              fetch("/api/agent/unknown-route")
+            </div>
+          </div>
+          <div class="code-card">
+            <div class="code-line">
+              <span class="status-dot"></span>
+              writeFile("src/random/path.tsx")
+            </div>
+          </div>
+        </div>
+        <h1 class="headline">AI 会乱猜</h1>
+        <p class="subtitle">不存在的路径 / 不存在的 API / 绕过工程规范</p>
+        <div class="safe-bottom">
+          <div class="caption">AI 编程最大的问题，不是不会写代码</div>
+        </div>
+      </section>
+
+      <section
+        id="scene-product"
+        class="scene clip product"
+        data-start="3"
+        data-duration="5"
+        data-track-index="2"
+      >
+        <div class="product-logo-row">
+          <img class="product-logo" src="assets/icon.png" alt="FrontAgent" />
+          <div>
+            <div class="eyebrow">Open Source</div>
+            <div class="brand-name">FrontAgent</div>
+          </div>
+        </div>
+        <h2 class="headline">前端工程 <span class="accent">Agent</span></h2>
+        <p class="subtitle">不是聊天式代码助手，是规划、执行、验证、修复的一套工程流。</p>
+        <div class="surface-row">
+          <div class="surface">
+            <strong>CLI</strong>
+            <span>fa run / fa init</span>
+          </div>
+          <div class="surface">
+            <strong>VS Code</strong>
+            <span>侧边栏任务台</span>
+          </div>
+          <div class="surface">
+            <strong>Desktop</strong>
+            <span>可视化执行控制</span>
+          </div>
+        </div>
+        <div class="safe-bottom">
+          <div class="caption">FrontAgent：前端工程 Agent</div>
+        </div>
+      </section>
+
+      <section
+        id="scene-sdd"
+        class="scene clip sdd"
+        data-start="8"
+        data-duration="7"
+        data-track-index="3"
+      >
+        <div class="eyebrow">Specification Driven Development</div>
+        <h2 class="headline">SDD 先定边界</h2>
+        <p class="subtitle">让 AI 动手前，先把项目规则变成硬约束。</p>
+        <div class="blueprint panel">
+          <div class="rule">
+            <code>tech_stack</code>
+            <span>React / TypeScript / Vite</span>
+            <span class="lock">LOCK</span>
+          </div>
+          <div class="rule">
+            <code>module_boundaries</code>
+            <span>组件、Hooks、工具函数边界</span>
+            <span class="lock">LOCK</span>
+          </div>
+          <div class="rule">
+            <code>protected_files</code>
+            <span>关键配置需要显式确认</span>
+            <span class="lock">LOCK</span>
+          </div>
+          <div class="rule">
+            <code>quality_gates</code>
+            <span>lint / typecheck / test</span>
+            <span class="lock">LOCK</span>
+          </div>
+        </div>
+        <div class="safe-bottom">
+          <div class="caption">先有规格，再让 AI 动手</div>
+        </div>
+      </section>
+
+      <section
+        id="scene-mcp"
+        class="scene clip mcp"
+        data-start="15"
+        data-duration="7"
+        data-track-index="4"
+      >
+        <div class="eyebrow">Model Context Protocol</div>
+        <h2 class="headline">MCP 控制感知与执行</h2>
+        <p class="subtitle">不靠猜，所有关键动作都走可检查工具。</p>
+        <div class="pipeline">
+          <div class="rail">
+            <div class="rail-label">Files</div>
+            <div class="rail-action">read_file / apply_patch / minimal diff</div>
+            <div class="rail-check">OK</div>
+          </div>
+          <div class="rail">
+            <div class="rail-label">Browser</div>
+            <div class="rail-action">DOM / accessibility tree / interaction</div>
+            <div class="rail-check">OK</div>
+          </div>
+          <div class="rail">
+            <div class="rail-label">Shell</div>
+            <div class="rail-action">typecheck / tests / local gates</div>
+            <div class="rail-check">OK</div>
+          </div>
+          <div class="rail">
+            <div class="rail-label">Git</div>
+            <div class="rail-action">diff / branch / commit / PR workflow</div>
+            <div class="rail-check">OK</div>
+          </div>
+        </div>
+        <div class="tree-card">
+          accessibility-tree<br />
+          ├─ button: "Run task"<br />
+          ├─ input: "Browser URL"<br />
+          └─ status: "quality gates passing"
+        </div>
+        <div class="safe-bottom">
+          <div class="caption">不靠猜，靠工具确认</div>
+        </div>
+      </section>
+
+      <section
+        id="scene-gates"
+        class="scene clip gates"
+        data-start="22"
+        data-duration="4"
+        data-track-index="5"
+      >
+        <div class="eyebrow">Quality Gates</div>
+        <h2 class="headline">交付前跑门禁</h2>
+        <p class="subtitle">不是说完成就完成，验证结果必须过线。</p>
+        <div class="gate-stack">
+          <div class="gate-step">
+            <span class="step-index">01</span>
+            <div class="step-copy">
+              <strong>计划对齐</strong>
+              <span>SDD / 文件边界 / 最小改动</span>
+            </div>
+            <span class="gate-status">CHECK</span>
+          </div>
+          <div class="gate-step">
+            <span class="step-index">02</span>
+            <div class="step-copy">
+              <strong>本地校验</strong>
+              <span>lint / typecheck / test</span>
+            </div>
+            <span class="gate-status">PASS</span>
+          </div>
+          <div class="gate-step">
+            <span class="step-index">03</span>
+            <div class="step-copy">
+              <strong>失败回修</strong>
+              <span>把错误反馈给计划，再生成补丁</span>
+            </div>
+            <span class="gate-status">LOOP</span>
+          </div>
+        </div>
+        <div class="safe-bottom">
+          <div class="caption">lint / typecheck / test，过了再交付</div>
+        </div>
+      </section>
+
+      <section
+        id="scene-cta"
+        class="scene clip cta"
+        data-start="26"
+        data-duration="4"
+        data-track-index="6"
+      >
+        <div class="cta-card">
+          <div class="cta-logo" aria-label="FrontAgent"></div>
+          <div class="cta-title">FrontAgent</div>
+          <div class="cta-copy">把 AI 编程关进工程护栏</div>
+          <div class="install">npm install -g frontagent</div>
+          <div class="repo">GitHub: ceilf6/FrontAgent</div>
+        </div>
+        <div class="safe-bottom">
+          <div class="caption">开源前端工程 Agent</div>
+        </div>
+      </section>
+    </div>
+    <script>
+      (() => {
+        const duration = 30;
+        const stage = document.getElementById("stage");
+        stage.classList.add("timeline-driven");
+
+        const sceneSpecs = [
+          ["scene-hook", 0, 3],
+          ["scene-product", 3, 8],
+          ["scene-sdd", 8, 15],
+          ["scene-mcp", 15, 22],
+          ["scene-gates", 22, 26],
+          ["scene-cta", 26, 30],
+        ].map(([id, start, end]) => ({
+          id,
+          start,
+          end,
+          el: document.getElementById(id),
+        }));
+
+        const query = (selector) => Array.from(document.querySelectorAll(selector));
+        const clamp = (value, min = 0, max = 1) =>
+          Math.max(min, Math.min(max, value));
+        const ease = (value) => 1 - (1 - clamp(value)) ** 3;
+        const reveal = (time, start, span) => ease((time - start) / span);
+        const set = (el, styles) => {
+          if (!el) return;
+          Object.assign(el.style, styles);
+        };
+        const setMany = (items, stylesForItem) => {
+          items.forEach((item, index) => {
+            set(item, stylesForItem(index));
+          });
+        };
+
+        function setSceneVisibility(time) {
+          sceneSpecs.forEach((scene) => {
+            const visible = time >= scene.start && time < scene.end;
+            set(scene.el, {
+              opacity: visible ? "1" : "0",
+              visibility: visible ? "visible" : "hidden",
+            });
+          });
+        }
+
+        function drawHook(time) {
+          const stack = reveal(time, 0.1, 0.8);
+          const title = reveal(time, 0.65, 0.55);
+          const subtitle = reveal(time, 1.4, 0.6);
+          const exit = time > 2.58 ? 1 - clamp((time - 2.58) / 0.42) : 1;
+          set(document.querySelector(".hook-stack"), {
+            opacity: String(stack * exit),
+            transform: `translateX(${(1 - stack) * -70}px) rotate(${-4 + stack * 2}deg)`,
+            filter: `blur(${(1 - stack) * 8}px)`,
+          });
+          set(document.querySelector(".hook .headline"), {
+            opacity: String(title * exit),
+            transform: `scale(${0.92 + title * 0.08})`,
+          });
+          set(document.querySelector(".hook .subtitle"), {
+            opacity: String(subtitle * exit),
+            transform: `translateY(${(1 - subtitle) * 24}px)`,
+          });
+          set(document.querySelector(".hook .caption"), {
+            opacity: String(reveal(time, 0.2, 0.45) * exit),
+            transform: `translateY(${(1 - reveal(time, 0.2, 0.45)) * 26}px)`,
+          });
+        }
+
+        function drawProduct(time) {
+          const logo = reveal(time, 3.15, 0.8);
+          const title = reveal(time, 3.55, 0.7);
+          set(document.querySelector(".product-logo-row"), {
+            opacity: String(logo),
+            transform: `translateY(${(1 - logo) * 48}px)`,
+          });
+          set(document.querySelector(".product .headline"), {
+            opacity: String(title),
+            transform: `translateY(${(1 - title) * 36}px)`,
+          });
+          set(document.querySelector(".product .subtitle"), {
+            opacity: String(reveal(time, 3.85, 0.7)),
+          });
+          setMany(query(".surface"), (index) => {
+            const item = reveal(time, 3.9 + index * 0.25, 0.55);
+            return {
+              opacity: String(item),
+              transform: `translateY(${(1 - item) * 44}px)`,
+            };
+          });
+        }
+
+        function drawSdd(time) {
+          const title = reveal(time, 8.25, 0.55);
+          set(document.querySelector(".sdd .eyebrow"), {
+            opacity: String(reveal(time, 8.1, 0.45)),
+          });
+          set(document.querySelector(".sdd .headline"), {
+            opacity: String(title),
+            transform: `translateY(${(1 - title) * 32}px)`,
+          });
+          set(document.querySelector(".sdd .subtitle"), {
+            opacity: String(reveal(time, 8.45, 0.55)),
+          });
+          setMany(query(".rule"), (index) => {
+            const item = reveal(time, 8.65 + index * 0.3, 0.45);
+            return {
+              opacity: String(item),
+              transform: `translateX(${(1 - item) * -54}px)`,
+            };
+          });
+        }
+
+        function drawMcp(time) {
+          const title = reveal(time, 15.25, 0.55);
+          set(document.querySelector(".mcp .eyebrow"), {
+            opacity: String(reveal(time, 15.1, 0.45)),
+          });
+          set(document.querySelector(".mcp .headline"), {
+            opacity: String(title),
+            transform: `translateY(${(1 - title) * 32}px)`,
+          });
+          set(document.querySelector(".mcp .subtitle"), {
+            opacity: String(reveal(time, 15.45, 0.55)),
+          });
+          setMany(query(".rail"), (index) => {
+            const item = reveal(time, 15.6 + index * 0.3, 0.45);
+            return {
+              opacity: String(item),
+              transform: `translateX(${(1 - item) * 64}px)`,
+            };
+          });
+          const tree = reveal(time, 17.2, 0.7);
+          set(document.querySelector(".tree-card"), {
+            opacity: String(tree),
+            transform: `translateY(${(1 - tree) * 24}px)`,
+          });
+        }
+
+        function drawGates(time) {
+          set(document.querySelector(".gates .eyebrow"), {
+            opacity: String(reveal(time, 22.1, 0.45)),
+          });
+          set(document.querySelector(".gates .headline"), {
+            opacity: String(reveal(time, 22.25, 0.55)),
+            transform: `translateY(${(1 - reveal(time, 22.25, 0.55)) * 30}px)`,
+          });
+          set(document.querySelector(".gates .subtitle"), {
+            opacity: String(reveal(time, 22.45, 0.55)),
+          });
+          setMany(query(".gate-step"), (index) => {
+            const item = reveal(time, 22.7 + index * 0.28, 0.46);
+            return {
+              opacity: String(item),
+              transform: `translateX(${(1 - item) * 54}px)`,
+            };
+          });
+        }
+
+        function drawCta(time) {
+          const card = reveal(time, 26.1, 0.7);
+          set(document.querySelector(".cta-card"), {
+            opacity: String(card),
+            transform: `translateY(${(1 - card) * 50}px) scale(${0.98 + card * 0.02})`,
+          });
+          set(document.querySelector(".cta .caption"), {
+            opacity: String(reveal(time, 27.2, 0.5)),
+          });
+        }
+
+        const state = {
+          currentTime: 0,
+          isPaused: true,
+        };
+
+        function seekTo(value) {
+          const time = clamp(Number(value) || 0, 0, duration);
+          state.currentTime = time;
+          setSceneVisibility(time);
+          drawHook(time);
+          drawProduct(time);
+          drawSdd(time);
+          drawMcp(time);
+          drawGates(time);
+          drawCta(time);
+        }
+
+        const timeline = {
+          duration: () => duration,
+          totalDuration: () => duration,
+          time(value) {
+            if (typeof value === "number") {
+              seekTo(value);
+              return this;
+            }
+            return state.currentTime;
+          },
+          seek(value) {
+            seekTo(value);
+            return this;
+          },
+          pause() {
+            state.isPaused = true;
+            return this;
+          },
+          play() {
+            state.isPaused = false;
+            return this;
+          },
+          paused(value) {
+            if (typeof value === "boolean") {
+              state.isPaused = value;
+              return this;
+            }
+            return state.isPaused;
+          },
+        };
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines["frontagent-douyin-promo"] = timeline;
+        seekTo(0);
+      })();
+    </script>
+  </body>
+</html>
