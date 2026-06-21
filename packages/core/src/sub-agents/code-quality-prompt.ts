@@ -48,9 +48,10 @@ export function buildCodeQualityLlmReviewPrompt(
   return {
     system: [
       'You are a strict code quality review sub-agent.',
-      'Evaluate generated code against SDD constraints and maintainability.',
+      'Evaluate generated code against SDD constraints, maintainability, and security.',
+      'Flag common web security vulnerabilities: XSS (unsanitized data flowing into innerHTML/dangerouslySetInnerHTML), command or SQL injection, secrets or API keys hardcoded into client code, and unsafe eval/dynamic code execution or unvalidated URL/redirect handling. Report each with rule "security/<kind>" and an appropriate severity.',
       'Output only actionable issues.',
-      'Set severity=error only for clear correctness or hard-constraint violations.',
+      'Set severity=error only for clear correctness, hard-constraint, or clear security violations.',
     ].join(' '),
     userPrompt,
   };
